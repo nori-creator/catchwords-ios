@@ -76,6 +76,7 @@ import com.rork.catchwordsandroid.ui.components.Toast
 import com.rork.catchwordsandroid.ui.components.pressable
 import com.rork.catchwordsandroid.ui.theme.CW
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** 設定: profile, languages and levels, review, sounds, AI consent, legal pages and the account. */
 @Composable
@@ -157,6 +158,8 @@ fun SettingsScreen(session: SessionViewModel, vm: SettingsViewModel = viewModel(
                 ) { vm.setDailyLimit(it.toInt()) }
                 ToggleRow(tr("効果音", "Sound effects", "音效"), ui.soundsOn, vm::setSounds)
             }
+
+            CaptureAndReminderGroups()
 
             Group(tr("AI", "AI", "AI")) {
                 ToggleRow(
@@ -326,5 +329,85 @@ private fun LinkRow(label: String, url: String) {
 private fun ActionRow(label: String, color: Color, onClick: () -> Unit) {
     Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(color.copy(alpha = 0.07f)).pressable(onClick = onClick), contentAlignment = Alignment.Center) {
         Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
+    }
+}
+
+/** 撮影 (自撮りモード・場所の記録) and 通知 (復習の通知: off / おまかせ / 時間を決める) — iOS SettingsView. */
+@Composable
+private fun CaptureAndReminderGroups() {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var selfie by remember { mutableStateOf(com.rork.catchwordsandroid.data.AppGraph.selfieMode) }
+    var place by remember { mutableStateOf(com.rork.catchwordsandroid.data.AppGraph.recordPlace) }
+    var mode by remember { mutableStateOf(com.rork.catchwordsandroid.data.Reminders.mode) }
+    var time by remember { mutableStateOf(com.rork.catchwordsandroid.data.Reminders.times.first()) }
+    var pendingMode by remember { mutableStateOf<String?>(null) }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+    fun applyMode(m: String) {
+        mode = m
+        com.rork.catchwordsandroid.data.Reminders.mode = m
+        com.rork.catchwordsandroid.data.Reminders.refresh(context)
+        scope.launch { com.rork.catchwordsandroid.data.Reminders.saveToAccount() }
+    }
+    val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        val m = pendingMode
+        pendingMode = null
+        if (ok && m != null) applyMode(m)
+    }
+
+    Group(tr("撮影", "Capture", "拍攝")) {
+        ToggleRow(tr("自撮りモード", "Selfie mode", "自拍模式"), selfie) {
+            selfie = it
+            com.rork.catchwordsandroid.data.AppGraph.selfieMode = it
+        }
+        Text(
+            tr("単語を撮ったあと、続けてその場の自分を撮る画面に進みます", "After a word, the front camera asks for one of you with the thing", "拍完單字後，接著用前鏡頭拍下當下的自己"),
+            fontSize = 12.sp, color = CW.muted,
+        )
+        Spacer(Modifier.height(8.dp))
+        ToggleRow(tr("撮った場所を記録", "Record where you caught it", "記錄拍攝地點"), place) {
+            place = it
+            com.rork.catchwordsandroid.data.AppGraph.recordPlace = it
+            if (it && !com.rork.catchwordsandroid.data.AppGraph.location.hasPermission()) {
+                locationPermission.launch(arrayOf(android.Manifest.permission.ACCESS_COARSE_LOCATION, android.Manifest.permission.ACCESS_FINE_LOCATION))
+            }
+        }
+        Text(
+            tr("図鑑の地図と単語のページに、出会った場所が残ります", "The place shows on the dex map and the word page", "相遇的地點會顯示在圖鑑地圖與單字頁"),
+            fontSize = 12.sp, color = CW.muted,
+        )
+    }
+
+    Group(tr("通知", "Notifications", "通知")) {
+        Picker(
+            tr("復習の通知", "Review reminders", "複習提醒"), mode,
+            listOf("off" to tr("オフ", "Off", "關閉"), "ai" to tr("おまかせ", "Automatic", "自動"), "custom" to tr("時間を決める", "At set times", "指定時間")),
+        ) { m ->
+            if (m != "off" && !com.rork.catchwordsandroid.data.Reminders.canNotify(context) && android.os.Build.VERSION.SDK_INT >= 33) {
+                pendingMode = m
+                notifyPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                applyMode(m)
+            }
+        }
+        if (mode == "custom") {
+            Picker(
+                tr("通知の時間", "Time", "提醒時間"), time,
+                (6..22).flatMap { h -> listOf("%02d:00".format(h), "%02d:30".format(h)) }.map { it to it },
+            ) { t ->
+                time = t
+                com.rork.catchwordsandroid.data.Reminders.times = listOf(t)
+                com.rork.catchwordsandroid.data.Reminders.refresh(context)
+                scope.launch { com.rork.catchwordsandroid.data.Reminders.saveToAccount() }
+            }
+        }
+        Text(
+            when (mode) {
+                "ai" -> tr("思い出しどきの単語がたまった頃と、いつもアプリを開く時間にお知らせします（22時〜8時は鳴らしません）", "When cards pile up, and at the time you usually open the app (never 22:00–8:00)", "在待複習單字累積時，以及你平常打開 App 的時間提醒（22 點至 8 點不提醒）")
+                "custom" -> tr("毎日この時間にお知らせします", "Every day at this time", "每天在這個時間提醒")
+                else -> tr("通知は送りません", "No notifications", "不會傳送通知")
+            },
+            fontSize = 12.sp, color = CW.muted,
+        )
     }
 }

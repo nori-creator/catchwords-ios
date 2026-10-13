@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_today_name">Today\'s word</string>
+    <string name="widget_today_desc">A word from your own dex, with its picture.</string>
+</resources>

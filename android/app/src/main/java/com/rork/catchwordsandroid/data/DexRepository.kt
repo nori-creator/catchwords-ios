@@ -5,6 +5,7 @@ import io.ktor.http.HttpMethod
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -100,6 +101,8 @@ class DexRepository(
             _state.update { it.copy(stickers = mine.map(::applyReader), hasLoaded = true, error = null, isLoading = false) }
             loadReviews()
             sign(mine.flatMap { it.allPaths })
+            runCatching { Reminders.refresh(AppGraph.appContext) }
+            runCatching { WidgetBridge.refresh(AppGraph.appContext) }
             loadReaderMeanings(mine.map { it.wordId }.distinct().filter { it.isNotEmpty() && !readerMeanings.containsKey(it) })
         } catch (e: Exception) {
             if (client.userId != uid) return
@@ -219,16 +222,41 @@ class DexRepository(
         return word
     }
 
-    /** Saves a new catch through the web's `saveSticker`; the photo is uploaded first. */
-    suspend fun save(candidate: Candidate, card: JsonObject, photoJpeg: ByteArray?, caption: String): Sticker {
+    /** Uploads a JPEG / PNG under `<uid>/<ts>-<kind>.<ext>`; nil when there is nothing to send. */
+    private suspend fun uploadJpeg(bmp: android.graphics.Bitmap?, uid: String, ts: Long, kind: String): String? {
+        bmp ?: return null
+        val p = "$uid/$ts-$kind.jpg"
+        client.upload(ImageTools.jpeg(bmp), p, ContentType.Image.JPEG)
+        return p
+    }
+
+    private suspend fun uploadPng(bmp: android.graphics.Bitmap?, uid: String, ts: Long, kind: String, maxSide: Int = 1200): String? {
+        bmp ?: return null
+        val p = "$uid/$ts-$kind.png"
+        return runCatching { client.upload(ImageTools.png(bmp, maxSide), p, ContentType.Image.PNG); p }.getOrNull()
+    }
+
+    /**
+     * Saves a new catch through the web's `saveSticker`: the photo, the cut-out and the selfie are uploaded first in
+     * parallel (a failed cut-out or selfie never blocks the catch), then the row with where it happened.
+     */
+    suspend fun save(
+        candidate: Candidate,
+        card: JsonObject,
+        photo: android.graphics.Bitmap,
+        cutout: android.graphics.Bitmap?,
+        selfie: android.graphics.Bitmap?,
+        caption: String,
+        place: Place?,
+    ): Sticker = kotlinx.coroutines.coroutineScope {
         val uid = client.userId ?: throw ApiException.Unauthorized
         val ts = System.currentTimeMillis()
-        var objectPath: String? = null
-        if (photoJpeg != null) {
-            val p = "$uid/$ts-object.jpg"
-            client.upload(photoJpeg, p, ContentType.Image.JPEG)
-            objectPath = p
-        }
+        val obj = async { uploadJpeg(photo, uid, ts, "object") }
+        val cut = async { uploadPng(cutout, uid, ts, "cutout") }
+        val sel = async { runCatching { uploadJpeg(selfie, uid, ts, "selfie") }.getOrNull() }
+        val objectPath = obj.await()
+        val cutoutPath = cut.await()
+        val selfiePath = sel.await()
         if (client.userId != uid) throw ApiException.Server(409, "account changed")
         val data = toJson(
             mapOf(
@@ -236,12 +264,12 @@ class DexRepository(
                 "new_shelf" to JsonNull,
                 "language" to profile.target,
                 "object_path" to objectPath,
-                "cutout_path" to null,
-                "selfie_path" to null,
+                "cutout_path" to cutoutPath,
+                "selfie_path" to selfiePath,
                 "caption" to caption.trim().ifEmpty { null },
-                "location_name" to null,
-                "lat" to null,
-                "lng" to null,
+                "location_name" to place?.name,
+                "lat" to place?.lat,
+                "lng" to place?.lng,
             ),
         ) as JsonObject
         val saved = api.call("saveSticker", data, timeoutMs = 45_000, asUser = uid) as? JsonObject ?: throw ApiException.Decoding
@@ -251,37 +279,72 @@ class DexRepository(
             (AppJson.parseToJsonElement(text) as? JsonArray)?.firstOrNull()?.let { (it as? JsonObject)?.let(Sticker::from) }
         }.getOrNull()
         val sticker = fresh ?: Sticker(
-            id = id, wordId = saved.str("word_id") ?: "", objectImageUrl = objectPath, cutoutImageUrl = null,
-            selfieImageUrl = null, caption = caption.ifBlank { null }, locationName = null, takenAtMs = System.currentTimeMillis(),
-            captureType = null, word = Word.from(toJson(wordFields(candidate, card) + ("id" to (saved.str("word_id") ?: ""))) as JsonObject),
+            id = id, wordId = saved.str("word_id") ?: "", objectImageUrl = objectPath, cutoutImageUrl = cutoutPath,
+            selfieImageUrl = selfiePath, caption = caption.ifBlank { null }, locationName = place?.name, takenAtMs = System.currentTimeMillis(),
+            captureType = "photo", word = Word.from(toJson(wordFields(candidate, card) + ("id" to (saved.str("word_id") ?: ""))) as JsonObject),
+            lat = place?.lat, lng = place?.lng,
         )
         sticker.word?.let { sharedWords[it.id] = it }
         _state.update { st -> st.copy(stickers = listOf(applyReader(sticker)) + st.stickers.filter { it.id != id }) }
         sign(sticker.allPaths)
         loadReviews()
-        return sticker
+        sticker
+    }
+
+    /** The card that was still being written when the catch was saved fills the word's notes in (iOS fillCard). */
+    suspend fun fillCard(sticker: Sticker, card: JsonObject) {
+        val extras = card.obj("extras") ?: return
+        val fields = mutableMapOf<String, Any?>("word_id" to sticker.wordId, "extras" to extras)
+        val patch = listOf("reading_zhuyin", "pinyin", "part_of_speech", "level", "example_sentence", "example_translation", "meaning_ja")
+            .mapNotNull { k -> card.str(k)?.takeIf { it.isNotBlank() }?.let { k to it } }.toMap()
+        if (patch.isNotEmpty()) fields["patch"] = patch
+        runCatching { api.call("updateWordExtras", toJson(fields) as JsonObject, timeoutMs = 30_000) }
+        load()
     }
 
     /** A word already in the dex caught again: a re-encounter (`recordEncounter`), never a duplicate sticker. */
-    suspend fun recordEncounter(owned: Sticker, photoJpeg: ByteArray?): Int? {
-        val uid = client.userId ?: throw ApiException.Unauthorized
-        var imagePath: String? = null
-        if (photoJpeg != null) {
-            val p = "$uid/${System.currentTimeMillis()}-encounter.jpg"
-            client.upload(photoJpeg, p, ContentType.Image.JPEG)
-            imagePath = p
+    suspend fun recordEncounter(stickerId: String, photo: android.graphics.Bitmap?, cutout: android.graphics.Bitmap?, place: Place?): Int? =
+        kotlinx.coroutines.coroutineScope {
+            val uid = client.userId ?: throw ApiException.Unauthorized
+            val ts = System.currentTimeMillis()
+            val img = async { runCatching { uploadJpeg(photo, uid, ts, "encounter") }.getOrNull() }
+            val cut = async { uploadPng(cutout, uid, ts, "encounter-cutout", 800) }
+            val res = api.call(
+                "recordEncounter",
+                toJson(
+                    mapOf(
+                        "sticker_id" to stickerId, "recalled" to null, "lat" to place?.lat, "lng" to place?.lng,
+                        "location_name" to place?.name, "image_path" to img.await(), "cutout_path" to cut.await(),
+                    ),
+                ) as JsonObject,
+                timeoutMs = 30_000, asUser = uid,
+            ) as? JsonObject
+            res?.int("encounter_count")
         }
-        val res = api.call(
-            "recordEncounter",
-            toJson(
-                mapOf(
-                    "sticker_id" to owned.id, "recalled" to null, "lat" to null, "lng" to null,
-                    "location_name" to null, "image_path" to imagePath, "cutout_path" to null,
-                ),
-            ) as JsonObject,
-            timeoutMs = 30_000, asUser = uid,
-        ) as? JsonObject
-        return res?.int("encounter_count")
+
+    /** Past encounters of a sticker (web `encounters`): photos (cut-out first) and where. */
+    suspend fun encounters(stickerId: String): List<Encounter> {
+        val rows = runCatching {
+            client.restAll("encounters?select=id,sticker_id,image_path,cutout_path,location_name,created_at&sticker_id=eq.$stickerId&order=created_at.desc,id.desc")
+        }.getOrNull() ?: return emptyList()
+        val list = rows.mapNotNull { o ->
+            Encounter(
+                id = o.str("id") ?: return@mapNotNull null,
+                path = o.str("cutout_path")?.takeIf { it.isNotEmpty() } ?: o.str("image_path"),
+                isCutout = !o.str("cutout_path").isNullOrEmpty(),
+                locationName = o.str("location_name"),
+                atMs = parseDate(o.str("created_at")),
+            )
+        }
+        sign(list.mapNotNull { it.path })
+        return list
+    }
+
+    /** Which picture shows this word on its page (web setStickerHeroRole; null = default order). */
+    suspend fun setHeroRole(sticker: Sticker, role: String?) {
+        val res = api.call("setStickerHeroRole", toJson(mapOf("sticker_id" to sticker.id, "hero_role" to role)) as JsonObject) as? JsonObject
+        if (res?.bool("saved") == false) throw ApiException.Message(tr("まだ保存できません。サーバの更新を待ってください。", "Can't save this yet. Please wait for a server update.", "目前還無法儲存，請等待伺服器更新。"))
+        _state.update { st -> st.copy(stickers = st.stickers.map { if (it.id == sticker.id) it.copy(heroRole = role) else it }) }
     }
 
     suspend fun updateCaption(sticker: Sticker, caption: String) {
@@ -296,3 +359,6 @@ class DexRepository(
 
     // endregion
 }
+
+/** One time a word was met again. */
+data class Encounter(val id: String, val path: String?, val isCutout: Boolean, val locationName: String?, val atMs: Long?)

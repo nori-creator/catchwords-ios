@@ -71,5 +71,11 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.mlkit.subject.segmentation)
+    implementation(libs.play.services.location)
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
+    implementation(libs.osmdroid)
     debugImplementation(libs.androidx.ui.tooling)
 }

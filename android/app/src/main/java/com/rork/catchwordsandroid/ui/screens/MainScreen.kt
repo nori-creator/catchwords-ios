@@ -37,6 +37,20 @@ fun MainScreen(session: SessionViewModel) {
     val route = entry?.destination?.route
     val tab = AppTab.entries.firstOrNull { it.route == route }
     val consent by AppGraph.consent.status.collectAsStateWithLifecycle()
+    val link by com.rork.catchwordsandroid.ui.DeepLinks.route.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(link) {
+        val l = link ?: return@LaunchedEffect
+        com.rork.catchwordsandroid.ui.DeepLinks.route.value = null
+        when {
+            l == "review" -> nav.selectTab(AppTab.REVIEW)
+            l.startsWith("word/") -> nav.openWord(l.removePrefix("word/"))
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.rork.catchwordsandroid.data.Reminders.loadFromAccount()
+        com.rork.catchwordsandroid.data.Reminders.refresh(context)
+    }
 
     Box(Modifier.fillMaxSize()) {
         NavHost(

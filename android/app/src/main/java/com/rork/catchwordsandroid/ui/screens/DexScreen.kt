@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -92,6 +93,10 @@ fun DexScreen(onOpenWord: (String) -> Unit, vm: DexViewModel = viewModel()) {
                 LayoutToggle(layout, vm::setLayout)
             }
             SearchField(query, vm::setQuery, Modifier.padding(horizontal = 16.dp))
+            if (layout == DexLayout.MAP) {
+                DexMap(filtered, Modifier.fillMaxSize().padding(top = 10.dp), onOpenWord)
+                return@Column
+            }
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
                 when {
                     !state.hasLoaded && state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = CW.primary) }
@@ -116,7 +121,7 @@ fun DexScreen(onOpenWord: (String) -> Unit, vm: DexViewModel = viewModel()) {
 @Composable
 private fun LayoutToggle(layout: DexLayout, onChange: (DexLayout) -> Unit) {
     Row(Modifier.clip(RoundedCornerShape(50)).background(CW.surface2).padding(4.dp)) {
-        listOf(DexLayout.GRID to Icons.Outlined.GridView, DexLayout.LIST to Icons.AutoMirrored.Outlined.List).forEach { (l, icon) ->
+        listOf(DexLayout.GRID to Icons.Outlined.GridView, DexLayout.LIST to Icons.AutoMirrored.Outlined.List, DexLayout.MAP to Icons.Outlined.Map).forEach { (l, icon) ->
             val on = l == layout
             Box(
                 Modifier.size(40.dp).clip(CircleShape).background(if (on) CW.card else Color.Transparent).pressable { onChange(l) },

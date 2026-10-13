@@ -62,6 +62,8 @@ data class Sticker(
     val shelfKey: String? = null,
     val heroRole: String? = null,
     val placeholderImageUrl: String? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
 ) {
     /** The word's own picture (photo-surface.ts): the learner's choice, else the cut-out, else the photo, else the stand-in. */
     val heroPath: String?
@@ -97,6 +99,8 @@ data class Sticker(
                 shelfKey = o.str("shelf_key"),
                 heroRole = o.str("hero_role"),
                 placeholderImageUrl = o.str("placeholder_image_url"),
+                lat = o.double("lat"),
+                lng = o.double("lng"),
             )
         }
     }

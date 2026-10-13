@@ -75,6 +75,10 @@ object ReaderLanguage {
         return shared.copy(meaning = meaning, exampleTranslation = translation, extras = extras)
     }
 
+    /** The first text that is in the reader's language (iOS ReaderLanguage.shown); empty when none is. */
+    fun shown(vararg texts: String?): String =
+        texts.map { it?.trim().orEmpty() }.firstOrNull { it.isNotEmpty() && !looksWrong(it, L10n.current) } ?: ""
+
     /** web `needsGeneration`: no explanation for exactly this reader yet (or it is empty). */
     fun needsGeneration(p: Explanation?, lang: String, l1: String): Boolean {
         p ?: return true

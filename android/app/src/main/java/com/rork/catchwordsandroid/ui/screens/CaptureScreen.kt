@@ -80,7 +80,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rork.catchwordsandroid.data.ImageTools
 import com.rork.catchwordsandroid.data.tr
 import com.rork.catchwordsandroid.ui.CaptureMode
-import com.rork.catchwordsandroid.ui.CaptureStage
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.HourglassTop
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import coil3.compose.AsyncImage
+import com.rork.catchwordsandroid.data.AppGraph
+import com.rork.catchwordsandroid.data.PendingCatch
+import com.rork.catchwordsandroid.ui.CaptureStep
+import com.rork.catchwordsandroid.ui.CaptureUiState
 import com.rork.catchwordsandroid.ui.CaptureViewModel
 import com.rork.catchwordsandroid.ui.components.Toast
 import com.rork.catchwordsandroid.ui.components.pressable
@@ -88,7 +98,7 @@ import com.rork.catchwordsandroid.ui.theme.CW
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** カメラ: the deep-navy "machine" — shoot, pick from the gallery, or type a word — then pick a name and catch it. */
+/** カメラ: the deep-navy "machine" — shoot, pick from the gallery, or type a word — then the scan, the tags and the catch. */
 @Composable
 fun CaptureScreen(onOpenWord: (String) -> Unit, vm: CaptureViewModel = viewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -99,20 +109,35 @@ fun CaptureScreen(onOpenWord: (String) -> Unit, vm: CaptureViewModel = viewModel
             vm.clearToast()
         }
     }
+    BackHandler(enabled = ui.step != CaptureStep.Camera && !ui.isSaving) {
+        when (ui.step) {
+            CaptureStep.Celebrate -> vm.backToCandidates()
+            else -> vm.reset()
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(CW.navyTop, CW.navyDeep)))) {
         AnimatedContent(
-            targetState = ui.stage,
-            contentKey = { it::class },
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
-            label = "stage",
-        ) { stage ->
-            when (stage) {
-                CaptureStage.Camera -> CameraStage(ui.mode, vm)
-                is CaptureStage.Analyzing -> AnalyzingStage(stage)
-                is CaptureStage.Picking -> PickingStage(stage, onPick = { vm.pick(stage.photo, it, stage.candidates) }, onBack = vm::reset)
-                is CaptureStage.Card -> CardStage(stage, onSave = vm::save, onBack = vm::backToPicking, onRetake = vm::reset)
-                is CaptureStage.Caught -> CaughtStage(stage, onOpen = { onOpenWord(stage.sticker.id); vm.reset() }, onAgain = vm::reset)
+            targetState = ui.step,
+            contentKey = { step ->
+                when (step) {
+                    CaptureStep.Processing, CaptureStep.Select -> "pick"
+                    else -> step::class
+                }
+            },
+            transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(200)) },
+            label = "step",
+        ) { step ->
+            when (step) {
+                CaptureStep.Camera -> CameraStage(ui, vm)
+                CaptureStep.Selfie -> SelfieStage(onDone = vm::finishSelfie)
+                CaptureStep.Processing, CaptureStep.Select -> PickerStage(ui, scanning = ui.step == CaptureStep.Processing, vm = vm)
+                is CaptureStep.Typing -> AnalyzingStage(step.query)
+                is CaptureStep.TypedList -> TypedListStage(step.candidates, onPick = { vm.choose(it, null) }, onBack = vm::reset)
+                CaptureStep.Celebrate -> CelebrateStage(ui, onBack = vm::backToCandidates, onAdd = vm::add)
+                CaptureStep.Reencounter -> ReencounterStage(ui, onSeeInDex = { id -> onOpenWord(id); vm.finishCaught() }, onAgain = vm::finishCaught)
+                is CaptureStep.Failed -> FailedStage(ui, step.reason, step.offline, onRetry = vm::retry, onAnother = vm::keepPendingAndReset)
+                is CaptureStep.Caught -> CaughtStage(step.sticker, ui.cutout, onOpen = { onOpenWord(step.sticker.id); vm.finishCaught() }, onAgain = vm::finishCaught)
             }
         }
         AnimatedVisibility(ui.toast != null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 56.dp, start = 24.dp, end = 24.dp)) {
@@ -122,7 +147,8 @@ fun CaptureScreen(onOpenWord: (String) -> Unit, vm: CaptureViewModel = viewModel
 }
 
 @Composable
-private fun CameraStage(mode: CaptureMode, vm: CaptureViewModel) {
+private fun CameraStage(ui: CaptureUiState, vm: CaptureViewModel) {
+    val mode = ui.mode
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val handle = remember { CameraHandle() }
@@ -132,17 +158,42 @@ private fun CameraStage(mode: CaptureMode, vm: CaptureViewModel) {
     var lens by rememberSaveable { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
     var zoom by remember { mutableFloatStateOf(1f) }
     var busy by remember { mutableStateOf(false) }
+    var showPending by remember { mutableStateOf(false) }
+    val pendingItems by AppGraph.pending.items.collectAsStateWithLifecycle()
 
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> granted = ok; asked = true }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        granted = res[Manifest.permission.CAMERA] ?: granted
+        asked = true
+    }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) scope.launch { ImageTools.decode(context, uri)?.let(vm::analyze) }
+        if (uri != null) scope.launch { ImageTools.decode(context, uri)?.let { vm.analyze(it) } }
     }
 
-    LaunchedEffect(Unit) { if (!granted && !asked) permission.launch(Manifest.permission.CAMERA) }
+    LaunchedEffect(Unit) {
+        val wanted = buildList {
+            if (!granted) add(Manifest.permission.CAMERA)
+            if (AppGraph.recordPlace && !AppGraph.location.hasPermission()) {
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+        }
+        if (wanted.isNotEmpty() && !asked) permission.launch(wanted.toTypedArray())
+    }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().imePadding().padding(bottom = 84.dp)) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
             Text("CatchWords", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+            if (pendingItems.isNotEmpty()) {
+                Row(
+                    Modifier.align(Alignment.CenterEnd).clip(RoundedCornerShape(50)).background(Color(0x33F4B93C)).border(1.dp, Color(0x66F4B93C), RoundedCornerShape(50))
+                        .pressable { showPending = true }.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.HourglassTop, null, tint = CW.gold, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(tr("解析待ち ${pendingItems.size}", "Waiting ${pendingItems.size}", "等待分析 ${pendingItems.size}"), color = CW.gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
         Box(
             Modifier
@@ -186,13 +237,86 @@ private fun CameraStage(mode: CaptureMode, vm: CaptureViewModel) {
                 scope.launch {
                     val bmp = handle.takePhoto()
                     busy = false
-                    if (bmp != null) vm.analyze(bmp)
+                    if (bmp != null) vm.analyze(bmp, askSelfie = AppGraph.selfieMode)
                 }
             }
             Spacer(Modifier.weight(1f))
             SideButton(Icons.Outlined.Cameraswitch, tr("切替", "Flip", "切換")) {
                 lens = if (lens == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
                 zoom = 1f
+            }
+        }
+    }
+    if (showPending) {
+        PendingSheet(pendingItems, onDismiss = { showPending = false }, onOpen = { showPending = false; vm.restore(it) }, onDelete = vm::removePending)
+    }
+}
+
+/** 「ものと一緒に、もう一枚」: the front camera, while the photo is already being analysed. */
+@Composable
+private fun SelfieStage(onDone: (android.graphics.Bitmap?) -> Unit) {
+    val scope = rememberCoroutineScope()
+    val handle = remember { CameraHandle() }
+    var busy by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(bottom = 84.dp)) {
+        Box(Modifier.weight(1f).fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(30.dp)).background(Color.Black)) {
+            CameraViewfinder(handle, CameraSelector.LENS_FACING_FRONT, onAvailability = { if (!it) onDone(null) }, modifier = Modifier.fillMaxSize())
+            Column(
+                Modifier.align(Alignment.TopCenter).padding(top = 48.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xB3131E37)).padding(horizontal = 18.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(tr("ものと一緒に、もう一枚", "One more, with the thing", "和物品一起，再拍一張"), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(tr("そのあいだに名前を調べています", "Names are being found meanwhile", "同時正在查詢名稱"), color = Color(0xB3FFFFFF), fontSize = 13.sp)
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 34.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                tr("スキップ", "Skip", "略過"), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.pressable { onDone(null) }.padding(12.dp),
+            )
+            Spacer(Modifier.weight(1f))
+            Shutter(enabled = !busy) {
+                busy = true
+                scope.launch {
+                    val bmp = handle.takePhoto()
+                    busy = false
+                    onDone(bmp)
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(60.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PendingSheet(items: List<PendingCatch>, onDismiss: () -> Unit, onOpen: (PendingCatch) -> Unit, onDelete: (PendingCatch) -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = CW.card) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+            Text(tr("解析待ち", "Waiting for analysis", "等待分析"), color = CW.foreground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(tr("通信が戻ったら、もう一度調べられます。", "Analyse them again when you're back online.", "恢復連線後可以再分析一次。"), color = CW.muted, fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            items.forEach { item ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(
+                        model = AppGraph.pending.thumbnailFile(item), contentDescription = null, contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(CW.surface2),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(item.createdAt)), color = CW.foreground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(item.reason, color = CW.muted, fontSize = 12.sp, maxLines = 2)
+                    }
+                    Text(
+                        tr("調べる", "Analyse", "分析"), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(CW.primary).pressable { onOpen(item) }.padding(horizontal = 14.dp, vertical = 8.dp),
+                    )
+                    Icon(
+                        Icons.Outlined.DeleteOutline, tr("削除", "Delete", "刪除"), tint = CW.muted,
+                        modifier = Modifier.size(44.dp).pressable { onDelete(item) }.padding(10.dp),
+                    )
+                }
             }
         }
     }
@@ -331,27 +455,14 @@ private fun SearchPanel(onSearch: (String) -> Unit) {
 }
 
 @Composable
-private fun AnalyzingStage(stage: CaptureStage.Analyzing) {
+private fun AnalyzingStage(query: String) {
     val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "scan")
-    val sweep by t.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1400), androidx.compose.animation.core.RepeatMode.Reverse), label = "sweep")
     val spin by t.animateFloat(0f, 360f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1100, easing = androidx.compose.animation.core.LinearEasing)), label = "spin")
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.height(30.dp))
-        Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(30.dp)).background(Color.Black)) {
-            stage.photo?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
-                ?: Text(stage.query.orEmpty(), color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Black, modifier = Modifier.align(Alignment.Center))
-            Canvas(Modifier.fillMaxSize()) {
-                val y = size.height * sweep
-                drawRect(Brush.verticalGradient(listOf(Color.Transparent, CW.cyan.copy(alpha = 0.35f), Color.Transparent), startY = y - 120f, endY = y + 120f))
-                drawLine(CW.cyan, Offset(0f, y), Offset(size.width, y), 3f)
-            }
-        }
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).padding(bottom = 84.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Text(query, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
         Spacer(Modifier.height(24.dp))
-        Canvas(Modifier.size(40.dp)) {
-            drawArc(CW.cyan, spin, 270f, false, style = Stroke(5f, cap = StrokeCap.Round))
-        }
+        Canvas(Modifier.size(40.dp)) { drawArc(CW.cyan, spin, 270f, false, style = Stroke(5f, cap = StrokeCap.Round)) }
         Spacer(Modifier.height(10.dp))
         Text(tr("言葉を探しています…", "Finding words…", "正在尋找單字…"), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(110.dp))
     }
 }

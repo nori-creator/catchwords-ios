@@ -269,6 +269,21 @@ class SupabaseClient(context: Context) {
         throw ApiException.Server(res.status, "")
     }
 
+    /** The signed-in user's `user_metadata` (web settings such as notification_preferences). */
+    suspend fun userMetadata(): JsonObject? {
+        refreshForRequest()
+        val res = withTokenRetry { token -> send(HttpMethod.Get, "$base/auth/v1/user", token = token) }
+        if (res.status !in 200..299) return null
+        return parseObject(res.body).obj("user_metadata")
+    }
+
+    /** Merges keys into `user_metadata` (PUT /auth/v1/user `{ data }`). */
+    suspend fun updateUserMetadata(data: JsonObject) {
+        refreshForRequest()
+        val body = buildJsonObject { put("data", data) }
+        withTokenRetry { token -> send(HttpMethod.Put, "$base/auth/v1/user", textBody = body.toString(), token = token) }
+    }
+
     fun publicUrl(bucket: String, path: String): String = "$base/storage/v1/object/public/$bucket/$path"
 
     /** Signed links for private sticker photos (6 hours). */

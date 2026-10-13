@@ -204,4 +204,7 @@ class SessionViewModel : ViewModel() {
 /** The auth callback handed to the activity (catchwords://auth-callback#…). */
 object DeepLinks {
     val incoming = MutableStateFlow<Uri?>(null)
+
+    /** In-app places from notifications and the widget: "review", or "word/<stickerId>". */
+    val route = MutableStateFlow<String?>(null)
 }

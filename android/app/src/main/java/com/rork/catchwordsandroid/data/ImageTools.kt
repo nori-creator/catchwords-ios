@@ -52,6 +52,17 @@ object ImageTools {
         out.toByteArray()
     }
 
+    /** A software ARGB_8888 copy when needed (ML Kit and pixel reads cannot use hardware bitmaps). */
+    fun software(bmp: Bitmap): Bitmap =
+        if (bmp.config == Bitmap.Config.ARGB_8888) bmp else bmp.copy(Bitmap.Config.ARGB_8888, false)
+
+    /** A cut-out as PNG (keeps transparency), at most `maxSide` px. */
+    suspend fun png(bmp: Bitmap, maxSide: Int = 1200): ByteArray = withContext(Dispatchers.Default) {
+        val out = ByteArrayOutputStream()
+        resized(bmp, maxSide).compress(Bitmap.CompressFormat.PNG, 100, out)
+        out.toByteArray()
+    }
+
     /** The web capture's input: 768 px, quality 0.8, as a data URL. */
     suspend fun dataUrl(bmp: Bitmap): String {
         val bytes = jpeg(bmp, 768, 80)

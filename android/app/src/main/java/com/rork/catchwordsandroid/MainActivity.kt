@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         handle(intent)
+        com.rork.catchwordsandroid.data.Reminders.recordAppOpen()
         // A new display language: the activity is redrawn so every screen reads its strings again.
         lifecycleScope.launch {
             L10n.lang.drop(1).distinctUntilChanged().collect { recreate() }
@@ -42,6 +43,11 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent?) {
         val data = intent?.data ?: return
-        if (data.scheme == "catchwords") DeepLinks.incoming.value = data
+        if (data.scheme != "catchwords") return
+        when (data.host) {
+            "review" -> DeepLinks.route.value = "review"
+            "word" -> data.lastPathSegment?.let { DeepLinks.route.value = "word/$it" }
+            else -> DeepLinks.incoming.value = data
+        }
     }
 }

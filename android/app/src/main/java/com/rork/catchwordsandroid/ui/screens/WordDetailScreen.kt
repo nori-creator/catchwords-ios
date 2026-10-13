@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -147,7 +148,12 @@ fun WordDetailScreen(stickerId: String, onClose: () -> Unit, vm: DexViewModel = 
                 }
                 Spacer(Modifier.height(12.dp))
                 ExtrasSections(w?.extras, generating) { vm.speak(it) }
+                Spacer(Modifier.height(12.dp))
+                PicturesAndEncounters(sticker, vm)
                 Spacer(Modifier.height(16.dp))
+                sticker.locationName?.let {
+                    Text(tr("出会った場所: ", "Where: ", "相遇地點：") + it, fontSize = 12.sp, color = CW.muted)
+                }
                 Text(
                     tr("キャッチした日: ", "Caught: ", "收集日期：") + DateFormat.getDateInstance(DateFormat.MEDIUM, L10n.locale).format(Date(sticker.takenAtMs)),
                     fontSize = 12.sp, color = CW.muted,
@@ -338,3 +344,51 @@ private fun CircleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
     ) { Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp)) }
 }
 
+
+/** Which picture shows this word (元の写真 / 切り抜き / 自撮り) and every time it was met again. */
+@Composable
+private fun PicturesAndEncounters(sticker: Sticker, vm: DexViewModel) {
+    var encounters by remember(sticker.id) { mutableStateOf<List<com.rork.catchwordsandroid.data.Encounter>>(emptyList()) }
+    val signed by com.rork.catchwordsandroid.data.AppGraph.dex.state.collectAsState()
+    LaunchedEffect(sticker.id) { encounters = com.rork.catchwordsandroid.data.AppGraph.dex.encounters(sticker.id) }
+    val options = listOfNotNull(
+        sticker.objectImageUrl?.let { "object" to tr("元の写真", "Photo", "原始照片") },
+        sticker.cutoutImageUrl?.let { "cutout" to tr("切り抜き", "Cut-out", "去背") },
+        sticker.selfieImageUrl?.let { "selfie" to tr("自撮り", "Selfie", "自拍") },
+    )
+    val current = when {
+        sticker.heroRole == "object" || sticker.heroRole == "selfie" -> sticker.heroRole
+        sticker.heroPath == sticker.cutoutImageUrl && sticker.cutoutImageUrl != null -> "cutout"
+        sticker.heroPath == sticker.objectImageUrl -> "object"
+        else -> null
+    }
+    if (options.size >= 2) {
+        SectionCard {
+            SectionTitle(tr("表示する写真", "Picture shown", "顯示的照片"))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                options.forEach { (role, label) ->
+                    Chip(label, selected = role == current) { vm.setHeroRole(sticker, if (role == "cutout") null else role) }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+    }
+    if (encounters.isNotEmpty()) {
+        SectionCard {
+            SectionTitle(tr("再会の記録", "Met again", "重逢紀錄") + " · ${encounters.size + 1}")
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(encounters.size) { i ->
+                    val e = encounters[i]
+                    Column(Modifier.width(96.dp)) {
+                        Box(Modifier.size(96.dp).clip(RoundedCornerShape(14.dp)).background(CW.surface2), contentAlignment = Alignment.Center) {
+                            val url = e.path?.let { signed.signed[it] }
+                            if (url != null) coil3.compose.AsyncImage(url, null, contentScale = if (e.isCutout) ContentScale.Fit else ContentScale.Crop, modifier = Modifier.fillMaxSize().padding(if (e.isCutout) 6.dp else 0.dp))
+                        }
+                        e.atMs?.let { Text(DateFormat.getDateInstance(DateFormat.SHORT, L10n.locale).format(Date(it)), fontSize = 11.sp, color = CW.muted) }
+                        e.locationName?.let { Text(it, fontSize = 11.sp, color = CW.muted, maxLines = 1) }
+                    }
+                }
+            }
+        }
+    }
+}

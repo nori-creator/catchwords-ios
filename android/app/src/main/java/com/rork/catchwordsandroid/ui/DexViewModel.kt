@@ -12,8 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** Dex layouts (図鑑): rooms grid, or the plain list. */
-enum class DexLayout { GRID, LIST }
+/** Dex layouts (図鑑): rooms grid, the plain list, or the day map. */
+enum class DexLayout { GRID, LIST, MAP }
 
 /** Home, dex and word page state: the shared dex plus this screen's own choices. */
 class DexViewModel : ViewModel() {
@@ -55,6 +55,12 @@ class DexViewModel : ViewModel() {
     fun saveCaption(sticker: Sticker, caption: String) {
         viewModelScope.launch {
             runCatching { dex.updateCaption(sticker, caption) }.onFailure { _message.value = it.userMessage }
+        }
+    }
+
+    fun setHeroRole(sticker: Sticker, role: String?) {
+        viewModelScope.launch {
+            runCatching { dex.setHeroRole(sticker, role) }.onFailure { _message.value = it.userMessage }
         }
     }
 

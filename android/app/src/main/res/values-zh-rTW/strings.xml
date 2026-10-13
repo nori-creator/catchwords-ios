@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_today_name">今日單字</string>
+    <string name="widget_today_desc">從你的圖鑑中挑出今天的單字，附上照片。</string>
+</resources>
