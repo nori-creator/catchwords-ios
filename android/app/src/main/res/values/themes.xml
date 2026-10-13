@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.RorkApp" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/cw_background</item>
+    </style>
+    <color name="cw_background">#F9FCFF</color>
+</resources>

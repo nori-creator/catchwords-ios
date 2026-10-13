@@ -1,10 +1,15 @@
 {
+  "$schema": "https://rork.com/schema/rork.json",
   "apps": [
     {
       "name": "CatchWords",
       "path": "ios",
       "framework": "swift"
+    },
+    {
+      "name": "CatchWords Android",
+      "path": "android",
+      "framework": "kotlin"
     }
-  ],
-  "$schema": "https://rork.com/schema/rork.json"
+  ]
 }
