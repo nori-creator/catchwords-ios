@@ -60,6 +60,9 @@ final class DexStore {
     var hasLoaded: Bool = false
     var loadError: String?
     var signed: [String: URL] = [:]
+    /// Paths the storage answered for without the file (a cut-out whose upload never landed, a photo removed): the
+    /// dex shows the word's next picture instead of an empty square.
+    var missingPaths: Set<String> = []
     /// This account's photos waiting in 「解析待ち」 (kept up to date by the queue itself).
     var pending: [PendingCatch] { PendingQueue.shared.items }
     /// sticker id → review state (memory badges). Stickers without a review get no badge.
@@ -257,6 +260,10 @@ final class DexStore {
             let now = Date()
             signed.merge(map) { _, new in new }
             for p in chunk where map[p] != nil { signedAt[p] = now }
+            let gone = chunk.filter { map[$0] == nil && map[$0 + Self.thumbSuffix] == nil }
+            if !gone.isEmpty { missingPaths.formUnion(gone) }
+            let back = chunk.filter { map[$0] != nil && missingPaths.contains($0) }
+            if !back.isEmpty { missingPaths.subtract(back) }
         }
     }
 
@@ -406,12 +413,21 @@ final class DexStore {
             if let p = freshEncounters[s.id], !out.contains(where: { $0.path == p.path }) { out.append(p) }
         }
         for s in [sticker] + others {
-            let own = s.dexImagePath.map { [DexPicture(path: $0, isCutout: s.dexShowsCutout)] } ?? []
+            let own = dexPicture(of: s).map { [$0] } ?? []
             for p in own + (encounterPhotos[s.id] ?? []) where !out.contains(where: { $0.path == p.path }) {
                 out.append(p)
             }
         }
         return Array(out.prefix(8))
+    }
+
+    /// A word's own dex picture: the cut-out, else the photo, else its internet stand-in — skipping a file the
+    /// storage does not have (that left the square blank).
+    func dexPicture(of s: Sticker) -> DexPicture? {
+        if let c = s.cutoutImageUrl, !missingPaths.contains(c) { return DexPicture(path: c, isCutout: true) }
+        if let o = s.objectImageUrl, !missingPaths.contains(o) { return DexPicture(path: o, isCutout: false) }
+        if let p = s.placeholderImageUrl, !missingPaths.contains(p) { return DexPicture(path: p, isCutout: false) }
+        return nil
     }
 
     // MARK: - Save a catch
@@ -902,11 +918,38 @@ final class DexStore {
         guard !sticker.hasOwnPhoto, sticker.placeholderImageUrl == nil, !heroTried.contains(sticker.id),
               let word = sticker.word else { return }
         heroTried.insert(sticker.id)
+        let candidates: [WebImageCandidate]
         do {
-            guard let first = try await WebImages.search(word: word).first else { return }
-            try await setPlaceholder(sticker, to: first)
+            candidates = try await WebImages.search(word: word)
         } catch {
             heroTried.remove(sticker.id)
+            return
+        }
+        // The first that downloads (only the first was tried: one from a host the phone could not fetch left the
+        // word without a picture every time).
+        for c in candidates.prefix(4) {
+            if (try? await setPlaceholder(sticker, to: c)) != nil { return }
+        }
+        heroTried.remove(sticker.id)
+    }
+
+    /// Words in the dex with no picture at all get their internet stand-in one at a time (the dex showed an empty
+    /// square for them, owner 2026-10-14: 「図鑑に表示されてない単語がある」).
+    @ObservationIgnored private var heroQueue: [String] = []
+    @ObservationIgnored private var heroRunning = false
+
+    func autoHeroSoon(_ sticker: Sticker) {
+        guard !sticker.hasOwnPhoto, sticker.placeholderImageUrl == nil, !heroTried.contains(sticker.id),
+              !heroQueue.contains(sticker.id), !Self.isProvisional(sticker.id) else { return }
+        heroQueue.append(sticker.id)
+        guard !heroRunning else { return }
+        heroRunning = true
+        Task {
+            while !heroQueue.isEmpty {
+                let id = heroQueue.removeFirst()
+                if let s = self.sticker(id: id) { await autoHero(s) }
+            }
+            heroRunning = false
         }
     }
 
@@ -1148,6 +1191,8 @@ final class DexStore {
         albumHidden = []
         albumPlacements = [:]
         heroTried = []
+        heroQueue = []
+        missingPaths = []
         loadError = nil
         hasLoaded = false
         PendingQueue.shared.reload()

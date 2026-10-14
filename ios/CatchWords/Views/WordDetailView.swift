@@ -12,7 +12,6 @@ struct WordDetailView: View {
     /// DEBUG preview: open scrolled to this section so the simulator frame shows it.
     var previewFocus: CardSection? = nil
 
-    @State private var takingSelfie: Bool = false
     @State private var isAddingSelfie: Bool = false
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
     @State private var autoplayed: String = ""
@@ -31,8 +30,9 @@ struct WordDetailView: View {
     /// The cut-out's width ÷ height once it is drawn: the hero takes the cut-out's own shape (no empty box above
     /// and below it, owner 2026-10-11: 「単語の詳細のページの上の余白なくして」).
     @State private var cutoutRatio: CGFloat?
-    /// The original photo, full screen (a tap on the picture).
+    /// The original photo (or, from the selfie side, the selfie), full screen: the 「元の写真」 button on the picture.
     @State private var showingOriginal: Bool = false
+    @State private var viewingSelfie: Bool = false
     @State private var pickingHero: Bool = false
     @State private var refreshing: Set<CardSection> = []
     @State private var editingCaption: Bool = false
@@ -155,7 +155,10 @@ struct WordDetailView: View {
             }, onReplace: { item in
                 // 写真を替える sits at the bottom of this sheet now (owner 2026-10-11).
                 Task { await replacePhoto(item) }
-            })
+            }, onSelfie: current.hasOwnPhoto && SelfieCamera.isAvailable && !isProvisional ? { image in
+                // 自撮りを撮る, under 写真を替える (owner 2026-10-14).
+                await addSelfie(image)
+            } : nil)
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(32)
@@ -485,33 +488,41 @@ struct WordDetailView: View {
                     .id(path)
             }
             .overlay(alignment: .bottomTrailing) {
+                // With a selfie, a tap anywhere on the picture turns the card (photo ⇄ selfie), as the hint says
+                // (owner 2026-10-14: 「タップすると自撮りへと書いてるのに元の画像が見える。2つを両立させて」); the
+                // original photo has its own button at the top.
                 if hasSelfie {
-                    if back {
-                        // On the selfie side a tap anywhere turns the card back.
-                        Text(L("タップで戻る"))
+                    Text(back ? L("タップで戻る") : L("タップで自撮りへ"))
+                        .scaledFont(size: 12, weight: .semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(.black.opacity(0.55), in: Capsule())
+                        .padding(12)
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                // Full screen: the original photo from the photo side, the selfie from the selfie side.
+                if hasSelfie, back ? current.selfieImageUrl != nil : originalPath != nil {
+                    Button {
+                        Haptics.selection()
+                        viewingSelfie = back
+                        showingOriginal = true
+                    } label: {
+                        Label(back ? L("大きく見る") : L("元の写真"), systemImage: "arrow.up.left.and.arrow.down.right")
                             .scaledFont(size: 12, weight: .semibold)
                             .foregroundStyle(.white)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(.black.opacity(0.55), in: Capsule())
-                            .padding(12)
-                            .allowsHitTesting(false)
-                    } else {
-                        // On the photo side a tap opens the original photo, so the selfie has its own button.
-                        Button { flip() } label: {
-                            Text(L("タップで自撮りへ"))
-                                .scaledFont(size: 12, weight: .semibold)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(.black.opacity(0.55), in: Capsule())
-                                .frame(minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(PressableStyle(scale: 0.94))
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 2)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(PressableStyle(scale: 0.94))
+                    .padding(.horizontal, 12)
+                    .padding(.top, 2)
+                    .accessibilityIdentifier("detail.viewOriginal")
                 }
             }
             .overlay(alignment: .bottomLeading) {
@@ -536,16 +547,18 @@ struct WordDetailView: View {
             .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
             .contentShape(.rect(cornerRadius: 28))
             .onTapGesture {
-                // The photo side opens the original photo full screen; the selfie side turns back.
-                if back {
+                // With a selfie: turn the card. Without one: the original photo, full screen.
+                if hasSelfie {
                     flip()
                 } else if originalPath != nil {
                     Haptics.selection()
+                    viewingSelfie = false
                     showingOriginal = true
                 }
             }
             .fullScreenCover(isPresented: $showingOriginal) {
-                OriginalPhotoViewer(path: originalPath, url: dex.url(for: originalPath, preferThumb: false))
+                let shown = viewingSelfie ? current.selfieImageUrl : originalPath
+                OriginalPhotoViewer(path: shown, url: dex.url(for: shown, preferThumb: false))
             }
             // 長押し: この単語をどの絵で見せるか選ぶ（Web HeroPhotoPicker）。 Not while the catch is still being saved.
             .onLongPressGesture(minimumDuration: 0.45) {
@@ -557,7 +570,7 @@ struct WordDetailView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(back ? L("自撮り写真") : L("写真"))
             .accessibilityAction(named: L("元の写真を見る")) {
-                if originalPath != nil { showingOriginal = true }
+                if originalPath != nil { viewingSelfie = false; showingOriginal = true }
             }
     }
 
@@ -1545,27 +1558,14 @@ struct WordDetailView: View {
         }
     }
 
-    /// The bottom of the page: a selfie to take when there is none, then 報告 beside 削除 (as on the web). The 「〇日前に
-    /// キャッチしました」 line is gone and 写真を替える moved into the long-press photo sheet (owner 2026-10-11).
+    /// The bottom of the page: 報告 beside 削除 (as on the web). The 「〇日前にキャッチしました」 line is gone, and
+    /// 写真を替える (owner 2026-10-11) and 自撮りを撮る (owner 2026-10-14) moved into the long-press photo sheet.
     private var footer: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // No selfie yet: offer to take one now (web PhotoAddButtons).
-            if current.selfieImageUrl == nil && current.hasOwnPhoto && SelfieCamera.isAvailable {
-                Button { takingSelfie = true } label: {
-                    Label(isAddingSelfie ? L("保存しています…") : L("いま自撮りを撮る"), systemImage: "camera")
-                        .scaledFont(size: 15, weight: .semibold)
-                        .foregroundStyle(Theme.primaryInk)
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                        .background(Theme.primary.opacity(0.12), in: .rect(cornerRadius: 16))
-                }
-                .buttonStyle(PressableStyle())
-                .disabled(isAddingSelfie || isProvisional)
-                .accessibilityIdentifier("detail.addSelfie")
-                .fullScreenCover(isPresented: $takingSelfie) {
-                    SelfieCamera { image in Task { await addSelfie(image) } }
-                        .ignoresSafeArea()
-                        .statusBarTone(.hidden)
-                }
+            if isAddingSelfie {
+                Label(L("保存しています…"), systemImage: "camera")
+                    .scaledFont(size: 14, weight: .semibold)
+                    .foregroundStyle(Theme.muted)
             }
             if isReplacing {
                 Label(L("替えています…"), systemImage: "photo.badge.arrow.down")

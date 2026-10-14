@@ -29,6 +29,7 @@ struct CCCategory: Equatable {
         18: (0xCEEFFF, 0x60BCF4),  // 空・自然
         19: (0xEAEEC0, 0xC1C73F),  // スポーツ・遊び
         20: (0xFAE3E2, 0xC99593),  // 人・体
+        21: (0xECEEF2, 0x9AA3AE),  // その他
     ]
 
     var b1: UInt32 { (Self.palette[no] ?? Self.palette[10]!).0 }

@@ -105,7 +105,7 @@ struct DexView: View {
 
     /// A dex category's emoji and name, for the filter pill and its menu.
     private func categoryTitle(_ no: Int) -> String {
-        let emoji = DexCatalog.categories.first { $0.no == no }?.emoji ?? "✨"
+        let emoji = DexCatalog.withOther.first { $0.no == no }?.emoji ?? "✨"
         return "\(emoji) \(DexCatalog.label(no))"
     }
 
@@ -605,7 +605,7 @@ struct DexView: View {
             LazyVStack(alignment: .leading, spacing: 10) {
                 Color.clear.frame(height: max(0, headerHeight - 14))
                 // Grouped by the dex's 20 categories, in their order.
-                ForEach(DexCatalog.categories) { cat in
+                ForEach(DexCatalog.withOther) { cat in
                     let items = filtered.filter { DexBook.category(of: $0, lang: lang) == cat.no }
                     if !items.isEmpty {
                         HStack(spacing: 6) {
@@ -651,8 +651,10 @@ struct DexThumb: View {
     var cornerRadius: CGFloat = 0
 
     var body: some View {
-        let path = sticker.dexImagePath
-        if sticker.dexShowsCutout {
+        // The same picture the dex grid shows (a file the storage lacks is skipped).
+        let pic = dex.dexPicture(of: sticker)
+        let path = pic?.path
+        if pic?.isCutout == true {
             StickerImage(path: path, url: dex.url(for: path, preferThumb: preferThumb), contentMode: .fit)
                 .padding(inset)
         } else {

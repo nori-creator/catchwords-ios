@@ -82,7 +82,8 @@ nonisolated enum DexCatalog {
         case 18: L("空・自然")
         case 19: L("スポーツ・遊び")
         case 20: L("人・体")
-        default: L("洗面・日用品")
+        case otherNo: L("その他")
+        default: L("その他")
         }
     }
 
@@ -90,7 +91,7 @@ nonisolated enum DexCatalog {
     static let keyToCategory: [String: Int] = [
         "drink": 1, "food": 2, "fruit": 3, "vegetable": 3, "dessert": 4, "kitchenware": 5, "home": 6, "furniture": 6,
         "decoration": 6, "appliance": 7, "tech": 8, "gadget": 8, "stationery": 9, "book": 9, "document": 9,
-        "tool": 10, "medicine": 10, "money": 10, "color": 10, "shape": 10, "other": 10, "clothes": 11,
+        "tool": 10, "medicine": 10, "money": 10, "color": 10, "shape": 10, "other": otherNo, "clothes": 11,
         "clothing_part": 11, "accessory": 12, "shoes": 12, "bag": 12, "jewelry": 12, "vehicle": 13, "transport": 13,
         "building": 14, "shop": 14, "street": 15, "sign": 15, "character": 15, "symbol": 15, "animal": 16,
         "plant": 17, "flower": 17, "nature": 18, "weather": 18, "sky": 18, "water": 18, "mountain": 18, "toy": 19,
@@ -99,11 +100,19 @@ nonisolated enum DexCatalog {
     ]
 
     /// The dex category of a category key; anything unknown (an old custom key, a missing key) goes with "other"
-    /// into 10 (洗面・日用品) — there is no その他 category.
+    /// into その他 at the end. It used to go into 10 (洗面・日用品), so 桃・可頌・蘑菇・健康餐 saved as "other" sat among the
+    /// towels (owner 2026-10-14; the web made the same change on 2026-10-09).
     static func category(forKey key: String?) -> Int {
-        guard let key else { return 10 }
-        return keyToCategory[key] ?? 10
+        guard let key else { return otherNo }
+        return keyToCategory[key] ?? otherNo
     }
+
+    /// その他: after the 20 categories, only for words no rule or key places. It has no shadows and is shown only
+    /// when a word is in it.
+    static let otherNo = 21
+    static let other = DexCategory(no: otherNo, emoji: "✨", base: [], extra: [])
+    /// The 20 categories, then その他.
+    static var withOther: [DexCategory] { categories + [other] }
 
     /// Where a word belongs: the catalog item's category when its headword is in the catalog, else its key's.
     static func category(headword: String?, key: String?, lang: String) -> Int {

@@ -130,7 +130,7 @@ enum DexBook {
         let room = held != nil && hold?.room == true
         if room, let it = heldItem { caughtItems.insert(it.id) }
 
-        return DexCatalog.categories.map { c in
+        return DexCatalog.withOther.map { c in
             let caught = (byCategory[c.no] ?? []).sorted {
                 let a = numbers[$0.id] ?? Int.max, b = numbers[$1.id] ?? Int.max
                 return a != b ? a < b : $0.takenAt < $1.takenAt
@@ -153,6 +153,8 @@ enum DexBook {
             // "n / m" counts words: one caught slot per word (`mine.length / mine.length + shadows (+ pending)`).
             return DexSection(category: c, slots: slots, caughtCount: caught.count)
         }
+        // その他 only when a word is in it.
+        .filter { $0.category.no != DexCatalog.otherNo || !$0.slots.isEmpty }
     }
 
     /// Base items caught (the header's 影 n / 100).

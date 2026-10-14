@@ -4410,5 +4410,13 @@
  "言い方が{1}つあります": {
   "en": "{1} ways to say it",
   "zh-TW": "有 {1} 種說法"
+ },
+ "自撮りを撮り直す": {
+  "en": "Retake the selfie",
+  "zh-TW": "重拍自拍"
+ },
+ "大きく見る": {
+  "en": "View larger",
+  "zh-TW": "放大查看"
  }
 }
