@@ -68,6 +68,9 @@ struct WordDetailView: View {
     private var extras: WordExtras? { word?.extras }
     private var headword: String { word?.headword ?? "" }
 
+    /// A selfie can be taken for this word (its own photo, a front camera, already saved).
+    private var canTakeSelfie: Bool { current.hasOwnPhoto && SelfieCamera.isAvailable && !isProvisional }
+
     /// The learner's own pictures; a word caught without one shows its internet stand-in instead.
     private var photos: [String] {
         let own = [current.cutoutImageUrl, current.objectImageUrl].compactMap { $0 }
@@ -157,7 +160,7 @@ struct WordDetailView: View {
             }, onReplace: { item in
                 // 写真を替える sits at the bottom of this sheet now (owner 2026-10-11).
                 Task { await replacePhoto(item) }
-            }, onSelfie: current.hasOwnPhoto && SelfieCamera.isAvailable && !isProvisional ? { image in
+            }, onSelfie: canTakeSelfie ? { (image: UIImage) async -> Void in
                 // 自撮りを撮る, under 写真を替える (owner 2026-10-14).
                 await addSelfie(image)
             } : nil)

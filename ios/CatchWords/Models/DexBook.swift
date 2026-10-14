@@ -130,7 +130,7 @@ enum DexBook {
         let room = held != nil && hold?.room == true
         if room, let it = heldItem { caughtItems.insert(it.id) }
 
-        return DexCatalog.withOther.map { c in
+        return DexCatalog.withOther.map { (c: DexCategory) -> DexSection in
             let caught = (byCategory[c.no] ?? []).sorted {
                 let a = numbers[$0.id] ?? Int.max, b = numbers[$1.id] ?? Int.max
                 return a != b ? a < b : $0.takenAt < $1.takenAt

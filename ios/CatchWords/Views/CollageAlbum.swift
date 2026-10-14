@@ -554,7 +554,7 @@ struct AlbumPhoto: View {
                 .fill(Color(hex: 0x33291F, opacity: 0.05))
                 .frame(width: width, height: height)
                 .allowsHitTesting(false)
-        } else if let path, path == sticker.selfieImageUrl, SelfieCutouts.shared.state(for: path) != .none {
+        } else if let path, path == sticker.selfieImageUrl, SelfieCutouts.shared.state(for: path) != .noPerson {
             // A selfie: its people and what they hold, cut out like the other stickers (made on this phone).
             SelfieAlbumCutout(path: path, width: width, height: height, lifted: lifted)
         } else if let path, path == sticker.cutoutImageUrl {

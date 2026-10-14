@@ -82,7 +82,6 @@ nonisolated enum DexCatalog {
         case 18: L("空・自然")
         case 19: L("スポーツ・遊び")
         case 20: L("人・体")
-        case otherNo: L("その他")
         default: L("その他")
         }
     }

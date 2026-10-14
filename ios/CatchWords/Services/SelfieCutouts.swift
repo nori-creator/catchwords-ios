@@ -9,7 +9,7 @@ import UIKit
 final class SelfieCutouts {
     static let shared = SelfieCutouts()
 
-    enum State { case ready, none, pending }
+    enum State { case ready, noPerson, pending }
 
     /// Selfies whose cut-out is in the image cache (under `key(for:)`).
     private(set) var ready: Set<String> = []
@@ -29,7 +29,7 @@ final class SelfieCutouts {
 
     func state(for path: String) -> State {
         if ready.contains(path) { return .ready }
-        if none.contains(path) || rememberedNone().contains(path) { return .none }
+        if none.contains(path) || rememberedNone().contains(path) { return .noPerson }
         return .pending
     }
 

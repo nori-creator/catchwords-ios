@@ -78,7 +78,7 @@ jobs:
             | tee "$RUNNER_TEMP/build.log" | grep -E "error:|warning: .*deprecated|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { grep -E "error:" "$RUNNER_TEMP/build.log" | head -20; echo "::error::組み立てに失敗しました（上の error: を見てください）"; exit 1; }
 
-      - name: 図鑑の影の SF Symbols と4択の補充語を確かめる（DexCatalogSymbolTests と QuizPoolTests と CardCatchPickTests と MeaningGlossTests と CatchScanTests だけを走らせる）
+      - name: 図鑑の影の SF Symbols と4択の補充語を確かめる（DexCatalogSymbolTests と QuizPoolTests と CardCatchPickTests と MeaningGlossTests と CatchScanTests と ReadingAndCategoryTests だけを走らせる）
         working-directory: ios
         run: |
           set -o pipefail
@@ -93,6 +93,7 @@ jobs:
             -only-testing:CatchWordsTests/CardCatchPickTests \
             -only-testing:CatchWordsTests/MeaningGlossTests \
             -only-testing:CatchWordsTests/CatchScanTests \
+            -only-testing:CatchWordsTests/ReadingAndCategoryTests \
             CODE_SIGNING_ALLOWED=NO \
             | tee "$RUNNER_TEMP/symbols.log" | grep -E "error:|Test Case|failed|passed|TEST (SUCCEEDED|FAILED)|BUILD FAILED" || true
           grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/symbols.log" || { grep -E "error:" "$RUNNER_TEMP/symbols.log" | head -20; echo "::error::図鑑の影の SF Symbols の確認に失敗しました（上のログを見てください）"; exit 1; }

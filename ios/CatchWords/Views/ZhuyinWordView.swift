@@ -59,20 +59,21 @@ nonisolated struct PinyinUnit: Hashable, Sendable {
     let reading: String?
 }
 
-/// Pinyin over each Han character (owner 2026-10-14: 「ピンインはなるべく、それぞれの漢字のうえに表示して」): the word's own
-/// pinyin cut into one syllable per character, else the pinyin spelled from its zhuyin. nil when neither gives exactly
-/// one syllable per character — then the reading stays one line over the whole word.
+/// Pinyin over each Han character (owner 2026-10-14: 「ピンインはなるべく、それぞれの漢字のうえに表示して」): the pinyin
+/// spelled from its zhuyin (written one syllable at a time, so it never cuts a syllable wrongly), else the word's own
+/// pinyin cut into one syllable per character. nil when neither gives exactly one syllable per character — then the
+/// reading stays one line over the whole word.
 nonisolated enum PinyinLayout {
     static func pair(_ headword: String, pinyin: String?, zhuyin: String?) -> [PinyinUnit]? {
         let chars = Array(headword.trimmingCharacters(in: .whitespaces))
         let han = chars.filter(ZhuyinLayout.isHan).count
         guard han > 0 else { return nil }
+        let spelled = PinyinZhuyin.pinyin(fromZhuyin: zhuyin, want: han)?.split(separator: " ").map(String.init)
         let own = (pinyin ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let spelled = PinyinZhuyin.pinyin(fromZhuyin: zhuyin, want: han)
-        guard let syllables = PinyinZhuyin.syllables(ofPinyin: own.isEmpty ? spelled : own, want: han)
-                ?? PinyinZhuyin.syllables(ofPinyin: spelled, want: han) else { return nil }
+        guard let syllables = spelled?.count == han ? spelled : PinyinZhuyin.syllables(ofPinyin: own, want: han)
+        else { return nil }
         var i = 0
-        return chars.map { ch in
+        return chars.map { (ch: Character) -> PinyinUnit in
             guard ZhuyinLayout.isHan(ch) else { return PinyinUnit(char: String(ch), reading: nil) }
             defer { i += 1 }
             return PinyinUnit(char: String(ch), reading: syllables[i])
