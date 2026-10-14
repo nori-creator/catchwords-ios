@@ -226,8 +226,16 @@ private struct CollagePiece: View {
     private var pinch: AlbumDelta? = nil
     /// Near level right now (a tick when it snaps straight).
     @State private var snapped = false
+    /// Scrolls the home page while this photo is carried to the screen's edge (absent on the memorial album).
+    @Environment(AlbumAutoScroll.self) private var autoScroll: AlbumAutoScroll?
 
-    private var delta: AlbumDelta? { pinch ?? press }
+    /// The finger's movement plus how far the page scrolled under it since the photo was taken: the photo stays
+    /// under the finger while the page runs (owner 2026-10-14).
+    private var delta: AlbumDelta? {
+        guard var d = pinch ?? press else { return nil }
+        d.dy += Double(autoScroll?.scrolled ?? 0)
+        return d
+    }
 
     /// Where the photo is drawn now: its place on the page, moved by the finger.
     private var shown: AlbumPlacement {
@@ -281,17 +289,21 @@ private struct CollagePiece: View {
         // While rearranging, a finger on a photo is the drag below, not a new press.
         guard !editing else { return }
         onGrab()
+        autoScroll?.begin()
         press = AlbumDelta(dx: 0, dy: 0, scale: 1, rot: 0)
     }
 
-    private func moved(_ t: CGSize) {
+    private func moved(_ t: CGSize, _ windowY: CGFloat) {
         guard press != nil else { return }
         press = AlbumDelta(dx: t.width, dy: t.height, scale: 1, rot: 0)
+        autoScroll?.finger(atWindowY: windowY)
     }
 
     private func ended(_ t: CGSize?) {
         guard press != nil else { return }
-        let final = t.map { AlbumLayout.applyDelta(item.place, AlbumDelta(dx: $0.width, dy: $0.height, scale: 1, rot: 0),
+        let scrolled = Double(autoScroll?.end() ?? 0)
+        let final = t.map { AlbumLayout.applyDelta(item.place,
+                                                   AlbumDelta(dx: $0.width, dy: $0.height + scrolled, scale: 1, rot: 0),
                                                    boardW: Double(boardW), maxY: 8) } ?? item.place
         // The finger's offset and the board's new place change together, in one animation: the photo used to snap
         // back to its old place for a frame and spring over again (an afterimage).
@@ -311,7 +323,11 @@ private struct CollagePiece: View {
                 state = Self.delta(of: v)
             }
             .onChanged { v in
-                if !isGrabbed { onGrab() }
+                if !isGrabbed {
+                    onGrab()
+                    autoScroll?.begin()
+                }
+                if let y = v.first?.first?.location.y { autoScroll?.finger(atWindowY: y) }
                 let rot = v.second?.rotation.degrees ?? 0
                 let near = abs(AlbumLayout.normalizeDeg(item.place.rot + rot)) <= AlbumLayout.ROT_SNAP_DEG
                 if near != snapped {
@@ -321,7 +337,9 @@ private struct CollagePiece: View {
             }
             .onEnded { v in
                 snapped = false
-                onRelease(AlbumLayout.applyDelta(item.place, Self.delta(of: v), boardW: Double(boardW), maxY: 8))
+                var d = Self.delta(of: v)
+                d.dy += Double(autoScroll?.end() ?? 0)
+                onRelease(AlbumLayout.applyDelta(item.place, d, boardW: Double(boardW), maxY: 8))
             }
     }
 
@@ -443,7 +461,8 @@ struct WordTag: View {
 private struct LongPressGrab: UIGestureRecognizerRepresentable {
     var enabled: Bool
     let onBegan: () -> Void
-    let onMoved: (CGSize) -> Void
+    /// The finger's translation, and its height in the window (for the page's auto-scroll).
+    let onMoved: (CGSize, CGFloat) -> Void
     /// The finger's last translation, or nil when the press was cancelled.
     let onEnded: (CGSize?) -> Void
 
@@ -471,7 +490,7 @@ private struct LongPressGrab: UIGestureRecognizerRepresentable {
             recognizer.start = point
             onBegan()
         case .changed:
-            onMoved(t)
+            onMoved(t, point.y)
         case .ended:
             onEnded(t)
         case .cancelled, .failed:

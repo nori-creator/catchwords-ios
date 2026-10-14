@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// review.tsx answer sheet: pinned above the tab bar after a 4-choice pick — verdict band,
-/// the headword with zhuyin, a short scrollable explanation, then 図鑑で見る / 次へ.
+/// the headword with zhuyin, the word page's meaning and example cards (scrollable), then 図鑑で見る / 次へ.
 struct AnswerPanel: View {
     let sticker: Sticker
     let correct: Bool
@@ -101,151 +101,38 @@ struct AnswerPanel: View {
         .shadow(color: .black.opacity(0.14), radius: 18, y: -4)
     }
 
-    // MARK: - Explanation (explainOf in reviews.functions.ts)
+    // MARK: - Meaning and example (the word page's own cards)
 
-    private var chunks: [UsageChunk] {
-        // R20: only chunks that actually contain the word being learned.
-        let lang = learningLang
-        return Array((word?.extras?.usageChunks ?? []).compactMap { raw -> UsageChunk? in
-            // docs/chunk-rules.md C7/C8: the same shape as the word detail draws.
-            let c = UsageChunk(parts: ChunkRules.tidy(raw.parts, headword: headword, target: lang, reader: L10n.lang), ja: raw.ja)
-            guard ChunkRules.isPattern(original: raw.parts, tidied: c.parts),
-                  LanguageRules.mentionsHeadword(c.parts.map(\.text).joined(separator: " "), headword: headword, target: lang),
-                  !ChunkRules.isBroken(c, headword: headword, target: lang) else { return nil }
-            return c
-        }.prefix(3))
-    }
+    /// Only the meaning in the display language and the example, drawn exactly as on the word page
+    /// (owner 2026-10-14: 「復習の答え合わせの欄を表示言語での意味と例文に絞って統一して。意味と例文は単語の図鑑と
+    /// 同じものを表示して。答え合わせの欄のデザインも同じにして。青い意味と例文のアイコンつけて」).
     private var learningLang: String { LanguageRules.resolveWordLanguage(stored: word?.language, headword: headword) }
-    private var related: [RelatedWord] { Array((word?.extras?.allRelated ?? []).prefix(4)) }
-    private var measures: [MeasureWord] {
-        Array((word?.extras?.measureWords ?? []).filter { !$0.word.trimmingCharacters(in: .whitespaces).isEmpty }.prefix(2))
-    }
-    /// The Taiwan note is a Mandarin-only section (the detail shows it for zh-TW only); either note is shown
-    /// only when it is written in the display language.
-    private var note: String {
-        let taiwan = learningLang == "zh-TW" ? word?.extras?.taiwanNote : nil
-        return ReaderLanguage.shown(taiwan, word?.extras?.usageContext, source: headword)
+    private var meaning: String { word?.meaningJa ?? "" }
+    /// As on the word page: an example only when it is in the learning language.
+    private var example: String {
+        let e = word?.exampleSentence ?? ""
+        return !e.isEmpty && e.isIn(target: learningLang) ? e : ""
     }
 
     @ViewBuilder
     private var explain: some View {
-        let hasExplain = !chunks.isEmpty || !related.isEmpty || !measures.isEmpty || !note.isEmpty
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                if hasExplain {
-                    if !chunks.isEmpty { chunkSection }
-                    if !related.isEmpty { relatedSection }
-                    if !measures.isEmpty { measureSection }
-                    if !note.isEmpty {
-                        section(L("知っておくと得"), tone: Color(light: 0x134E4A, dark: 0x5EEAD4), bg: Color(light: 0xF0FDFA, dark: 0x0F2A2A)) {
-                            Text(note).scaledFont(size: 14).foregroundStyle(Theme.foreground).lineSpacing(4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                } else {
-                    fallback
-                }
-            }
-        }
-        .frame(maxHeight: 250)
-        .fixedSize(horizontal: false, vertical: true)
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollIndicators(.visible)
-    }
-
-    @ViewBuilder
-    private var fallback: some View {
-        if let m = word?.meaningJa, !m.isEmpty {
-            section(L("意味"), tone: Theme.muted, bg: Theme.secondary.opacity(0.6)) {
-                Text(m).scaledFont(size: 15).foregroundStyle(Theme.foreground)
-            }
-        }
-        // An example is shown only when it is in the learning language (as on the detail), its translation
-        // only when it is in the display language.
-        if let ex = word?.exampleSentence, !ex.isEmpty, LanguageRules.isIn(ex, target: learningLang) {
-            section(L("例文"), tone: Color(light: 0x312E81, dark: 0xA5B4FC), bg: Theme.secondary.opacity(0.6)) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(ex).scaledFont(size: 16, weight: .medium).foregroundStyle(Theme.foreground)
-                    let tr = ReaderLanguage.shown(word?.exampleTranslation, source: ex)
-                    if !tr.isEmpty {
-                        Text(tr).scaledFont(size: 13).foregroundStyle(Theme.muted)
+        if !meaning.isEmpty || !example.isEmpty {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if !meaning.isEmpty { WordMeaningCard(meaning: meaning) }
+                    if !example.isEmpty {
+                        WordExampleCard(sentence: example, translation: word?.exampleTranslation,
+                                        scene: ReaderLanguage.shown(word?.extras?.exampleScene, source: example),
+                                        headword: headword)
                     }
                 }
+                .padding(.vertical, 2)
             }
+            .frame(maxHeight: 330)
+            .fixedSize(horizontal: false, vertical: true)
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.visible)
         }
-    }
-
-    private var chunkSection: some View {
-        let kinds = Set(chunks.flatMap { $0.parts.map { ChunkKind(pos: $0.pos) } })
-        return section(L("よく使う形"), tone: Theme.muted, bg: Theme.secondary.opacity(0.6)) {
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(Array(chunks.enumerated()), id: \.offset) { _, chunk in
-                    ChunkLineView(chunk: chunk, headword: headword, target: learningLang, size: .compact)
-                }
-                HStack(spacing: 12) {
-                    ForEach(ChunkKind.allCases.filter { kinds.contains($0) }, id: \.self) { k in
-                        HStack(spacing: 4) {
-                            Circle().fill(k.ink).frame(width: 7, height: 7)
-                            Text(k.label(for: learningLang)).scaledFont(size: 11).foregroundStyle(Theme.muted)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var relatedSection: some View {
-        section(L("一緒に覚える語"), tone: Color(light: 0x312E81, dark: 0xA5B4FC), bg: Color(light: 0xEEF2FF, dark: 0x1B1F3B)) {
-            VStack(alignment: .leading, spacing: 7) {
-                ForEach(related, id: \.word) { r in
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        kindTag(r.kind)
-                        Text(r.word).scaledFont(size: 16, weight: .semibold).foregroundStyle(Theme.foreground)
-                        if !r.note.isEmpty {
-                            Text(r.note).scaledFont(size: 12).foregroundStyle(Theme.muted)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func kindTag(_ kind: String) -> some View {
-        let (label, bg, ink): (String, UInt32, UInt32) = switch kind {
-        case "syn": (L("似"), 0xA7F3D0, 0x064E3B)
-        case "ant": (L("反"), 0xFECDD3, 0x881337)
-        default: (L("関"), 0xE2E8F0, 0x0F172A)
-        }
-        return Text(label)
-            .scaledFont(size: 11, weight: .bold)
-            .foregroundStyle(Color(hex: ink))
-            .padding(.horizontal, 4).padding(.vertical, 1)
-            .background(Color(hex: bg), in: .rect(cornerRadius: 4))
-    }
-
-    private var measureSection: some View {
-        section(L("量詞"), tone: Color(light: 0x78350F, dark: 0xFCD34D), bg: Color(light: 0xFFFBEB, dark: 0x2A2210)) {
-            FlowRow(spacing: 12) {
-                ForEach(measures, id: \.word) { m in
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(m.word).scaledFont(size: 16, weight: .semibold).foregroundStyle(Theme.foreground)
-                        if let n = m.note, !n.isEmpty {
-                            Text(n).scaledFont(size: 12).foregroundStyle(Theme.muted)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func section<Content: View>(_ title: String, tone: Color, bg: Color, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(title).scaledFont(size: 12, weight: .semibold).foregroundStyle(tone)
-            content()
-        }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(bg, in: .rect(cornerRadius: 14, style: .continuous))
     }
 }
 

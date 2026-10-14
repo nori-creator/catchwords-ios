@@ -4602,5 +4602,25 @@
  "コンプリート！": {
   "en": "Set complete!",
   "zh-TW": "全部收集完成！"
+ },
+ "口語（くだけた言い方）": {
+  "en": "Spoken (casual)",
+  "zh-TW": "口語（輕鬆的說法）"
+ },
+ "正式名（くわしい・専門的）": {
+  "en": "Formal name (precise / technical)",
+  "zh-TW": "正式名稱（詳細／專業）"
+ },
+ "固有名（商品名・店名）": {
+  "en": "Proper name (brand / shop)",
+  "zh-TW": "專有名稱（商品名／店名）"
+ },
+ "定番（いちばんよく使う）": {
+  "en": "Standard (most common)",
+  "zh-TW": "最常用的說法"
+ },
+ "よく使う別の言い方": {
+  "en": "Another common word",
+  "zh-TW": "其他常用說法"
  }
 }
