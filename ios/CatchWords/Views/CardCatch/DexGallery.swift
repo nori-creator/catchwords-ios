@@ -141,6 +141,11 @@ private struct DexSlotView: View {
                 .buttonStyle(PressableStyle(scale: 0.95))
                 .accessibilityIdentifier("dex.cell")
                 .accessibilityLabel(s.word?.headword ?? "")
+                // The NEW badge sits on the square's corner, outside the button (its own element: the UI tests find
+                // the word that just landed by it).
+                .overlay(alignment: .topTrailing) {
+                    if isNew { DexNewBadge(calm: calm).offset(x: 4, y: -2) }
+                }
         case .shadow(let item):
             column(shadow: item)
                 .accessibilityElement(children: .ignore)
@@ -163,9 +168,6 @@ private struct DexSlotView: View {
         VStack(spacing: 3) {
             sart(caught: true) { picture(s) }
                 .detailZoomSource(s.id)   // the word sheet zooms out of this square
-                .overlay(alignment: .topTrailing) {
-                    if isNew { DexNewBadge(calm: calm).offset(x: 4, y: -2) }
-                }
             noText
             // A long word (冷氣遙控器) shrinks to its own column instead of running over the next one.
             DexFitWidth(minScale: 0.4, alignment: .center) {
@@ -475,7 +477,7 @@ private struct DexNewBadge: View {
             .scaleEffect(shown ? 1 : 0.01)
             .opacity(shown ? 1 : 0)
             .allowsHitTesting(false)
-            .accessibilityHidden(true)
+            .accessibilityIdentifier("dex.new")
             .onAppear {
                 withAnimation(calm ? nil : .spring(response: 0.32, dampingFraction: 0.5).delay(0.1)) { shown = true }
             }

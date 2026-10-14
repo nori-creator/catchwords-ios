@@ -203,6 +203,9 @@ struct CandidatePickerView: View {
                 if let scan = vm.scan, let photo = vm.photo {
                     CatchScanOverlay(scan: scan, photo: photo.size, reduceMotion: reduceMotion)
                         .frame(width: size.width, height: size.height)
+                        // On the tap the outlines fade out in .5 s (the film's v8 note).
+                        .opacity(flow == nil ? 1 : 0)
+                        .animation(.easeOut(duration: 0.5), value: flow == nil)
                 }
                 ForEach(placedTags) { p in
                     tagButton(p)
