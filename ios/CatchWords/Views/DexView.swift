@@ -145,6 +145,14 @@ struct DexView: View {
         return (max(0, words), max(0, shadows))
     }
 
+    /// The landing slot with the sticker's anticipation and hit times (film v6: its silhouette tints blue).
+    private var shownFocus: DexGalleryFocus? {
+        guard var f = focus, let l = router.landing, l.star.image != nil else { return focus }
+        f.anticipAt = l.anticipAt
+        f.impactAt = l.impactAt
+        return f
+    }
+
     /// The landing marks with the category's count held back until it rolls (impact + .3).
     private var shownMarks: DexLandingMarks? {
         guard var m = marks else { return nil }
@@ -451,7 +459,7 @@ struct DexView: View {
         return ScrollViewReader { proxy in
             ScrollView {
                 // .dex-body: padding 4 18 40 (each .dcat adds its 12 pt margin on top)
-                DexGallery(sections: sections, focus: focus, calm: reduceMotion, marks: shownMarks,
+                DexGallery(sections: sections, focus: shownFocus, calm: reduceMotion, marks: shownMarks,
                            onTargetFrame: { frame in router.landing?.target = frame },
                            onOpen: { router.openDetail($0, zoom: true) })
                     .padding(.top, max(0, headerHeight - 8))

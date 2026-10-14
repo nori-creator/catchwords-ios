@@ -225,13 +225,17 @@ struct CatchChooseOverlay: View {
     private func content(_ c: Candidate, first: Bool) -> some View {
         let meaning = ReaderLanguage.gloss(ReaderLanguage.shown(c.meaningJa))
         let note = ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
+        // Film `pickRow`: the everyday way has no chip; the others say what kind of word they are.
+        let chip = ["casual", "specific", "proper"].contains(c.register ?? "")
         return VStack(alignment: .leading, spacing: 4) {
-            Text(CandidatePickerView.registerLabel(c.register, first: first))
-                .scaledFont(size: 10.5, weight: .semibold)
-                .foregroundStyle(first ? Theme.primaryInk : muted)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(first ? Theme.primary.opacity(0.12) : Color(hex: 0xEEF1F5), in: Capsule())
+            if chip {
+                Text(CandidatePickerView.registerLabel(c.register, first: first))
+                    .scaledFont(size: 10.5, weight: .semibold)
+                    .foregroundStyle(muted)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color(hex: 0xEEF1F5), in: Capsule())
+            }
             ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: first ? 30 : 23, weight: first ? .semibold : .medium,
                            color: ink, readingColor: muted, pinyin: c.pinyin)
             if !meaning.isEmpty {

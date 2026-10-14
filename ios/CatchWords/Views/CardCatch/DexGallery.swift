@@ -23,6 +23,9 @@ struct DexGalleryFocus: Equatable {
     /// Film v6: the sticker itself landed (arriving 1.3× and tilted): the square settles from that pose instead of
     /// fading in.
     var settle: Bool = false
+    /// Film v6: the sticker's anticipation started (CCClock) and when it hits: the waiting silhouette tints blue.
+    var anticipAt: Double? = nil
+    var impactAt: Double? = nil
 }
 
 /// Film v6's marks after a catch has landed: the NEW badge on its square (until the 図鑑 is left), the category's
@@ -180,7 +183,12 @@ private struct DexSlotView: View {
 
     private func column(shadow item: DexItem) -> some View {
         VStack(spacing: 3) {
-            sart(caught: false) { DexSilhouette(item: item) }
+            sart(caught: false) {
+                ZStack {
+                    DexSilhouette(item: item)
+                    if let a = focus?.anticipAt, !calm { DexAnticipTint(item: item, start: a, impact: focus?.impactAt) }
+                }
+            }
                 .overlay {
                     if let since = goalSince { DexGoalRing(since: since, calm: calm) }
                 }
@@ -366,6 +374,8 @@ private struct DexFillIn<Content: View>: View {
 /// variant when it has one), else (needsArt) a neutral rounded placeholder.
 struct DexSilhouette: View {
     let item: DexItem
+    /// Another colour than the grey (the landing's blue tint).
+    var color: Color? = nil
 
     var body: some View {
         GeometryReader { g in
@@ -382,7 +392,7 @@ struct DexSilhouette: View {
                         .frame(width: ph, height: ph)
                 }
             }
-            .foregroundStyle(DexInk.sil)
+            .foregroundStyle(color ?? DexInk.sil)
             .frame(width: s, height: s)
             .position(x: g.size.width / 2, y: g.size.height / 2)
         }
@@ -456,6 +466,24 @@ private struct DexModeIcon: View {
                 CCSVGPath(d: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01").stroke(color, style: round)
             }
         }
+    }
+}
+
+/// Film v6 (`drawTargetSlot`): the waiting silhouette tints blue as the sticker comes (.55 at the hit).
+private struct DexAnticipTint: View {
+    let item: DexItem
+    let start: Double
+    let impact: Double?
+
+    var body: some View {
+        TimelineView(.animation) { _ in
+            let end = impact ?? start + 0.52
+            let an = Film6.seg(CCClock.now, start, max(start + 0.05, end))
+            DexSilhouette(item: item, color: Theme.primaryBright)
+                .opacity(0.55 * an)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

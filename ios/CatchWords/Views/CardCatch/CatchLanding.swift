@@ -274,6 +274,7 @@ struct CatchLandingOverlay: View {
                             .position(x: c.landAt.x - o.x, y: c.landAt.y - o.y)
                     }
                     if c.star.image != nil {
+                        slotRing(now: now, origin: o, width: geo.size.width)
                         impactFX(now: now, origin: o, width: geo.size.width)
                         sticker(now: now, origin: o)
                     } else {
@@ -328,6 +329,41 @@ struct CatchLandingOverlay: View {
         switch info {
         case .none, .noneSkipFirst, .noneSkipLast: return false
         default: return true
+        }
+    }
+
+    /// Film `drawTargetSlot`: while the sticker gathers itself and flies, a dashed blue ring tightens round its square
+    /// (marching); once it has landed, a solid blue ring with a glow is held round it, relaxing after 1.5 s.
+    @ViewBuilder
+    private func slotRing(now: Double, origin o: CGPoint, width: CGFloat) -> some View {
+        let c = controller
+        if !c.motion.calm, let t = c.target, let a0 = c.anticipAt {
+            let k = width / 1080
+            let impact = c.impactAt ?? .infinity
+            let rect = t.offsetBy(dx: -o.x, dy: -o.y)
+            if now < impact || c.phase != .landed {
+                let an = Film6.seg(now, a0, a0 + max(0.05, (c.impactAt ?? a0 + 0.52) - a0))
+                if an > 0 {
+                    let gr = CGFloat(12 * (1 - an)) * k
+                    RoundedRectangle(cornerRadius: 14 + gr, style: .continuous)
+                        .stroke(Theme.primaryBright, style: StrokeStyle(lineWidth: CGFloat(5 + 3 * an) * k,
+                                                                        dash: [16 * k, 12 * k], dashPhase: CGFloat(-now * 160) * k))
+                        .frame(width: rect.width + 2 * gr, height: rect.height + 2 * gr)
+                        .opacity(an)
+                        .position(x: rect.midX, y: rect.midY)
+                }
+            } else {
+                let u = now - impact
+                let ring = Film6.seg(u, 0, 0.08) * (1 - Film6.seg(u, 1.5, 1.9))
+                if ring > 0 {
+                    RoundedRectangle(cornerRadius: 14 + 3.5 * k, style: .continuous)
+                        .stroke(Theme.primaryBright, lineWidth: 7 * k)
+                        .frame(width: rect.width + 7 * k, height: rect.height + 7 * k)
+                        .shadow(color: .rgba(42, 155, 255, 0.6), radius: 20 * k)
+                        .opacity(ring)
+                        .position(x: rect.midX, y: rect.midY)
+                }
+            }
         }
     }
 
