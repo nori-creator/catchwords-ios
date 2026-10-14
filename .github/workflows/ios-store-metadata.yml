@@ -26,6 +26,10 @@ on:
         type: boolean
         required: false
         default: true
+      version:
+        description: "入れる版（空なら Xcode プロジェクトの MARKETING_VERSION。App Store Connect に無い版は apply で作る）"
+        required: false
+        default: ""
   pull_request:
     paths:
       - ios/metadata/**
@@ -67,13 +71,17 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           APPLY: ${{ github.event_name == 'workflow_dispatch' && inputs.apply }}
           NOTES: ${{ github.event_name != 'workflow_dispatch' || inputs.notes }}
+          VERSION: ${{ inputs.version }}
         run: |
           set +e -o pipefail
           mkdir -p "$RUNNER_TEMP/out"
           extra=""
           [ "$NOTES" = "true" ] && extra="--notes docs/app-store/review-notes.en.txt"
           [ "$APPLY" = "true" ] && extra="$extra --apply"
-          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/asc_push_metadata.py com.nori.catchwords ios/metadata 1.0.0 $extra \
+          # The version comes from the Xcode project (same number the build carries) unless given.
+          [ -n "$VERSION" ] || VERSION=$(grep -m1 -oE 'MARKETING_VERSION = [0-9.]+' ios/CatchWords.xcodeproj/project.pbxproj | grep -oE '[0-9.]+')
+          echo "版: $VERSION"
+          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/asc_push_metadata.py com.nori.catchwords ios/metadata "$VERSION" $extra \
             | tee "$RUNNER_TEMP/out/plan.md"
           status=$?
           cat "$RUNNER_TEMP/out/plan.md" >> "$GITHUB_STEP_SUMMARY"

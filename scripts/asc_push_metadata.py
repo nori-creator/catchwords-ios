@@ -24,10 +24,10 @@ import urllib.request
 
 from asc_dev_certs import API, token
 
-LIMITS = {"name": 30, "subtitle": 30, "promotionalText": 170, "description": 4000}
+LIMITS = {"name": 30, "subtitle": 30, "promotionalText": 170, "description": 4000, "whatsNew": 4000}
 BYTE_LIMITS = {"keywords": 100, "notes": 4000}
 INFO_FIELDS = ("name", "subtitle", "privacyPolicyUrl")
-VERSION_FIELDS = ("description", "keywords", "promotionalText", "supportUrl", "marketingUrl")
+VERSION_FIELDS = ("description", "keywords", "promotionalText", "whatsNew", "supportUrl", "marketingUrl")
 # Versions whose text can still be edited (the first version has never been on sale).
 EDITABLE = {"PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED",
             "INVALID_BINARY"}
@@ -161,8 +161,22 @@ def main():
     # The version's text.
     versions = get_all(f"{API}/apps/{app['id']}/appStoreVersions?filter[platform]=IOS&filter[versionString]={version}")
     if not versions:
-        print(f"\n版 {version} が App Store Connect にありません。")
-        return 1
+        # A new version (e.g. 1.0.1 after 1.0.0 went on sale) is created here, like the "+" in the sidebar.
+        # Its text is written on the next run, once App Store Connect has the version.
+        changes += 1
+        if not apply:
+            print(f"\n版 {version} が App Store Connect にまだ無い。apply をオンにすると作る（説明文はその次の実行で入る）")
+            print(f"\n変わる所: {changes} か所（試すだけ。書き込むには apply をオンにして実行）")
+            return 0
+        try:
+            call("POST", f"{API}/appStoreVersions", {"data": {"type": "appStoreVersions", "attributes": {
+                "platform": "IOS", "versionString": version}, "relationships": {
+                "app": {"data": {"type": "apps", "id": app["id"]}}}}})
+            print(f"\n版 {version} を App Store Connect に作りました。説明文はもう一度実行すると入ります。")
+            return 0
+        except urllib.error.HTTPError as e:
+            print(f"\n版 {version} を作れませんでした（HTTP {e.code} {error_detail(e)}）。前の版が審査中・審査待ちの間は作れません")
+            return 1
     ver = versions[0]
     state = ver["attributes"].get("appVersionState") or ver["attributes"].get("appStoreState")
     print(f"\n## 版 {version}（状態 {state}）の説明文など")
