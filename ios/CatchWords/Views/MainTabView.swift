@@ -104,9 +104,12 @@ struct MainTabView: View {
                 switch router.tab {
                 case .home: HomeView().environment(\.colorScheme, .light).statusBarTone(.dark)  // the paper album stays paper
                 case .dex:
-                    // A card-catch landing: the dex page rises over the camera screen (#dex translateY(102%) → none).
+                    // A catch landing: the dex page rises over the camera screen (film v6: 140 px with a fade, .4 s).
                     DexView()
-                        .transition(router.landing != nil ? AnyTransition.move(edge: .bottom) : AnyTransition.opacity)
+                        .transition(router.landing != nil
+                                    ? AnyTransition.asymmetric(insertion: AnyTransition.offset(y: 52).combined(with: .opacity),
+                                                               removal: .opacity)
+                                    : AnyTransition.opacity)
                         .zIndex(router.landing != nil ? 1 : 0)
                 case .camera:
                     // Without the AI consent the camera stays off: its photos would go to AI (AIConsentGateView).

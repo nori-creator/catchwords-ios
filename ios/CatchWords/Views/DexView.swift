@@ -91,6 +91,12 @@ struct DexView: View {
     @State private var galleryHold: DexBook.Hold?
     /// The gallery slot being landed on / pointed at (frame reporting, fillIn). Gone again once the landing is over.
     @State private var focus: DexGalleryFocus?
+    /// Film v6: after a catch lands, its NEW badge, its category's rolling count and the next shadow's ring (kept
+    /// until the 図鑑 is left).
+    @State private var marks: DexLandingMarks?
+    /// Film v6: the micro shake of the gallery at the impact: `shake` goes up by one over .35 s from `shakeBase`.
+    @State private var shake: CGFloat = 0
+    @State private var shakeBase: CGFloat = -1
     @Environment(\.appReduceMotion) private var reduceMotion
 
     private var lang: String { NativeAPI.targetLanguage }
@@ -128,6 +134,22 @@ struct DexView: View {
             }
             return true
         }
+    }
+
+    /// The header's counts held back during a catch's landing (film v6: they roll one after another after the impact).
+    private var headerLag: (words: Int, shadows: Int) {
+        guard let l = router.landing, !l.alreadyCaught, l.ticks < 3 else { return (0, 0) }
+        let others = dex.stickers.filter { $0.id != l.stickerId }
+        let words = l.ticks < 2 ? DexBook.words(dex.stickers, lang: lang).count - DexBook.words(others, lang: lang).count : 0
+        let shadows = DexBook.baseCaught(dex.stickers, lang: lang) - DexBook.baseCaught(others, lang: lang)
+        return (max(0, words), max(0, shadows))
+    }
+
+    /// The landing marks with the category's count held back until it rolls (impact + .3).
+    private var shownMarks: DexLandingMarks? {
+        guard var m = marks else { return nil }
+        m.countLag = (router.landing?.ticks ?? 3) < 1 ? 1 : 0
+        return m
     }
 
     /// A search, category or date is narrowing the words (the same test as `filtered`).
@@ -202,10 +224,14 @@ struct DexView: View {
                     Text(L("図鑑"))
                         .scaledFont(size: 24, weight: .black)
                         .foregroundStyle(Theme.foreground)
-                    // N枚 counts words (one per headword, like the prototype's S.dex), not stickers.
-                    Text(L("\(DexBook.words(dex.stickers, lang: lang).count)枚・影 \(DexBook.baseCaught(dex.stickers, lang: lang)) / 100"))
+                    // N枚 counts words (one per headword, like the prototype's S.dex), not stickers. During a catch's
+                    // landing both numbers still show the dex before it until they roll (film v6: 枚 at impact + .42,
+                    // 影 at + .5).
+                    let lag = headerLag
+                    Text(L("\(DexBook.words(dex.stickers, lang: lang).count - lag.words)枚・影 \(DexBook.baseCaught(dex.stickers, lang: lang) - lag.shadows) / 100"))
                         .scaledFont(size: 12, weight: .semibold)
                         .foregroundStyle(Theme.muted)
+                        .contentTransition(.numericText())
                         // Large text on a small iPhone: wrap instead of cutting the counts off.
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -425,12 +451,13 @@ struct DexView: View {
         return ScrollViewReader { proxy in
             ScrollView {
                 // .dex-body: padding 4 18 40 (each .dcat adds its 12 pt margin on top)
-                DexGallery(sections: sections, focus: focus, calm: reduceMotion,
+                DexGallery(sections: sections, focus: focus, calm: reduceMotion, marks: shownMarks,
                            onTargetFrame: { frame in router.landing?.target = frame },
                            onOpen: { router.openDetail($0, zoom: true) })
                     .padding(.top, max(0, headerHeight - 8))
                     .padding(.horizontal, 18)
                     .padding(.bottom, 120)
+                    .modifier(DexImpactShake(t: shake, base: shakeBase))
             }
             .scrollIndicators(.hidden)
             .refreshable { await dex.load() }
@@ -447,6 +474,10 @@ struct DexView: View {
                         f.id = new
                         focus = f
                     }
+                    if var m = marks, m.newId == old {
+                        m.newId = new
+                        marks = m
+                    }
                 }
                 takeLanding(proxy)
             }
@@ -457,7 +488,16 @@ struct DexView: View {
                 guard let start, let l = router.landing else { return }
                 galleryHold = nil
                 let id = landingSlot(l)
-                focus = DexGalleryFocus(id: id, fillStart: start)
+                let sticker = l.star.image != nil
+                focus = DexGalleryFocus(id: id, fillStart: start, settle: sticker)
+                if sticker, !l.alreadyCaught, let s = dex.sticker(id: id) {
+                    // Film v6: the NEW badge, the rolling count, the next shadow's ring; the gallery shakes.
+                    marks = DexLandingMarks(newId: id, category: DexBook.category(of: s, lang: lang), impact: start)
+                    if !reduceMotion {
+                        shakeBase = shake
+                        withAnimation(.linear(duration: 0.35)) { shake += 1 }
+                    }
+                }
                 Task {
                     await scroll(to: id, proxy: proxy)
                     // one more frame so the slot reports its new frame before the burst
@@ -1212,5 +1252,24 @@ struct EmptyDexView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
+    }
+}
+
+/// Film v6's micro shake at the impact: 8 px·e^(−t/.055) (≈ 2.9 pt), 27 Hz across and 23 Hz up and down, over .35 s.
+private struct DexImpactShake: ViewModifier, Animatable {
+    var t: CGFloat
+    /// Where this shake's `t` started (the shake runs while `t − base` goes 0 → 1).
+    let base: CGFloat
+
+    var animatableData: CGFloat {
+        get { t }
+        set { t = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let p = t - base
+        let u = Double(p) * 0.35
+        let a = p > 0 && p < 1 ? 2.9 * exp(-u / 0.055) : 0
+        content.offset(x: a * sin(u * 2 * .pi * 27), y: a * 0.6 * cos(u * 2 * .pi * 23))
     }
 }

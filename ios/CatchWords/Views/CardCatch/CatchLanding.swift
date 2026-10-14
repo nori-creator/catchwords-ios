@@ -6,6 +6,10 @@ struct CatchStar: Equatable {
     var size: CGFloat
     /// The card-catch screen's scale (design points → points), for the prototype's fixed offsets.
     var k: CGFloat
+    /// Film v6: the sticker itself flies into the slot (its cut-out, or the photo round the thing), drawn at `box`.
+    /// nil = the prototype's star (a re-encounter).
+    var image: UIImage? = nil
+    var box: CGSize = .zero
 }
 
 /// The second half of the prototype's `sendToDex` (docs/prototype/cardcatch-src.html): after the save, the dex
@@ -27,6 +31,17 @@ final class CatchLandingController {
     var stickerId: String
     /// A re-encounter: the word is in the dex already (its square is not held, no room is made).
     let alreadyCaught: Bool
+    /// The category's first five words, for the goal toast (nil = not a catalog word: no toast).
+    let goal: CatchGoal?
+    /// Film v6's finale: the counters roll one after another (category → 枚 → 影) after the impact. 3 = all rolled.
+    var ticks: Int
+    /// Film v6: anticipation pulse (`anticipAt` … `launchAt`), the flight to `impactAt`, the goal toast at `toastAt`.
+    var anticipAt: Double?
+    var launchAt: Double?
+    var impactAt: Double?
+    var toastAt: Double?
+    /// The sticker's flight: duration (.40 s, film I − launch).
+    let flightTime = 0.4
     let star: CatchStar
     let motion: CCMotion
     /// The screen's size, for the prototype's fallback target when the slot is not on screen.
@@ -54,9 +69,12 @@ final class CatchLandingController {
     let particles = CCParticles()
     @ObservationIgnored private var trailing = false
 
-    init(stickerId: String, alreadyCaught: Bool = false, star: CatchStar, motion: CCMotion, screen: CGSize) {
+    init(stickerId: String, alreadyCaught: Bool = false, star: CatchStar, motion: CCMotion, screen: CGSize,
+         goal: CatchGoal? = nil) {
         self.stickerId = stickerId
         self.alreadyCaught = alreadyCaught
+        self.goal = goal
+        self.ticks = star.image == nil || alreadyCaught ? 3 : 0
         self.star = star
         self.motion = motion
         self.screen = screen
@@ -77,6 +95,7 @@ final class CatchLandingController {
     }
 
     func run() async {
+        if star.image != nil { await runSticker(); return }
         // The dex page is open and scrolled to the word's place (DexView). The page rises in .55 s; the star leaves
         // as it settles, once the gallery has made the word's square (`roomReady`) — at most 1.2 s in all, so a
         // gallery that is not on screen never keeps the star waiting.
@@ -135,6 +154,101 @@ final class CatchLandingController {
     }
 }
 
+extension CatchLandingController {
+    /// Film v6's finale (`dGet` after `open`, `drawDexPage` / `dexFx` / `goalToast`): the page rises (.4 s) and makes
+    /// the word's square while the sticker waits where it was on the stage; a 7% pulse (anticipation, the riser ending
+    /// 70 ms before the hit), then the sticker flies on a curve into the square (.40 s, in-cubic, shrinking to the
+    /// square and tilting to −7°, three ghosts behind it). Impact: the dex shakes, light rays turn behind the square,
+    /// two rings run out, sparkles; the NEW badge pops, the counters roll (category → 枚 → 影), the next shadow gets
+    /// its breathing ring and the goal toast says how many of the category's five base words are left.
+    func runSticker() async {
+        play(.c6DexOpen)
+        await wait(motion.sleep(300))
+        var waited = motion.sleep(300)
+        while !roomReady && waited < 1.2 {
+            await wait(0.016)
+            waited += 0.016
+        }
+        let now = CCClock.now
+        let anticip = motion.d(120)
+        anticipAt = now
+        launchAt = now + anticip
+        impactAt = now + anticip + motion.d(flightTime * 1000)
+        phase = .flying
+        // the riser (300 ms) ends 70 ms before the hit
+        let riserAt = (impactAt ?? now) - 0.07 - 0.3
+        if !motion.calm {
+            Task {
+                let left = riserAt - CCClock.now
+                if left > 0 { try? await Task.sleep(for: .seconds(left)) }
+                SoundService.shared.playLayered(.c6Riser)
+            }
+        }
+        await wait((impactAt ?? now) - CCClock.now)
+
+        // impact
+        let hit = target ?? CGRect(x: screen.width / 2 - 40, y: screen.height * 0.3, width: 80, height: 80)
+        landAt = CGPoint(x: hit.midX, y: hit.midY)
+        impactAt = CCClock.now
+        play(.c6LandImpact)
+        HapticPatterns.shared.land()
+        phase = .landed
+        fillStart = CCClock.now
+        particles.burst(Double(hit.midX), Double(hit.midY), n: 44, speed: 6, up: 3)
+        particles.glints(hit, n: 8)
+        await wait(0.1)
+        play(.c6NewBadge)
+        await wait(0.2)
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.7)) { ticks = 1 }
+        play(.c6Tick1)
+        await wait(0.12)
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.7)) { ticks = 2 }
+        play(.c6Tick2)
+        await wait(0.08)
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.7)) { ticks = 3 }
+        play(.c6Tick3)
+        await wait(0.2)
+        play(.c6Refill)
+        await wait(0.15)
+        if let goal {
+            toastAt = CCClock.now
+            if goal.left > 0 { play(.c6GoalOneMore) } else { SoundService.shared.playLayered(.c6CatchJingle, volume: 0.7) }
+            await wait(2.5 + 0.35)
+        } else {
+            await wait(1.6)
+        }
+    }
+
+    /// The sticker's place, scale and tilt at `now` during the finale (global), nil once it has landed.
+    func stickerPose(_ now: Double) -> (center: CGPoint, scale: Double, rotation: Double, fly: Double)? {
+        if let i = impactAt, now >= i, phase == .landed { return nil }
+        let p0 = star.center
+        guard let launch = launchAt else { return (p0, 1, 0, 0) }
+        let anticip = anticipAt ?? launch
+        let pulse = 1 + 0.07 * sin(.pi * Film6.seg(now, anticip, launch))
+        let fly = Film6.seg(now, launch, launch + max(0.001, motion.d(flightTime * 1000)))
+        guard fly > 0 else { return (p0, pulse, 0, 0) }
+        let e = Film6.inCubic(fly)
+        let p = flightPoint(e)
+        return (p, Film6.lerp(1, arriveScale, e), -6.9 * e, fly)
+    }
+
+    /// The flight's curve: from the stage to the square, the control point up and to the right (film `bez2`, +80 / −320).
+    func flightPoint(_ e: Double) -> CGPoint {
+        let p0 = star.center
+        let t = target.map { CGPoint(x: $0.midX, y: $0.midY) } ?? CGPoint(x: screen.width / 2, y: screen.height * 0.3)
+        let c = CGPoint(x: p0.x + screen.width * 80 / 1080, y: p0.y - screen.height * 320 / 2340)
+        return Film6.bez2(p0, c, t, e)
+    }
+
+    /// The square's picture size over the sticker's: it arrives 1.3× the square's cut-out (the square then settles).
+    var arriveScale: Double {
+        guard let t = target, star.box.width > 0, star.box.height > 0 else { return 0.35 }
+        let side = t.width * 0.9 * 1.3
+        return Double(min(side / star.box.width, side / star.box.height))
+    }
+}
+
 /// The star, its sparkles and `.landpop`, above every screen while the dex opens (`#fly` / `#fx` / `.landpop`).
 struct CatchLandingOverlay: View {
     let controller: CatchLandingController
@@ -159,11 +273,20 @@ struct CatchLandingOverlay: View {
                             .opacity(v[1])
                             .position(x: c.landAt.x - o.x, y: c.landAt.y - o.y)
                     }
-                    star(now: now, origin: o)
+                    if c.star.image != nil {
+                        impactFX(now: now, origin: o, width: geo.size.width)
+                        sticker(now: now, origin: o)
+                    } else {
+                        star(now: now, origin: o)
+                    }
                     Canvas { ctx, _ in
                         c.particles.advance(to: now)
                         ctx.translateBy(x: -o.x, y: -o.y)
                         c.particles.draw(&ctx)
+                    }
+                    if let goal = c.goal, let at = c.toastAt {
+                        CatchGoalToast(goal: goal, start: at, now: now, calm: c.motion.calm)
+                            .frame(width: geo.size.width, height: geo.size.height, alignment: .bottom)
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -171,6 +294,85 @@ struct CatchLandingOverlay: View {
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+    }
+
+    /// Film v6: the sticker itself, waiting on the stage, then flying into the square with three fading ghosts.
+    @ViewBuilder
+    private func sticker(now: Double, origin o: CGPoint) -> some View {
+        let c = controller
+        if let pose = c.stickerPose(now), let image = c.star.image {
+            let box = c.star.box.width > 0 ? c.star.box : CGSize(width: c.star.size, height: c.star.size)
+            let cut = image.size.width > 0 && Self.hasAlpha(image)
+            ForEach([3, 2, 1], id: \.self) { kk in
+                let fk = Film6.clamp(pose.fly - Double(kk) * 0.05)
+                if pose.fly > 0, fk > 0 {
+                    let e = Film6.inCubic(fk)
+                    let p = c.flightPoint(e)
+                    CatchStickerArt(cut: cut ? image : nil, fallback: cut ? nil : image, size: box, border: 1 - e)
+                        .scaleEffect(CGFloat(Film6.lerp(1, c.arriveScale, e)))
+                        .rotationEffect(.degrees(-6.9 * e))
+                        .opacity(0.14 / Double(kk))
+                        .position(x: p.x - o.x, y: p.y - o.y)
+                }
+            }
+            CatchStickerArt(cut: cut ? image : nil, fallback: cut ? nil : image, size: box, border: 1 - Film6.inCubic(pose.fly))
+                .scaleEffect(CGFloat(pose.scale))
+                .rotationEffect(.degrees(pose.rotation))
+                .shadow(color: .rgba(15, 40, 80, 0.18 * (1 - pose.fly)), radius: 10, y: 6)
+                .position(x: pose.center.x - o.x, y: pose.center.y - o.y)
+        }
+    }
+
+    private static func hasAlpha(_ image: UIImage) -> Bool {
+        guard let info = image.cgImage?.alphaInfo else { return false }
+        switch info {
+        case .none, .noneSkipFirst, .noneSkipLast: return false
+        default: return true
+        }
+    }
+
+    /// Film `dexFx`: light rays turning behind the square and two white rings with a blue glow running out.
+    @ViewBuilder
+    private func impactFX(now: Double, origin o: CGPoint, width: CGFloat) -> some View {
+        let c = controller
+        if let at = c.impactAt, c.phase == .landed, now - at < 1.1, !c.motion.calm {
+            let u = now - at
+            let k = width / 1080
+            Canvas { ctx, _ in
+                let center = CGPoint(x: c.landAt.x - o.x, y: c.landAt.y - o.y)
+                let ra = Film6.outCubic(Film6.seg(u, 0, 0.12)) * (1 - Film6.seg(u, 0.45, 1.0))
+                if ra > 0 {
+                    var g = ctx
+                    g.blendMode = .plusLighter
+                    g.opacity = 0.38 * ra
+                    g.translateBy(x: center.x, y: center.y)
+                    g.rotate(by: .radians(u * 0.6))
+                    let L = 330 * k
+                    for _ in 0..<12 {
+                        g.rotate(by: .radians(2 * .pi / 12))
+                        var ray = Path()
+                        ray.move(to: CGPoint(x: -10 * k, y: 0))
+                        ray.addLine(to: CGPoint(x: -34 * k, y: -L))
+                        ray.addLine(to: CGPoint(x: 34 * k, y: -L))
+                        ray.addLine(to: CGPoint(x: 10 * k, y: 0))
+                        ray.closeSubpath()
+                        g.fill(ray, with: .linearGradient(Gradient(colors: [.rgba(120, 190, 255, 0.9), .rgba(120, 190, 255, 0)]),
+                                                          startPoint: .zero, endPoint: CGPoint(x: 0, y: -L)))
+                    }
+                }
+                for (d, a0, w0, R) in [(0.0, 0.75, 12.0, 300.0), (0.07, 0.45, 6.0, 380.0)] {
+                    let p = Film6.seg(u, d, d + 0.5)
+                    guard p > 0, p < 1 else { continue }
+                    var g = ctx
+                    g.opacity = a0 * (1 - p)
+                    g.addFilter(.shadow(color: Theme.primaryBright, radius: 12 * k * 2))
+                    let r = CGFloat(70 + (R - 70) * Film6.outCubic(p)) * k
+                    g.stroke(Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: 2 * r, height: 2 * r)),
+                             with: .color(.white), lineWidth: CGFloat(w0 * (1 - p) + 1) * k)
+                }
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder
@@ -196,21 +398,90 @@ enum CatchLanding {
     /// The catch is saved: open the dex gallery and fly the waiting star into the word's slot. `alreadyCaught`: a
     /// re-encounter's photo going into a word the dex already shows (no room to make, its own square lands).
     @MainActor
-    static func land(stickerId: String, router: AppRouter, calm: Bool, alreadyCaught: Bool = false) {
+    static func land(stickerId: String, router: AppRouter, calm: Bool, alreadyCaught: Bool = false, goal: CatchGoal? = nil) {
         let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.size ?? CGSize(width: 390, height: 844)
         let star = router.catchStar ?? CatchStar(center: CGPoint(x: screen.width / 2, y: screen.height * 306 / 844),
                                                   size: 52, k: 1)
         router.catchStar = nil
         let c = CatchLandingController(stickerId: stickerId, alreadyCaught: alreadyCaught, star: star,
-                                       motion: CCMotion(calm: calm), screen: screen)
+                                       motion: CCMotion(calm: calm), screen: screen, goal: alreadyCaught ? nil : goal)
         router.landing = c
         Task {
             // One frame first, so the camera screen knows it stays under the rising dex page.
             try? await Task.sleep(for: .milliseconds(16))
-            // #dex: transform translateY(102%) → none, .55 s cubic-bezier(.2,1,.3,1) (.calm: no slide)
-            withAnimation(calm ? nil : .timingCurve(0.2, 1, 0.3, 1, duration: 0.55)) { router.tab = .dex }
+            // Film v6: the 図鑑 page rises 140 px with a fade (.4 s, in-out cubic; MainTabView's transition) (calm: no slide)
+            withAnimation(calm ? nil : .timingCurve(0.65, 0, 0.35, 1, duration: 0.4)) { router.tab = .dex }
             await c.run()
             if router.landing === c { router.landing = nil }
+        }
+    }
+}
+
+/// The goal toast (film `goalToast`): a glass capsule above the tab bar — the category's emoji, 「〜の基本5語」, how many
+/// are left in blue, and five dots (caught: blue with a white check, the new one popping in; still to find: dashed,
+/// breathing). On for 2.5 s.
+struct CatchGoalToast: View {
+    let goal: CatchGoal
+    let start: Double
+    let now: Double
+    let calm: Bool
+
+    var body: some View {
+        let u = now - start
+        let a = (calm ? Film6.clamp(u / 0.2) : Film6.outCubic(Film6.seg(u, 0, 0.35))) * (1 - Film6.seg(u, 2.5, 2.75))
+        if a > 0.001 {
+            HStack(spacing: 12) {
+                Text(goal.emoji).font(.system(size: 22))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("\(goal.label)の基本5語"))
+                        .font(.system(size: 13.5, weight: .heavy))
+                        .foregroundStyle(Color(hex: 0x0B121A))
+                    Text(goal.left == 0 ? L("コンプリート！") : L("あと\(goal.left)語でコンプリート"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.primary)
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                Spacer(minLength: 8)
+                HStack(spacing: 6) {
+                    ForEach(Array(goal.caught.enumerated()), id: \.offset) { i, caught in
+                        dot(i, caught: caught, u: u)
+                    }
+                }
+            }
+            .padding(.leading, 20)
+            .padding(.trailing, 18)
+            .frame(height: 56)
+            .background(.regularMaterial, in: Capsule())
+            .background(Color.white.opacity(0.6), in: Capsule())
+            .overlay(Capsule().stroke(Color.white.opacity(0.7), lineWidth: 1))
+            .shadow(color: .rgba(15, 40, 80, 0.14), radius: 16, y: 6)
+            .padding(.horizontal, 16)
+            .opacity(a)
+            .offset(y: CGFloat(1 - a) * 15)
+            .padding(.bottom, 96)
+            .environment(\.colorScheme, .light)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
+    private func dot(_ i: Int, caught: Bool, u: Double) -> some View {
+        let isNew = goal.newIndex == i
+        let filled = caught && (!isNew || u > 0.25)
+        if filled {
+            let pop = isNew && !calm ? Film6.outBack(Film6.seg(u, 0.25, 0.5), 3) : 1
+            Circle()
+                .fill(Theme.primary)
+                .frame(width: 14, height: 14)
+                .overlay(Image(systemName: "checkmark").font(.system(size: 7, weight: .black)).foregroundStyle(.white))
+                .scaleEffect(CGFloat(pop))
+        } else {
+            Circle()
+                .strokeBorder(Theme.primary, style: StrokeStyle(lineWidth: 1.5, dash: [2.4, 2]))
+                .frame(width: 13, height: 13)
+                .opacity(calm ? 1 : 0.55 + 0.45 * sin(u * 4.2))
+                .frame(width: 14, height: 14)
         }
     }
 }

@@ -85,8 +85,10 @@ struct CaptureView: View {
             CCShutterFlash(start: shotFlash, calm: reduceMotion).zIndex(30)
         }
         .denseTypeSizeCap()  // the camera chrome is laid out around the viewfinder and the shutter
-        // The camera machine, the words on the photo and the celebration are dark full-screen views.
-        .statusBarTone(isMachine || isFullScreen ? .light : .automatic)
+        // The camera machine and the words on the photo are dark full-screen views; the choose screen and the GET
+        // moment (film v6) are the light page.
+        .statusBarTone(vm.step == .celebrate || (vm.step == .select && vm.lightStage) ? .dark
+                       : (isMachine || isFullScreen ? .light : .automatic))
         .task { await startCamera() }
         .onAppear {
             LocationService.shared.requestPermissionIfNeeded()
@@ -167,7 +169,8 @@ struct CaptureView: View {
         case .celebrate:
             CatchCelebrationView(vm: vm, saving: saveInFlight, onAdd: addToDex,
                                  onStickerFrame: { stickerFrame = $0 })
-                .transition(.opacity)
+                // From the choose screen the GET moment goes on in the very same frame (CatchStageScene): no fade.
+                .transition(vm.stageHandoff != nil ? AnyTransition.identity : AnyTransition.opacity)
         case .reencounter:
             ReencounterView(vm: vm, onSeeInDex: { id, photoFrame in
                 // As for a new word (owner 2026-10-11: 「同じ単語でも図鑑に追加するアニメーションを追加して」): the dex
@@ -567,12 +570,14 @@ struct CaptureView: View {
             router.tourStickerId = local.sticker.id
             router.tour = .added
         }
-        // The star leaves from the sticker and flies into the word's slot in the dex.
+        // The sticker itself leaves the stage and flies into the word's slot in the dex (film v6).
         if let f = stickerFrame {
-            router.catchStar = CatchStar(center: CGPoint(x: f.midX, y: f.midY), size: 52, k: 1)
+            router.catchStar = CatchStar(center: CGPoint(x: f.midX, y: f.midY), size: 52, k: 1,
+                                         image: vm.cutout ?? vm.stickerFallback(), box: f.size)
         }
         // The dex page rises over this screen, then the camera is put back.
-        CatchLanding.land(stickerId: local.sticker.id, router: router, calm: reduceMotion)
+        CatchLanding.land(stickerId: local.sticker.id, router: router, calm: reduceMotion,
+                          goal: CatchGoal.make(headword: want.headword, stickers: dex.stickers, lang: NativeAPI.targetLanguage))
         // This screen goes away with the tab: the background save holds what it needs itself.
         let model = vm, store = dex, planStore = plan, nav = router
         Task {

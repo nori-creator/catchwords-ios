@@ -20,12 +20,28 @@ struct DexGalleryFocus: Equatable {
     var id: String
     /// `.slot.fill` started (CCClock time); nil = not filled yet.
     var fillStart: Double?
+    /// Film v6: the sticker itself landed (arriving 1.3× and tilted): the square settles from that pose instead of
+    /// fading in.
+    var settle: Bool = false
+}
+
+/// Film v6's marks after a catch has landed: the NEW badge on its square (until the 図鑑 is left), the category's
+/// count held back until it rolls, and the breathing ring round the category's next shadow.
+struct DexLandingMarks: Equatable {
+    var newId: String
+    var category: Int
+    /// The impact (CCClock time).
+    var impact: Double
+    /// The category's count still shows the number before the catch (it rolls at impact + .3).
+    var countLag: Int = 0
 }
 
 struct DexGallery: View {
     let sections: [DexSection]
     let focus: DexGalleryFocus?
     let calm: Bool
+    /// Film v6's marks after a landing (nil = none).
+    var marks: DexLandingMarks? = nil
     /// The landing slot's `.sart` frame in global coordinates, as it lays out.
     var onTargetFrame: ((CGRect) -> Void)? = nil
     let onOpen: (Sticker) -> Void
@@ -33,7 +49,9 @@ struct DexGallery: View {
     var body: some View {
         LazyVStack(spacing: 0) {
             ForEach(sections) { sec in
-                DexCategoryCard(section: sec, focus: focus, calm: calm, onTargetFrame: onTargetFrame, onOpen: onOpen)
+                DexCategoryCard(section: sec, focus: focus, calm: calm,
+                                marks: marks?.category == sec.category.no ? marks : nil,
+                                onTargetFrame: onTargetFrame, onOpen: onOpen)
                     .padding(.top, 12)
                     .id("dexcat-\(sec.category.no)")
             }
@@ -46,8 +64,19 @@ private struct DexCategoryCard: View {
     let section: DexSection
     let focus: DexGalleryFocus?
     let calm: Bool
+    /// This category's marks after a landing.
+    let marks: DexLandingMarks?
     let onTargetFrame: ((CGRect) -> Void)?
     let onOpen: (Sticker) -> Void
+
+    /// The next shadow to find after a landing in this category (its ring breathes).
+    private var goalSlot: String? {
+        guard marks != nil else { return nil }
+        return section.slots.first { slot in
+            if case .shadow = slot.kind { return true }
+            return false
+        }?.id
+    }
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 9, alignment: .top), count: 4)
 
@@ -59,10 +88,11 @@ private struct DexCategoryCard: View {
                     .font(.system(size: 14, weight: .heavy))
                     .foregroundStyle(Theme.foreground)
                 Spacer(minLength: 8)
-                Text("\(section.caughtCount) / \(section.slots.count)")
+                Text("\(section.caughtCount - (marks?.countLag ?? 0)) / \(section.slots.count)")
                     .font(.system(size: 12, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(Theme.muted)
+                    .foregroundStyle(marks == nil ? Theme.muted : Theme.primary)
+                    .contentTransition(.numericText())
             }
             .padding(.horizontal, 2)
             .padding(.top, 2)
@@ -70,6 +100,7 @@ private struct DexCategoryCard: View {
             LazyVGrid(columns: columns, spacing: 9) {
                 ForEach(Array(section.slots.enumerated()), id: \.element.id) { index, slot in
                     DexSlotView(slot: slot, index: index, focus: focus?.id == slot.id ? focus : nil, calm: calm,
+                                isNew: marks?.newId == slot.id, goalSince: goalSlot == slot.id ? marks?.impact : nil,
                                 onTargetFrame: focus?.id == slot.id ? onTargetFrame : nil, onOpen: onOpen)
                         .id(slot.id)
                 }
@@ -94,6 +125,10 @@ private struct DexSlotView: View {
     let index: Int
     let focus: DexGalleryFocus?
     let calm: Bool
+    /// Film v6: the word just caught (the NEW badge pops on its square and stays).
+    var isNew: Bool = false
+    /// Film v6: the category's next shadow after a landing (a dashed ring breathes round it from impact + 1 s).
+    var goalSince: Double? = nil
     let onTargetFrame: ((CGRect) -> Void)?
     let onOpen: (Sticker) -> Void
 
@@ -128,6 +163,9 @@ private struct DexSlotView: View {
         VStack(spacing: 3) {
             sart(caught: true) { picture(s) }
                 .detailZoomSource(s.id)   // the word sheet zooms out of this square
+                .overlay(alignment: .topTrailing) {
+                    if isNew { DexNewBadge(calm: calm).offset(x: 4, y: -2) }
+                }
             noText
             // A long word (冷氣遙控器) shrinks to its own column instead of running over the next one.
             DexFitWidth(minScale: 0.4, alignment: .center) {
@@ -141,6 +179,9 @@ private struct DexSlotView: View {
     private func column(shadow item: DexItem) -> some View {
         VStack(spacing: 3) {
             sart(caught: false) { DexSilhouette(item: item) }
+                .overlay {
+                    if let since = goalSince { DexGoalRing(since: since, calm: calm) }
+                }
             noText
             Text(DexBook.shadowLabel(item.headword(for: lang), lang: lang))
                 .font(.system(size: 13, weight: .bold))
@@ -170,7 +211,7 @@ private struct DexSlotView: View {
         let inner = content()
         return Color.clear
             .aspectRatio(1, contentMode: .fit)
-            .overlay { DexFillIn(start: focus?.fillStart, calm: calm) { inner } }
+            .overlay { DexFillIn(start: focus?.fillStart, calm: calm, settle: focus?.settle ?? false) { inner } }
             .background {
                 if let report = onTargetFrame {
                     Color.clear
@@ -279,6 +320,9 @@ struct DexCyclingPicture: View {
 private struct DexFillIn<Content: View>: View {
     let start: Double?
     let calm: Bool
+    /// Film v6 (`drawTargetSlot` after the impact): the sticker arrived 1.3× and tilted −7°; the picture settles
+    /// from there (spring .42 / .52) with the squash of the contact, no fade.
+    var settle: Bool = false
     @ViewBuilder let content: Content
     /// The `start` whose animation has played out: the TimelineView goes away instead of redrawing forever.
     @State private var done: Double?
@@ -286,14 +330,24 @@ private struct DexFillIn<Content: View>: View {
     var body: some View {
         if let start, !calm, done != start {
             TimelineView(.animation) { _ in
-                let t = max(0, min(1, (CCClock.now - start) / 0.9))
-                let e = CCBezier(0.3, 1.5, 0.5, 1)
-                let p = e(t)
-                let o = t < 0.6 ? max(0, min(1, e(t / 0.6))) : 1
-                content
-                    .scaleEffect(1.7 + (1 - 1.7) * p)
-                    .rotationEffect(.degrees(-10 * (1 - p)))
-                    .opacity(o)
+                if settle {
+                    let u = max(0, CCClock.now - start)
+                    let st = Film6.spring(u, response: 0.42, damping: 0.52)
+                    let sq = sin(Film6.clamp(u / 0.22) * .pi) * exp(-u * 6)
+                    let k = Film6.lerp(1.3, 1, st)
+                    content
+                        .scaleEffect(x: k * (1 + 0.14 * sq), y: k * (1 - 0.12 * sq))
+                        .rotationEffect(.degrees(-6.9 * (1 - st)))
+                } else {
+                    let t = max(0, min(1, (CCClock.now - start) / 0.9))
+                    let e = CCBezier(0.3, 1.5, 0.5, 1)
+                    let p = e(t)
+                    let o = t < 0.6 ? max(0, min(1, e(t / 0.6))) : 1
+                    content
+                        .scaleEffect(1.7 + (1 - 1.7) * p)
+                        .rotationEffect(.degrees(-10 * (1 - p)))
+                        .opacity(o)
+                }
             }
             .task(id: start) {
                 let left = 0.95 - (CCClock.now - start)
@@ -400,5 +454,49 @@ private struct DexModeIcon: View {
                 CCSVGPath(d: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01").stroke(color, style: round)
             }
         }
+    }
+}
+
+/// Film v6's NEW badge on the square just caught: a red capsule tilted a little, popping in a moment after the impact.
+private struct DexNewBadge: View {
+    let calm: Bool
+    @State private var shown = false
+
+    var body: some View {
+        Text(verbatim: "NEW")
+            .font(.system(size: 9, weight: .heavy))
+            .tracking(0.7)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .frame(height: 16)
+            .background(Color(hex: 0xFF3B30), in: Capsule())
+            .shadow(color: .rgba(255, 59, 48, 0.45), radius: 3)
+            .rotationEffect(.degrees(-8))
+            .scaleEffect(shown ? 1 : 0.01)
+            .opacity(shown ? 1 : 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onAppear {
+                withAnimation(calm ? nil : .spring(response: 0.32, dampingFraction: 0.5).delay(0.1)) { shown = true }
+            }
+    }
+}
+
+/// Film v6: the category's next shadow after a catch — a dashed blue ring that breathes (alpha .55 + .45 sin 4.2 t).
+private struct DexGoalRing: View {
+    let since: Double
+    let calm: Bool
+
+    var body: some View {
+        TimelineView(.animation(paused: calm)) { _ in
+            let u = CCClock.now - since
+            let gp = Film6.seg(u, 1.0, 1.2)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Theme.primary, style: StrokeStyle(lineWidth: 1.8, dash: [5, 3.6], dashPhase: calm ? 0 : -u * 14))
+                .padding(-2)
+                .opacity(calm ? 1 : gp * (0.55 + 0.45 * sin(u * 4.2)))
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
