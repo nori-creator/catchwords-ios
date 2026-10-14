@@ -456,17 +456,28 @@ struct CandidatePickerView: View {
         }
     }
 
-    /// DEBUG previews (`-uiPreview variants`): the first thing with several ways to say it opens by itself.
+    /// DEBUG previews (`-uiPreview variants`): the first thing with several ways to say it opens by itself, the second
+    /// way is chosen (blue outline, the card folds away, the sticker glides on), then it starts again.
     private func openForPreview() async {
         guard autoOpen else { return }
-        for _ in 0..<60 {
+        var marked = false
+        while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(100))
-            guard flow == nil, stageFrame.width > 0 else { continue }
-            if let t = tags(objects).first(where: { $0.choices.count > 1 }) {
-                open(t)
+            guard flow == nil, stageFrame.width > 0,
+                  let t = tags(objects).first(where: { $0.choices.count > 1 }) else { continue }
+            if !marked {
                 UIReady.mark("preview")
-                return
+                marked = true
             }
+            try? await Task.sleep(for: .milliseconds(600))
+            open(t)
+            try? await Task.sleep(for: .seconds(2.6))
+            pick(1)
+            try? await Task.sleep(for: .seconds(2.2))
+            flow = nil
+            melt = false
+            vm.backToCandidates()
+            try? await Task.sleep(for: .milliseconds(400))
         }
     }
 

@@ -339,6 +339,25 @@ struct CatchStageCanvas: View {
         .init(color: Color(hex: 0xE8EDF5), location: 0.8), .init(color: Color(hex: 0xDFE6F0), location: 1),
     ]
 
+    /// Fine grain over the soft gradients so they never band (film `grainTile`).
+    private static let grain: Image = {
+        let n = 128
+        var px = [UInt8](repeating: 255, count: n * n * 4)
+        var seed: UInt32 = 0x9E3779B9
+        for i in 0..<(n * n) {
+            seed = seed &* 1_664_525 &+ 1_013_904_223
+            let v = UInt8(128 + Int((seed >> 24) & 0xFF) * 90 / 255 - 45)
+            px[i * 4] = v; px[i * 4 + 1] = v; px[i * 4 + 2] = v
+        }
+        let provider = CGDataProvider(data: Data(px) as CFData)
+        guard let provider,
+              let cg = CGImage(width: n, height: n, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: n * 4,
+                               space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                               provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        else { return Image(systemName: "circle") }
+        return Image(decorative: cg, scale: 2)
+    }()
+
     var body: some View {
         Canvas { ctx, size in
             guard alpha > 0.001 else { return }
@@ -374,6 +393,10 @@ struct CatchStageCanvas: View {
                 .init(color: palette.glow.color(0.45), location: 0),
                 .init(color: palette.glow.color(0), location: 1),
             ]), center: .zero, startRadius: 0, endRadius: r2))
+            var grain = ctx
+            grain.opacity = alpha * 0.045
+            grain.blendMode = .overlay
+            grain.fill(Path(rect), with: .tiledImage(Self.grain))
             guard !calm else { return }
             // the catch: two rings run out across the floor
             for (d, a0) in [(0.0, 1.0), (0.14, 0.55)] {
