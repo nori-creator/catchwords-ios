@@ -71,6 +71,18 @@ struct WordDetailView: View {
     /// A selfie can be taken for this word (its own photo, a front camera, already saved).
     private var canTakeSelfie: Bool { current.hasOwnPhoto && SelfieCamera.isAvailable && !isProvisional }
 
+    /// 自撮りを撮る in the long-press photo sheet, under 写真を替える (owner 2026-10-14); nil = not offered.
+    private var selfieHandler: ((UIImage) async -> Void)? {
+        guard canTakeSelfie else { return nil }
+        return { image in await addSelfie(image) }
+    }
+
+    /// The question for an item picked under 「違う項目を選ぶ」, and whether it is open.
+    private var reportItemTitle: String { L("「\(Self.itemTitle(reportItem))」のどこが違いましたか？") }
+    private var reportItemShown: Binding<Bool> {
+        Binding(get: { reportItem != nil }, set: { shown in if !shown { reportItem = nil } })
+    }
+
     /// The learner's own pictures; a word caught without one shows its internet stand-in instead.
     private var photos: [String] {
         let own = [current.cutoutImageUrl, current.objectImageUrl].compactMap { $0 }
@@ -160,18 +172,14 @@ struct WordDetailView: View {
             }, onReplace: { item in
                 // 写真を替える sits at the bottom of this sheet now (owner 2026-10-11).
                 Task { await replacePhoto(item) }
-            }, onSelfie: canTakeSelfie ? { (image: UIImage) async -> Void in
-                // 自撮りを撮る, under 写真を替える (owner 2026-10-14).
-                await addSelfie(image)
-            } : nil)
+            }, onSelfie: selfieHandler)
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(32)
         }
         // A picked item: what is wrong with it goes with the report (it went empty, so the fix was made blind —
         // 尺 photographed as a ruler but explained as a measure word, owner 2026-10-14).
-        .alert(L("「\(Self.itemTitle(reportItem))」のどこが違いましたか？"),
-               isPresented: Binding(get: { reportItem != nil }, set: { if !$0 { reportItem = nil } })) {
+        .alert(reportItemTitle, isPresented: reportItemShown) {
             TextField(L("例: 写真の物ではなく別の意味になっている（書かなくても大丈夫）"), text: $reportNote)
             Button(L("キャンセル"), role: .cancel) { reportItem = nil }
             Button(L("直してもらう")) {
