@@ -482,6 +482,48 @@ private struct LongPressGrab: UIGestureRecognizerRepresentable {
     }
 }
 
+/// A selfie on the album page cut down to its people and what they hold (`SelfieCutouts`): a soft blank while it is
+/// made, then the cut-out with the stickers' shadow.
+private struct SelfieAlbumCutout: View {
+    let path: String
+    let width: CGFloat
+    let height: CGFloat
+    let lifted: Bool
+
+    @Environment(DexStore.self) private var dex
+    @State private var image: UIImage?
+
+    var body: some View {
+        let ready = SelfieCutouts.shared.state(for: path) == .ready
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .transition(.opacity)
+                    .shadow(color: Color(hex: 0x5A4630).opacity(lifted ? 0.34 : 0.25), radius: lifted ? 11 : 3, y: lifted ? 11 : 2)
+            } else {
+                RoundedRectangle(cornerRadius: min(width, height) * 0.18, style: .continuous)
+                    .fill(Color(hex: 0x33291F, opacity: 0.05))
+            }
+        }
+        .frame(width: width, height: height)
+        .allowsHitTesting(false)
+        .task(id: "\(path)|\(ready)") {
+            guard ready else {
+                SelfieCutouts.shared.request(path, dex: dex)
+                return
+            }
+            if let kept = await ImageCache.shared.cached(for: SelfieCutouts.key(for: path)) {
+                withAnimation(.easeOut(duration: 0.25)) { image = kept }
+            } else {
+                // The system emptied the cache: made again.
+                SelfieCutouts.shared.forget(path)
+            }
+        }
+    }
+}
+
 /// One photo in the album: the picture chosen in 設定 › ホームに表示する写真 (`Sticker.homePath`). A cut-out
 /// (`stickers.cutout_image_url`, a transparent PNG) stands alone like a sticker, with only a soft shadow that follows
 /// its outline — no white print, paper or frame behind it; a photo or a selfie is clipped round.
@@ -512,6 +554,9 @@ struct AlbumPhoto: View {
                 .fill(Color(hex: 0x33291F, opacity: 0.05))
                 .frame(width: width, height: height)
                 .allowsHitTesting(false)
+        } else if let path, path == sticker.selfieImageUrl, SelfieCutouts.shared.state(for: path) != .none {
+            // A selfie: its people and what they hold, cut out like the other stickers (made on this phone).
+            SelfieAlbumCutout(path: path, width: width, height: height, lifted: lifted)
         } else if let path, path == sticker.cutoutImageUrl {
             StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
                 .allowsHitTesting(false)

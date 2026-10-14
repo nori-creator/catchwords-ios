@@ -54,6 +54,8 @@ enum AccountCleanup {
         TourStep.removePending(userId: userId)
         // The photos it took off the home album that only this phone remembered.
         if let userId { UserDefaults.standard.removeObject(forKey: "album.hidden.local.\(userId)") }
+        // Which of its selfies had no person to cut out.
+        if let userId { SelfieCutouts.shared.reset(deleting: userId) }
 
         // Unsent text drafts that older versions of the app kept on this device for that account
         // (`diary-draft-<user>-<date>`; the feature is gone, the leftovers go with the account).

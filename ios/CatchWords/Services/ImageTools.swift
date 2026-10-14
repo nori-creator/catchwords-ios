@@ -119,6 +119,97 @@ nonisolated enum CutoutService {
 }
 
 extension CutoutService {
+    /// A selfie cut down to its people and what they hold (owner 2026-10-14: 「自撮りに写る人物とその単語の対象に絞って
+    /// 切り抜いてほしい」): the foreground instances that are people, or that touch them (the drink in the hand, the thing
+    /// held up beside the face). Shelves and walls behind them are not foreground; a thing standing apart is dropped.
+    /// nil when there is no person (the selfie is then shown as it is) or on the Simulator.
+    nonisolated static func liftPeople(from image: UIImage) async -> UIImage? {
+        await Task.detached(priority: .utility) { liftPeopleNow(image) }.value
+    }
+
+    nonisolated private static func liftPeopleNow(_ source: UIImage) -> UIImage? {
+        let image = ImageTools.resized(source, maxSide: 1600)
+        guard let cg = image.cgImage else { return nil }
+        let foreground = VNGenerateForegroundInstanceMaskRequest()
+        let people = VNGeneratePersonSegmentationRequest()
+        people.qualityLevel = .balanced
+        people.outputPixelFormat = kCVPixelFormatType_OneComponent8
+        let handler = VNImageRequestHandler(cgImage: cg, orientation: .up)
+        do { try handler.perform([foreground, people]) } catch { return nil }
+        guard let result = foreground.results?.first, !result.allInstances.isEmpty,
+              let personMask = people.results?.first?.pixelBuffer else { return nil }
+        let keep = instancesWithPeople(labels: result.instanceMask, person: personMask)
+            .intersection(result.allInstances)
+        guard !keep.isEmpty,
+              let masked = try? result.generateMaskedImage(ofInstances: keep, from: handler, croppedToInstancesExtent: true)
+        else { return nil }
+        let ci = CIImage(cvPixelBuffer: masked)
+        guard let out = CIContext().createCGImage(ci, from: ci.extent) else { return nil }
+        return UIImage(cgImage: out)
+    }
+
+    /// The instance labels that are people (≥ 30 % of the instance lies on the person mask) or that touch them
+    /// (≥ 35 % lies within a short reach of a person — what is held in front of or beside the body).
+    nonisolated static func instancesWithPeople(labels: CVPixelBuffer, person: CVPixelBuffer) -> IndexSet {
+        CVPixelBufferLockBaseAddress(labels, .readOnly)
+        CVPixelBufferLockBaseAddress(person, .readOnly)
+        defer {
+            CVPixelBufferUnlockBaseAddress(labels, .readOnly)
+            CVPixelBufferUnlockBaseAddress(person, .readOnly)
+        }
+        let lw = CVPixelBufferGetWidth(labels), lh = CVPixelBufferGetHeight(labels)
+        let pw = CVPixelBufferGetWidth(person), ph = CVPixelBufferGetHeight(person)
+        guard lw > 0, lh > 0, pw > 0, ph > 0,
+              let lbase = CVPixelBufferGetBaseAddress(labels), let pbase = CVPixelBufferGetBaseAddress(person) else { return [] }
+        let lrow = CVPixelBufferGetBytesPerRow(labels), prow = CVPixelBufferGetBytesPerRow(person)
+
+        // The person mask on a coarse grid (at most 160 cells a side), then widened by ~4 % of the picture.
+        let scale = 160.0 / Double(max(pw, ph))
+        let gw = max(1, Int(Double(pw) * min(1, scale))), gh = max(1, Int(Double(ph) * min(1, scale)))
+        var onPerson = [Bool](repeating: false, count: gw * gh)
+        for gy in 0..<gh {
+            for gx in 0..<gw {
+                let px = min(pw - 1, (gx * pw + pw / (2 * gw)) / gw), py = min(ph - 1, (gy * ph + ph / (2 * gh)) / gh)
+                onPerson[gy * gw + gx] = pbase.advanced(by: py * prow + px).load(as: UInt8.self) > 127
+            }
+        }
+        guard onPerson.contains(true) else { return [] }
+        let reach = max(1, Int(Double(max(gw, gh)) * 0.04))
+        var across = [Bool](repeating: false, count: gw * gh)
+        for gy in 0..<gh {
+            for gx in 0..<gw where onPerson[gy * gw + gx] {
+                for x in max(0, gx - reach)...min(gw - 1, gx + reach) { across[gy * gw + x] = true }
+            }
+        }
+        var near = [Bool](repeating: false, count: gw * gh)
+        for gy in 0..<gh {
+            for gx in 0..<gw where across[gy * gw + gx] {
+                for y in max(0, gy - reach)...min(gh - 1, gy + reach) { near[y * gw + gx] = true }
+            }
+        }
+
+        var total: [Int: Int] = [:], inside: [Int: Int] = [:], touching: [Int: Int] = [:]
+        let step = max(1, max(lw, lh) / 400)
+        for y in stride(from: 0, to: lh, by: step) {
+            let gy = min(gh - 1, y * gh / lh)
+            for x in stride(from: 0, to: lw, by: step) {
+                let l = Int(lbase.advanced(by: y * lrow + x).load(as: UInt8.self))
+                guard l != 0 else { continue }
+                let g = gy * gw + min(gw - 1, x * gw / lw)
+                total[l, default: 0] += 1
+                if onPerson[g] { inside[l, default: 0] += 1 }
+                if near[g] { touching[l, default: 0] += 1 }
+            }
+        }
+        var keep = IndexSet()
+        for (l, n) in total where n > 0 {
+            let isPerson = Double(inside[l] ?? 0) / Double(n) >= 0.3
+            let held = Double(touching[l] ?? 0) / Double(n) >= 0.35
+            if isPerson || held { keep.insert(l) }
+        }
+        return keep
+    }
+
     /// The instance label under `point` (0–1, top-left origin) in Vision's label mask, or the nearest
     /// instance within ~8% of the image when the point lands just beside a thin or small subject.
     nonisolated static func nearestInstance(in mask: CVPixelBuffer, to point: CGPoint) -> Int? {
