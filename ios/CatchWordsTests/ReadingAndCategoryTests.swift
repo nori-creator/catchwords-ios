@@ -67,4 +67,15 @@ final class ReadingAndCategoryTests: XCTestCase {
         XCTAssertEqual(DexCatalog.withOther.last?.no, DexCatalog.otherNo)
         XCTAssertEqual(DexCatalog.categories.count, 20)
     }
+
+    /// 発音のコツ・語源・覚え方・台湾メモ are drawn one sentence per line (owner 2026-10-14).
+    @MainActor
+    func testTipsSplitIntoSentences() {
+        XCTAssertEqual(WordDetailView.sentences("舌を上げる。息を強く出す！\n部首: 木"),
+                       ["舌を上げる。", "息を強く出す！", "部首: 木"])
+        XCTAssertEqual(WordDetailView.sentences("「好吃。」と言う。次"), ["「好吃。」と言う。", "次"])
+        XCTAssertEqual(WordDetailView.sentences("Stress the first syllable. Then relax."),
+                       ["Stress the first syllable.", "Then relax."])
+        XCTAssertEqual(WordDetailView.sentences("  "), [])
+    }
 }

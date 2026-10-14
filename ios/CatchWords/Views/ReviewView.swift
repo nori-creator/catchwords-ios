@@ -476,13 +476,16 @@ struct QuizCard: View {
             } else {
                 // The word's cut-out, as in the dex and on its page (owner 2026-10-11); a photo without one keeps its box.
                 let shown = dex.sticker(id: card.sticker.id) ?? card.sticker
-                let path = shown.dexImagePath
-                (shown.dexShowsCutout ? Color.clear : Theme.secondary)
+                // The dex's own choice (a missing or empty cut-out falls back to the photo).
+                let pic = dex.dexPicture(of: shown)
+                let path = pic?.path
+                let isCutout = pic?.isCutout == true
+                (isCutout ? Color.clear : Theme.secondary)
                     .frame(height: photoHeight)
                     .overlay {
                         StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
-                            .padding(shown.dexShowsCutout ? 2 : 6)
-                            .shadow(color: .black.opacity(shown.dexShowsCutout ? 0.16 : 0), radius: 8, y: 5)
+                            .padding(isCutout ? 2 : 6)
+                            .shadow(color: .black.opacity(isCutout ? 0.16 : 0), radius: 8, y: 5)
                             .allowsHitTesting(false)
                     }
                     .clipShape(.rect(cornerRadius: 22, style: .continuous))

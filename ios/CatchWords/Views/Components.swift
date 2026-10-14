@@ -174,7 +174,10 @@ struct StickerImage: View {
         // path alone never ran again, leaving the picture blank.
         .task(id: "\(path ?? "")|\(url?.absoluteString ?? "")") { await fill() }
         .onChange(of: image) { _, img in
-            if let img { onLoad?(img.size) }
+            guard let img else { return }
+            onLoad?(img.size)
+            // A cut-out that came out (almost) empty: the dex shows the word's photo instead.
+            if let path, path.contains("-cutout"), ImageTools.isNearlyBlank(img) { dex?.markBlankCutout(path) }
         }
     }
 

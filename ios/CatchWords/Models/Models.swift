@@ -72,6 +72,8 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     var antonyms: [String]?
     var taiwanNote: String?
     var examplesExtra: [ExampleExtra]?
+    /// The scene / feeling the main example is said in (server 2026-10-14; empty on older cards).
+    var exampleScene: String?
     var pronunciationTips: String?
     var studyTips: String?
     var etymology: String?
@@ -114,6 +116,7 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         case japanNote = "japan_note"
         case taiwanNote = "taiwan_note"
         case examplesExtra = "examples_extra"
+        case exampleScene = "example_scene"
         case pronunciationTips = "pronunciation_tips"
         case studyTips = "study_tips"
         case usageNote = "usage_note"
@@ -158,6 +161,7 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         antonyms = (try? c.decodeIfPresent([String].self, forKey: .antonyms)).flatMap { $0 }
         taiwanNote = (try? c.decodeIfPresent(String.self, forKey: .taiwanNote)).flatMap { $0 }
         examplesExtra = (try? c.decodeIfPresent([ExampleExtra].self, forKey: .examplesExtra)).flatMap { $0 }
+        exampleScene = (try? c.decodeIfPresent(String.self, forKey: .exampleScene)).flatMap { $0 }
         pronunciationTips = (try? c.decodeIfPresent(String.self, forKey: .pronunciationTips)).flatMap { $0 }
         studyTips = (try? c.decodeIfPresent(String.self, forKey: .studyTips)).flatMap { $0 }
         etymology = (try? c.decodeIfPresent(String.self, forKey: .etymology)).flatMap { $0 }

@@ -50,6 +50,27 @@ nonisolated enum ImageTools {
         return UIImage(cgImage: cg)
     }
 
+    /// A cut-out with (almost) nothing in it: a speck (both sides tiny — a thin pen is long on one side) or nearly
+    /// all transparent. Measured on a 32×32 copy, so it is cheap enough to run on every picture drawn.
+    nonisolated static func isNearlyBlank(_ image: UIImage) -> Bool {
+        guard let cg = image.cgImage else { return false }
+        if max(cg.width, cg.height) < 48 { return true }
+        let side = 32
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        // The context draws into the array's own memory, so it lives only inside this closure.
+        let drawn = pixels.withUnsafeMutableBytes { buf -> Bool in
+            guard let ctx = CGContext(data: buf.baseAddress, width: side, height: side, bitsPerComponent: 8,
+                                      bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            ctx.draw(cg, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard drawn else { return false }
+        var opaque = 0
+        for i in stride(from: 3, to: pixels.count, by: 4) where pixels[i] > 25 { opaque += 1 }
+        return Double(opaque) / Double(side * side) < 0.015
+    }
+
     /// `downsampled(data:maxSide:)` off the main thread (photos picked from the library).
     static func downsampledInBackground(_ data: Data, maxSide: CGFloat = 2400) async -> UIImage? {
         await Task.detached(priority: .userInitiated) { downsampled(data: data, maxSide: maxSide) }.value
@@ -112,6 +133,12 @@ nonisolated enum CutoutService {
             return UIImage(cgImage: out)
         }
         guard let croppedImage = render(true) else { return nil }
+        // A speck of the photo is not a subject (the 2026-10-11 cut-outs of 優酪乳 / 拿鐵 came out 8–15 KB and the dex
+        // squares stayed blank): nothing lifted, so the photo is used.
+        if let c = croppedImage.cgImage, let s = image.cgImage,
+           Double(c.width * c.height) < 0.004 * Double(s.width * s.height) || ImageTools.isNearlyBlank(croppedImage) {
+            return nil
+        }
         if wantCropOnly { return Lift(cropped: croppedImage, full: croppedImage, photo: image) }
         guard let fullImage = render(false) else { return nil }
         return Lift(cropped: croppedImage, full: fullImage, photo: image)

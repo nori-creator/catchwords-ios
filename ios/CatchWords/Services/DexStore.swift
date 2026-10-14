@@ -63,6 +63,16 @@ final class DexStore {
     /// Paths the storage answered for without the file (a cut-out whose upload never landed, a photo removed): the
     /// dex shows the word's next picture instead of an empty square.
     var missingPaths: Set<String> = []
+    /// Cut-outs that came out (almost) empty — a speck of the photo, 8–15 KB where a real one is hundreds (owner
+    /// 2026-10-14: 「図鑑にまだ表示されてないものがある」): found when the picture is drawn (`StickerImage`), and the
+    /// word's photo is shown instead.
+    var blankCutouts: Set<String> = []
+
+    /// A cut-out was drawn and found (almost) empty.
+    func markBlankCutout(_ path: String) {
+        guard !blankCutouts.contains(path) else { return }
+        blankCutouts.insert(path)
+    }
     /// This account's photos waiting in 「解析待ち」 (kept up to date by the queue itself).
     var pending: [PendingCatch] { PendingQueue.shared.items }
     /// sticker id → review state (memory badges). Stickers without a review get no badge.
@@ -434,7 +444,9 @@ final class DexStore {
     /// A word's own dex picture: the cut-out, else the photo, else its internet stand-in — skipping a file the
     /// storage does not have (that left the square blank).
     func dexPicture(of s: Sticker) -> DexPicture? {
-        if let c = s.cutoutImageUrl, !missingPaths.contains(c) { return DexPicture(path: c, isCutout: true) }
+        if let c = s.cutoutImageUrl, !missingPaths.contains(c), !blankCutouts.contains(c) {
+            return DexPicture(path: c, isCutout: true)
+        }
         if let o = s.objectImageUrl, !missingPaths.contains(o) { return DexPicture(path: o, isCutout: false) }
         if let p = s.placeholderImageUrl, !missingPaths.contains(p) { return DexPicture(path: p, isCutout: false) }
         return nil
@@ -1241,6 +1253,7 @@ final class DexStore {
         heroTried = []
         heroQueue = []
         missingPaths = []
+        blankCutouts = []
         loadError = nil
         hasLoaded = false
         PendingQueue.shared.reload()

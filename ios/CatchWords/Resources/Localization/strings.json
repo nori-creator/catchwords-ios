@@ -4578,5 +4578,49 @@
  "自動（鍵のある別の会社）": {
   "en": "Auto (another provider with a key)",
   "zh-TW": "自動（其他有金鑰的公司）"
+ },
+ "口語（くだけた言い方）": {
+  "en": "Spoken (casual)",
+  "zh-TW": "口語（輕鬆的說法）"
+ },
+ "正式名（くわしい・専門的）": {
+  "en": "Formal name (precise / technical)",
+  "zh-TW": "正式名稱（詳細／專業）"
+ },
+ "固有名（商品名・店名）": {
+  "en": "Proper name (brand / shop)",
+  "zh-TW": "專有名稱（商品名／店名）"
+ },
+ "定番（いちばんよく使う）": {
+  "en": "Standard (most common)",
+  "zh-TW": "最常用的說法"
+ },
+ "よく使う別の言い方": {
+  "en": "Another common word",
+  "zh-TW": "其他常用說法"
+ },
+ "保存済みのチャンクの点検": {
+  "en": "Re-check saved chunks",
+  "zh-TW": "檢查已儲存的語塊"
+ },
+ "すでに作った単語の使い方チャンクを、AI がもう一度点検します（語順・文法・訳）。1回で20語ずつ。誤りのある物だけ直します。": {
+  "en": "AI checks the usage chunks of words already made (word order, grammar, translation), 20 words at a time, and fixes only the wrong ones.",
+  "zh-TW": "AI 會再次檢查已產生單字的用法語塊（語序、文法、翻譯），每次 20 個字，只修正有錯的部分。"
+ },
+ "20語を点検する": {
+  "en": "Check 20 words",
+  "zh-TW": "檢查 20 個字"
+ },
+ "これまでに{1}語を点検し、{2}語を直しました。": {
+  "en": "Checked {1} words so far and fixed {2}.",
+  "zh-TW": "目前已檢查 {1} 個字，修正了 {2} 個。"
+ },
+ "今回直した語: {1}": {
+  "en": "Fixed this time: {1}",
+  "zh-TW": "這次修正的字：{1}"
+ },
+ "すべての単語の点検が終わりました。": {
+  "en": "All words have been checked.",
+  "zh-TW": "所有單字都檢查完了。"
  }
 }
