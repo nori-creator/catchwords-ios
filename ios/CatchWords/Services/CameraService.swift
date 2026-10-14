@@ -23,6 +23,13 @@ final class CameraService: NSObject {
     private var isConfigured = false
     private let queue = DispatchQueue(label: "catchwords.camera")
     private var photoContinuation: CheckedContinuation<UIImage?, Never>?
+    /// The lens the camera opens on (the selfie camera opens on the front one).
+    private let preferred: AVCaptureDevice.Position
+
+    init(preferred: AVCaptureDevice.Position = .back) {
+        self.preferred = preferred
+        super.init()
+    }
 
     func start() async {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -62,7 +69,7 @@ final class CameraService: NSObject {
     }
 
     private func configure() -> Bool {
-        guard let camera = Self.find(.back) ?? Self.find(.front),
+        guard let camera = Self.find(preferred) ?? Self.find(preferred == .front ? .back : .front),
               let newInput = try? AVCaptureDeviceInput(device: camera) else { return false }
         session.beginConfiguration()
         session.sessionPreset = .photo

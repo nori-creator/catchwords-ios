@@ -18,6 +18,9 @@ struct CaptureView: View {
     @State private var baseZoom: CGFloat = 1
     @State private var positionBeforeSelfie: AVCaptureDevice.Position = .back
     @AppStorage("selfie.mode") private var selfieMode: Bool = false
+    /// The selfie's self-timer (0 = off), shared with the word page's selfie camera.
+    @AppStorage(SelfieTimer.storageKey) private var selfieTimer: Int = 0
+    @State private var selfieCountdown = SelfieCountdown()
     @Environment(\.appReduceMotion) private var reduceMotion
     /// The shutter flash (`#flash` 0 → 1 at 12% → 0, 480 ms ease-out), above every screen.
     @State private var shotFlash: Double?
@@ -90,12 +93,14 @@ struct CaptureView: View {
             syncChrome()
         }
         .onDisappear {
+            selfieCountdown.cancel()
             camera.stop()
             router.cameraImmersive = true
             router.tabBarHidden = false
         }
         .onChange(of: vm.step) { old, step in
             UITestTrace.log("step \(old) -> \(step)")
+            if step != .selfie { selfieCountdown.cancel() }
             syncChrome()
             if step == .select { router.advanceTour(from: .shoot, to: .pick) }
             if step == .celebrate {
@@ -318,6 +323,9 @@ struct CaptureView: View {
         .overlay(alignment: .top) {
             if vm.step == .selfie { selfiePrompt.padding(.top, 48) }
         }
+        .overlay {
+            if vm.step == .selfie, let left = selfieCountdown.remaining { SelfieCountdownNumber(remaining: left) }
+        }
         .background(Color.black)
     }
 
@@ -336,6 +344,9 @@ struct CaptureView: View {
             .overlay(alignment: .top) {
                 if vm.step == .selfie { selfiePrompt.padding(.top, 48) }
             }
+            .overlay {
+                if vm.step == .selfie, let left = selfieCountdown.remaining { SelfieCountdownNumber(remaining: left) }
+            }
     }
 
     private var selfiePrompt: some View {
@@ -344,7 +355,10 @@ struct CaptureView: View {
                 .scaledFont(size: 20, weight: .bold)
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
-            Button { vm.finishSelfie(nil) } label: {
+            Button {
+                selfieCountdown.cancel()
+                vm.finishSelfie(nil)
+            } label: {
                 Text(L("スキップ"))
                     .scaledFont(size: 16, weight: .medium)
                     .foregroundStyle(.white)
@@ -394,12 +408,16 @@ struct CaptureView: View {
 
     private var controls: some View {
         HStack(alignment: .top) {
-            PhotosPicker(selection: $pickerItem, matching: .images) {
-                sideButton(icon: "photo.badge.plus", label: L("写真"))
+            if vm.step == .selfie {
+                // Where 写真 was: the self-timer (no photo library for selfies).
+                SelfieTimerMenu(seconds: $selfieTimer)
+                    .disabled(selfieCountdown.isRunning)
+            } else {
+                PhotosPicker(selection: $pickerItem, matching: .images) {
+                    sideButton(icon: "photo.badge.plus", label: L("写真"))
+                }
+                .buttonStyle(PressableStyle(scale: 0.9))
             }
-            .buttonStyle(PressableStyle(scale: 0.9))
-            .opacity(vm.step == .selfie ? 0 : 1)
-            .disabled(vm.step == .selfie)
             Spacer()
             ShutterButton(enabled: canShoot, arriving: router.shutterFlying) { shoot() }
                 .opacity(shooting ? 0 : 1)
@@ -468,8 +486,17 @@ struct CaptureView: View {
 
     private func shoot() {
         if vm.step == .selfie {
-            flash()
-            Task { vm.finishSelfie(await capturePhoto()) }
+            // With the timer on, the shutter starts the count; a second press stops it.
+            if selfieCountdown.isRunning {
+                Haptics.selection()
+                selfieCountdown.cancel()
+                return
+            }
+            selfieCountdown.start(selfieTimer) {
+                guard vm.step == .selfie else { return }
+                flash()
+                Task { vm.finishSelfie(await capturePhoto()) }
+            }
             return
         }
         guard plan.canCatch else { router.showPaywall = true; return }

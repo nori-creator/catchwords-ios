@@ -53,6 +53,63 @@ nonisolated enum ZhuyinLayout {
     }
 }
 
+/// One character with the pinyin syllable that sits over it (nil over punctuation and Latin letters).
+nonisolated struct PinyinUnit: Hashable, Sendable {
+    let char: String
+    let reading: String?
+}
+
+/// Pinyin over each Han character (owner 2026-10-14: 「ピンインはなるべく、それぞれの漢字のうえに表示して」): the word's own
+/// pinyin cut into one syllable per character, else the pinyin spelled from its zhuyin. nil when neither gives exactly
+/// one syllable per character — then the reading stays one line over the whole word.
+nonisolated enum PinyinLayout {
+    static func pair(_ headword: String, pinyin: String?, zhuyin: String?) -> [PinyinUnit]? {
+        let chars = Array(headword.trimmingCharacters(in: .whitespaces))
+        let han = chars.filter(ZhuyinLayout.isHan).count
+        guard han > 0 else { return nil }
+        let own = (pinyin ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let spelled = PinyinZhuyin.pinyin(fromZhuyin: zhuyin, want: han)
+        guard let syllables = PinyinZhuyin.syllables(ofPinyin: own.isEmpty ? spelled : own, want: han)
+                ?? PinyinZhuyin.syllables(ofPinyin: spelled, want: han) else { return nil }
+        var i = 0
+        return chars.map { ch in
+            guard ZhuyinLayout.isHan(ch) else { return PinyinUnit(char: String(ch), reading: nil) }
+            defer { i += 1 }
+            return PinyinUnit(char: String(ch), reading: syllables[i])
+        }
+    }
+}
+
+/// Pinyin centred over each character, the characters in one line (the reading line keeps its height over
+/// punctuation, so every character sits on the same baseline).
+struct PinyinRubyLine: View {
+    let units: [PinyinUnit]
+    let size: CGFloat
+    var weight: Font.Weight = .medium
+    var color: Color = Theme.foreground
+    var readingColor: Color = Theme.muted
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: size * 0.05) {
+            ForEach(Array(units.enumerated()), id: \.offset) { _, u in
+                VStack(spacing: 0) {
+                    Text(u.reading ?? " ")
+                        .font(.system(size: max(9, size * 0.36), weight: .medium))
+                        .foregroundStyle(readingColor)
+                        .lineLimit(1)
+                        .fixedSize()
+                    Text(u.char)
+                        .font(.system(size: size, weight: weight))
+                        .foregroundStyle(color)
+                }
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(units.map(\.char).joined())
+    }
+}
+
 /// A headword with its reading, drawn the way the learning language is read (web phonetic.tsx ReadingOf):
 /// - Taiwan Mandarin: zhuyin stacked to the RIGHT of each character (or pinyin above, 設定 › 発音表記)
 /// - Japanese: furigana in hiragana above the word (or Hepburn romaji); none for a kana-only word
@@ -139,7 +196,9 @@ struct ZhuyinWordView: View {
     }
 
     @ViewBuilder private func mandarinRuby(size: CGFloat) -> some View {
-        if readingPref == "pinyin", let p = pinyin?.trimmingCharacters(in: .whitespaces), !p.isEmpty {
+        if readingPref == "pinyin", let units = PinyinLayout.pair(headword, pinyin: pinyin, zhuyin: zhuyin) {
+            PinyinRubyLine(units: units, size: size, weight: weight, color: color, readingColor: readingColor)
+        } else if readingPref == "pinyin", let p = pinyin?.trimmingCharacters(in: .whitespaces), !p.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 Text(p)
                     .font(.system(size: max(10, size * 0.4), weight: .medium))

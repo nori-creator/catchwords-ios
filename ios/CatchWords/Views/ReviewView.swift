@@ -23,10 +23,13 @@ struct ReviewView: View {
     /// scroll, on every size (owner 2026-10-11: 「スクロールしなくてもきっちり画面内にぴったり収まるように」).
     @State private var viewportHeight: CGFloat = 0
     @State private var topHeight: CGFloat = 0
+    /// Bumped by 「いま復習する」: the screen closes the word list and scrolls back up to the quiz card.
+    @State private var showQuizRequest = 0
     @Environment(\.appReduceMotion) private var reduceMotion
 
     /// Room kept under the card for the floating tab bar (58 pt + its 4 pt + a little air).
     private static let tabBarClearance: CGFloat = 70
+    private static let topID = "review.top"
 
     var body: some View {
         ZStack {
@@ -47,6 +50,7 @@ struct ReviewView: View {
                         } action: { h in
                             topHeight = h
                         }
+                        .id(Self.topID)
                         if legendOpen {
                             MemoryOverviewPanel(store: store) { s in
                                 withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { curveSticker = s }
@@ -71,6 +75,14 @@ struct ReviewView: View {
                     guard answered else { return }
                     withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.9)) {
                         proxy.scrollTo(QuizCard.questionID, anchor: .top)
+                    }
+                }
+                // 「いま復習する」 from the word list under the memory bar: the list stayed open and pushed the quiz below
+                // the screen, so nothing seemed to happen (owner 2026-10-14: 「今が復習どきのボタンを押しても復習の画面に
+                // ならない」). Back to the top, where the brought-forward card now is.
+                .onChange(of: showQuizRequest) { _, _ in
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.9)) {
+                        proxy.scrollTo(Self.topID, anchor: .top)
                     }
                 }
             }
@@ -125,6 +137,8 @@ struct ReviewView: View {
                         let answered = answer != nil
                         store.bringForward(s, review: dex.reviews[s.id], currentAnswered: answered)
                         if answered { goNext() }
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { legendOpen = false }
+                        showQuizRequest += 1
                     }, onClose: { closeCurve() })
                     .frame(maxHeight: 640)
                     .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))

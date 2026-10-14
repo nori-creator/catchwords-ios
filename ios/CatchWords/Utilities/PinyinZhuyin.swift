@@ -55,6 +55,84 @@ nonisolated enum PinyinZhuyin {
         return out
     }
 
+    // MARK: - Pinyin cut per syllable (one over each character)
+
+    /// A pinyin reading cut into exactly `want` syllables, each kept as written (tone marks and all):
+    /// 「shǒu biǎo」 → [shǒu, biǎo], 「mángguǒ」 → [máng, guǒ], 「Xī'ān」 → [Xī, ān]. Written runs are cut where
+    /// spaces, apostrophes, hyphens or middle dots are; a run written together is cut into real syllables (the
+    /// inventory below), as few as possible unless that misses `want`. nil when the reading cannot give `want` syllables
+    /// (the caller then keeps one line over the whole word). Owner 2026-10-14: 「ピンインはなるべく、それぞれの漢字のうえに」.
+    static func syllables(ofPinyin text: String?, want: Int) -> [String]? {
+        guard let text, want > 0 else { return nil }
+        let runs = text.split(whereSeparator: { $0.isWhitespace || "'’‘-‐·・,，、".contains($0) }).map { Array($0) }
+        guard !runs.isEmpty else { return nil }
+        if runs.count == want { return runs.map { String($0) } }
+        // Every way to cut each run, by syllable count (from the end, as `cuts(of:)` does for zhuyin).
+        var options: [[Int: [String]]] = []
+        for run in runs {
+            let base = run.map { baseLetter($0) }
+            var suffix = Array(repeating: [Int: [String]](), count: run.count + 1)
+            suffix[run.count] = [0: []]
+            for i in stride(from: run.count - 1, through: 0, by: -1) {
+                var here: [Int: [String]] = [:]
+                for len in stride(from: min(6, run.count - i), through: 1, by: -1) {
+                    guard pinyinBases.contains(String(base[i..<(i + len)])) else { continue }
+                    var piece = String(run[i..<(i + len)])
+                    // A tone digit written after the syllable (shou3) stays with it.
+                    var next = i + len
+                    if next < run.count, run[next].isNumber { piece.append(run[next]); next += 1 }
+                    for (n, rest) in suffix[next] where here[n + 1] == nil { here[n + 1] = [piece] + rest }
+                }
+                suffix[i] = here
+            }
+            guard !suffix[0].isEmpty else { return nil }
+            options.append(suffix[0])
+        }
+        var reach = Array(repeating: Set<Int>(), count: runs.count + 1)
+        reach[runs.count] = [0]
+        for i in stride(from: runs.count - 1, through: 0, by: -1) {
+            for c in options[i].keys { for r in reach[i + 1] { reach[i].insert(c + r) } }
+        }
+        guard reach[0].contains(want) else { return nil }
+        var out: [String] = []
+        var left = want
+        for i in runs.indices {
+            guard let c = options[i].keys.sorted().first(where: { reach[i + 1].contains(left - $0) }),
+                  let part = options[i][c] else { return nil }
+            out += part
+            left -= c
+        }
+        return out
+    }
+
+    /// A letter without its tone mark, lower-cased (ǚ → ü, v → ü, Á → a). Anything else stays as it is.
+    private static func baseLetter(_ c: Character) -> Character {
+        let lower = String(c).lowercased()
+        if lower == "v" { return "ü" }
+        var scalars = String.UnicodeScalarView()
+        for u in lower.decomposedStringWithCanonicalMapping.unicodeScalars
+        where !(0x0300...0x036F).contains(u.value) || u.value == 0x0308 {
+            scalars.append(u)
+        }
+        let s = String(scalars).precomposedStringWithCanonicalMapping
+        return s.count == 1 ? Character(s) : c
+    }
+
+    /// Every toneless pinyin spelling (u after j/q/x as written, ü after n/l, the buzzed i, erhua 「r」).
+    private static let pinyinBases: Set<String> = {
+        var out = Set(standalone.map { $0.0 })
+        out.insert("r")
+        for (ini, _) in initials {
+            var fins = allowed[ini] ?? []
+            if specialI.contains(ini) { fins.append("i") }
+            for fin in fins {
+                out.insert(ini + fin)
+                if palatalInitials.contains(ini) { out.insert(ini + fin.replacingOccurrences(of: "ü", with: "u")) }
+            }
+        }
+        return out
+    }()
+
     // MARK: - Syllables
 
     /// The longest zhuyin syllable tried, in characters with its ˙ or tone mark (the web's `parseZhuyin` passes 5).

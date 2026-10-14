@@ -14,6 +14,7 @@ struct WordDetailView: View {
 
     @State private var takingSelfie: Bool = false
     @State private var isAddingSelfie: Bool = false
+    @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
     @State private var autoplayed: String = ""
     @State private var prefs: CardPrefsStore = .shared
     @State private var showSections: Bool = false
@@ -286,8 +287,9 @@ struct WordDetailView: View {
                     if let register { chip(register) }
                 }
             }
-            // The reading line only when the zhuyin ruby cannot be drawn (web hides it otherwise).
-            if (word?.readingZhuyin ?? "").isEmpty, let p = word?.pinyin, !p.isEmpty {
+            // The reading line only when the zhuyin ruby cannot be drawn (web hides it otherwise). With ピンイン chosen
+            // the headword already carries it over each character.
+            if readingPref != "pinyin", (word?.readingZhuyin ?? "").isEmpty, let p = word?.pinyin, !p.isEmpty {
                 Text(p).scaledFont(size: 14).foregroundStyle(Theme.muted)
             }
         }

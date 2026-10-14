@@ -4362,5 +4362,53 @@
  "取り消すと、カメラ、写真アプリの画像、「違う単語を入力」、単語の解説と例文の作成など、AI を使う機能は使えなくなります。集めた単語と復習はそのまま使えます。": {
   "en": "Features that use AI — the camera, images from the Photos app, “Type a different word”, and writing word explanations and example sentences — will stop working. Your words and reviews stay available.",
   "zh-TW": "撤回後，相機、照片 App 的圖片、「輸入別的單字」、製作單字的解說與例句等使用 AI 的功能將無法使用。收集的單字與複習仍可照常使用。"
+ },
+ "{1}秒": {
+  "en": "{1}s",
+  "zh-TW": "{1} 秒"
+ },
+ "タイマー": {
+  "en": "Timer",
+  "zh-TW": "計時器"
+ },
+ "あと{1}秒": {
+  "en": "Shooting in {1}",
+  "zh-TW": "還有 {1} 秒"
+ },
+ "この写真を使う": {
+  "en": "Use this photo",
+  "zh-TW": "使用這張照片"
+ },
+ "シャッターを押すと止まります": {
+  "en": "Tap the shutter to stop",
+  "zh-TW": "按下快門即可停止"
+ },
+ "覚えたい言い方を選んでください": {
+  "en": "Pick the way of saying it you want to learn",
+  "zh-TW": "選一個你想記住的說法"
+ },
+ "砕けた言い方": {
+  "en": "Casual",
+  "zh-TW": "口語說法"
+ },
+ "くわしい・専門的な名前": {
+  "en": "Specific / technical name",
+  "zh-TW": "詳細或專業的名稱"
+ },
+ "固有名詞": {
+  "en": "Proper noun",
+  "zh-TW": "專有名詞"
+ },
+ "いちばんよく使う言い方": {
+  "en": "Most common",
+  "zh-TW": "最常用的說法"
+ },
+ "ふだんの言い方": {
+  "en": "Everyday",
+  "zh-TW": "日常說法"
+ },
+ "言い方が{1}つあります": {
+  "en": "{1} ways to say it",
+  "zh-TW": "有 {1} 種說法"
  }
 }

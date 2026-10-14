@@ -4,8 +4,11 @@ import SwiftUI
 /// its outline goes round (`CatchObject.anchor`; owner 2026-10-11 「しっかりもののうえに名前タグをおいて」), the AI's
 /// point only when Vision found no instance for it — and "違う単語を入力" underneath for a word that is not among them.
 /// A tap on a tag goes straight to the celebration (owner 2026-10-09: shoot → words → tap → done).
-/// - Each object's everyday name is the bold tag; its other names (砕けた / くわしい / 固有名詞) sit just
-///   above or below it, lighter. Tags never cover each other (`CCPickLayout`), and stay inside the photo.
+/// - One tag per THING, named in the reader's own language (owner 2026-10-14: 「表示するのは母語にして」「表示する
+///   タグは言い方ではなく、異なるものにして」): 鮮乳 / 牛奶 / 全脂鮮乳 were three tags for one bottle, in Mandarin.
+///   A thing with several ways to say it (ふだん / 砕けた / くわしい・専門的 / 固有名詞 — the server's `group` and
+///   `register`) opens the list of them on a tap, to pick the one to learn (web CandidatePicker's ほかの言い方);
+///   a thing with one name goes straight on. Tags never cover each other (`CCPickLayout`), and stay inside the photo.
 /// - Without a position (the AI gave none) and no Vision instance there, the words gather at the photo's centre,
 ///   still one per line.
 /// - From the shutter on (`.processing`) the same screen runs the catch scan over the photo (v10, owner 2026-10-11:
@@ -23,18 +26,31 @@ struct CandidatePickerView: View {
     @FocusState private var inputFocused: Bool
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(AppRouter.self) private var router
+    /// The thing whose ways to say it are listed (nil = none open).
+    @State private var openTag: Tag?
 
     private let ink = Color(hex: 0x0B121A)
 
-    /// One word's tag over the photo.
+    /// One way to say a thing, with the object its cut-out comes from.
+    private struct Choice: Identifiable {
+        let word: Candidate
+        let object: CatchObject
+        var id: String { "\(object.id)-\(word.headword)" }
+    }
+
+    /// One thing's tag over the photo.
     private struct Tag: Identifiable {
         let id: String
+        /// Where the tag sits and what the scan waits for.
         let object: CatchObject
-        let word: Candidate
-        /// The object's everyday name; the others are its other names, drawn lighter.
-        let main: Bool
-        /// Order among the everyday names (`candidate.<n>`); nil for other names.
+        /// Its ways to say it: the everyday one first (ふだん → 砕けた → くわしい → 固有名詞).
+        let choices: [Choice]
+        /// The tag's text: the thing's name in the reader's language (the headword when there is none).
+        let label: String
+        /// Order among the tags (`candidate.<n>`).
         let mainIndex: Int?
+        var word: Candidate { choices[0].word }
     }
 
     /// A tag with its size and its bottom centre in the photo stage.
@@ -68,12 +84,24 @@ struct CandidatePickerView: View {
                     .opacity(scanning ? 0.5 : 1)
                     .animation(.easeOut(duration: 0.25), value: scanning)
             }
+            if let open = openTag {
+                Color.black.opacity(0.45).ignoresSafeArea()
+                    .onTapGesture { closeChoices() }
+                    .transition(.opacity)
+                choicesPanel(open)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 8)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if vm.isCheckingOwned {
                 Color.black.opacity(0.25).ignoresSafeArea()
                 ProgressView().controlSize(.large).tint(.white)
             }
         }
         .allowsHitTesting(!vm.isCheckingOwned)
+        // A new photo (撮り直す) or the move on to the celebration closes the list.
+        .onChange(of: scanning) { _, _ in openTag = nil }
         .onAppear {
             if reduceMotion {
                 appeared = true
@@ -179,27 +207,53 @@ struct CandidatePickerView: View {
         scan.layout(stage: size, fill: Self.fillRect(image: photo.size, in: size))
     }
 
-    /// Everyday names first (each keeps its own place on its object), then the other names, which move just
-    /// above or below the tags they would cover.
+    /// One tag per thing. Two objects the AI kept apart but that read the same in the reader's language (鮮乳 and
+    /// 牛奶 both 「牛乳」) are one thing to the learner: one tag, both names in its list.
     private func tags(_ objects: [CatchObject]) -> [Tag] {
-        var mains: [Tag] = []
-        var others: [Tag] = []
+        var out: [Tag] = []
         for o in objects {
             // ふだん → 砕けた → くわしい → 固有名詞. Same rank keeps the AI's order (likelihood).
             let order = o.words.indices.sorted { a, b in
                 let ra = Self.rank(o.words[a].register), rb = Self.rank(o.words[b].register)
                 return ra != rb ? ra < rb : a < b
             }
-            for (k, i) in order.enumerated() {
-                let id = "\(o.id)-\(i)"
-                if k == 0 {
-                    mains.append(Tag(id: id, object: o, word: o.words[i], main: true, mainIndex: mains.count))
-                } else {
-                    others.append(Tag(id: id, object: o, word: o.words[i], main: false, mainIndex: nil))
-                }
+            let choices = order.map { Choice(word: o.words[$0], object: o) }
+            guard let main = choices.first else { continue }
+            let label = Self.readerName(main.word)
+            let key = Self.mergeKey(label)
+            if let key, let at = out.firstIndex(where: { Self.mergeKey($0.label) == key }) {
+                let had = out[at]
+                let added = choices.filter { c in !had.choices.contains { $0.word.headword == c.word.headword } }
+                out[at] = Tag(id: had.id, object: had.object, choices: Self.ordered(had.choices + added),
+                              label: had.label, mainIndex: had.mainIndex)
+                continue
             }
+            out.append(Tag(id: "\(o.id)", object: o, choices: choices,
+                           label: label.isEmpty ? main.word.headword : label, mainIndex: out.count))
         }
-        return mains + others
+        return out
+    }
+
+    /// Everyday names before the others; within a register the order they came in.
+    private static func ordered(_ list: [Choice]) -> [Choice] {
+        list.indices.sorted { a, b in
+            let ra = rank(list[a].word.register), rb = rank(list[b].word.register)
+            return ra != rb ? ra < rb : a < b
+        }.map { list[$0] }
+    }
+
+    /// The thing's name in the reader's language: the short meaning the server wrote in it (empty when it came back
+    /// in another language — `ReaderLanguage.shown` drops it, and the tag shows the headword).
+    private static func readerName(_ c: Candidate) -> String {
+        let meaning = ReaderLanguage.shown(c.meaningJa)
+        guard !meaning.isEmpty else { return "" }
+        return ReaderLanguage.gloss(meaning, limit: L10n.lang == "en" ? 24 : 12)
+    }
+
+    /// Names that are the same thing to the reader (case and spaces aside); nil = never merged.
+    private static func mergeKey(_ label: String) -> String? {
+        let k = label.lowercased().filter { !$0.isWhitespace }
+        return k.isEmpty ? nil : k
     }
 
     private func placed(in size: CGSize) -> [Placed] {
@@ -207,7 +261,7 @@ struct CandidatePickerView: View {
         let list = tags(objects)
         guard !list.isEmpty else { return [] }
         let fill = Self.fillRect(image: photo.size, in: size)
-        let sizes = list.map { CCPickLayout.tagSize(name: $0.word.headword) }
+        let sizes = list.map { CCPickLayout.tagSize(name: $0.label, badge: $0.choices.count > 1) }
         let tallest = sizes.map(\.height).max() ?? 30
         let area = CCPickLayout.Area(width: size.width, minBottom: tallest + 6,
                                      maxBottom: max(tallest + 6, size.height - 6), sideClamp: 0)
@@ -223,9 +277,9 @@ struct CandidatePickerView: View {
         return list.indices.map { Placed(tag: list[$0], size: sizes[$0], spot: spots[$0]) }
     }
 
-    /// White capsule with a blue dot and the word (the other names: a grey dot, a little see-through).
-    /// With a scan, a tag comes up when the scan brings its object up (the film's rise: a little low, small and soft,
-    /// then up into place); the object's other names follow its everyday name by 0.06 s.
+    /// White capsule with a blue dot and the thing's name in the reader's language; a thing with several ways to
+    /// say it carries their number. With a scan, a tag comes up when the scan brings its object up (the film's rise:
+    /// a little low, small and soft, then up into place).
     private func tagButton(_ p: Placed) -> some View {
         let t = p.tag
         let delay = 0.08 + Double(t.mainIndex ?? 4) * 0.06
@@ -233,31 +287,50 @@ struct CandidatePickerView: View {
         let shown = vm.scan.map { $0.revealed.contains(t.object.id) } ?? appeared
         let rise = scanned && !reduceMotion && !shown
         let motion: Animation? = scanned
-            ? (reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.42, dampingFraction: 0.68).delay(t.main ? 0 : 0.06))
+            ? (reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.42, dampingFraction: 0.68))
             : (reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.7).delay(delay))
         return Button {
             UITestTrace.log("tag.action \(t.id) shown=\(shown) checking=\(vm.isCheckingOwned)")
-            vm.choose(t.word, object: t.object)
+            // The first tour's 選ぶ step dims everything but this tag: there the everyday name is taken at once.
+            if t.choices.count > 1, !router.tour.isCapture {
+                Haptics.selection()
+                withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.86)) { openTag = t }
+            } else {
+                vm.choose(t.word, object: t.choices[0].object)
+            }
         } label: {
             HStack(spacing: 7) {
                 Circle()
-                    .fill(t.main ? Color(hex: 0x2A9BFF) : Color(hex: 0x9AA6B5))
+                    .fill(Color(hex: 0x2A9BFF))
                     .frame(width: 10, height: 10)
-                Text(t.word.headword)
+                Text(t.label)
                     .font(.system(size: CCPickLayout.tagFontSize, weight: .heavy))
                     .foregroundStyle(ink)
                     .lineLimit(1)
                     .fixedSize()
+                if t.choices.count > 1 {
+                    HStack(spacing: 2) {
+                        Image(systemName: "text.bubble")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("\(t.choices.count)")
+                            .font(.system(size: 11, weight: .heavy))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(Color(hex: 0x1F6FD1))
+                    .frame(width: CCPickLayout.badgeWidth, height: 18)
+                    .background(Color(hex: 0x2A9BFF).opacity(0.14), in: Capsule())
+                }
             }
             .padding(.leading, 8)
             .padding(.trailing, 12)
             .padding(.vertical, 7)
-            .background(Color.white.opacity(t.main ? 0.96 : 0.8), in: Capsule())
+            .background(Color.white.opacity(0.96), in: Capsule())
             .shadow(color: .black.opacity(0.3), radius: 10, y: 6)
             .contentShape(Capsule().inset(by: -6))
         }
         .buttonStyle(PressableStyle(scale: 0.94))
-        .accessibilityHint(ReaderLanguage.gloss(ReaderLanguage.shown(t.word.meaningJa)))
+        .accessibilityLabel(t.label)
+        .accessibilityHint(t.choices.count > 1 ? L("言い方が\(t.choices.count)つあります") : t.word.headword)
         .accessibilityIdentifier(t.mainIndex.map { "candidate.\($0)" } ?? "candidate.other")
         .tourAnchor(.pick, if: t.mainIndex == 0)
         .scaleEffect(shown ? 1 : (scanned ? 0.86 : 0.6))
@@ -267,6 +340,104 @@ struct CandidatePickerView: View {
         .allowsHitTesting(shown)
         .accessibilityHidden(!shown)
         .animation(motion, value: shown)
+    }
+
+    // MARK: The ways to say one thing
+
+    private func closeChoices() {
+        withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.9)) { openTag = nil }
+    }
+
+    /// The thing's name in the reader's language on top, then each way to say it in the learning language: what
+    /// kind of word it is (いちばんよく使う / 砕けた / くわしい・専門的 / 固有名詞), its reading, meaning and how it
+    /// differs. A tap on one is the word to learn (owner 2026-10-14: 文旦 → 台湾ではふつう柚子と言う).
+    private func choicesPanel(_ t: Tag) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(t.label)
+                        .scaledFont(size: 24, weight: .heavy)
+                        .foregroundStyle(Theme.foreground)
+                        .lineLimit(2)
+                    Text(L("覚えたい言い方を選んでください"))
+                        .scaledFont(size: 13)
+                        .foregroundStyle(Theme.muted)
+                }
+                Spacer(minLength: 8)
+                Button { closeChoices() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel(L("閉じる"))
+                .accessibilityIdentifier("variant.close")
+            }
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(Array(t.choices.enumerated()), id: \.element.id) { idx, c in
+                        HStack(spacing: 8) {
+                            Button {
+                                openTag = nil
+                                vm.choose(c.word, object: c.object)
+                            } label: {
+                                choiceRow(c.word, first: idx == 0)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(PressableStyle(scale: 0.98))
+                            .accessibilityIdentifier("variant.\(idx)")
+                            PronounceCircle(text: c.word.headword, size: 36)
+                        }
+                        .padding(.vertical, 10)
+                        if idx < t.choices.count - 1 { Divider().overlay(Theme.border) }
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxHeight: 420)
+        }
+        .padding(16)
+        .background(Theme.card, in: .rect(cornerRadius: 24, style: .continuous))
+        .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
+    }
+
+    private func choiceRow(_ c: Candidate, first: Bool) -> some View {
+        let meaning = ReaderLanguage.gloss(ReaderLanguage.shown(c.meaningJa))
+        let note = ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
+        return VStack(alignment: .leading, spacing: 5) {
+            Text(Self.registerLabel(c.register, first: first))
+                .scaledFont(size: 11, weight: .semibold)
+                .foregroundStyle(first ? Theme.primaryInk : Theme.muted)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(first ? Theme.primary.opacity(0.12) : Theme.secondary, in: Capsule())
+            ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: first ? 30 : 24, pinyin: c.pinyin)
+            if !meaning.isEmpty {
+                Text(meaning)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !note.isEmpty {
+                Text(note)
+                    .scaledFont(size: 13, weight: .medium)
+                    .foregroundStyle(Theme.primaryInk)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// What kind of word it is (candidate-order.ts registers). The first everyday name is the one people say most.
+    private static func registerLabel(_ register: String?, first: Bool) -> String {
+        switch register {
+        case "casual": L("砕けた言い方")
+        case "specific": L("くわしい・専門的な名前")
+        case "proper": L("固有名詞")
+        default: first ? L("いちばんよく使う言い方") : L("ふだんの言い方")
+        }
     }
 
     /// ふだん → 砕けた → くわしい → 固有名詞 (candidate-order.ts).
