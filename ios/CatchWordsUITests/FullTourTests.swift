@@ -155,9 +155,14 @@ final class FullTourTests: XCTestCase {
         let aimed = first.exists ? "candidate.0 hittable \(first.isHittable), frame \(first.frame)" : "candidate.0 gone"
         let tappedAt = Self.clock.string(from: Date())
         first.tap()
-        // A thing with several ways to say it lists them first (outside the first tour): take the everyday one.
+        // A thing with several ways to say it lists them first (outside the first tour): take the everyday one once
+        // the choose screen's card has come in (film v6: the rows land 0.6–1.0 s after the tap).
         let everyday = app.buttons["variant.0"]
-        if everyday.waitForExistence(timeout: 3) { everyday.tap() }
+        if everyday.waitForExistence(timeout: 3) {
+            settle(1.2)
+            snap("variants")
+            everyday.tap()
+        }
         let catchButton = app.buttons["card.catch"]
         let again = app.buttons["reencounter.dex"]
         // A word already in the dex opens the re-encounter card instead of the celebration.
@@ -188,9 +193,11 @@ final class FullTourTests: XCTestCase {
             snap("dex-after-reencounter")
             return
         }
-        settle(2)
+        // The GET moment goes into the dex by itself 3 s after the choice; a tap anywhere (card.catch) skips ahead to
+        // it. In the first tour it holds and card.catch is its 図鑑に追加 button.
+        settle(1)
         snap("celebration")
-        catchButton.tap()
+        if catchButton.exists && catchButton.isHittable { catchButton.tap() }
         settle(4)
         snap("after-catch")
         settle(4)
