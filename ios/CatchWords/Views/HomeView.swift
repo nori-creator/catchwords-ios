@@ -18,6 +18,8 @@ struct HomeView: View {
     @State private var calendarOpen = false
     @State private var calendarDay: Date?
     @State private var jumpCount = 0
+    /// Moves the page while a photo is carried to the screen's top or bottom edge (`AlbumAutoScroll`).
+    @State private var autoScroll = AlbumAutoScroll()
 
     private struct MemorialDay: Identifiable {
         let n: Int
@@ -97,8 +99,12 @@ struct HomeView: View {
 
                     Color.clear.frame(height: 120)
                 }
+                .background(ScrollViewFinder { [autoScroll] sv in autoScroll.scrollView = sv })
             }
+            .environment(autoScroll)
             .scrollDisabled(albumEditing)
+            // A drag the system cancelled never reports its end: stop the page when rearranging ends either way.
+            .onChange(of: albumEditing) { _, _ in autoScroll.end() }
             .refreshable { await dex.load() }
             // The header takes its room from the scroll (instead of covering its top), so a day scrolled to from the
             // calendar shows its date just under it.
@@ -161,8 +167,10 @@ struct HomeView: View {
                     }
                 }
             }
-            .presentationDetents([.medium, .large])
-            .presentationContentInteraction(.scrolls)
+            // Opened full height: on the half sheet only the first weeks of the month showed (owner 2026-10-14
+            // 「カレンダーボタン押したとき、すべての日にちが見えるように開いて。いま半分しか見えない」).
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showStats) {
             UserStatsPanel(
@@ -209,11 +217,11 @@ struct HomeView: View {
     }
 }
 
-/// Plain white, like the other screens (owner 2026-10-11: 「ホーム画面の背景画面も白色にして」); the cut-outs and their
-/// beige word tags stand on it.
+/// The same faintly blue background as the other tabs (owner 2026-10-14: 「ホームの色をほかのページと統一して。少し青み
+/// がかったいろにして」; it was plain white since 2026-10-11).
 struct HomeBackground: View {
     var body: some View {
-        Color.white.ignoresSafeArea()
+        AppBackground()
     }
 }
 

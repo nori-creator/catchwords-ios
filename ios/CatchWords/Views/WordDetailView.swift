@@ -744,12 +744,7 @@ struct WordDetailView: View {
     // MARK: - Sections
 
     private var meaningCard: some View {
-        SectionCard(title: CardSection.meaning.title, icon: CardSection.meaning.icon) {
-            Text(word?.meaningJa ?? "")
-                .scaledFont(size: 26, weight: .medium)
-                .foregroundStyle(Theme.foreground)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        WordMeaningCard(meaning: word?.meaningJa ?? "")
     }
 
     // MARK: - Section routing (card-sections.ts: draw only what has content)
@@ -916,14 +911,7 @@ struct WordDetailView: View {
                 ForEach(extraExamples, id: \.zh) { ex in
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 8) {
-                            if !ex.scene.isEmpty {
-                                Text(ex.scene)
-                                    .scaledFont(size: 12, weight: .semibold)
-                                    .foregroundStyle(Theme.primaryInk)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 4)
-                                    .background(Theme.primary.opacity(0.1), in: Capsule())
-                            }
+                            if !ex.scene.isEmpty { SceneTag(text: ex.scene) }
                             Text(highlighted(ex.zh)).scaledFont(size: 18).lineSpacing(7)
                             if !ex.ja.isEmpty {
                                 Text(ex.ja).scaledFont(size: 14).foregroundStyle(Theme.muted).lineSpacing(5)
@@ -1063,36 +1051,12 @@ struct WordDetailView: View {
     }
 
     private func exampleCard(_ sentence: String, _ translation: String?) -> some View {
-        SectionCard(title: L("例文"), icon: "text.quote") {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(highlighted(sentence))
-                        .scaledFont(size: 19)
-                        .foregroundStyle(Theme.foreground)
-                        .lineSpacing(8)
-                    if let t = translation, !t.isEmpty {
-                        Text(t).scaledFont(size: 14).foregroundStyle(Theme.muted).lineSpacing(6)
-                    }
-                }
-                Spacer(minLength: 0)
-                PronounceCircle(text: sentence, size: 40)
-            }
-            .padding(16)
-            .background(Theme.secondary, in: .rect(cornerRadius: 22, style: .continuous))
-        }
+        WordExampleCard(sentence: sentence, translation: translation,
+                        scene: ReaderLanguage.shown(extras?.exampleScene, source: sentence), headword: headword)
     }
 
     private func highlighted(_ sentence: String) -> AttributedString {
-        var out = AttributedString(sentence)
-        guard !headword.isEmpty else { return out }
-        var searchStart = out.startIndex
-        while let r = out[searchStart...].range(of: headword) {
-            out[r].foregroundColor = Theme.primaryInk
-            out[r].backgroundColor = Theme.primary.opacity(0.1)
-            out[r].font = .system(size: 19, weight: .semibold)
-            searchStart = r.upperBound
-        }
-        return out
+        WordHighlight.marked(sentence, headword: headword)
     }
 
     private func chunkCard(_ chunks: [UsageChunk]) -> some View {
@@ -1373,14 +1337,50 @@ struct WordDetailView: View {
         }
     }
 
+    /// 発音のコツ・語源と部首・覚え方・台湾メモ: one sentence per line with a thin line under each, instead of one
+    /// block of prose (owner 2026-10-14: 「読みやすいように文の下に線に書いて」).
     private func textCard(_ title: String, icon: String, _ body: String) -> some View {
-        SectionCard(title: title, icon: icon) {
-            Text(body)
-                .scaledFont(size: 15)
-                .foregroundStyle(Theme.foreground.opacity(0.9))
-                .lineSpacing(5)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        let lines = Self.sentences(body)
+        return SectionCard(title: title, icon: icon) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .scaledFont(size: 15)
+                        .foregroundStyle(Theme.foreground.opacity(0.9))
+                        .lineSpacing(5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 10)
+                        .overlay(alignment: .bottom) {
+                            Rectangle().fill(Theme.border).frame(height: 1)
+                        }
+                }
+            }
         }
+    }
+
+    /// Splits prose into sentences (after 。！？!? and line breaks; a period followed by a space for English),
+    /// keeping each sentence's own mark.
+    static func sentences(_ text: String) -> [String] {
+        var out: [String] = []
+        var current = ""
+        let chars = Array(text)
+        for (i, ch) in chars.enumerated() {
+            if ch == "\n" {
+                out.append(current)
+                current = ""
+                continue
+            }
+            current.append(ch)
+            let next = i + 1 < chars.count ? chars[i + 1] : " "
+            let ends = "。！？!?".contains(ch) || (ch == "." && next == " ")
+            // A closing quote or bracket stays with its sentence (「…。」).
+            if ends, !"」』）)\"'".contains(next) {
+                out.append(current)
+                current = ""
+            }
+        }
+        out.append(current)
+        return out.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
     /// The language whose sites the links open. Old rows have no `language`: then the headword's script

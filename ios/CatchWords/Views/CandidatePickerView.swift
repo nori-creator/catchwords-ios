@@ -433,10 +433,12 @@ struct CandidatePickerView: View {
     /// What kind of word it is (candidate-order.ts registers). The first everyday name is the one people say most.
     private static func registerLabel(_ register: String?, first: Bool) -> String {
         switch register {
-        case "casual": L("砕けた言い方")
-        case "specific": L("くわしい・専門的な名前")
-        case "proper": L("固有名詞")
-        default: first ? L("いちばんよく使う言い方") : L("ふだんの言い方")
+        // Short and telling apart at a glance (owner 2026-10-14: 「日本語を洗練させた言い方を考えて。分かりやすく
+        // ユーザーが区別できるようにして」): what kind of word it is, then in brackets when you would use it.
+        case "casual": L("口語（くだけた言い方）")
+        case "specific": L("正式名（くわしい・専門的）")
+        case "proper": L("固有名（商品名・店名）")
+        default: first ? L("定番（いちばんよく使う）") : L("よく使う別の言い方")
         }
     }
 
