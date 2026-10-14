@@ -3,8 +3,10 @@ import UIKit
 
 /// 設定 → 開発者 →「AI の設定（開発者）」: admins only (`AdminAccess`). The same screen as the web's
 /// `AdminAiSettingsCard`, through the functions of web docs/admin-ai-api.md:
-/// - which AI each feature uses (自動 = the newest Gemini Flash, Flash-Lite for the scan, or any provider
-///   with a key and one of its models), saved at once with `adminSetAiFeature`;
+/// - which AI each use of this app takes, and its backup when that AI fails (owner 2026-10-14 「iOS にない奴は
+///   消して…全ての AI の機能を…モデル設定」), saved at once with `adminSetAiTask`. Only the uses this app has
+///   (`ios`); a server without them yet shows the older per-feature list (`adminSetAiFeature`);
+/// - what the AI cost, by use, by model and by day, with editable prices (`AdminAiCostCard`);
 /// - the AI images of the text search (`adminSetImageConfig`, `adminTestImage`);
 /// - the speed and accuracy of each feature's AI by model, and a fixed-photo test (`AdminAiStatsCard`);
 /// - the pronunciation voice of each learning language (`adminSetTtsVoice`).
@@ -14,6 +16,8 @@ struct AdminAiSettingsView: View {
     var preview: AdminAiSettings? = nil
     /// UIPreview only: the speed and accuracy numbers to show with them.
     var previewStats: AdminAiStats? = nil
+    /// UIPreview only: the costs to show with them.
+    var previewCosts: AdminAiCosts? = nil
 
     @Environment(\.dismiss) private var dismiss
 
@@ -21,6 +25,9 @@ struct AdminAiSettingsView: View {
     @State private var loadError: String?
     @State private var savingFeature: String?
     @State private var featureErrors: [String: String] = [:]
+    /// `"<task>.value"` / `"<task>.backup"` while it is being saved.
+    @State private var savingTask: String?
+    @State private var taskErrors: [String: String] = [:]
 
     @State private var imageProvider: String = ""
     @State private var imageModel: String = ""
@@ -50,7 +57,12 @@ struct AdminAiSettingsView: View {
                 }
                 if let settings {
                     statusCard(settings)
-                    featuresCard(settings)
+                    if settings.tasks.contains(where: \.ios) {
+                        tasksCard(settings)
+                    } else {
+                        featuresCard(settings)
+                    }
+                    AdminAiCostCard(preview: previewCosts)
                     AdminAiStatsCard(settings: settings, preview: previewStats)
                     if let image = settings.image {
                         imageCard(image)
@@ -264,6 +276,165 @@ struct AdminAiSettingsView: View {
             featureErrors[id] = Self.message(error)
         }
         savingFeature = nil
+    }
+
+    // MARK: - Each use of the AI, with its backup
+
+    private func tasksCard(_ s: AdminAiSettings) -> some View {
+        let rows = s.tasks.filter(\.ios)
+        return SettingsCard(title: L("機能ごとの AI")) {
+            VStack(alignment: .leading, spacing: 14) {
+                caption(L("このアプリで AI を使う所だけを出しています。選んだ AI が失敗した時（残高切れ・回数制限・障害）は、同じ依頼を「控え」の AI へ1回だけ送り直します。"))
+                ForEach(Array(rows.enumerated()), id: \.offset) { i, t in
+                    if i > 0 {
+                        Divider().overlay(Theme.border)
+                    }
+                    taskRow(t, providers: s.providers)
+                }
+            }
+        }
+        .accessibilityIdentifier("adminAi.tasks")
+    }
+
+    private func taskRow(_ t: AdminAiTaskSetting, providers: [AdminAiProvider]) -> some View {
+        let name = Self.localized(t.label, fallback: t.id)
+        let detail = Self.localized(t.description, fallback: "")
+        let error: String? = taskErrors[t.id] ?? t.error
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(name)
+                .scaledFont(size: 17, weight: .semibold)
+                .foregroundStyle(Theme.foreground)
+            if !detail.isEmpty {
+                Text(detail)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(L("いま: \(taskCurrentText(t))"))
+                .scaledFont(size: 14, weight: .medium)
+                .foregroundStyle(Theme.foreground)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            Text(L("控え: \(taskBackupText(t))"))
+                .scaledFont(size: 14)
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            if let error {
+                Text(error)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(Theme.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            taskMenu(t, providers: providers, backup: false)
+            taskMenu(t, providers: providers, backup: true)
+        }
+        .accessibilityIdentifier("adminAi.task.\(t.id)")
+    }
+
+    /// 「自動 → google:gemini-3.8-flash」 / 「anthropic:claude-sonnet-5-5」.
+    private func taskCurrentText(_ t: AdminAiTaskSetting) -> String {
+        let used = [t.provider, t.resolved ?? t.model].compactMap { $0 }.joined(separator: ":")
+        if t.value == "auto" {
+            return used.isEmpty ? L("自動") : L("自動 → \(used)")
+        }
+        return used.isEmpty || used == t.value ? t.value : t.value + " → " + used
+    }
+
+    private func taskBackupText(_ t: AdminAiTaskSetting) -> String {
+        if t.backup == "off" {
+            return L("なし（失敗したらそのまま）")
+        }
+        guard let p = t.backupProvider, let m = t.backupResolved ?? t.backupModel else {
+            return L("なし（鍵のある別の会社がありません）")
+        }
+        return t.backup == "auto" ? L("自動 → \(p + ":" + m)") : p + ":" + m
+    }
+
+    private func taskMenu(_ t: AdminAiTaskSetting, providers: [AdminAiProvider], backup: Bool) -> some View {
+        let usable = providers.filter { $0.hasKey }
+        let locked = providers.filter { !$0.hasKey }
+        let current = backup ? t.backup : t.value
+        let key = t.id + (backup ? ".backup" : ".value")
+        let saving = savingTask == key
+        return Menu {
+            Button {
+                chooseTask(t, value: "auto", backup: backup)
+            } label: {
+                menuItem(backup ? L("自動（鍵のある別の会社）") : L("自動（機能の設定・既定）"), selected: current == "auto")
+            }
+            if backup {
+                Button {
+                    chooseTask(t, value: "off", backup: true)
+                } label: {
+                    menuItem(L("控えを使わない"), selected: current == "off")
+                }
+            }
+            ForEach(usable, id: \.id) { p in
+                Section(p.name) {
+                    let models = t.needsVision ? p.visionModels : p.models
+                    if models.isEmpty {
+                        Button(p.error ?? L("使えるモデルがありません")) {}
+                            .disabled(true)
+                    } else {
+                        ForEach(models, id: \.self) { m in
+                            Button {
+                                chooseTask(t, value: p.id + ":" + m, backup: backup)
+                            } label: {
+                                menuItem(m, selected: current == p.id + ":" + m)
+                            }
+                        }
+                    }
+                }
+            }
+            if !locked.isEmpty {
+                Section(L("鍵がありません")) {
+                    ForEach(locked, id: \.id) { p in
+                        Button(p.name) {}
+                            .disabled(true)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if saving {
+                    ProgressView()
+                    Text(L("保存しています…"))
+                } else {
+                    Text(backup ? L("控えを選ぶ") : L("AI を選ぶ"))
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.up.chevron.down")
+                    .accessibilityHidden(true)
+            }
+            .scaledFont(size: 15, weight: .semibold)
+            .foregroundStyle(backup ? Theme.foreground : Theme.primaryInk)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .background(backup ? Theme.card : Theme.secondary, in: Capsule())
+            .overlay(Capsule().stroke(backup ? Theme.border : .clear, lineWidth: 1))
+        }
+        .disabled(savingTask != nil)
+        .accessibilityIdentifier("adminAi.task.\(t.id).\(backup ? "backup" : "menu")")
+    }
+
+    private func chooseTask(_ t: AdminAiTaskSetting, value: String, backup: Bool) {
+        guard value != (backup ? t.backup : t.value), savingTask == nil else { return }
+        Haptics.selection()
+        Task { await saveTask(t.id, value: value, backup: backup) }
+    }
+
+    private func saveTask(_ id: String, value: String, backup: Bool) async {
+        guard preview == nil else { return }
+        savingTask = id + (backup ? ".backup" : ".value")
+        taskErrors[id] = nil
+        do {
+            _ = try await NativeAPI.call("adminSetAiTask", ["task": id, (backup ? "backup" : "value"): value], timeout: 30)
+            await load()
+        } catch {
+            taskErrors[id] = Self.message(error)
+        }
+        savingTask = nil
     }
 
     // MARK: - Images

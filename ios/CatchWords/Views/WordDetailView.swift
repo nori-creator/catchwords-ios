@@ -1012,6 +1012,8 @@ struct WordDetailView: View {
                 let done = r.item ?? (item == "auto" ? nil : item)
                 if r.fixed, let done {
                     showToast(L("「\(Self.itemTitle(done))」を直しました"))
+                } else if r.aiFailed == true {
+                    showToast(L("報告を受け付けました。AIが応答せず、自動では直せませんでした"))
                 } else if item == "auto" && done == nil {
                     showToast(L("AIは間違いを見つけられませんでした。報告として残しました"))
                 } else {

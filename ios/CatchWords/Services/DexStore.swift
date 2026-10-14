@@ -1192,6 +1192,9 @@ final class DexStore {
         let fixed: Bool
         let item: String?
         let by: String?
+        /// The AI (and its backup) did not answer: the report is recorded, nothing was rewritten (server 2026-10-14;
+        /// an older server answered 500 instead).
+        let aiFailed: Bool?
     }
 
     func reportAndFix(wordId: String, item: String = "auto", candidates: [String], note: String) async throws -> ReportFix {

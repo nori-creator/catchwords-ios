@@ -94,6 +94,7 @@ struct UIPreviewRoot: View {
             case "settings": SettingsView()
             case "aisettings": AdminAiSettingsPreview()
             case "aistats": AdminAiStatsPreview()
+            case "aicosts": AdminAiCostsPreview()
             case "auth": AuthView()
             case "signin": AuthView(startOnOptions: true)
             case "onboarding": OnboardingView {}
@@ -653,6 +654,23 @@ private struct ReviewPreview: View {
     }
 }
 
+/// The cost card of the AI settings on its own (the whole screen is taller than one screenshot).
+private struct AdminAiCostsPreview: View {
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                if let costs = AdminAiSettingsPreview.costs {
+                    AdminAiCostCard(preview: costs)
+                        .padding(16)
+                } else {
+                    Text("AdminAiCosts mock did not decode")
+                }
+            }
+            .background(AppBackground())
+        }
+    }
+}
+
 /// The speed and accuracy card of the AI settings on its own (the whole screen is taller than one screenshot).
 private struct AdminAiStatsPreview: View {
     var body: some View {
@@ -700,6 +718,33 @@ private struct AdminAiSettingsPreview: View {
           "error": "openai の鍵が無いため既定の AI で動いています" },
         { "id": "future_feature", "tier": "something-new", "needsVision": false,
           "label": { "ja": "新しい機能" }, "value": "auto", "provider": null, "model": null, "resolved": null, "error": null }
+      ],
+      "tasks": [
+        { "id": "photo_candidates", "feature": "scan", "needsVision": true, "ios": true,
+          "label": { "ja": "写真の単語の候補", "en": "Words from a photo", "zh-TW": "照片的單字候選" },
+          "description": { "ja": "撮った写真から単語の候補を出す（写真を読む）", "en": "Suggests words for the photo just taken (reads the photo)", "zh-TW": "從剛拍的照片提出單字候選（讀取照片）" },
+          "value": "auto", "backup": "auto", "provider": "google", "model": "latest-flash-lite", "resolved": "gemini-3.8-flash-lite",
+          "backupProvider": "lovable", "backupModel": "google/gemini-2.5-flash", "backupResolved": "google/gemini-2.5-flash", "error": null },
+        { "id": "card", "feature": "card", "needsVision": false, "ios": true,
+          "label": { "ja": "単語カード", "en": "Word card", "zh-TW": "單字卡" },
+          "description": { "ja": "解説・例文・分類など、カードの中身を作る", "en": "Writes the card: explanation, examples, category", "zh-TW": "產生單字卡的內容：解說、例句、分類" },
+          "value": "openrouter:anthropic/claude-sonnet-4.5", "backup": "auto", "provider": "openrouter", "model": "anthropic/claude-sonnet-4.5",
+          "resolved": "anthropic/claude-sonnet-4.5", "backupProvider": "lovable", "backupModel": "google/gemini-2.5-flash",
+          "backupResolved": "google/gemini-2.5-flash", "error": null },
+        { "id": "section_regen", "feature": "card", "needsVision": false, "ios": true,
+          "label": { "ja": "項目の作り直し", "en": "Section rewrite", "zh-TW": "重新產生項目" },
+          "description": { "ja": "単語ページの項目の作り直し・空欄の補完・報告での直しの案", "en": "Rewrites a section of the word page, fills blanks, drafts fixes for reports", "zh-TW": "重新產生單字頁的項目、補上空白、回報時的修正案" },
+          "value": "auto", "backup": "off", "provider": "google", "model": "latest-flash", "resolved": "gemini-3.8-flash",
+          "backupProvider": null, "backupModel": null, "backupResolved": null, "error": null },
+        { "id": "report_locate", "feature": "audit", "needsVision": false, "ios": true,
+          "label": { "ja": "報告: 間違った項目を探す", "en": "Report: find the wrong part", "zh-TW": "回報：找出錯誤的項目" },
+          "description": { "ja": "項目を選ばずに報告された時、どの項目が違うかを探す", "en": "Finds which section is wrong when a report names none", "zh-TW": "回報沒選項目時，找出哪個項目有錯" },
+          "value": "openai:gpt-5-mini", "backup": "auto", "provider": "google", "model": "latest-flash", "resolved": "gemini-3.8-flash",
+          "backupProvider": "lovable", "backupModel": "google/gemini-2.5-flash", "backupResolved": "google/gemini-2.5-flash",
+          "error": "openai の鍵が無いため機能の設定・既定の AI で動いています" },
+        { "id": "journal_correct", "feature": "journal", "needsVision": false, "ios": false,
+          "label": { "ja": "日記の添削" }, "value": "auto", "backup": "auto", "provider": "google", "model": "latest-flash",
+          "resolved": "gemini-3.8-flash", "error": null }
       ],
       "providers": [
         { "id": "google", "name": "Google Gemini", "hasKey": true,
@@ -774,10 +819,48 @@ private struct AdminAiSettingsPreview: View {
 
     static let stats: AdminAiStats? = try? JSONDecoder().decode(AdminAiStats.self, from: Data(statsJSON.utf8))
 
+    /// What the AI cost (web `adminGetAiCosts`): cards on Gemini and on the Lovable gateway (no price entered yet).
+    static let costsJSON = """
+    {
+      "isAdmin": true, "truncated": false, "days": 30, "since": "2026-09-14T12:00:00.000Z", "usdJpy": 156,
+      "total": { "calls": 104, "ok": 79, "failed": 25, "tokensIn": 393800, "tokensOut": 87700, "usd": 0.0918, "unpricedCalls": 35 },
+      "tasks": [
+        { "task": "card", "feature": "card", "ios": true, "label": { "ja": "単語カード", "en": "Word card", "zh-TW": "單字卡" },
+          "calls": 58, "ok": 33, "failed": 25, "tokensIn": 333698, "tokensOut": 78245, "usd": 0.0411, "unpricedCalls": 25,
+          "models": [ { "model": "google:gemini-3.8-flash", "calls": 19, "usd": 0.0411 },
+                      { "model": "lovable:google/gemini-2.5-flash", "calls": 25, "usd": null } ] },
+        { "task": "photo_candidates", "feature": "scan", "ios": true, "label": { "ja": "写真の単語の候補", "en": "Words from a photo", "zh-TW": "照片的單字候選" },
+          "calls": 26, "ok": 15, "failed": 11, "tokensIn": 60074, "tokensOut": 8830, "usd": 0.0100, "unpricedCalls": 10,
+          "models": [ { "model": "google:gemini-3.5-flash-lite", "calls": 15, "usd": 0.0100 },
+                      { "model": "lovable:google/gemini-2.5-flash", "calls": 11, "usd": null } ] },
+        { "task": "category_backfill", "feature": "lexicon", "ios": false, "label": { "ja": "棚の分類の付け直し", "en": "Category backfill", "zh-TW": "分類的重新整理" },
+          "calls": 4, "ok": 0, "failed": 4, "tokensIn": 0, "tokensOut": 0, "usd": 0, "unpricedCalls": 0,
+          "models": [ { "model": "google:gemini-3.8-flash", "calls": 4, "usd": 0 } ] }
+      ],
+      "models": [
+        { "model": "google:gemini-3.8-flash", "calls": 23, "ok": 3, "failed": 20, "tokensIn": 30487, "tokensOut": 4850, "usd": 0.0411, "unpricedCalls": 0,
+          "price": { "inUsd": 0.75, "outUsd": 3.75, "source": "ai.google.dev/gemini-api/docs/pricing (checked 2026-10-11)", "custom": false } },
+        { "model": "google:gemini-3.5-flash-lite", "calls": 15, "ok": 5, "failed": 10, "tokensIn": 19275, "tokensOut": 1697, "usd": 0.0100, "unpricedCalls": 0,
+          "price": { "inUsd": 0.3, "outUsd": 2.5, "source": "ai.google.dev/gemini-api/docs/pricing (checked 2026-10-11)", "custom": false } },
+        { "model": "lovable:google/gemini-2.5-flash", "calls": 36, "ok": 35, "failed": 1, "tokensIn": 293196, "tokensOut": 70487, "usd": 0, "unpricedCalls": 35,
+          "price": null }
+      ],
+      "daily": [
+        { "day": "2026-10-08", "calls": 0, "usd": 0 }, { "day": "2026-10-09", "calls": 6, "usd": 0.006 },
+        { "day": "2026-10-10", "calls": 14, "usd": 0.021 }, { "day": "2026-10-11", "calls": 31, "usd": 0.034 },
+        { "day": "2026-10-12", "calls": 12, "usd": 0.004 }, { "day": "2026-10-13", "calls": 18, "usd": 0.011 },
+        { "day": "2026-10-14", "calls": 23, "usd": 0.0158 }
+      ],
+      "customPrices": []
+    }
+    """
+
+    static let costs: AdminAiCosts? = try? JSONDecoder().decode(AdminAiCosts.self, from: Data(costsJSON.utf8))
+
     var body: some View {
         NavigationStack {
             if let settings = Self.settings {
-                AdminAiSettingsView(preview: settings, previewStats: Self.stats)
+                AdminAiSettingsView(preview: settings, previewStats: Self.stats, previewCosts: Self.costs)
             } else {
                 Text("AdminAiSettings mock did not decode")
             }
