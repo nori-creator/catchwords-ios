@@ -4422,5 +4422,21 @@
  "カレンダー": {
   "en": "Calendar",
   "zh-TW": "月曆"
+ },
+ "「{1}」のどこが違いましたか？": {
+  "en": "What's wrong with “{1}”?",
+  "zh-TW": "「{1}」哪裡不對？"
+ },
+ "例: 写真の物ではなく別の意味になっている（書かなくても大丈夫）": {
+  "en": "e.g. It explains a different meaning, not the thing in the photo (optional)",
+  "zh-TW": "例：解釋的不是照片裡的東西，而是別的意思（可以不填）"
+ },
+ "書いた内容をAIに伝えて、その項目だけを直します。": {
+  "en": "What you write is passed to the AI, which fixes only this item.",
+  "zh-TW": "會把你寫的內容告訴 AI，只修正這個項目。"
+ },
+ "AIが応答せず、直せませんでした。時間をおいてもう一度お試しください": {
+  "en": "The AI didn't respond, so it couldn't be fixed. Please try again later.",
+  "zh-TW": "AI 沒有回應，無法修正。請稍後再試一次。"
  }
 }

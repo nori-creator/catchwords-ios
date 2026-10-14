@@ -41,6 +41,8 @@ struct WordDetailView: View {
     @State private var filling: Set<CardSection> = []
     @State private var reporting: Bool = false
     @State private var reportNote: String = ""
+    /// The item picked under 「違う項目を選ぶ」: asks what is wrong with it before sending (nil = none).
+    @State private var reportItem: String?
     @State private var isFixing: Bool = false
     /// A report or 「作り直す」 without the AI consent: the consent sheet instead (nothing is sent).
     @State private var askAIConsent: Bool = false
@@ -162,6 +164,20 @@ struct WordDetailView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(32)
+        }
+        // A picked item: what is wrong with it goes with the report (it went empty, so the fix was made blind —
+        // 尺 photographed as a ruler but explained as a measure word, owner 2026-10-14).
+        .alert(L("「\(Self.itemTitle(reportItem))」のどこが違いましたか？"),
+               isPresented: Binding(get: { reportItem != nil }, set: { if !$0 { reportItem = nil } })) {
+            TextField(L("例: 写真の物ではなく別の意味になっている（書かなくても大丈夫）"), text: $reportNote)
+            Button(L("キャンセル"), role: .cancel) { reportItem = nil }
+            Button(L("直してもらう")) {
+                let item = reportItem ?? "auto"
+                reportItem = nil
+                reportAndFix(item: item)
+            }
+        } message: {
+            Text(L("書いた内容をAIに伝えて、その項目だけを直します。"))
         }
         .alert(L("どこが違いましたか？"), isPresented: $reporting) {
             TextField(L("例: 読み方が違う（書かなくても大丈夫）"), text: $reportNote)
@@ -318,7 +334,11 @@ struct WordDetailView: View {
             }
             Section(L("違う項目を選ぶ")) {
                 ForEach(reportItems, id: \.self) { item in
-                    Button(Self.itemTitle(item)) { reportAndFix(item: item) }
+                    Button(Self.itemTitle(item)) {
+                        guard AIConsent.shared.isGranted else { askAIConsent = true; return }
+                        reportNote = ""
+                        reportItem = item
+                    }
                 }
             }
         } label: {
@@ -967,7 +987,7 @@ struct WordDetailView: View {
 
     private func reportAndFix(item: String = "auto") {
         guard AIConsent.shared.isGranted else { askAIConsent = true; return }
-        let note = item == "auto" ? reportNote.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let note = reportNote.trimmingCharacters(in: .whitespacesAndNewlines)
         let wordId = current.wordId
         let candidates = reportItems
         isFixing = true
@@ -988,7 +1008,13 @@ struct WordDetailView: View {
                 }
             } catch {
                 Haptics.warning()
-                showToast((error as? LocalizedError)?.errorDescription ?? L("直せませんでした"))
+                if let api = error as? APIError, case .server(let code, _) = api, code >= 500 {
+                    // The server's AI did not answer (2026-10-14: the AI provider refused every call, and the
+                    // learner saw only 「サーバーエラー（500）」).
+                    showToast(L("AIが応答せず、直せませんでした。時間をおいてもう一度お試しください"))
+                } else {
+                    showToast((error as? LocalizedError)?.errorDescription ?? L("直せませんでした"))
+                }
             }
         }
     }
