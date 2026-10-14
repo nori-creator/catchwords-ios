@@ -142,7 +142,17 @@ final class DexStore {
             // A catch saved while the rows were being read (not among them yet) stays too.
             let rowIds = Set(rows.map(\.id))
             let savedMeanwhile = stickers.filter { savedSinceLoad.contains($0.id) && !rowIds.contains($0.id) }
-            stickers = provisional + savedMeanwhile + present(rows.filter { $0.word?.matches(language) ?? true })
+            // A cut-out attached on this phone while the rows were being read (the background cut-outs) is kept: a
+            // row read just before it landed would put the photo back for a moment (photo → cut-out → photo).
+            var madeHere: [String: (object: String?, cutout: String)] = [:]
+            for s in stickers { if let c = s.cutoutImageUrl { madeHere[s.id] = (s.objectImageUrl, c) } }
+            let fresh = rows.map { row -> Sticker in
+                guard row.cutoutImageUrl == nil, let kept = madeHere[row.id], kept.object == row.objectImageUrl else { return row }
+                var r = row
+                r.cutoutImageUrl = kept.cutout
+                return r
+            }
+            stickers = provisional + savedMeanwhile + present(fresh.filter { $0.word?.matches(language) ?? true })
             loadError = nil
             hasLoaded = true
             await loadReviews()
@@ -307,7 +317,7 @@ final class DexStore {
         guard stickers.isEmpty, let uid = client.userId,
               let saved = DexSnapshot.load(uid: uid, lang: language, reader: L10n.lang) else { return }
         stickers = saved.stickers
-        albumHidden = Set(saved.albumHidden)
+        albumHidden = Set(saved.albumHidden).union(localAlbumHidden())
         var places: [String: DayLayoutSticker] = [:]
         for p in saved.placements {
             places[p.id] = DayLayoutSticker(id: p.id, albumOrder: p.order, albumSize: p.size.flatMap(AlbumSize.init(rawValue:)),
@@ -1037,24 +1047,58 @@ final class DexStore {
     /// Photos taken off the home album. They stay in the dex; only the album page skips them.
     var albumHidden: Set<String> = []
 
+    /// The ones the server holds (the rest of `albumHidden` is kept on this phone only).
+    @ObservationIgnored private var serverAlbumHidden: Set<String> = []
+
+    /// Photos taken off the album that the server could not record (web album-hidden.ts keeps them in localStorage
+    /// the same way). Owner 2026-10-14: 「ホーム画面の画像を長押ししてバツ押しても、画像が消えない」 — the server answered
+    /// `saved: false` and the app put the photo back every time.
+    private static func localHiddenKey(_ uid: String) -> String { "album.hidden.local.\(uid)" }
+
+    private func localAlbumHidden() -> Set<String> {
+        guard let uid = client.userId else { return [] }
+        return Set(UserDefaults.standard.stringArray(forKey: Self.localHiddenKey(uid)) ?? [])
+    }
+
+    private func setLocalAlbumHidden(_ ids: Set<String>) {
+        guard let uid = client.userId else { return }
+        UserDefaults.standard.set(Array(ids), forKey: Self.localHiddenKey(uid))
+    }
+
     func loadAlbumHidden() async {
         struct Res: Decodable { let ids: [String] }
         let uid = client.userId
-        guard let r = try? await NativeAPI.call("listAlbumHidden", [:], as: Res.self), client.userId == uid else { return }
-        albumHidden = Set(r.ids)
+        guard let r = try? await NativeAPI.call("listAlbumHidden", [:], as: Res.self), client.userId == uid else {
+            albumHidden.formUnion(localAlbumHidden())
+            return
+        }
+        serverAlbumHidden = Set(r.ids)
+        // A photo the server now holds no longer needs the phone's copy.
+        let local = localAlbumHidden().subtracting(serverAlbumHidden)
+        setLocalAlbumHidden(local)
+        albumHidden = serverAlbumHidden.union(local)
     }
 
+    /// Takes a photo off the album (or puts it back) at once. The server keeps it when it can; when it cannot,
+    /// this phone does, so the photo never comes back by itself. False only when putting back a photo the server
+    /// still holds failed (it would return on the next read).
     @discardableResult
     func setAlbumHidden(_ id: String, hidden: Bool) async -> Bool {
-        // Update the page at once; roll back if the server refused.
         if hidden { albumHidden.insert(id) } else { albumHidden.remove(id) }
         struct Res: Decodable { let saved: Bool }
         let ok = (try? await NativeAPI.call("setAlbumHidden", ["sticker_id": id, "hidden": hidden], as: Res.self))?.saved ?? false
-        if !ok {
-            if hidden { albumHidden.remove(id) } else { albumHidden.insert(id) }
+        var local = localAlbumHidden()
+        if hidden {
+            if ok { serverAlbumHidden.insert(id); local.remove(id) } else { local.insert(id) }
+        } else {
+            local.remove(id)
+            if ok { serverAlbumHidden.remove(id) }
         }
+        setLocalAlbumHidden(local)
+        let putBackFailed = !hidden && !ok && serverAlbumHidden.contains(id)
+        if putBackFailed { albumHidden.insert(id) }
         scheduleSnapshot()
-        return ok
+        return !putBackFailed
     }
 
     /// Where the learner placed each photo on the album page (web album_x / album_y / album_scale /
@@ -1189,6 +1233,7 @@ final class DexStore {
         signed = [:]
         reviews = [:]
         albumHidden = []
+        serverAlbumHidden = []
         albumPlacements = [:]
         heroTried = []
         heroQueue = []
