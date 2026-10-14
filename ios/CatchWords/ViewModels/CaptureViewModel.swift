@@ -57,6 +57,19 @@ final class CaptureViewModel {
     /// Set the moment the re-encounter screen hands the photo to its background save (ReencounterView).
     var reencCount: Int?
 
+    // Film v6: the choose screen and the GET moment share one timeline (CatchStage.swift).
+    /// The choice P on `CCClock` when the word was chosen on the choose screen (nil = chosen elsewhere: a typed word).
+    var stageOrigin: Double?
+    /// How long after P the choose screen hands over to the GET screen (`Film6.handoff`), nil = no choose screen.
+    var stageHandoff: Double?
+    /// The picked thing's box in the photo (0–1), for the sticker while the cut-out is not ready.
+    var pickedBox: CGRect?
+    /// The choose screen has turned the photo into the app's light page (the status bar turns dark).
+    var lightStage: Bool = false
+    /// The stage's colours and the sticker's stand-in, worked out once on the choose screen.
+    var stagePalette: StagePalette?
+    var stageFallback: UIImage?
+
     /// runToken: "cancel" only discards stale results; in-flight work is never killed mid-save.
     private var runToken: Int = 0
     private var cutoutTask: Task<Void, Never>?
@@ -106,6 +119,12 @@ final class CaptureViewModel {
         searchError = nil
         owned = nil
         objects = []
+        stageOrigin = nil
+        stageHandoff = nil
+        pickedBox = nil
+        lightStage = false
+        stagePalette = nil
+        stageFallback = nil
         step = askSelfie ? .selfie : .processing
         ownedChecks = [:]
         // One foreground-instance request per photo, started with the server call and reused for every object.
@@ -305,11 +324,17 @@ final class CaptureViewModel {
         Task { _ = try? await NativeAPI.call("logCandidatePick", ["via": via, "rank": r, "n": n], timeout: 15) }
     }
 
-    func choose(_ word: Candidate, object: CatchObject?) {
+    /// `stage`: chosen on the choose screen (film v6): `origin` is the choice P and the GET screen opens no sooner than
+    /// `handoffAt` (both `CCClock`), once the choose screen's card has folded away — the owned-word check usually
+    /// answered long before.
+    func choose(_ word: Candidate, object: CatchObject?, stage: (origin: Double, handoffAt: Double)? = nil) {
         UITestTrace.log("choose \(word.headword) checking=\(isCheckingOwned) step=\(step) token=\(runToken)")
         guard !isCheckingOwned else { return }
         let token = runToken
         logPick(word, object: object)
+        stageOrigin = stage?.origin
+        stageHandoff = stage.map { $0.handoffAt - $0.origin }
+        pickedBox = object?.box
         picked = word
         details = nil
         detailsTask = nil
@@ -340,6 +365,12 @@ final class CaptureViewModel {
             UITestTrace.log("choose.checked \(word.headword) owned=\(found?.owned != nil) failed=\(found == nil)"
                             + " sameRun=\(token == runToken) samePick=\(picked == word)")
             guard token == runToken, picked == word else { return }
+            // The choose screen's card folds away before the next screen opens.
+            if let at = stage?.handoffAt {
+                let left = at - CCClock.now
+                if left > 0 { try? await Task.sleep(for: .seconds(left)) }
+                guard token == runToken, picked == word else { return }
+            }
             isCheckingOwned = false
             if let o = found?.owned {
                 owned = o
@@ -351,6 +382,9 @@ final class CaptureViewModel {
                 detailsTask = nil
                 isLoadingDetails = false
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { step = .reencounter }
+                lightStage = false
+                stagePalette = nil
+                stageFallback = nil
             } else {
                 // Fail open: a broken check must never block a new catch.
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { step = .celebrate }
@@ -371,6 +405,11 @@ final class CaptureViewModel {
         details = nil
         detailsTask = nil
         cutout = nil
+        stageOrigin = nil
+        stageHandoff = nil
+        lightStage = false
+        stagePalette = nil
+        stageFallback = nil
         dropUploads()
         withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { step = .select }
     }
@@ -390,6 +429,11 @@ final class CaptureViewModel {
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { cutout = lifted }
             }
         }
+    }
+
+    /// The sticker while there is no cut-out: the photo round the picked thing (a typed word: the whole photo).
+    func stickerFallback() -> UIImage? {
+        StickerCrop.image(photo, box: pickedBox) ?? picked.map { Self.textCard(for: $0.headword) }
     }
 
     /// Waits for a cut-out that is still running (a failed one simply leaves the photo).
@@ -555,6 +599,12 @@ final class CaptureViewModel {
         failedOffline = false
         owned = nil
         reencCount = nil
+        stageOrigin = nil
+        stageHandoff = nil
+        pickedBox = nil
+        lightStage = false
+        stagePalette = nil
+        stageFallback = nil
         withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) { step = .camera }
     }
 

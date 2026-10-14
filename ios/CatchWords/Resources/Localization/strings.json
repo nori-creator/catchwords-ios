@@ -4578,5 +4578,29 @@
  "自動（鍵のある別の会社）": {
   "en": "Auto (another provider with a key)",
   "zh-TW": "自動（其他有金鑰的公司）"
+ },
+ "覚える言い方を選ぶ": {
+  "en": "Choose the way to say it",
+  "zh-TW": "選擇要記住的說法"
+ },
+ "写っている物：{1}": {
+  "en": "In the photo: {1}",
+  "zh-TW": "照片裡的東西：{1}"
+ },
+ "選ぶと、そのことばで図鑑に入ります": {
+  "en": "The one you choose goes into your collection",
+  "zh-TW": "選好的說法會放進圖鑑"
+ },
+ "{1}の基本5語": {
+  "en": "{1} · the basic 5",
+  "zh-TW": "{1}的基本 5 個詞"
+ },
+ "あと{1}語でコンプリート": {
+  "en": "{1} more to complete the set",
+  "zh-TW": "再 {1} 個就全部收集"
+ },
+ "コンプリート！": {
+  "en": "Set complete!",
+  "zh-TW": "全部收集完成！"
  }
 }
