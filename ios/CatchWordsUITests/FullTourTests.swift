@@ -193,11 +193,12 @@ final class FullTourTests: XCTestCase {
             snap("dex-after-reencounter")
             return
         }
-        // The GET moment goes into the dex by itself 3 s after the choice; a tap anywhere (card.catch) skips ahead to
-        // it. In the first tour it holds and card.catch is its 図鑑に追加 button.
+        // The GET moment goes into the dex by itself 3 s after the choice (its full-screen card.catch, a skip, goes
+        // with it): wait for that rather than racing it with a tap. In the first tour it holds and card.catch is its
+        // 図鑑に追加 button, which stays: tap that.
         settle(1)
         snap("celebration")
-        if catchButton.exists && catchButton.isHittable { catchButton.tap() }
+        if !waitGone(catchButton, timeout: 8), catchButton.exists { catchButton.tap() }
         settle(4)
         snap("after-catch")
         settle(4)
