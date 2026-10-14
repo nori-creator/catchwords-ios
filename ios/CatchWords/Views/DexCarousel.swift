@@ -406,7 +406,7 @@ private struct CarouselCardFace: View {
                     // does, in that category's colour (light tone behind dark text, deep tone as the rim).
                     let no = DexBook.category(of: s, lang: NativeAPI.targetLanguage)
                     let cat = CCCategory.forDex(no)
-                    let emoji = DexCatalog.categories.first(where: { $0.no == no })?.emoji ?? ""
+                    let emoji = DexCatalog.withOther.first(where: { $0.no == no })?.emoji ?? ""
                     Text("\(emoji) \(DexCatalog.label(no))")
                         .font(.system(size: 11, weight: .semibold))
                         .lineLimit(1)

@@ -40,6 +40,9 @@ struct CCZhuyinWord: View {
             .fixedSize()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(headword)
+        } else if readingPref == "pinyin", let units = PinyinLayout.pair(headword, pinyin: pinyin, zhuyin: zhuyin) {
+            // Pinyin over each character (owner 2026-10-14), where the prototype showed the word alone.
+            PinyinRubyLine(units: units, size: size, weight: weight, color: color, readingColor: color.opacity(0.52))
         } else {
             Text(headword)
                 .font(.system(size: size, weight: weight))

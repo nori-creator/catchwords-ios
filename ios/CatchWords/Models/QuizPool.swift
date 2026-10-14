@@ -43,6 +43,44 @@ nonisolated enum QuizPool {
             .map { $0.word }
     }
 
+    /// Words that name a whole kind (果物・花・本 …). Next to a word of the same category they are also right for
+    /// the photo (a pomelo is a 水果), so they are never a wrong choice there.
+    private static let kindWords: [String: Set<String>] = [
+        "zh-TW": ["水果", "花", "樹", "鳥", "書", "茶", "果汁"],  // l10n-ignore (target words)
+        "en": ["fruit", "flower", "tree", "bird", "book", "tea", "juice"],  // l10n-ignore (target words)
+        "ja": ["果物", "花", "本", "虫", "お茶", "ジュース"],  // l10n-ignore (target words)
+    ]
+
+    /// Whether `candidate` could also be a right answer for the photo of `correct` (owner 2026-10-14: a new learner's
+    /// four choices come mostly from this pool, so none of them may be another name for the same thing):
+    /// * the last part of a compound names its kind — 健康便當 is a 便當, 珍珠奶茶 a 茶, "orange juice" a juice;
+    /// * a word for the whole kind in the same category — 水果 next to 柚子, 花 next to 玫瑰.
+    /// Only these two: a near miss that is a different thing (鳳梨 for 鳳梨酥) stays, it is a fair test.
+    static func alsoFits(_ candidate: String, category candidateCategory: String?,
+                         correct: String, correctCategory: String?, target: String) -> Bool {
+        let english = target == "en"
+        let c = candidate.trimmingCharacters(in: .whitespaces)
+        let w = correct.trimmingCharacters(in: .whitespaces)
+        let cKey = english ? c.lowercased() : c
+        let wKey = english ? w.lowercased() : w
+        guard !cKey.isEmpty, !wKey.isEmpty, cKey != wKey else { return false }
+        let isHead: Bool
+        if english {
+            isHead = wKey.hasSuffix(" " + cKey) || wKey.hasSuffix("-" + cKey)
+        } else {
+            isHead = wKey.hasSuffix(cKey)
+        }
+        if isHead { return true }
+        // Japanese: the polite お/ご is not part of the kind (健康弁当 is an お弁当, 緑茶 an お茶).
+        let polite: Set<Character> = ["お", "ご"]  // l10n-ignore (target words)
+        if target == "ja", let first = cKey.first, polite.contains(first), cKey.count > 2,
+           wKey.hasSuffix(String(cKey.dropFirst())) {
+            return true
+        }
+        let kinds = kindWords[english ? "en" : (target == "ja" ? "ja" : "zh-TW")] ?? []
+        return kinds.contains(cKey) && candidateCategory != nil && candidateCategory == correctCategory
+    }
+
     private static func w(_ headword: String, _ reading: String?, _ key: String) -> QuizPoolWord {
         QuizPoolWord(headword: headword, reading: reading, categoryKey: key)
     }

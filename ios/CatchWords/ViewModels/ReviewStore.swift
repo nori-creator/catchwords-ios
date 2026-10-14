@@ -70,8 +70,14 @@ final class ReviewStore {
     /// so a collision with the correct word still leaves 3.
     /// A Mandarin fallback in an English quiz was a reported bug (R3 「4択が学習言語英語なのに台湾華語の単語が混ざってる」):
     /// the pool keeps one list per learning language.
-    static func fallback(for target: String, categoryKey: String? = nil) -> [QuizChoice] {
+    /// With `correct`, a pool word that could also name the photo (`QuizPool.alsoFits`) is left out.
+    static func fallback(for target: String, categoryKey: String? = nil, correct: String? = nil) -> [QuizChoice] {
         QuizPool.ranked(for: target, categoryKey: categoryKey)
+            .filter { w in
+                guard let correct else { return true }
+                return !QuizPool.alsoFits(w.headword, category: w.categoryKey, correct: correct,
+                                          correctCategory: categoryKey, target: target)
+            }
             .map { QuizChoice(headword: $0.headword, zhuyin: $0.reading) }
     }
 
@@ -259,14 +265,19 @@ final class ReviewStore {
     private func makeChoices(for card: ReviewCard, dex: DexStore) -> [QuizChoice] {
         let correct = QuizChoice(headword: card.sticker.word?.headword ?? "", zhuyin: card.sticker.word?.readingZhuyin,
                                  pinyin: card.sticker.word?.pinyin)
+        let target = NativeAPI.targetLanguage
+        let key = card.sticker.categoryKey
         let others = dex.stickers.compactMap { s -> (QuizChoice, Bool)? in
             guard let w = s.word, w.headword != correct.headword else { return nil }
-            return (QuizChoice(headword: w.headword, zhuyin: w.readingZhuyin, pinyin: w.pinyin), s.categoryKey == card.sticker.categoryKey)
+            // Not another name for what the photo shows (健康便當 → 便當): it would be right too.
+            if QuizPool.alsoFits(w.headword, category: s.categoryKey, correct: correct.headword,
+                                 correctCategory: key, target: target) { return nil }
+            return (QuizChoice(headword: w.headword, zhuyin: w.readingZhuyin, pinyin: w.pinyin), s.categoryKey == key)
         }
         let same = others.filter(\.1).map(\.0).shuffled()
         let rest = others.filter { !$0.1 }.map(\.0).shuffled()
         var out: [QuizChoice] = []
-        let pool = Self.fallback(for: NativeAPI.targetLanguage, categoryKey: card.sticker.categoryKey)
+        let pool = Self.fallback(for: target, categoryKey: key, correct: correct.headword)
         // Compared by headword: the same word from the dex and from the pool may carry different readings.
         for c in same + rest + pool where c.headword != correct.headword && !out.contains(where: { $0.headword == c.headword }) {
             out.append(c)

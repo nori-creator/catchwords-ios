@@ -13,6 +13,11 @@ struct HomeView: View {
     @State private var albumEditing = false
     /// 「完了」 pressed: the board being rearranged saves and stops.
     @State private var finishEditing = 0
+    /// The calendar (header button): a day picked there scrolls the album to it; the other days stay above and
+    /// below it (owner 2026-10-14: 「カレンダーの日付を押すとその日の欄が見えるように。スクロールしてほかの日にも移動できる」).
+    @State private var calendarOpen = false
+    @State private var calendarDay: Date?
+    @State private var jumpCount = 0
 
     private struct MemorialDay: Identifiable {
         let n: Int
@@ -22,82 +27,88 @@ struct HomeView: View {
     var body: some View {
         let today = Calendar.current.startOfDay(for: Date())
 
-        ScrollView {
-            VStack(spacing: 0) {
-                Color.clear.frame(height: 64)
-
-                if let n = profile.createdAt.flatMap({ Milestone.today(start: $0) }),
-                   !memorialHidden, !Milestone.wasDismissed(n) {
-                    MemorialBanner(n: n, words: dex.stickers.count, photos: Milestone.highlights(dex.stickers).count) {
-                        Haptics.impact(.medium)
-                        memorialOpen = n
-                    } onDismiss: {
-                        Milestone.dismiss(n)
-                        withAnimation(.snappy) { memorialHidden = true }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 14)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                // Photos kept at the shutter whose analysis has not finished (web Home pending banner).
-                if !dex.pending.isEmpty {
-                    Button {
-                        router.openPending = true
-                        router.tab = .camera
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "hourglass").scaledFont(size: 15, weight: .semibold)
-                            Text(L("解析待ちの写真が\(dex.pending.count)枚あります"))
-                                .scaledFont(size: 14, weight: .semibold)
-                            Spacer()
-                            Image(systemName: "chevron.right").scaledFont(size: 12, weight: .semibold)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    if let n = profile.createdAt.flatMap({ Milestone.today(start: $0) }),
+                       !memorialHidden, !Milestone.wasDismissed(n) {
+                        MemorialBanner(n: n, words: dex.stickers.count, photos: Milestone.highlights(dex.stickers).count) {
+                            Haptics.impact(.medium)
+                            memorialOpen = n
+                        } onDismiss: {
+                            Milestone.dismiss(n)
+                            withAnimation(.snappy) { memorialHidden = true }
                         }
-                        .foregroundStyle(Color(hex: 0x33291F))
                         .padding(.horizontal, 16)
-                        .frame(minHeight: 48)
-                        .background(Color(hex: 0xF3D98A, opacity: 0.45), in: .rect(cornerRadius: 14))
+                        .padding(.bottom, 14)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-                    .buttonStyle(PressableStyle())
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 14)
-                }
 
-                Group {
-                    if let err = dex.loadError, dex.stickers.isEmpty {
-                        // Nothing to show yet and the dex could not be read: say so, offer a retry.
-                        AlbumLoadFailed(message: err) { Task { await dex.load() } }
-                            .frame(height: 360)
-                            .tourAnchor(.album)
-                    } else if !dex.hasLoaded, dex.stickers.isEmpty {
-                        AlbumSkeleton()
-                            .frame(height: 440)
-                            .tourAnchor(.album)
-                    } else {
-                        HomeAlbum(
-                            days: AlbumDay.days(from: dex.albumStickers, today: today),
-                            onOpen: { router.detailSticker = $0 },
-                            onCamera: { router.tab = .camera },
-                            onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
-                            finishRequest: finishEditing
-                        )
-                        .transition(.opacity)
+                    // Photos kept at the shutter whose analysis has not finished (web Home pending banner).
+                    if !dex.pending.isEmpty {
+                        Button {
+                            router.openPending = true
+                            router.tab = .camera
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "hourglass").scaledFont(size: 15, weight: .semibold)
+                                Text(L("解析待ちの写真が\(dex.pending.count)枚あります"))
+                                    .scaledFont(size: 14, weight: .semibold)
+                                Spacer()
+                                Image(systemName: "chevron.right").scaledFont(size: 12, weight: .semibold)
+                            }
+                            .foregroundStyle(Color(hex: 0x33291F))
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 48)
+                            .background(Color(hex: 0xF3D98A, opacity: 0.45), in: .rect(cornerRadius: 14))
+                        }
+                        .buttonStyle(PressableStyle())
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 14)
                     }
+
+                    Group {
+                        if let err = dex.loadError, dex.stickers.isEmpty {
+                            // Nothing to show yet and the dex could not be read: say so, offer a retry.
+                            AlbumLoadFailed(message: err) { Task { await dex.load() } }
+                                .frame(height: 360)
+                                .tourAnchor(.album)
+                        } else if !dex.hasLoaded, dex.stickers.isEmpty {
+                            AlbumSkeleton()
+                                .frame(height: 440)
+                                .tourAnchor(.album)
+                        } else {
+                            HomeAlbum(
+                                days: AlbumDay.days(from: dex.albumStickers, today: today),
+                                onOpen: { router.detailSticker = $0 },
+                                onCamera: { router.tab = .camera },
+                                onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
+                                finishRequest: finishEditing
+                            )
+                            .transition(.opacity)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .animation(.easeOut(duration: 0.3), value: dex.hasLoaded)
+
+                    AlbumHiddenTray()
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+
+                    Color.clear.frame(height: 120)
                 }
-                .padding(.horizontal, 12)
-                .animation(.easeOut(duration: 0.3), value: dex.hasLoaded)
-
-                AlbumHiddenTray()
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-
-                Color.clear.frame(height: 120)
+            }
+            .scrollDisabled(albumEditing)
+            .refreshable { await dex.load() }
+            // The header takes its room from the scroll (instead of covering its top), so a day scrolled to from the
+            // calendar shows its date just under it.
+            .safeAreaInset(edge: .top, spacing: 8) { header }
+            .onChange(of: jumpCount) { _, _ in
+                guard let day = calendarDay else { return }
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { proxy.scrollTo(day, anchor: .top) }
             }
         }
-        .scrollDisabled(albumEditing)
-        .refreshable { await dex.load() }
         .background(HomeBackground())
-        .overlay(alignment: .top) { header }
         // Rearranging the album ends with 「完了」 (web: a fixed button above the tab bar), wherever the board is.
         .overlay(alignment: .bottom) {
             if albumEditing {
@@ -130,6 +141,29 @@ struct HomeView: View {
         .task(id: profile.createdAt) {
             if let start = profile.createdAt { await Milestone.scheduleNotification(start: start) }
         }
+        .sheet(isPresented: $calendarOpen) {
+            NavigationStack {
+                ScrollView {
+                    DexCalendarView(stickers: dex.albumStickers, selectedDay: $calendarDay, onOpen: { s in
+                        calendarOpen = false
+                        router.detailSticker = s
+                    }) { picked in
+                        calendarDay = picked
+                        calendarOpen = false
+                        jumpCount += 1
+                    }
+                    .padding(.horizontal, 16)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { calendarOpen = false } label: { Image(systemName: "xmark") }
+                            .accessibilityLabel(L("閉じる"))
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationContentInteraction(.scrolls)
+        }
         .sheet(isPresented: $showStats) {
             UserStatsPanel(
                 onSettings: { showStats = false; router.tab = .settings },
@@ -150,6 +184,20 @@ struct HomeView: View {
                 .scaledFont(size: 18, weight: .medium)
                 .foregroundStyle(Theme.muted)
             Spacer()
+            Button {
+                Haptics.selection()
+                calendarOpen = true
+            } label: {
+                Image(systemName: "calendar")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color(hex: 0x33291F))
+                    .frame(width: 44, height: 44)
+                    .background(Color(hex: 0x33291F, opacity: 0.07), in: Circle())
+            }
+            .buttonStyle(PressableStyle(scale: 0.92))
+            .disabled(albumEditing)
+            .accessibilityLabel(L("カレンダー"))
+            .accessibilityIdentifier("home.calendar")
         }
         .padding(.horizontal, 20)
         .frame(height: 56)
@@ -219,14 +267,15 @@ struct HomeAlbum: View {
         let isToday = Calendar.current.isDateInToday(d.day)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
+                // Larger (owner 2026-10-14: 「ホーム画面の日付をもう少し大きくして」).
                 Text(Self.dayTitle(d.day))
-                    .scaledFont(size: 20, weight: .heavy)
+                    .scaledFont(size: 26, weight: .heavy)
                     .foregroundStyle(Color(hex: 0x33291F))
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
                 if !d.items.isEmpty {
                     Text(L("\(d.items.count)語"))
-                        .font(AppFont.mono(12, weight: .semibold))
+                        .font(AppFont.mono(14, weight: .semibold))
                         .foregroundStyle(Color(hex: 0x33291F, opacity: 0.5))
                 }
             }

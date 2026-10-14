@@ -413,9 +413,12 @@ nonisolated struct Sticker: Codable, Sendable, Identifiable, Hashable {
         default: cutoutImageUrl ?? objectImageUrl ?? selfieImageUrl ?? placeholderImageUrl
         }
     }
-    var room: Room { Category.room(for: builtinShelfKey ?? word?.categoryKey) }
-    /// The word's category: a built-in key kept in `shelf_key` first, else the AI's category.
-    var categoryKey: String { Category.key(for: builtinShelfKey ?? word?.categoryKey) }
+    var room: Room { Category.room(for: categoryKey) }
+    /// The word's category: a built-in key kept in `shelf_key` first, else the headword's rule (`CategoryRules`,
+    /// web `wordCategoryKey`), else the AI's category.
+    var categoryKey: String {
+        builtinShelfKey ?? CategoryRules.normalize(headword: word?.headword, key: word?.categoryKey)
+    }
     private var builtinShelfKey: String? { shelfKey.flatMap { Category.isBuiltin($0) ? $0 : nil } }
 }
 

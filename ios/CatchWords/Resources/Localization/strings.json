@@ -4362,5 +4362,221 @@
  "取り消すと、カメラ、写真アプリの画像、「違う単語を入力」、単語の解説と例文の作成など、AI を使う機能は使えなくなります。集めた単語と復習はそのまま使えます。": {
   "en": "Features that use AI — the camera, images from the Photos app, “Type a different word”, and writing word explanations and example sentences — will stop working. Your words and reviews stay available.",
   "zh-TW": "撤回後，相機、照片 App 的圖片、「輸入別的單字」、製作單字的解說與例句等使用 AI 的功能將無法使用。收集的單字與複習仍可照常使用。"
+ },
+ "{1}秒": {
+  "en": "{1}s",
+  "zh-TW": "{1} 秒"
+ },
+ "タイマー": {
+  "en": "Timer",
+  "zh-TW": "計時器"
+ },
+ "あと{1}秒": {
+  "en": "Shooting in {1}",
+  "zh-TW": "還有 {1} 秒"
+ },
+ "この写真を使う": {
+  "en": "Use this photo",
+  "zh-TW": "使用這張照片"
+ },
+ "シャッターを押すと止まります": {
+  "en": "Tap the shutter to stop",
+  "zh-TW": "按下快門即可停止"
+ },
+ "覚えたい言い方を選んでください": {
+  "en": "Pick the way of saying it you want to learn",
+  "zh-TW": "選一個你想記住的說法"
+ },
+ "砕けた言い方": {
+  "en": "Casual",
+  "zh-TW": "口語說法"
+ },
+ "くわしい・専門的な名前": {
+  "en": "Specific / technical name",
+  "zh-TW": "詳細或專業的名稱"
+ },
+ "固有名詞": {
+  "en": "Proper noun",
+  "zh-TW": "專有名詞"
+ },
+ "いちばんよく使う言い方": {
+  "en": "Most common",
+  "zh-TW": "最常用的說法"
+ },
+ "ふだんの言い方": {
+  "en": "Everyday",
+  "zh-TW": "日常說法"
+ },
+ "言い方が{1}つあります": {
+  "en": "{1} ways to say it",
+  "zh-TW": "有 {1} 種說法"
+ },
+ "自撮りを撮り直す": {
+  "en": "Retake the selfie",
+  "zh-TW": "重拍自拍"
+ },
+ "大きく見る": {
+  "en": "View larger",
+  "zh-TW": "放大查看"
+ },
+ "カレンダー": {
+  "en": "Calendar",
+  "zh-TW": "月曆"
+ },
+ "「{1}」のどこが違いましたか？": {
+  "en": "What's wrong with “{1}”?",
+  "zh-TW": "「{1}」哪裡不對？"
+ },
+ "例: 写真の物ではなく別の意味になっている（書かなくても大丈夫）": {
+  "en": "e.g. It explains a different meaning, not the thing in the photo (optional)",
+  "zh-TW": "例：解釋的不是照片裡的東西，而是別的意思（可以不填）"
+ },
+ "書いた内容をAIに伝えて、その項目だけを直します。": {
+  "en": "What you write is passed to the AI, which fixes only this item.",
+  "zh-TW": "會把你寫的內容告訴 AI，只修正這個項目。"
+ },
+ "AIが応答せず、直せませんでした。時間をおいてもう一度お試しください": {
+  "en": "The AI didn't respond, so it couldn't be fixed. Please try again later.",
+  "zh-TW": "AI 沒有回應，無法修正。請稍後再試一次。"
+ },
+ "1 ドル = {1} 円で計算しています。": {
+  "en": "Calculated at 1 USD = {1} JPY.",
+  "zh-TW": "以 1 美元 = {1} 日圓計算。"
+ },
+ "1 ドルあたりの円": {
+  "en": "Yen per US dollar",
+  "zh-TW": "每 1 美元的日圓"
+ },
+ "AI の費用": {
+  "en": "AI costs",
+  "zh-TW": "AI 的費用"
+ },
+ "AI を呼んだ1回ずつの使った量（トークン）× 単価で数えます。単価は 100 万トークンあたりの米ドルです。Google の無料枠で動いている間の実際の請求は 0 円です。日付は日本時間。": {
+  "en": "Each AI call's usage (tokens) × the price. Prices are US dollars per million tokens. While running on Google's free tier the actual bill is 0. Dates are in Japan time.",
+  "zh-TW": "以每次呼叫 AI 的用量（token）× 單價計算。單價為每 100 萬 token 的美元。使用 Google 免費額度期間，實際費用為 0。日期為日本時間。"
+ },
+ "Web 版": {
+  "en": "Web",
+  "zh-TW": "網頁版"
+ },
+ "{1} 回": {
+  "en": "{1} times",
+  "zh-TW": "{1} 次"
+ },
+ "{1} 回（失敗 {2} 回）・入力 {3}・出力 {4}": {
+  "en": "{1} calls ({2} failed), in {3}, out {4}",
+  "zh-TW": "{1} 次（失敗 {2} 次），輸入 {3}，輸出 {4}"
+ },
+ "このアプリで AI を使う所だけを出しています。選んだ AI が失敗した時（残高切れ・回数制限・障害）は、同じ依頼を「控え」の AI へ1回だけ送り直します。": {
+  "en": "Only the places where this app uses AI. When the chosen AI fails (no credit, rate limit, outage), the same request is sent once to the backup AI.",
+  "zh-TW": "只顯示這個 App 使用 AI 的地方。選擇的 AI 失敗時（餘額不足、次數限制、故障），同一個請求會重新送給「備用」的 AI 一次。"
+ },
+ "この期間の記録はまだありません。": {
+  "en": "No records for this period yet.",
+  "zh-TW": "這段期間還沒有紀錄。"
+ },
+ "なし（失敗したらそのまま）": {
+  "en": "None (a failure stays a failure)",
+  "zh-TW": "無（失敗就直接失敗）"
+ },
+ "なし（鍵のある別の会社がありません）": {
+  "en": "None (no other provider has a key)",
+  "zh-TW": "無（沒有其他有金鑰的公司）"
+ },
+ "モデルごと": {
+  "en": "By model",
+  "zh-TW": "各模型"
+ },
+ "入れた単価を消す": {
+  "en": "Delete the entered price",
+  "zh-TW": "刪除輸入的單價"
+ },
+ "入力した値": {
+  "en": "entered here",
+  "zh-TW": "手動輸入的值"
+ },
+ "入力（100 万トークンあたり $）": {
+  "en": "Input ($ per million tokens)",
+  "zh-TW": "輸入（每 100 萬 token 的美元）"
+ },
+ "出力（100 万トークンあたり $）": {
+  "en": "Output ($ per million tokens)",
+  "zh-TW": "輸出（每 100 萬 token 的美元）"
+ },
+ "単価": {
+  "en": "Price",
+  "zh-TW": "單價"
+ },
+ "単価: 入力 ${1} / 出力 ${2}（100 万トークン）": {
+  "en": "Price: in ${1} / out ${2} (per million tokens)",
+  "zh-TW": "單價：輸入 ${1} / 輸出 ${2}（每 100 萬 token）"
+ },
+ "単価が未登録のモデルの {1} 回は金額に入っていません。下の「モデルごと」で単価を入れてください。": {
+  "en": "{1} calls on models without a price are not in the total. Enter a price under \"By model\" below.",
+  "zh-TW": "沒有單價的模型的 {1} 次不計入金額。請在下方「各模型」輸入單價。"
+ },
+ "単価を入れる": {
+  "en": "Enter price",
+  "zh-TW": "輸入單價"
+ },
+ "単価を変える": {
+  "en": "Change price",
+  "zh-TW": "修改單價"
+ },
+ "単価未登録": {
+  "en": "No price",
+  "zh-TW": "未登錄單價"
+ },
+ "各社の料金表の「100 万トークンあたり」の値を米ドルで入れます。Lovable・OpenRouter を通した呼び出しは、それぞれの請求画面の単価を入れてください。": {
+  "en": "Enter the provider's price per million tokens in US dollars. For calls through Lovable or OpenRouter, enter the price from their billing page.",
+  "zh-TW": "輸入各公司價目表中「每 100 萬 token」的美元價格。透過 Lovable 或 OpenRouter 的呼叫，請輸入各自帳單頁面的單價。"
+ },
+ "呼び出し {1} 回（失敗 {2} 回）・入力 {3}・出力 {4} トークン": {
+  "en": "{1} calls ({2} failed), {3} in, {4} out tokens",
+  "zh-TW": "呼叫 {1} 次（失敗 {2} 次），輸入 {3}，輸出 {4} token"
+ },
+ "報告を受け付けました。AIが応答せず、自動では直せませんでした": {
+  "en": "Report received. The AI didn't respond, so it couldn't be fixed automatically",
+  "zh-TW": "已收到回報。AI 沒有回應，無法自動修正"
+ },
+ "控え: {1}": {
+  "en": "Backup: {1}",
+  "zh-TW": "備用：{1}"
+ },
+ "控えを使わない": {
+  "en": "No backup",
+  "zh-TW": "不使用備用"
+ },
+ "控えを選ぶ": {
+  "en": "Choose backup",
+  "zh-TW": "選擇備用"
+ },
+ "最多: {1} {2} 回": {
+  "en": "Peak: {1} {2} calls",
+  "zh-TW": "最多：{1} {2} 次"
+ },
+ "最多: {1} {2}": {
+  "en": "Peak: {1} {2}",
+  "zh-TW": "最多：{1} {2}"
+ },
+ "機能ごと": {
+  "en": "By feature",
+  "zh-TW": "各功能"
+ },
+ "為替": {
+  "en": "Exchange rate",
+  "zh-TW": "匯率"
+ },
+ "自動 → {1}": {
+  "en": "Auto → {1}",
+  "zh-TW": "自動 → {1}"
+ },
+ "自動（機能の設定・既定）": {
+  "en": "Auto (feature setting / default)",
+  "zh-TW": "自動（功能設定或預設）"
+ },
+ "自動（鍵のある別の会社）": {
+  "en": "Auto (another provider with a key)",
+  "zh-TW": "自動（其他有金鑰的公司）"
  }
 }

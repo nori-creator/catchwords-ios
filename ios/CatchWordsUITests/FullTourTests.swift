@@ -155,6 +155,9 @@ final class FullTourTests: XCTestCase {
         let aimed = first.exists ? "candidate.0 hittable \(first.isHittable), frame \(first.frame)" : "candidate.0 gone"
         let tappedAt = Self.clock.string(from: Date())
         first.tap()
+        // A thing with several ways to say it lists them first (outside the first tour): take the everyday one.
+        let everyday = app.buttons["variant.0"]
+        if everyday.waitForExistence(timeout: 3) { everyday.tap() }
         let catchButton = app.buttons["card.catch"]
         let again = app.buttons["reencounter.dex"]
         // A word already in the dex opens the re-encounter card instead of the celebration.

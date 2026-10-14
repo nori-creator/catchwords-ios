@@ -72,17 +72,20 @@ nonisolated struct AdminAiSettings: Decodable, Sendable {
     var isAdmin: Bool
     var status: AdminAiStatus
     var features: [AdminAiFeature]
+    /// Each use of the AI with its own model and backup (server 2026-10-14; empty on an older server).
+    var tasks: [AdminAiTaskSetting]
     var providers: [AdminAiProvider]
     var image: AdminAiImage?
     var tts: AdminAiTts?
 
-    enum CodingKeys: String, CodingKey { case isAdmin, status, features, providers, image, tts }
+    enum CodingKeys: String, CodingKey { case isAdmin, status, features, tasks, providers, image, tts }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         isAdmin = c.adminBool(.isAdmin)
         status = ((try? c.decodeIfPresent(AdminAiStatus.self, forKey: .status)) ?? nil) ?? AdminAiStatus()
         features = c.adminList(AdminAiFeature.self, .features)
+        tasks = c.adminList(AdminAiTaskSetting.self, .tasks)
         providers = c.adminList(AdminAiProvider.self, .providers)
         image = (try? c.decodeIfPresent(AdminAiImage.self, forKey: .image)) ?? nil
         tts = (try? c.decodeIfPresent(AdminAiTts.self, forKey: .tts)) ?? nil
@@ -138,6 +141,54 @@ nonisolated struct AdminAiFeature: Decodable, Sendable {
         provider = c.adminOptStr(.provider)
         model = c.adminOptStr(.model)
         resolved = c.adminOptStr(.resolved)
+        error = c.adminOptStr(.error)
+    }
+}
+
+/// One use of the AI (`photo_candidates`, `section_regen`, …; web src/lib/ai-task-settings.ts) with the model it
+/// uses and the backup it falls back to when that model fails. `ios` marks the uses this app has.
+nonisolated struct AdminAiTaskSetting: Decodable, Sendable {
+    var id: String
+    var feature: String
+    var needsVision: Bool
+    var ios: Bool
+    var label: [String: String]
+    var description: [String: String]
+    /// `"auto"` (the feature's setting / the default) or `"provider:model"`.
+    var value: String
+    /// `"auto"` (the default backup), `"off"` (none) or `"provider:model"`.
+    var backup: String
+    var provider: String?
+    var model: String?
+    var resolved: String?
+    var backupProvider: String?
+    var backupModel: String?
+    var backupResolved: String?
+    var error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, feature, needsVision, ios, label, description, value, backup, provider, model, resolved
+        case backupProvider, backupModel, backupResolved, error
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.adminStr(.id)
+        feature = c.adminStr(.feature)
+        needsVision = c.adminBool(.needsVision)
+        ios = c.adminBool(.ios)
+        label = c.adminDict(.label)
+        description = c.adminDict(.description)
+        let v = c.adminStr(.value)
+        value = v.isEmpty ? "auto" : v
+        let b = c.adminStr(.backup)
+        backup = b.isEmpty ? "auto" : b
+        provider = c.adminOptStr(.provider)
+        model = c.adminOptStr(.model)
+        resolved = c.adminOptStr(.resolved)
+        backupProvider = c.adminOptStr(.backupProvider)
+        backupModel = c.adminOptStr(.backupModel)
+        backupResolved = c.adminOptStr(.backupResolved)
         error = c.adminOptStr(.error)
     }
 }
@@ -300,6 +351,163 @@ nonisolated struct AdminAiTtsProvider: Decodable, Sendable {
     }
 }
 
+// MARK: - The cost of the AI (web src/lib/ai-costs.ts, `adminGetAiCosts`)
+
+/// `adminGetAiCosts` → `result`: what each use and each model cost over 1 / 7 / 30 days (Japan time), from the
+/// tokens every AI call reported × the price per million tokens. A model without a known price is counted in
+/// `unpricedCalls` and costs nothing here until a price is entered.
+nonisolated struct AdminAiCosts: Decodable, Sendable {
+    var isAdmin: Bool
+    var truncated: Bool
+    var days: Int
+    var usdJpy: Double
+    var total: AdminAiCostSum
+    var tasks: [AdminAiCostTask]
+    var models: [AdminAiCostModel]
+    var daily: [AdminAiCostDay]
+    var customPrices: [AdminAiCustomPrice]
+
+    enum CodingKeys: String, CodingKey { case isAdmin, truncated, days, usdJpy, total, tasks, models, daily, customPrices }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        isAdmin = c.adminBool(.isAdmin)
+        truncated = c.adminBool(.truncated)
+        days = Int(c.adminNum(.days) ?? 30)
+        usdJpy = c.adminNum(.usdJpy) ?? 156
+        total = ((try? c.decodeIfPresent(AdminAiCostSum.self, forKey: .total)) ?? nil) ?? AdminAiCostSum()
+        tasks = c.adminList(AdminAiCostTask.self, .tasks)
+        models = c.adminList(AdminAiCostModel.self, .models)
+        daily = c.adminList(AdminAiCostDay.self, .daily)
+        customPrices = c.adminList(AdminAiCustomPrice.self, .customPrices)
+    }
+}
+
+/// The counts and the cost of a group of calls.
+nonisolated struct AdminAiCostSum: Decodable, Sendable {
+    var calls: Int = 0
+    var ok: Int = 0
+    var failed: Int = 0
+    var tokensIn: Double = 0
+    var tokensOut: Double = 0
+    var usd: Double = 0
+    /// Answered calls whose model has no price (not in `usd`).
+    var unpricedCalls: Int = 0
+
+    enum CodingKeys: String, CodingKey { case calls, ok, failed, tokensIn, tokensOut, usd, unpricedCalls }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        calls = Int(c.adminNum(.calls) ?? 0)
+        ok = Int(c.adminNum(.ok) ?? 0)
+        failed = Int(c.adminNum(.failed) ?? 0)
+        tokensIn = c.adminNum(.tokensIn) ?? 0
+        tokensOut = c.adminNum(.tokensOut) ?? 0
+        usd = c.adminNum(.usd) ?? 0
+        unpricedCalls = Int(c.adminNum(.unpricedCalls) ?? 0)
+    }
+}
+
+nonisolated struct AdminAiCostTask: Decodable, Sendable {
+    var task: String
+    var ios: Bool
+    var label: [String: String]
+    var sum: AdminAiCostSum
+    var models: [Model]
+
+    nonisolated struct Model: Decodable, Sendable {
+        var model: String
+        var calls: Int
+        /// nil: the model has no price.
+        var usd: Double?
+
+        enum CodingKeys: String, CodingKey { case model, calls, usd }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            model = c.adminStr(.model)
+            calls = Int(c.adminNum(.calls) ?? 0)
+            usd = c.adminNum(.usd)
+        }
+    }
+
+    enum CodingKeys: String, CodingKey { case task, ios, label, models }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        task = c.adminStr(.task)
+        ios = c.adminBool(.ios)
+        label = c.adminDict(.label)
+        sum = (try? AdminAiCostSum(from: decoder)) ?? AdminAiCostSum()
+        models = c.adminList(Model.self, .models)
+    }
+}
+
+nonisolated struct AdminAiCostModel: Decodable, Sendable {
+    var model: String
+    var sum: AdminAiCostSum
+    var price: AdminAiPrice?
+
+    enum CodingKeys: String, CodingKey { case model, price }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        model = c.adminStr(.model)
+        sum = (try? AdminAiCostSum(from: decoder)) ?? AdminAiCostSum()
+        price = (try? c.decodeIfPresent(AdminAiPrice.self, forKey: .price)) ?? nil
+    }
+}
+
+/// US dollars per million tokens, and where the number comes from (`custom` = typed in on this screen).
+nonisolated struct AdminAiPrice: Decodable, Sendable {
+    var inUsd: Double
+    var outUsd: Double
+    var source: String
+    var custom: Bool
+
+    enum CodingKeys: String, CodingKey { case inUsd, outUsd, source, custom }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        inUsd = c.adminNum(.inUsd) ?? 0
+        outUsd = c.adminNum(.outUsd) ?? 0
+        source = c.adminStr(.source)
+        custom = c.adminBool(.custom)
+    }
+}
+
+nonisolated struct AdminAiCostDay: Decodable, Sendable {
+    var day: String
+    var calls: Int
+    var usd: Double
+
+    enum CodingKeys: String, CodingKey { case day, calls, usd }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        day = c.adminStr(.day)
+        calls = Int(c.adminNum(.calls) ?? 0)
+        usd = c.adminNum(.usd) ?? 0
+    }
+}
+
+nonisolated struct AdminAiCustomPrice: Decodable, Sendable {
+    var model: String
+    var inUsd: Double
+    var outUsd: Double
+
+    enum CodingKeys: String, CodingKey { case model, inUsd, outUsd }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        model = c.adminStr(.model)
+        inUsd = c.adminNum(.inUsd) ?? 0
+        outUsd = c.adminNum(.outUsd) ?? 0
+    }
+}
+
 /// Lenient fields: missing, null or of another type → the empty value, never a failed decode.
 private extension KeyedDecodingContainer {
     nonisolated func adminStr(_ k: Key) -> String { ((try? decodeIfPresent(String.self, forKey: k)) ?? nil) ?? "" }
@@ -316,5 +524,10 @@ private extension KeyedDecodingContainer {
     }
     nonisolated func adminList<T: Decodable>(_ type: T.Type, _ k: Key) -> [T] {
         ((try? decodeIfPresent([T].self, forKey: k)) ?? nil) ?? []
+    }
+    /// A number (JSON numbers decode as Double whether written 3 or 3.0); nil when missing or not a number.
+    nonisolated func adminNum(_ k: Key) -> Double? {
+        let v = (try? decodeIfPresent(Double.self, forKey: k)) ?? nil
+        return v.flatMap { $0.isFinite ? $0 : nil }
     }
 }

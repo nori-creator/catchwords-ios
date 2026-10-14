@@ -33,6 +33,9 @@ REPO = "nori-creator/Lovable-catch-words-app"
 # Remove an entry as soon as the patch is on the web's main (the check then warns, and checks the
 # function fully: the allowance only ever covers a function missing from NATIVE_FNS).
 PENDING_WEB_DEPLOY = {
+    # The developer's per-use AI with backups and the AI costs (adminSetAiTask / adminGetAiCosts / adminSetAiPrice,
+    # Views/AdminAiSettingsView.swift, Views/AdminAiCostCard.swift) are on the web's main now (PR #179). Until the web is
+    # published they answer 404: the settings screen keeps the per-feature list and the cost card says so.
     # recordAiConsent / getAiConsent (AI consent, docs/web-changes/ 0003) are on the web now.
     # Add an entry here as "name": "where the web patch is" when iOS calls a function ahead of its deploy.
     # storeAppleAuthCode (Sign in with Apple revocation, audit R7-03) is on the web's main now.

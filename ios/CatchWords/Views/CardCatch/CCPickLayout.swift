@@ -30,11 +30,15 @@ enum CCPickLayout {
     /// The tag's font (CandidatePickerView.tag draws its name with exactly this).
     static let tagFontSize: CGFloat = 13
 
-    /// A tag's size for a name: 8 + dot 10 + 7 + text + 12 wide, 7 + line + 7 high.
-    static func tagSize(name: String) -> CGSize {
+    /// The width of the 「言い方の数」 badge after a name (CandidatePickerView draws it exactly this wide).
+    static let badgeWidth: CGFloat = 32
+
+    /// A tag's size for a name: 8 + dot 10 + 7 + text (+ 7 + badge) + 12 wide, 7 + line + 7 high.
+    static func tagSize(name: String, badge: Bool = false) -> CGSize {
         let font = UIFont.systemFont(ofSize: tagFontSize, weight: .heavy)
         let w = (name as NSString).size(withAttributes: [.font: font]).width
-        return CGSize(width: ceil(w) + 37, height: ceil(max(10, font.lineHeight)) + 14)
+        return CGSize(width: ceil(w) + 37 + (badge ? 7 + badgeWidth : 0),
+                      height: ceil(max(badge ? 18 : 10, font.lineHeight)) + 14)
     }
 
     /// The tag's x, kept inside the area.

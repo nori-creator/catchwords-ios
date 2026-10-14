@@ -85,4 +85,41 @@ final class QuizPoolTests: XCTestCase {
             XCTAssertEqual(pinyin?.split(separator: " ").count, han, "\(w.headword): \(pinyin ?? "")")
         }
     }
+
+    /// A new learner's choices come mostly from the pool: none of them may also be right for the photo
+    /// (owner 2026-10-14). The head of a compound and a word for the whole kind are left out; a near miss stays.
+    func testChoicesThatWouldAlsoBeRightAreLeftOut() {
+        // The last part names the kind.
+        XCTAssertTrue(QuizPool.alsoFits("便當", category: "food", correct: "健康便當", correctCategory: "food", target: "zh-TW"))
+        XCTAssertTrue(QuizPool.alsoFits("茶", category: "drink", correct: "珍珠奶茶", correctCategory: "drink", target: "zh-TW"))
+        XCTAssertTrue(QuizPool.alsoFits("juice", category: "drink", correct: "Orange Juice", correctCategory: "drink", target: "en"))
+        XCTAssertTrue(QuizPool.alsoFits("車", category: "vehicle", correct: "救急車", correctCategory: "vehicle", target: "ja"))
+        // English compares whole words: "pineapple" is not an apple.
+        XCTAssertFalse(QuizPool.alsoFits("apple", category: "fruit", correct: "pineapple", correctCategory: "fruit", target: "en"))
+        // A word for the whole kind, in the same category only.
+        XCTAssertTrue(QuizPool.alsoFits("水果", category: "fruit", correct: "柚子", correctCategory: "fruit", target: "zh-TW"))
+        XCTAssertTrue(QuizPool.alsoFits("果物", category: "fruit", correct: "文旦", correctCategory: "fruit", target: "ja"))
+        XCTAssertFalse(QuizPool.alsoFits("水果", category: "fruit", correct: "公車", correctCategory: "vehicle", target: "zh-TW"))
+        // A near miss that is another thing stays (a fair test), and so does the word itself (handled elsewhere).
+        XCTAssertFalse(QuizPool.alsoFits("鳳梨", category: "fruit", correct: "鳳梨酥", correctCategory: "dessert", target: "zh-TW"))
+        XCTAssertFalse(QuizPool.alsoFits("柚子", category: "fruit", correct: "柚子", correctCategory: "fruit", target: "zh-TW"))
+    }
+
+    @MainActor
+    func testThePaddingForOneWordStillGivesThreeOtherChoices() {
+        let cases: [(lang: String, word: String, key: String, never: String)] = [
+            ("zh-TW", "柚子", "fruit", "水果"),
+            ("zh-TW", "健康便當", "food", "便當"),
+            ("en", "orange juice", "drink", "juice"),
+            ("ja", "健康弁当", "food", "お弁当"),
+            ("ja", "緑茶", "drink", "お茶"),
+        ]
+        for c in cases {
+            let pool = ReviewStore.fallback(for: c.lang, categoryKey: c.key, correct: c.word)
+            XCTAssertGreaterThanOrEqual(pool.count, 3, c.word)
+            XCTAssertFalse(pool.contains { $0.headword == c.never }, "\(c.word): \(c.never)")
+        }
+        // Without the correct word (the previews), the pool is whole.
+        XCTAssertEqual(ReviewStore.fallback(for: "zh-TW").count, QuizPool.words(for: "zh-TW").count)
+    }
 }

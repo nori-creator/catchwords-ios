@@ -33,8 +33,11 @@ nonisolated struct WebImageCandidate: Decodable, Sendable, Hashable, Identifiabl
 enum WebImages {
     private static var cache: [String: [WebImageCandidate]] = [:]
 
-    /// The same hosts the web's `fetchImageAsDataUrl` accepts; anything else is never downloaded.
-    private static let allowedHosts: Set<String> = ["images.unsplash.com", "plus.unsplash.com", "upload.wikimedia.org"]
+    /// The same hosts the web's `fetchImageAsDataUrl` accepts (image-proxy.ts ALLOWED_IMAGE_HOSTS, Openverse and Flickr
+    /// added there 2026-10-09); anything else is never downloaded.
+    private static let allowedHosts: Set<String> = Set(["images.unsplash.com", "plus.unsplash.com", "upload.wikimedia.org",
+                                                        "api.openverse.org", "live.staticflickr.com"]
+                                                       + (1...9).map { "farm\($0).staticflickr.com" })
 
     /// Search candidates. `round` > 0 is 「別の画像」: the web searches again with the headword added.
     static func search(headword: String, meaning: String?, round: Int = 0) async throws -> [WebImageCandidate] {

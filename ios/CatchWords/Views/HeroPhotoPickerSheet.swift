@@ -12,6 +12,12 @@ struct HeroPhotoPickerSheet: View {
     /// 写真を替える, at the bottom of this sheet (owner 2026-10-11, web HeroPhotoPicker `onReplaceFile`). The word page
     /// does the replacing (and the new cut-out); nil = not offered here.
     var onReplace: ((PhotosPickerItem) -> Void)? = nil
+    /// 自撮りを撮る, under 写真を替える (owner 2026-10-14: moved here from the bottom of the word page). The word page
+    /// saves it; nil = not offered (no front camera, or the word is still being saved).
+    var onSelfie: ((UIImage) async -> Void)? = nil
+
+    @State private var takingSelfie = false
+    @State private var savingSelfie = false
 
     @Environment(DexStore.self) private var dex
     @Environment(\.dismiss) private var dismiss
@@ -46,6 +52,34 @@ struct HeroPhotoPickerSheet: View {
     }
 
     var body: some View {
+        // Scrolls when it is taller than the sheet: at the half-height detent the tiles and buttons ran off the bottom
+        // (owner 2026-10-14: 「表示する写真が見切れている」).
+        ScrollView {
+            content
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(Theme.background.ignoresSafeArea())
+        .sensoryFeedback(.selection, trigger: chosen)
+        .onChange(of: newPhoto) { _, item in
+            guard let item else { return }
+            newPhoto = nil
+            dismiss()
+            onReplace?(item)
+        }
+        .fullScreenCover(isPresented: $takingSelfie) {
+            SelfieCamera { image in
+                Task {
+                    savingSelfie = true
+                    await onSelfie?(image)
+                    savingSelfie = false
+                }
+            }
+            .ignoresSafeArea()
+            .statusBarTone(.hidden)
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(L("表示する写真"))
@@ -80,19 +114,25 @@ struct HeroPhotoPickerSheet: View {
                 .accessibilityIdentifier("hero.replacePhoto")
                 .padding(.top, 4)
             }
-            Spacer(minLength: 0)
+            if onSelfie != nil {
+                Button { takingSelfie = true } label: {
+                    Label(savingSelfie ? L("保存しています…")
+                          : (sticker.selfieImageUrl == nil ? L("いま自撮りを撮る") : L("自撮りを撮り直す")),
+                          systemImage: "camera")
+                        .scaledFont(size: 16, weight: .semibold)
+                        .foregroundStyle(Theme.primaryInk)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Theme.primary.opacity(0.12), in: .rect(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(saving != nil || savingSelfie)
+                .accessibilityIdentifier("detail.addSelfie")
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 26)
+        .padding(.bottom, 24)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.background.ignoresSafeArea())
-        .sensoryFeedback(.selection, trigger: chosen)
-        .onChange(of: newPhoto) { _, item in
-            guard let item else { return }
-            newPhoto = nil
-            dismiss()
-            onReplace?(item)
-        }
     }
 
     private func tile(_ option: Option) -> some View {
@@ -101,20 +141,25 @@ struct HeroPhotoPickerSheet: View {
             pick(option.id)
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                ZStack {
-                    (option.isCutout ? Color(hex: 0xEEF3F9) : Theme.secondary)
-                    StickerImage(path: option.path, url: dex.url(for: option.path, preferThumb: false),
-                                 contentMode: option.isCutout ? .fit : .fill)
-                        .padding(option.isCutout ? 14 : 0)
-                        .shadow(color: .black.opacity(option.isCutout ? 0.22 : 0), radius: 8, y: 5)
-                        .allowsHitTesting(false)
-                    if saving == option.id {
-                        Color.black.opacity(0.25)
-                        ProgressView().tint(.white)
+                // A square that never grows with the photo: a 3:4 photo drawn to fill used to make its tile 3:4, which
+                // pushed the row (and the cut-out next to it) off the sheet. The photo fills the square and is
+                // cropped by it; the cut-out fits inside with room for its shadow.
+                (option.isCutout ? Color(hex: 0xEEF3F9) : Theme.secondary)
+                    .aspectRatio(1, contentMode: .fit)
+                    .overlay {
+                        StickerImage(path: option.path, url: dex.url(for: option.path, preferThumb: false),
+                                     contentMode: option.isCutout ? .fit : .fill)
+                            .padding(option.isCutout ? 18 : 0)
+                            .shadow(color: .black.opacity(option.isCutout ? 0.22 : 0), radius: 6, y: 4)
+                            .allowsHitTesting(false)
                     }
-                }
-                .aspectRatio(1, contentMode: .fit)
-                .clipShape(.rect(cornerRadius: 20, style: .continuous))
+                    .overlay {
+                        if saving == option.id {
+                            Color.black.opacity(0.25)
+                            ProgressView().tint(.white)
+                        }
+                    }
+                    .clipShape(.rect(cornerRadius: 20, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .strokeBorder(on ? Theme.primary : Color.black.opacity(0.06), lineWidth: on ? 3 : 1)

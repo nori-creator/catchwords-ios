@@ -208,6 +208,14 @@ struct StickerImage: View {
             withAnimation(.easeOut(duration: 0.25)) { image = loaded }
             return
         }
+        // A thumbnail that does not load (a broken or unreadable companion file): the full picture instead, rather
+        // than an empty square (owner 2026-10-14: 「図鑑に表示されてない単語がある」).
+        if thumb, let full = dex?.url(for: path, preferThumb: false), full != url,
+           let loaded = await ImageCache.shared.load(url: full, key: path) {
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) { image = loaded }
+            return
+        }
         // The link has expired or the request failed: one new link (the dex limits how often), which redraws this.
         guard !Task.isCancelled else { return }
         dex?.requestSigning(path, force: true)

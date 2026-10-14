@@ -147,7 +147,8 @@ struct CollageBoard: View {
     private func release(_ id: String, at place: AlbumPlacement) {
         let settled = AlbumLayout.settle(place)
         if live[id] != settled { changed = true }
-        withAnimation(.spring(response: 0.26, dampingFraction: 0.7)) {
+        // Damped (no overshoot): the photo stays where the finger left it and only straightens.
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
             live[id] = settled
             grabbed = nil
         }
@@ -219,8 +220,10 @@ private struct CollagePiece: View {
 
     /// The long press's finger since it was recognised (it keeps carrying the photo until it lifts).
     @State private var press: AlbumDelta?
-    /// Drag, pinch and twist while rearranging.
-    @GestureState private var pinch: AlbumDelta? = nil
+    /// Drag, pinch and twist while rearranging. Let go, it hands over to the board's new place in the same animation,
+    /// so the photo never jumps back to where it was for a frame.
+    @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.26, dampingFraction: 0.9)))
+    private var pinch: AlbumDelta? = nil
     /// Near level right now (a tick when it snaps straight).
     @State private var snapped = false
 
@@ -239,9 +242,16 @@ private struct CollagePiece: View {
         let captionH = hasHero ? AlbumLayout.dayExtra(DayLayoutSticker(id: sticker.id, caption: sticker.caption), hasHero: true, boardW: Double(boardW)) * Double(boardW) : 0
         let lifted = isGrabbed || delta != nil
         let wiggles = editing && !reduceMotion && !lifted
-        TimelineView(.animation(minimumInterval: nil, paused: !wiggles)) { ctx in
+        // 30 frames a second is plenty for the shiver (every photo of the day redrew at up to 120 with its shadows,
+        // which made the photo under the finger stutter, owner 2026-10-14: 「なめらかに動かない。残像が残る」).
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !wiggles)) { ctx in
             let w = wiggles ? Self.wiggle(sticker.id, at: ctx.date) : (rot: 0.0, lift: 0.0)
             card(hasHero: hasHero, size: size, captionH: captionH, lifted: lifted)
+                // Drawn once into one layer (shadows included, with room for them): the shiver and the drag then
+                // only move that layer instead of drawing every shadow again each frame.
+                .padding(Self.shadowRoom)
+                .drawingGroup()
+                .padding(-Self.shadowRoom)
                 .overlay(alignment: .topLeading) {
                     if editing && canEdit { removeButton }
                 }
@@ -262,6 +272,7 @@ private struct CollagePiece: View {
         .accessibilityLabel(sticker.word?.headword ?? "")
         .accessibilityHint(editing ? L("ドラッグで移動、2本指で大きさと傾き") : L("単語をひらく"))
         .accessibilityAction(named: L("配置を変える")) { if canEdit && !editing { onGrab() } }
+        .accessibilityAction(named: L("アルバムから外す")) { if canEdit && editing { onRemove() } }
     }
 
     // MARK: The long press (starts rearranging, then carries the photo)
@@ -282,14 +293,18 @@ private struct CollagePiece: View {
         guard press != nil else { return }
         let final = t.map { AlbumLayout.applyDelta(item.place, AlbumDelta(dx: $0.width, dy: $0.height, scale: 1, rot: 0),
                                                    boardW: Double(boardW), maxY: 8) } ?? item.place
-        press = nil
+        // The finger's offset and the board's new place change together, in one animation: the photo used to snap
+        // back to its old place for a frame and spring over again (an afterimage).
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) { press = nil }
         onRelease(final)
     }
 
     // MARK: Drag + pinch + twist while rearranging (web album-place.ts gestureDelta / applyDelta / settle)
 
     private var manipulate: some Gesture {
-        DragGesture(minimumDistance: 0)
+        // Measured on the screen, not in the photo's own frame: that frame moves with the photo, so the distance fed
+        // back into itself and the photo flickered between two places while dragged.
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .simultaneously(with: MagnifyGesture())
             .simultaneously(with: RotateGesture())
             .updating($pinch) { v, state, _ in
@@ -366,7 +381,8 @@ private struct CollagePiece: View {
                 .contentShape(Circle())
         }
         .buttonStyle(PressableStyle(scale: 0.9))
-        .offset(x: -16, y: -16)
+        // Inside the photo's own touch area (it ended at the photo's edge, so half of the ✕ could not be pressed).
+        .offset(x: -6, y: -6)
         .accessibilityLabel(L("アルバムから外す"))
         .transition(.scale.combined(with: .opacity))
     }
@@ -381,6 +397,9 @@ private struct CollagePiece: View {
         let v = sin(phase)
         return (v * 1.1, v * 0.9)
     }
+
+    /// Room around the drawn photo for its shadow (deepest while lifted: radius 11, 11 pt down) and the tag's tilt.
+    private static let shadowRoom: CGFloat = 26
 
     /// Each tag leans its own way (−6°…6°, from the id, so it never changes between draws).
     private static func tagTilt(_ id: String) -> Double {
@@ -463,6 +482,48 @@ private struct LongPressGrab: UIGestureRecognizerRepresentable {
     }
 }
 
+/// A selfie on the album page cut down to its people and what they hold (`SelfieCutouts`): a soft blank while it is
+/// made, then the cut-out with the stickers' shadow.
+private struct SelfieAlbumCutout: View {
+    let path: String
+    let width: CGFloat
+    let height: CGFloat
+    let lifted: Bool
+
+    @Environment(DexStore.self) private var dex
+    @State private var image: UIImage?
+
+    var body: some View {
+        let ready = SelfieCutouts.shared.state(for: path) == .ready
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .transition(.opacity)
+                    .shadow(color: Color(hex: 0x5A4630).opacity(lifted ? 0.34 : 0.25), radius: lifted ? 11 : 3, y: lifted ? 11 : 2)
+            } else {
+                RoundedRectangle(cornerRadius: min(width, height) * 0.18, style: .continuous)
+                    .fill(Color(hex: 0x33291F, opacity: 0.05))
+            }
+        }
+        .frame(width: width, height: height)
+        .allowsHitTesting(false)
+        .task(id: "\(path)|\(ready)") {
+            guard ready else {
+                SelfieCutouts.shared.request(path, dex: dex)
+                return
+            }
+            if let kept = await ImageCache.shared.cached(for: SelfieCutouts.key(for: path)) {
+                withAnimation(.easeOut(duration: 0.25)) { image = kept }
+            } else {
+                // The system emptied the cache: made again.
+                SelfieCutouts.shared.forget(path)
+            }
+        }
+    }
+}
+
 /// One photo in the album: the picture chosen in 設定 › ホームに表示する写真 (`Sticker.homePath`). A cut-out
 /// (`stickers.cutout_image_url`, a transparent PNG) stands alone like a sticker, with only a soft shadow that follows
 /// its outline — no white print, paper or frame behind it; a photo or a selfie is clipped round.
@@ -478,9 +539,25 @@ struct AlbumPhoto: View {
     /// The picture the album shows for a catch (設定 › ホームに表示する写真).
     nonisolated static func path(for s: Sticker) -> String? { s.homePath }
 
+    /// The cut-out is shown by default and this word's is about to be made (`CutoutBackfill`): wait for it.
+    static func waitsForCutout(_ s: Sticker) -> Bool {
+        let pref = UserDefaults.standard.string(forKey: Sticker.homePhotoKey) ?? "auto"
+        let wantsCutout = pref == "auto" || (pref == "selfie" && s.selfieImageUrl == nil)
+        return wantsCutout && s.cutoutImageUrl == nil && CutoutBackfill.shared.awaitsCutout(s)
+    }
+
     var body: some View {
         let path = sticker.homePath
-        if let path, path == sticker.cutoutImageUrl {
+        if Self.waitsForCutout(sticker) {
+            // Its cut-out is being made on this phone right now: a soft blank until it comes, never the photo first.
+            RoundedRectangle(cornerRadius: min(width, height) * 0.18, style: .continuous)
+                .fill(Color(hex: 0x33291F, opacity: 0.05))
+                .frame(width: width, height: height)
+                .allowsHitTesting(false)
+        } else if let path, path == sticker.selfieImageUrl, SelfieCutouts.shared.state(for: path) != .noPerson {
+            // A selfie: its people and what they hold, cut out like the other stickers (made on this phone).
+            SelfieAlbumCutout(path: path, width: width, height: height, lifted: lifted)
+        } else if let path, path == sticker.cutoutImageUrl {
             StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
                 .allowsHitTesting(false)
                 .frame(width: width, height: height)

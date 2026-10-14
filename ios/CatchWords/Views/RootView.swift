@@ -117,6 +117,7 @@ struct RootView: View {
                 profile.reset()
                 plan.reset()
                 CutoutBackfill.shared.stop()
+                SelfieCutouts.shared.reset()
                 DexSnapshot.removeAll()
                 AIConsent.shared.reset()
                 AdminAccess.shared.clear()

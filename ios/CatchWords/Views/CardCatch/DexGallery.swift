@@ -186,7 +186,10 @@ private struct DexSlotView: View {
     /// The word's pictures: the cut-out whole (a soft shadow along its outline), a photo still without one rounded —
     /// with no white ring or frame — and, when the word was photographed more than once, each picture in turn.
     private func picture(_ s: Sticker) -> some View {
-        DexCyclingPicture(pictures: dex.dexPictures(for: s), stagger: index, calm: calm)
+        let pictures = dex.dexPictures(for: s)
+        return DexCyclingPicture(pictures: pictures, stagger: index, calm: calm, headword: s.word?.headword)
+            // No picture at all: its internet stand-in is fetched (the square shows the word until then).
+            .task(id: s.id) { if pictures.isEmpty { dex.autoHeroSoon(s) } }
     }
 }
 
@@ -198,6 +201,8 @@ struct DexCyclingPicture: View {
     let pictures: [DexPicture]
     let stagger: Int
     let calm: Bool
+    /// Drawn on a plain tile when the word has no picture yet (never an empty square).
+    var headword: String? = nil
 
     @Environment(DexStore.self) private var dex
     @State private var shown = 0
@@ -217,6 +222,20 @@ struct DexCyclingPicture: View {
         GeometryReader { g in
             let w = g.size.width
             ZStack {
+                if pictures.isEmpty, let headword, !headword.isEmpty {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Theme.secondary)
+                        .frame(width: w * 0.86, height: w * 0.86)
+                        .overlay {
+                            Text(headword)
+                                .font(.system(size: w * 0.2, weight: .heavy))
+                                .foregroundStyle(Theme.muted)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.4)
+                                .multilineTextAlignment(.center)
+                                .padding(6)
+                        }
+                }
                 ForEach(frames, id: \.self) { i in
                     one(pictures[i], width: w)
                         .opacity(i == current ? 1 : 0)
