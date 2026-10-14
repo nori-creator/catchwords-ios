@@ -37,7 +37,6 @@ PENDING_WEB_DEPLOY = {
     # Views/AdminAiSettingsView.swift, Views/AdminAiCostCard.swift) are on the web's main now (PR #179). Until the web is
     # published they answer 404: the settings screen keeps the per-feature list and the cost card says so.
     # recordAiConsent / getAiConsent (AI consent, docs/web-changes/ 0003) are on the web now.
-    # adminRecheckChunks (re-checking the saved chunks, Views/AdminAiSettingsView.swift) is on the web's main (PR #180).
     # Add an entry here as "name": "where the web patch is" when iOS calls a function ahead of its deploy.
     # storeAppleAuthCode (Sign in with Apple revocation, audit R7-03) is on the web's main now.
     # The developer "AI settings" (admin*, docs/admin-ai-api.md) are on the web's main now (PR #168).

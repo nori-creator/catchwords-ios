@@ -28,10 +28,6 @@ struct AdminAiSettingsView: View {
     /// `"<task>.value"` / `"<task>.backup"` while it is being saved.
     @State private var savingTask: String?
     @State private var taskErrors: [String: String] = [:]
-    /// 「保存済みのチャンクを点検」: running, and what the last run said.
-    @State private var recheckRunning = false
-    @State private var recheckText: String?
-    @State private var recheckError: String?
 
     @State private var imageProvider: String = ""
     @State private var imageModel: String = ""
@@ -67,7 +63,6 @@ struct AdminAiSettingsView: View {
                         featuresCard(settings)
                     }
                     AdminAiCostCard(preview: previewCosts)
-                    chunkRecheckCard
                     AdminAiStatsCard(settings: settings, preview: previewStats)
                     if let image = settings.image {
                         imageCard(image)
@@ -440,53 +435,6 @@ struct AdminAiSettingsView: View {
             taskErrors[id] = Self.message(error)
         }
         savingTask = nil
-    }
-
-    // MARK: - Re-check the chunks already saved (web adminRecheckChunks)
-
-    private var chunkRecheckCard: some View {
-        SettingsCard(title: L("保存済みのチャンクの点検")) {
-            VStack(alignment: .leading, spacing: 10) {
-                caption(L("すでに作った単語の使い方チャンクを、AI がもう一度点検します（語順・文法・訳）。1回で20語ずつ。誤りのある物だけ直します。"))
-                actionButton(L("20語を点検する"), busy: recheckRunning, disabled: recheckRunning || preview != nil) {
-                    Task { await recheckChunks(restart: false) }
-                }
-                .accessibilityIdentifier("adminAi.recheck")
-                if let recheckText {
-                    Text(recheckText).scaledFont(size: 13).foregroundStyle(Theme.foreground)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let recheckError { errorText(recheckError) }
-            }
-        }
-    }
-
-    private nonisolated struct RecheckResult: Decodable, Sendable {
-        var checked: Int = 0
-        var changed: Int = 0
-        var done: Bool = false
-        var words: [Word] = []
-
-        nonisolated struct Word: Decodable, Sendable {
-            var headword: String
-            var changed: Bool
-        }
-    }
-
-    private func recheckChunks(restart: Bool) async {
-        recheckRunning = true
-        recheckError = nil
-        do {
-            let r = try await NativeAPI.call("adminRecheckChunks", ["restart": restart], as: RecheckResult.self, timeout: 180)
-            let fixed = r.words.filter(\.changed).map(\.headword).joined(separator: L10n.comma)
-            var text = L("これまでに\(r.checked)語を点検し、\(r.changed)語を直しました。")
-            if !fixed.isEmpty { text += "\n" + L("今回直した語: \(fixed)") }
-            if r.done { text += "\n" + L("すべての単語の点検が終わりました。") }
-            recheckText = text
-        } catch {
-            recheckError = Self.message(error)
-        }
-        recheckRunning = false
     }
 
     // MARK: - Images
