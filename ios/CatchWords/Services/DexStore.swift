@@ -211,7 +211,8 @@ final class DexStore {
     }
 
     /// The photos the home album shows (the ones taken off the album stay in the dex only).
-    var albumStickers: [Sticker] { stickers.filter { !albumHidden.contains($0.id) } }
+    /// Re-encounter photos are pages too, on the day they were met (`albumEncounters`).
+    var albumStickers: [Sticker] { (stickers + albumEncounters).filter { !albumHidden.contains($0.id) } }
 
     /// True when this headword is already in the dex (scan "取得済み").
     func owns(headword: String) -> Bool { stickers.contains { $0.word?.headword == headword } }
@@ -402,22 +403,81 @@ final class DexStore {
     /// A server without the photo columns, or no connection, leaves the squares on their one picture.
     func loadEncounterPhotos() async {
         struct Row: Decodable {
+            let id: String?
             let sticker_id: String
             let image_path: String?
             let cutout_path: String?
+            let location_name: String?
+            let created_at: Date?
         }
         guard let uid = client.userId,
-              let rows = try? await readAll("encounters?select=sticker_id,image_path,cutout_path&user_id=eq.\(uid)&order=created_at.asc,id.asc",
-                                            as: Row.self, decoder: JSONDecoder()),
+              let rows = try? await readAll("encounters?select=id,sticker_id,image_path,cutout_path,location_name,created_at&user_id=eq.\(uid)&order=created_at.asc,id.asc",
+                                            as: Row.self, decoder: SupabaseDate.decoder),
               client.userId == uid else { return }
         var out: [String: [DexPicture]] = [:]
+        var entries: [EncounterEntry] = []
         for r in rows {
             let cut = r.cutout_path.flatMap { $0.isEmpty ? nil : $0 }
-            guard let p = cut ?? r.image_path, !p.isEmpty, out[r.sticker_id]?.contains(where: { $0.path == p }) != true else { continue }
+            let image = r.image_path.flatMap { $0.isEmpty ? nil : $0 }
+            if let id = r.id, let at = r.created_at, cut != nil || image != nil {
+                entries.append(EncounterEntry(id: id, stickerId: r.sticker_id, image: image, cutout: cut,
+                                              place: r.location_name, at: at))
+            }
+            guard let p = cut ?? image, out[r.sticker_id]?.contains(where: { $0.path == p }) != true else { continue }
             out[r.sticker_id, default: []].append(DexPicture(path: p, isCutout: cut != nil))
         }
         encounterPhotos = out
-        await sign(out.values.flatMap { $0 }.map(\.path).filter { signed[$0] == nil })
+        // A re-encounter recorded on this phone meanwhile (its row may not be readable yet) keeps its album page.
+        let pendingLocal = encounterEntries.filter { e in
+            e.id.hasPrefix("local-") && !entries.contains { $0.stickerId == e.stickerId && abs($0.at.timeIntervalSince(e.at)) < 120 }
+        }
+        encounterEntries = entries + pendingLocal
+        // The album shows the photo or the cut-out (設定 › ホームに表示する写真): both are signed.
+        let paths = out.values.flatMap { $0 }.map(\.path) + entries.flatMap { [$0.image, $0.cutout].compactMap { $0 } }
+        await sign(paths.filter { signed[$0] == nil })
+    }
+
+    // MARK: - Re-encounters in the home album
+
+    /// A re-encounter with a photo (`encounters`): a page of the home album on the day it was met, like a catch
+    /// (owner 2026-10-15: 再会した単語の切り抜きもホームのアルバムに出す).
+    nonisolated struct EncounterEntry: Equatable, Sendable {
+        let id: String
+        let stickerId: String
+        let image: String?
+        let cutout: String?
+        let place: String?
+        let at: Date
+    }
+
+    /// Every re-encounter photo of this account, oldest first (read with `loadEncounterPhotos`; one recorded on this
+    /// phone is added at once by `recordEncounter`).
+    private(set) var encounterEntries: [EncounterEntry] = []
+
+    /// Album entries for re-encounters carry this prefix before the encounter's id (they are not stickers).
+    nonisolated static let encounterAlbumPrefix = "encounter-"
+
+    nonisolated static func isEncounterAlbumEntry(_ id: String) -> Bool { id.hasPrefix(encounterAlbumPrefix) }
+
+    /// The re-encounter photos as album entries: the new photo and its cut-out, the place and day it was met, standing
+    /// for the word it was met again as (this learning language's words only).
+    var albumEncounters: [Sticker] {
+        guard !encounterEntries.isEmpty else { return [] }
+        let byId = Dictionary(stickers.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        return encounterEntries.compactMap { e in
+            guard let base = byId[e.stickerId] else { return nil }
+            return Sticker(id: Self.encounterAlbumPrefix + e.id, wordId: base.wordId, objectImageUrl: e.image,
+                           cutoutImageUrl: e.cutout, selfieImageUrl: nil, caption: nil, locationName: e.place,
+                           takenAt: e.at, captureType: base.captureType, word: base.word)
+        }
+    }
+
+    /// The word an album entry opens: a re-encounter's page is its word's own sticker.
+    func albumOwner(_ s: Sticker) -> Sticker {
+        guard Self.isEncounterAlbumEntry(s.id) else { return s }
+        let eid = String(s.id.dropFirst(Self.encounterAlbumPrefix.count))
+        guard let e = encounterEntries.first(where: { $0.id == eid }), let base = sticker(id: e.stickerId) else { return s }
+        return base
     }
 
     /// Every picture of the word this square stands for (web `DexCyclingPhoto`): the square's own first, then the
@@ -822,7 +882,7 @@ final class DexStore {
     /// once — it is put in the image cache under the names it is uploaded to and comes first in its word's square
     /// (`freshEncounters`) — while the uploads (the cut-out at 800 px: it is only drawn in the small dex square) and
     /// the record run; the sticker is no longer read back afterwards. The caller runs this behind the screens
-    /// (ReencounterView). A failure takes the photo out of the square again and is thrown. A failed cut-out never
+    /// (`CaptureView.recordReencounter`). A failure takes the photo out of the square again and is thrown. A failed cut-out never
     /// blocks the record; a photo that cannot be uploaded does (it stays in 「解析待ち」).
     func recordEncounter(owned: OwnedWord, photo: UIImage?, cutout: UIImage?,
                          location: CLLocation?, placeName: String?) async throws -> (count: Int, photoSaved: Bool) {
@@ -839,6 +899,10 @@ final class DexStore {
             encounterPhotos[sid, default: []].append(shown)
             freshEncounters[sid] = shown
         }
+        // Its page in the home album at once, on today's page like a new catch (the read after the record names it).
+        let albumEntry: EncounterEntry? = shown == nil ? nil : EncounterEntry(id: "local-\(ts)", stickerId: sid, image: imageName, cutout: cutoutName,
+                                                              place: placeName, at: Date())
+        if let albumEntry { encounterEntries.append(albumEntry) }
         struct Recorded: Decodable {
             let encounterCount: Int?
             enum CodingKeys: String, CodingKey { case encounterCount = "encounter_count" }
@@ -868,6 +932,7 @@ final class DexStore {
                 encounterPhotos[sid]?.removeAll { $0.path == shown.path }
                 if freshEncounters[sid]?.path == shown.path { freshEncounters[sid] = nil }
             }
+            if let albumEntry { encounterEntries.removeAll { $0 == albumEntry } }
             throw error
         }
     }
@@ -1098,7 +1163,11 @@ final class DexStore {
     func setAlbumHidden(_ id: String, hidden: Bool) async -> Bool {
         if hidden { albumHidden.insert(id) } else { albumHidden.remove(id) }
         struct Res: Decodable { let saved: Bool }
-        let ok = (try? await NativeAPI.call("setAlbumHidden", ["sticker_id": id, "hidden": hidden], as: Res.self))?.saved ?? false
+        // A re-encounter's page is not a sticker: this phone keeps it (the server's list holds sticker ids only).
+        var ok = false
+        if !Self.isEncounterAlbumEntry(id) {
+            ok = (try? await NativeAPI.call("setAlbumHidden", ["sticker_id": id, "hidden": hidden], as: Res.self))?.saved ?? false
+        }
         var local = localAlbumHidden()
         if hidden {
             if ok { serverAlbumHidden.insert(id); local.remove(id) } else { local.insert(id) }
@@ -1132,7 +1201,7 @@ final class DexStore {
         guard let rows = try? await readAll("stickers?select=id,album_order,album_size,album_x,album_y,album_scale,album_rot&order=id.asc",
                                             as: Row.self, decoder: JSONDecoder()),
               client.userId == uid else { return }
-        var out: [String: DayLayoutSticker] = [:]
+        var out: [String: DayLayoutSticker] = localEncounterPlacements()
         for r in rows {
             out[r.id] = DayLayoutSticker(id: r.id, albumOrder: r.album_order, albumSize: r.album_size.flatMap(AlbumSize.init(rawValue:)),
                                          albumX: r.album_x, albumY: r.album_y, albumScale: r.album_scale, albumRot: r.album_rot)
@@ -1140,15 +1209,52 @@ final class DexStore {
         albumPlacements = out
     }
 
+    /// Where the learner placed re-encounter pages on the album (they have no `stickers.album_*` columns): kept on
+    /// this phone, per account.
+    nonisolated private struct LocalPlacement: Codable, Sendable {
+        var order: Int?
+        var size: String?
+        var x: Double?
+        var y: Double?
+        var scale: Double?
+        var rot: Double?
+    }
+
+    private static func encounterPlacementsKey(_ uid: String) -> String { "album.encounterPlacements.\(uid)" }
+
+    private func localEncounterPlacements() -> [String: DayLayoutSticker] {
+        guard let uid = client.userId, let data = UserDefaults.standard.data(forKey: Self.encounterPlacementsKey(uid)),
+              let saved = try? JSONDecoder().decode([String: LocalPlacement].self, from: data) else { return [:] }
+        var out: [String: DayLayoutSticker] = [:]
+        for (id, p) in saved {
+            out[id] = DayLayoutSticker(id: id, albumOrder: p.order, albumSize: p.size.flatMap(AlbumSize.init(rawValue:)),
+                                       albumX: p.x, albumY: p.y, albumScale: p.scale, albumRot: p.rot)
+        }
+        return out
+    }
+
+    private func saveLocalEncounterPlacements() {
+        guard let uid = client.userId else { return }
+        var out: [String: LocalPlacement] = [:]
+        for (id, d) in albumPlacements where Self.isEncounterAlbumEntry(id) {
+            out[id] = LocalPlacement(order: d.albumOrder, size: d.albumSize?.rawValue, x: d.albumX, y: d.albumY,
+                                     scale: d.albumScale, rot: d.albumRot)
+        }
+        if let data = try? JSONEncoder().encode(out) { UserDefaults.standard.set(data, forKey: Self.encounterPlacementsKey(uid)) }
+    }
+
     /// Saves one day's arrangement (web `saveAlbumLayout`). Returns false if nothing was saved.
     func saveAlbumLayout(_ items: [(id: String, order: Int, size: AlbumSize, place: AlbumPlacement)]) async -> Bool {
         // A catch still being saved has no server id yet: it is left out (it keeps its automatic place).
-        let payload: [[String: Any]] = items.filter { !Self.isProvisional($0.id) }.map { i in
+        // Re-encounter pages are kept on this phone (`saveLocalEncounterPlacements`), not sent.
+        let payload: [[String: Any]] = items.filter { !Self.isProvisional($0.id) && !Self.isEncounterAlbumEntry($0.id) }.map { i in
             ["sticker_id": i.id, "order": i.order, "size": i.size.rawValue,
              "x": AlbumLayout.clamp(i.place.x, 0, 1), "y": AlbumLayout.clamp(i.place.y, 0, 8),
              "scale": AlbumLayout.clamp(i.place.scale, 0.45, 2.6), "rot": AlbumLayout.clamp(i.place.rot, -180, 180)]
         }
-        guard (try? await NativeAPI.call("saveAlbumLayout", ["items": payload], timeout: 30)) != nil else { return false }
+        if !payload.isEmpty {
+            guard (try? await NativeAPI.call("saveAlbumLayout", ["items": payload], timeout: 30)) != nil else { return false }
+        }
         for i in items {
             var d = albumPlacements[i.id] ?? DayLayoutSticker(id: i.id)
             d.albumOrder = i.order
@@ -1159,6 +1265,7 @@ final class DexStore {
             d.albumRot = i.place.rot
             albumPlacements[i.id] = d
         }
+        if items.contains(where: { Self.isEncounterAlbumEntry($0.id) }) { saveLocalEncounterPlacements() }
         scheduleSnapshot()
         return true
     }
@@ -1239,6 +1346,7 @@ final class DexStore {
         stickers = []
         encounterPhotos = [:]
         freshEncounters = [:]
+        encounterEntries = []
         adoptedIds = [:]
         signedAt = [:]
         forcedAt = [:]

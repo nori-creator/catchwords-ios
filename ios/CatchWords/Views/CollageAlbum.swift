@@ -560,6 +560,8 @@ struct AlbumPhoto: View {
 
     /// The cut-out is shown by default and this word's is about to be made (`CutoutBackfill`): wait for it.
     static func waitsForCutout(_ s: Sticker) -> Bool {
+        // A re-encounter's page: its cut-out was made with the catch (none = the photo), never by the backfill.
+        if DexStore.isEncounterAlbumEntry(s.id) { return false }
         let pref = UserDefaults.standard.string(forKey: Sticker.homePhotoKey) ?? "auto"
         let wantsCutout = pref == "auto" || (pref == "selfie" && s.selfieImageUrl == nil)
         return wantsCutout && s.cutoutImageUrl == nil && CutoutBackfill.shared.awaitsCutout(s)

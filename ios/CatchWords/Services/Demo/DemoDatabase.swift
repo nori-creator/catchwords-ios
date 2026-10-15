@@ -318,6 +318,7 @@ nonisolated final class DemoDatabase: @unchecked Sendable {
                 e["lat"] = DJ.orNull(DJ.num(place["lat"]))
                 e["lng"] = DJ.orNull(DJ.num(place["lng"]))
                 e["encountered_at"] = DJ.iso(now.addingTimeInterval(-daysAgo * 86_400))
+                e["created_at"] = e["encountered_at"]   // the real table's column (the app reads it)
                 insert("encounters", e)
             }
         }

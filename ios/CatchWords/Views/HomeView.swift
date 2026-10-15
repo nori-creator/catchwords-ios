@@ -82,7 +82,8 @@ struct HomeView: View {
                         } else {
                             HomeAlbum(
                                 days: AlbumDay.days(from: dex.albumStickers, today: today),
-                                onOpen: { router.detailSticker = $0 },
+                                // A re-encounter's page opens its word.
+                                onOpen: { router.detailSticker = dex.albumOwner($0) },
                                 onCamera: { router.tab = .camera },
                                 onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
                                 finishRequest: finishEditing
@@ -152,7 +153,7 @@ struct HomeView: View {
                 ScrollView {
                     DexCalendarView(stickers: dex.albumStickers, selectedDay: $calendarDay, onOpen: { s in
                         calendarOpen = false
-                        router.detailSticker = s
+                        router.detailSticker = dex.albumOwner(s)
                     }) { picked in
                         calendarDay = picked
                         calendarOpen = false
@@ -327,7 +328,7 @@ struct AlbumHiddenTray: View {
     @State private var open = false
     @State private var failed = false
 
-    private var hidden: [Sticker] { dex.stickers.filter { dex.albumHidden.contains($0.id) } }
+    private var hidden: [Sticker] { (dex.stickers + dex.albumEncounters).filter { dex.albumHidden.contains($0.id) } }
 
     var body: some View {
         if !hidden.isEmpty {
