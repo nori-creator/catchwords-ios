@@ -14,7 +14,7 @@ final class AIService {
     /// `suggestWordCandidates` (server #185 adds `query_lang` — learning / display — and the typed thing's `object_label`;
     /// each candidate now carries `register`, `category_key`, `gloss` and `object_label` like a photo's). The phone always
     /// lists them to choose from, whatever `query_is_target` says, and never rewrites their meanings.
-    private struct WordCandidates: Decodable {
+    struct WordCandidates: Decodable {
         let candidates: [Candidate]
         let queryLang: String?
         let objectLabel: String?
@@ -35,7 +35,7 @@ final class AIService {
     }
 
     /// A candidate, or nil when it does not read (an empty headword).
-    private struct LenientCandidate: Decodable {
+    struct LenientCandidate: Decodable {
         let value: Candidate?
         init(from decoder: Decoder) throws { value = try? Candidate(from: decoder) }
     }

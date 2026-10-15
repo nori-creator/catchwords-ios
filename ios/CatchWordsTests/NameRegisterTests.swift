@@ -55,6 +55,43 @@ final class NameRegisterTests: XCTestCase {
         XCTAssertEqual(NameRegister.finalized(list).map { NameRegister.of($0) }, [.common, .specific, .specific])
     }
 
+    /// The typed search's answer (server #185): every name carries its register, its category, its short meaning
+    /// (`gloss`) and the typed thing's name (`object_label`) — 犬 typed in Japanese lists 狗 first and 犬 only as a marked
+    /// name. A name that does not read is dropped without losing the others; nothing is rewritten (the row shows the
+    /// gloss, the meaning kept is the server's), and a word saved before its card lands on its own category's shelf.
+    func testTypedAnswerReadsEveryNewField() throws {
+        let saved = L10n.lang
+        defer { L10n.lang = saved }
+        L10n.lang = "ja"
+        let json = #"""
+        {"query_is_target": false, "query_lang": "display", "object_label": "犬", "candidates": [
+          {"headword": "狗", "reading_zhuyin": "ㄍㄡˇ", "pinyin": "gǒu", "meaning_ja": "犬、イヌ", "distinction": "",
+           "register": "common", "style": "spoken", "scene": "", "usage": "common", "image_query": "dog",
+           "category_key": "animal", "gloss": "犬", "object_label": "犬"},
+          {"headword": "", "meaning_ja": "読めない候補"},
+          {"headword": "犬", "reading_zhuyin": "ㄑㄩㄢˇ", "pinyin": "quǎn", "meaning_ja": "犬（警犬・導盲犬などの複合語で）",
+           "register": "academic", "style": "technical", "category_key": "animal", "gloss": "犬", "object_label": "犬"}
+        ]}
+        """#
+        let res = try JSONDecoder().decode(AIService.WordCandidates.self, from: Data(json.utf8))
+        XCTAssertEqual(res.queryLang, "display")
+        XCTAssertEqual(res.objectLabel, "犬")
+        let list = res.candidates
+        XCTAssertEqual(list.map(\.headword), ["狗", "犬"])
+        XCTAssertEqual(list.map(\.zhuyin), ["ㄍㄡˇ", "ㄑㄩㄢˇ"])
+        XCTAssertEqual(list.map(\.objectLabel), ["犬", "犬"])
+        XCTAssertEqual(NameRegister.finalized(list).map { NameRegister.of($0) }, [.common, .academic])
+        XCTAssertEqual(list.map(\.shownMeaning), ["犬", "犬"])
+        XCTAssertEqual(list[1].meaningJa, "犬（警犬・導盲犬などの複合語で）")
+        XCTAssertEqual(list.map(\.categoryKey), ["animal", "animal"])
+        // 犬 has no headword rule: its shelf is the category it came with.
+        XCTAssertEqual(CategoryRules.normalize(headword: list[1].headword, key: list[1].categoryKey), "animal")
+        // Kept with a 「保存待ち」 catch: the gloss survives the trip to the phone's storage.
+        let back = try JSONDecoder().decode(Candidate.self, from: JSONEncoder().encode(list[0]))
+        XCTAssertEqual(back.gloss, "犬")
+        XCTAssertEqual(back.categoryKey, "animal")
+    }
+
     func testFirstNameIsAlwaysEveryday() {
         // No common name: the first name that is not a proper noun is the tag, as the common name.
         let out = NameRegister.finalized([word("愛文芒果", "specific"), word("芒果冰", "proper"), word("檨仔", "colloquial")])
