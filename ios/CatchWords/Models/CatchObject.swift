@@ -68,12 +68,29 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
         return list.enumerated().map { (i, words) -> CatchObject in
             let p = points[i]
             let deep = labels[i].flatMap { inside[$0] }
-            if let masks, let label = labels[i], let cut = masks.cut(instance: label) {
+            if let masks, let label = labels[i], let cut = cutContainingObject(masks: masks, label: label, box: words[0].objectBox) {
                 return CatchObject(id: i, words: words, point: p, box: cut.box,
                                    anchor: deep ?? CGPoint(x: cut.box.midX, y: cut.box.midY), cut: cut.image, instance: label)
             }
             return CatchObject(id: i, words: words, point: p, box: fallbackBox(at: p, photoSize: photoSize),
                                anchor: deep ?? p, cut: nil, instance: labels[i])
+        }
+    }
+
+    /// The cut-out for an object whose point found Vision instance `label`, made sure to contain the thing the AI
+    /// boxed (`CutCoverage`; owner 2026-10-15: 冰火菠蘿油 held up in a selfie came out as the person alone — the bun was
+    /// not an instance of its own, so the person under the AI's point was cut out). Without the AI's box, the instance
+    /// as before.
+    static func cutContainingObject(masks: InstanceMasks, label: Int, box: CGRect?) -> InstanceMasks.Cut? {
+        guard let box else { return masks.cut(instance: label) }
+        let c = masks.coverage(of: box)
+        switch CutCoverage.decide(chosen: label, inBox: c.inBox, totals: c.totals, boxArea: c.area) {
+        case .keep:
+            return masks.cut(instance: label)
+        case .union(let labels):
+            return masks.cut(instances: IndexSet(labels)) ?? masks.crop(box)
+        case .crop:
+            return masks.crop(box) ?? masks.cut(instance: label)
         }
     }
 
@@ -112,6 +129,44 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
         let w = min(1, side / max(s.width, 1)), h = min(1, side / max(s.height, 1))
         let x = min(max(0, p.x - w / 2), 1 - w), y = min(max(0, p.y - h / 2), 1 - h)
         return CGRect(x: x, y: y, width: w, height: h)
+    }
+}
+
+/// Whether an object's Vision instance really is the thing the AI named (owner 2026-10-15: a pineapple bun held up in a
+/// selfie was cut out as the person alone — Vision had no instance for the bun, and the person under the AI's point
+/// was taken). Pure: counts of the label mask in, a decision out (CardCatchPickTests / MaskCoverageTests).
+/// - keep: the instance lies mostly inside the AI's box (it is the thing), or fills most of the box (the thing is part
+///   of it — a person and the bun they hold as one instance).
+/// - union: it does neither, but with the other instances that overlap the box it fills the box: those instances and it
+///   together (the person with the thing they hold).
+/// - crop: nothing Vision found covers the thing: the photo round the AI's box, so the sticker always shows it.
+nonisolated enum CutCoverage {
+    enum Decision: Equatable, Sendable {
+        case keep
+        case union([Int])
+        case crop
+    }
+
+    /// Share of the instance inside the box above which it is the thing itself.
+    static let mostlyInside = 0.5
+    /// Share of the box an instance (or the instances together) must fill to show the thing.
+    static let fillsBox = 0.6
+    /// Share of the box another instance must cover to be taken in.
+    static let overlaps = 0.15
+
+    /// `inBox`: each label's pixels inside the box; `totals`: each label's pixels in the whole mask; `boxArea`: the
+    /// box's pixels (same grid).
+    static func decide(chosen: Int, inBox: [Int: Int], totals: [Int: Int], boxArea: Int) -> Decision {
+        guard boxArea > 0, let total = totals[chosen], total > 0 else { return .keep }
+        let mine = inBox[chosen] ?? 0
+        let inside = Double(mine) / Double(total)
+        let fills = Double(mine) / Double(boxArea)
+        if inside >= mostlyInside || fills >= fillsBox { return .keep }
+        let others = inBox.filter { $0.key != chosen && $0.key != 0 && Double($0.value) / Double(boxArea) >= overlaps }
+            .map(\.key).sorted()
+        let together = others.reduce(mine) { $0 + (inBox[$1] ?? 0) }
+        if !others.isEmpty, Double(together) / Double(boxArea) >= fillsBox { return .union(([chosen] + others).sorted()) }
+        return .crop
     }
 }
 

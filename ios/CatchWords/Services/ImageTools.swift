@@ -229,12 +229,22 @@ extension CutoutService {
             }
         }
         var keep = IndexSet()
-        for (l, n) in total where n > 0 {
-            let isPerson = Double(inside[l] ?? 0) / Double(n) >= 0.3
-            let held = Double(touching[l] ?? 0) / Double(n) >= 0.35
-            if isPerson || held { keep.insert(l) }
+        for (l, n) in total where keepsWithPeople(total: n, onPerson: inside[l] ?? 0, nearPerson: touching[l] ?? 0) {
+            keep.insert(l)
         }
         return keep
+    }
+
+    /// Whether a foreground instance of a selfie stays with its people (counts of its sampled pixels): a person (≥ 30 %
+    /// on the person mask), or a thing against them. A thing held up to the camera is large and touches the person only
+    /// along one side — the hand (owner 2026-10-15: 冰火菠蘿油 held up in a selfie was dropped, so the album sticker
+    /// showed the person without the word's thing). So a thing is kept when most of it is within reach of a person,
+    /// or when a real part of it is (≥ 4 % of it, at least a few samples); a thing standing apart is still dropped.
+    nonisolated static func keepsWithPeople(total n: Int, onPerson: Int, nearPerson: Int) -> Bool {
+        guard n > 0 else { return false }
+        if Double(onPerson) / Double(n) >= 0.3 { return true }
+        if Double(nearPerson) / Double(n) >= 0.35 { return true }
+        return nearPerson >= max(6, n / 25)
     }
 
     /// The instance label under `point` (0–1, top-left origin) in Vision's label mask, or the nearest
@@ -308,7 +318,7 @@ extension CutoutService {
             let handler = VNImageRequestHandler(cgImage: cg, orientation: .up)
             do { try handler.perform([request]) } catch { return nil }
             guard let result = request.results?.first, !result.allInstances.isEmpty else { return nil }
-            return InstanceMasks(observation: result, handler: handler)
+            return InstanceMasks(observation: result, handler: handler, photo: cg)
         }.value
     }
 }
@@ -325,15 +335,79 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
 
     private let observation: VNInstanceMaskObservation
     private let handler: VNImageRequestHandler
+    /// The photo the masks were made from (for `crop`).
+    private let photo: CGImage?
     private let lock = NSLock()
     private var cache: [Int: Cut] = [:]
+    private var unionCache: [String: Cut] = [:]
+    /// The label mask copy (`labelMask`), made once for the coverage counts.
+    private let maskLock = NSLock()
+    private var maskCache: (mask: [UInt8], width: Int, height: Int)?
     /// The tags' places (`anchors`), measured once. A lock of their own, so they never wait for a cut-out to render.
     private let anchorLock = NSLock()
     private var anchorCache: [Int: CGPoint]?
 
-    init(observation: VNInstanceMaskObservation, handler: VNImageRequestHandler) {
+    init(observation: VNInstanceMaskObservation, handler: VNImageRequestHandler, photo: CGImage? = nil) {
         self.observation = observation
         self.handler = handler
+        self.photo = photo
+    }
+
+    /// How much of each instance lies inside `box` (0–1 of the photo), each instance's whole size, and the box's size,
+    /// counted on the label mask copy (`CutCoverage.decide`). Heavy the first time: call off the main thread.
+    func coverage(of box: CGRect) -> (inBox: [Int: Int], totals: [Int: Int], area: Int) {
+        maskLock.lock()
+        if maskCache == nil { maskCache = labelMask() }
+        let copy = maskCache
+        maskLock.unlock()
+        guard let m = copy, m.width > 0, m.height > 0 else { return ([:], [:], 0) }
+        let x0 = max(0, min(m.width, Int((box.minX * CGFloat(m.width)).rounded(.down))))
+        let x1 = max(0, min(m.width, Int((box.maxX * CGFloat(m.width)).rounded(.up))))
+        let y0 = max(0, min(m.height, Int((box.minY * CGFloat(m.height)).rounded(.down))))
+        let y1 = max(0, min(m.height, Int((box.maxY * CGFloat(m.height)).rounded(.up))))
+        var totals: [Int: Int] = [:], inBox: [Int: Int] = [:]
+        for y in 0..<m.height {
+            let inRows = y >= y0 && y < y1
+            for x in 0..<m.width {
+                let l = Int(m.mask[y * m.width + x])
+                guard l != 0 else { continue }
+                totals[l, default: 0] += 1
+                if inRows, x >= x0, x < x1 { inBox[l, default: 0] += 1 }
+            }
+        }
+        return (inBox, totals, max(0, x1 - x0) * max(0, y1 - y0))
+    }
+
+    /// Several instances cut out together (the person and the thing they hold). Heavy: call off the main thread.
+    func cut(instances labels: IndexSet) -> Cut? {
+        if labels.count == 1, let only = labels.first { return cut(instance: only) }
+        let key = labels.map { String($0) }.joined(separator: ",")
+        lock.lock()
+        defer { lock.unlock() }
+        if let c = unionCache[key] { return c }
+        guard let masked = try? observation.generateMaskedImage(ofInstances: labels, from: handler,
+                                                               croppedToInstancesExtent: false) else { return nil }
+        let ci = CIImage(cvPixelBuffer: masked)
+        guard let full = CIContext().createCGImage(ci, from: ci.extent),
+              let px = Self.alphaBounds(full),
+              let cropped = full.cropping(to: px) else { return nil }
+        let w = CGFloat(full.width), h = CGFloat(full.height)
+        let c = Cut(image: UIImage(cgImage: cropped),
+                    box: CGRect(x: px.minX / w, y: px.minY / h, width: px.width / w, height: px.height / h))
+        unionCache[key] = c
+        return c
+    }
+
+    /// The photo round `box` (0–1, widened by 6% each side): the sticker when no instance covers the thing.
+    func crop(_ box: CGRect) -> Cut? {
+        guard let photo else { return nil }
+        let w = CGFloat(photo.width), h = CGFloat(photo.height)
+        let wide = box.insetBy(dx: -box.width * 0.06, dy: -box.height * 0.06)
+            .intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+        guard !wide.isNull, wide.width > 0.01, wide.height > 0.01 else { return nil }
+        let px = CGRect(x: wide.minX * w, y: wide.minY * h, width: wide.width * w, height: wide.height * h).integral
+        guard let cropped = photo.cropping(to: px) else { return nil }
+        return Cut(image: UIImage(cgImage: cropped), box: wide)
     }
 
     /// The foreground instances near `point`, nearest first (see `CutoutService.rankedInstances`).
