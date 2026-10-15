@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import AVFoundation
+import CoreLocation
 
 /// The camera tab: shoot → AI analyses → the words on their objects → tap one → celebration → 図鑑に追加.
 /// (owner 2026-10-09: the camera only takes photos — no 検索 / スキャン modes, no card catch.)
@@ -109,9 +110,10 @@ struct CaptureView: View {
                 router.advanceTour(from: .pick, to: .detail)
                 // The photos go up while the word is celebrated: 図鑑に追加 then only saves the row.
                 // A cut-out still being made is waited for, so the upload carries the sticker that is saved.
+                // A re-encounter uploads its photos with its record (`DexStore.recordEncounter`).
                 Task {
                     await vm.awaitCutout()
-                    if vm.step == .celebrate { vm.startUploads(using: dex) }
+                    if vm.step == .celebrate, vm.owned == nil { vm.startUploads(using: dex) }
                 }
             }
             shooting = false
@@ -171,22 +173,6 @@ struct CaptureView: View {
                                  onStickerFrame: { stickerFrame = $0 })
                 // From the choose screen the GET moment goes on in the very same frame (CatchStageScene): no fade.
                 .transition(vm.stageHandoff != nil ? AnyTransition.identity : AnyTransition.opacity)
-        case .reencounter:
-            ReencounterView(vm: vm, onSeeInDex: { id, photoFrame in
-                // As for a new word (owner 2026-10-11: 「同じ単語でも図鑑に追加するアニメーションを追加して」): the dex
-                // page rises over this screen and a star flies from the photo into the word's square, which pops
-                // with the new photo first; this screen is put back once the page is up.
-                if let f = photoFrame {
-                    router.catchStar = CatchStar(center: CGPoint(x: f.midX, y: f.midY), size: 52, k: 1)
-                }
-                CatchLanding.land(stickerId: id, router: router, calm: reduceMotion, alreadyCaught: true)
-                let model = vm
-                Task {
-                    try? await Task.sleep(for: .milliseconds(700))
-                    model.reset()
-                }
-            })
-            .transition(.move(edge: .trailing).combined(with: .opacity))
         case .failed(let reason, let retryable):
             ZStack {
                 MachineBackground()
@@ -553,6 +539,8 @@ struct CaptureView: View {
         await vm.awaitCutout()
         // Another word was chosen (or the screen left) meanwhile: this tap belongs to the old one.
         guard vm.picked == want, vm.step == .celebrate else { return false }
+        // A word already in the dex: its new photo goes to that word (the same finale, on its own square).
+        if let owned = vm.owned { return recordReencounter(owned) }
         let cardLater = vm.cardStillComing
         guard let d = vm.details ?? vm.provisionalDetails(), let draft = vm.draft(details: d) else {
             vm.showToast(L("保存に失敗しました"))
@@ -589,6 +577,70 @@ struct CaptureView: View {
                                   cardLater: cardLater, dex: store, plan: planStore, router: nav)
         }
         return true
+    }
+
+    /// A re-encounter (web `ReencounterPanel`, its save moved here from the re-encounter card it had): no quiz — the new
+    /// photo, its cut-out (waited for, like a new catch's) and where it was met are added to the word already in the
+    /// dex (encounter count + 1), and the review date is not moved. The sticker flies into the word's own square with
+    /// the same finale as a new word, without NEW, counters or goal toast (`alreadyCaught`).
+    ///
+    /// Owner 2026-10-11 (「同じ単語の画像を撮ったときに、追加するまでに時間が無駄にかかる」): nothing waits for the network.
+    /// The dex shows the photo at once (`DexStore.recordEncounter`), and the upload and the record finish behind the
+    /// screens — owned by this task, not by the screen, so leaving it never stops them. As for a new word
+    /// (`finishSave`): the photo is handed from the camera to the save (hidden in 「解析待ち」 meanwhile), goes when it is
+    /// recorded, and only a failure is told (a notice over every tab; the photo is back in 「解析待ち」 to try again).
+    private func recordReencounter(_ owned: OwnedWord) -> Bool {
+        guard vm.reencCount == nil else { return false }
+        vm.reencCount = owned.encounterCount + 1
+        let pendingId = vm.detachPendingForSave()
+        let photo = vm.photo, cutout = vm.cutout, location = vm.location, placeName = vm.placeName
+        let store = dex, nav = router
+        Task {
+            await Self.finishRecord(owned: owned, photo: photo, cutout: cutout, location: location, placeName: placeName,
+                                    pendingId: pendingId, dex: store, router: nav)
+        }
+        if router.tour == .peel || router.tour == .detail {
+            router.tourStickerId = owned.stickerId
+            router.tour = .added
+        }
+        // The sticker itself leaves the stage and flies into the word's square in the dex (film v6).
+        if let f = stickerFrame {
+            router.catchStar = CatchStar(center: CGPoint(x: f.midX, y: f.midY), size: 52, k: 1,
+                                         image: vm.cutout ?? vm.stickerFallback(), box: f.size)
+        }
+        CatchLanding.land(stickerId: owned.stickerId, router: router, calm: reduceMotion, alreadyCaught: true)
+        let model = vm
+        Task {
+            try? await Task.sleep(for: .milliseconds(700))
+            model.reset()
+        }
+        return true
+    }
+
+    private static func finishRecord(owned: OwnedWord, photo: UIImage?, cutout: UIImage?, location: CLLocation?,
+                                     placeName: String?, pendingId: String?, dex: DexStore, router: AppRouter) async {
+        do {
+            _ = try await dex.recordEncounter(owned: owned, photo: photo, cutout: cutout,
+                                              location: location, placeName: placeName)
+            if let pid = pendingId {
+                PendingQueue.shared.remove(id: pid)
+                PendingRetry.shared.forget(pid)
+            }
+            dex.refreshPending()
+        } catch let error where DexStore.isAccountChanged(error) {
+            // Signed out (or into another account) meanwhile: the photo stays with the account that took it.
+            if let pid = pendingId { PendingQueue.shared.setSaving(pid, false) }
+        } catch {
+            let failed = L("記録に失敗しました")
+            let reason = (error as? LocalizedError)?.errorDescription ?? ""
+            if let pid = pendingId {
+                PendingQueue.shared.updateReason(id: pid, reason: failed)
+                PendingQueue.shared.setSaving(pid, false)
+            }
+            dex.refreshPending()
+            Haptics.warning()
+            router.showNotice(reason.isEmpty || reason == failed ? failed : L("記録に失敗しました\n\(reason)"))
+        }
     }
 
     /// The save, behind the dex. Success: the provisional entry becomes the saved sticker (the landing and the

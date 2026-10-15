@@ -8,6 +8,10 @@ import SwiftUI
 /// (`onAdd`, the landing flies the sticker into its slot). A tap anywhere skips ahead; 「戻る」 undoes until then.
 /// The first tour keeps the old ending: it holds, and 「図鑑に追加」 is pressed by the learner (its coach mark).
 /// Never waits for the cut-out: the photo round the thing stands in until it is ready.
+///
+/// A word already in the dex (`vm.owned`, a re-encounter) gets the very same moment (owner 2026-10-15: 「再会も新しい
+/// 単語と同じアニメーションで」): only the words say it is a re-encounter — 「また会えた！」 with 「再会 N回目」 where NEW
+/// was, and when and where it was first caught under the meaning — and `onAdd` records the new photo on that word.
 struct CatchCelebrationView: View {
     let vm: CaptureViewModel
     /// The save started from here is still running: no second start, no going back.
@@ -59,6 +63,12 @@ struct CatchCelebrationView: View {
 
     private var busy: Bool { handing || saving }
 
+    /// A re-encounter: the word is in the dex already.
+    private var again: OwnedWord? { vm.owned }
+
+    /// The full-screen skip and the tour's button: the UI tests tell a re-encounter's moment by its identifier.
+    private var catchIdentifier: String { again == nil ? "card.catch" : "reencounter.get" }
+
     private func time(_ now: Double) -> Double { now - origin + shift }
 
     /// The texts fade at `out` (never while the tour holds the end).
@@ -98,7 +108,7 @@ struct CatchCelebrationView: View {
                 .buttonStyle(.plain)
                 .ignoresSafeArea()
                 .accessibilityLabel(L("図鑑に追加"))
-                .accessibilityIdentifier("card.catch")
+                .accessibilityIdentifier(catchIdentifier)
             }
 
             GeometryReader { geo in
@@ -121,7 +131,7 @@ struct CatchCelebrationView: View {
     // MARK: Texts
 
     /// 「新しいことばをキャッチ！」 pops with the jingle (scale .6 → 1, strong overshoot), the NEW chip with the 図鑑
-    /// number under it, six sparkles round it.
+    /// number under it, six sparkles round it. A re-encounter: 「また会えた！」 and 「再会 N回目」 in the chip.
     @ViewBuilder
     private func headline(_ tc: Double, _ size: CGSize) -> some View {
         let W = size.width, H = size.height, k = W / 1080
@@ -129,7 +139,7 @@ struct CatchCelebrationView: View {
         let a = textAlpha(tc)
         if hp > 0 {
             let s = reduceMotion ? 1 : CGFloat(Film6.lerp(0.6, 1, Film6.outBack(hp, 2.6)))
-            Text(L("新しいことばをキャッチ！"))
+            Text(again == nil ? L("新しいことばをキャッチ！") : L("また会えた！"))
                 .font(.system(size: 66 * k, weight: .black))
                 .foregroundStyle(Theme.primary)
                 .lineLimit(1)
@@ -138,9 +148,10 @@ struct CatchCelebrationView: View {
                 .scaleEffect(s)
                 .opacity(min(1, hp * 4) * a)
                 .position(x: W / 2, y: Film6.y(552, H))
-            if let dexLabel {
+            if dexLabel != nil || again != nil {
                 let cp = Film6.outCubic(Film6.seg(tc, Film6.catchT + 0.12, Film6.catchT + 0.42))
-                CatchDexChip(label: dexLabel, scale: W / 393)
+                CatchDexChip(label: dexLabel, scale: W / 393,
+                             badge: again.map { L("再会\($0.encounterCount + 1)回目") })
                     .opacity(cp * a)
                     .position(x: W / 2, y: Film6.y(636, H) + CGFloat(1 - cp) * 14 * k)
             }
@@ -238,7 +249,8 @@ struct CatchCelebrationView: View {
                 .frame(maxWidth: W * 0.9)
                 .opacity(ma * a)
                 .position(x: W / 2, y: Film6.y(1690, H) + CGFloat(1 - ma) * 16 * k)
-                let note = ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
+                // A re-encounter: when (and where) it was first caught, as the re-encounter card said.
+                let note = again.map { Self.metLine($0) } ?? ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
                 if !note.isEmpty {
                     Text(note)
                         .font(.system(size: 30 * k, weight: .semibold))
@@ -261,10 +273,24 @@ struct CatchCelebrationView: View {
         }
     }
 
-    /// The card's meaning once it arrives (reader language, scrubbed), else the candidate's.
+    /// The card's meaning once it arrives (reader language, scrubbed), else the candidate's. A re-encounter: the
+    /// meaning the word has in the dex.
     private func meaning(_ c: Candidate) -> String {
+        if let again {
+            let own = ReaderLanguage.gloss(ReaderLanguage.shown(again.meaningJa))
+            if !own.isEmpty { return own }
+        }
         let m = vm.details?.raw?["meaning_ja"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return ReaderLanguage.gloss(ReaderLanguage.shown(m, c.meaningJa))
+    }
+
+    /// 「この言葉、{date}に{place}でゲットしています。」 (web cap.reencBefore + reencAt/reencOn + reencAfter).
+    static func metLine(_ owned: OwnedWord) -> String {
+        let date = owned.takenDate.map { $0.formatted(Date.FormatStyle(date: .long, time: .omitted).locale(L10n.locale)) } ?? ""
+        if let place = owned.locationName, !place.isEmpty {
+            return L("この言葉、\(date)に\(place)でゲットしています。")
+        }
+        return L("この言葉、\(date)にゲットしています。")
     }
 
     // MARK: Controls
@@ -314,7 +340,7 @@ struct CatchCelebrationView: View {
                 }
                 .buttonStyle(PressableStyle())
                 .disabled(busy)
-                .accessibilityIdentifier("card.catch")
+                .accessibilityIdentifier(catchIdentifier)
                 .tourAnchor(.peel)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 18)

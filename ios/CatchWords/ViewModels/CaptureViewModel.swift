@@ -1,16 +1,15 @@
 import SwiftUI
 import CoreLocation
 
-/// The catch: camera → (selfie) → processing → select → (reencounter | celebrate) → dex.
+/// The catch: camera → (selfie) → processing → select → celebrate (a new word, or a re-encounter) → dex.
 enum CaptureStep: Equatable {
     case camera
     case selfie
     case processing
     case select
-    /// The word was chosen: its cut-out, the word and its voice, and 「図鑑に追加」.
+    /// The word was chosen: its cut-out, the word and its voice, and 「図鑑に追加」. A word already in the dex (`owned`,
+    /// web `reencounter`) has the same moment: its photo is added to that word.
     case celebrate
-    /// Web `reencounter`: the picked word is already in the dex ("再会！").
-    case reencounter
     /// Web `offlineSaved`: analysis failed; the photo is kept in "解析待ち".
     case failed(String, retryable: Bool)
 }
@@ -52,9 +51,9 @@ final class CaptureViewModel {
     /// from the celebration shows the words as they were instead of replaying it. nil = no scan (a preview).
     var scan: CatchScanSession?
 
-    // Re-encounter ("再会！")
+    // Re-encounter ("また会えた！")
     var owned: OwnedWord?
-    /// Set the moment the re-encounter screen hands the photo to its background save (ReencounterView).
+    /// Set the moment the re-encounter's photo is handed to its background save (`CaptureView.recordReencounter`).
     var reencCount: Int?
 
     // Film v6: the choose screen and the GET moment share one timeline (CatchStage.swift).
@@ -336,6 +335,9 @@ final class CaptureViewModel {
         stageHandoff = stage.map { $0.handoffAt - $0.origin }
         pickedBox = object?.box
         picked = word
+        // Decided again for this word by the owned-word check below.
+        owned = nil
+        reencCount = nil
         details = nil
         detailsTask = nil
         searchError = nil
@@ -381,10 +383,9 @@ final class CaptureViewModel {
                 detailsCache[key] = nil
                 detailsTask = nil
                 isLoadingDetails = false
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { step = .reencounter }
-                lightStage = false
-                stagePalette = nil
-                stageFallback = nil
+                // The same GET moment and dex finale as a new word (owner 2026-10-15): the choose screen's stage
+                // goes on in the same frame; only the words and the save differ (CatchCelebrationView, CaptureView).
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { step = .celebrate }
             } else {
                 // Fail open: a broken check must never block a new catch.
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { step = .celebrate }
@@ -405,6 +406,8 @@ final class CaptureViewModel {
         details = nil
         detailsTask = nil
         cutout = nil
+        owned = nil
+        reencCount = nil
         stageOrigin = nil
         stageHandoff = nil
         lightStage = false

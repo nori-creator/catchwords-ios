@@ -79,7 +79,9 @@ struct UIPreviewRoot: View {
             case "reward": CelebrationPreview()
             case "variants": PickerPreview(autoOpen: true)
             case "get": CelebrationPreview(replay: 4.6)
+            case "get-again": CelebrationPreview(replay: 4.6, again: true)
             case "landing": LandingPreview()
+            case "landing-again": LandingPreview(again: true)
             case "analyzing": ScanPreview(namesAfter: 2.4).uiReady("preview")
             case "scanslow": ScanPreview(namesAfter: 6.0).uiReady("preview")
             case "hero": HeroPickerPreview()
@@ -122,7 +124,7 @@ struct UIPreviewRoot: View {
     }
 
     private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer", "webimg",
-                                                       "variants", "landing"]
+                                                       "variants", "landing", "landing-again"]
 }
 
 /// The catch scan's photo for the simulator (Vision's cut-out does not run there): a mango on a plate and a cup,
@@ -347,6 +349,9 @@ private struct CelebrationPreview: View {
     var withCutout: Bool = true
     /// Seconds between replays (the GET moment hands over at 3.0 s; here it then simply holds).
     var replay: Double = 7
+    /// `-uiPreview get-again`: the mango is in the dex already (caught 12 days ago in 台北, met once since): the same
+    /// moment says 「また会えた！」 with 「再会 3回目」 and when and where it was first caught.
+    var again: Bool = false
     @State private var vm = CaptureViewModel()
     @State private var round = 0
 
@@ -361,6 +366,13 @@ private struct CelebrationPreview: View {
                                       meaningJa: L10n.lang == "en" ? "mango" : L10n.lang == "zh-TW" ? "芒果" : "マンゴー",
                                       pos: NativeAPI.defaultPos, point: [500, 500], confidence: 0.9, alternatives: [],
                                       distinction: L10n.lang == "en" ? "the everyday word" : L10n.lang == "zh-TW" ? "日常說法" : "ふだんの言い方")
+                if again {
+                    vm.owned = OwnedWord(stickerId: "again", wordId: "w-again", headword: "芒果",
+                                         meaningJa: L10n.lang == "en" ? "mango" : L10n.lang == "zh-TW" ? "芒果" : "マンゴー",
+                                         readingZhuyin: "ㄇㄤˊ ㄍㄨㄛˇ", pinyin: "mángguǒ", cutoutUrl: nil, encounterCount: 2,
+                                         takenAt: SupabaseDate.string(Date().addingTimeInterval(-12 * 86_400)),
+                                         locationName: L10n.lang == "en" ? "Taipei" : "台北")  // l10n-ignore (place name)
+                }
                 vm.step = .celebrate
             }
             .task {
@@ -374,8 +386,10 @@ private struct CelebrationPreview: View {
 
 /// Film v6's finale in the 図鑑 (`-uiPreview landing`): three drinks caught, 果汁 (No.004) lands — the page rises, the
 /// sticker flies into its square, NEW, the counters roll, the next shadow's ring and the goal toast (あと1語).
-/// Replayed every 6.5 s.
+/// `-uiPreview landing-again`: 咖啡, caught before, is met again — the same flight and impact into its own square,
+/// without NEW, counters or toast. Replayed every 6.5 s.
 private struct LandingPreview: View {
+    var again: Bool = false
     @Environment(DexStore.self) private var dex
     @Environment(AppRouter.self) private var router
     @State private var round = 0
@@ -407,9 +421,11 @@ private struct LandingPreview: View {
 
     private static let juice = cutout(UIColor(red: 1, green: 0.62, blue: 0.12, alpha: 1), UIColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1))
 
+    private static let coffee = cutout(UIColor(red: 0.35, green: 0.22, blue: 0.15, alpha: 1), .white)
+
     private static let caught: [Sticker] = [
         sticker("l-tea", "茶", "ㄔㄚˊ", "tea", image: cutout(UIColor(red: 0.78, green: 0.45, blue: 0.2, alpha: 1), .white), ago: 3000),
-        sticker("l-coffee", "咖啡", "ㄎㄚ ㄈㄟ", "coffee", image: cutout(UIColor(red: 0.35, green: 0.22, blue: 0.15, alpha: 1), .white), ago: 2000),
+        sticker("l-coffee", "咖啡", "ㄎㄚ ㄈㄟ", "coffee", image: coffee, ago: 2000),
         sticker("l-bubble", "珍珠奶茶", "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", "bubble tea",
                 image: cutout(UIColor(red: 0.84, green: 0.66, blue: 0.48, alpha: 1), UIColor(red: 0.3, green: 0.2, blue: 0.15, alpha: 1)), ago: 1000),
     ].compactMap { $0 }
@@ -428,6 +444,10 @@ private struct LandingPreview: View {
 
     private func play() async {
         NativeAPI.targetLanguage = "zh-TW"
+        if again {
+            await playAgain()
+            return
+        }
         guard let new = Self.sticker("local-preview-\(round)", "果汁", "ㄍㄨㄛˇ ㄓ", "juice", image: Self.juice, ago: 0) else { return }
         dex.stickers = [new] + Self.caught
         dex.hasLoaded = true
@@ -438,6 +458,19 @@ private struct LandingPreview: View {
                                      size: box.width, k: 1, image: Self.juice, box: box)
         CatchLanding.land(stickerId: new.id, router: router, calm: false,
                           goal: CatchGoal.make(headword: "果汁", stickers: dex.stickers, lang: "zh-TW"))
+        UIReady.mark("preview")
+    }
+
+    /// A re-encounter of 咖啡: the dex as it was (no new entry), the sticker flies from the GET stage into 咖啡's square.
+    private func playAgain() async {
+        dex.stickers = Self.caught
+        dex.hasLoaded = true
+        try? await Task.sleep(for: .milliseconds(200))
+        let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.size ?? CGSize(width: 393, height: 852)
+        let box = Film6.stickerSize(aspect: Self.coffee.size.width / Self.coffee.size.height, screen: screen, get: true)
+        router.catchStar = CatchStar(center: CGPoint(x: screen.width / 2, y: Film6.y(Film6.getPosY, screen.height)),
+                                     size: box.width, k: 1, image: Self.coffee, box: box)
+        CatchLanding.land(stickerId: "l-coffee", router: router, calm: false, alreadyCaught: true)
         UIReady.mark("preview")
     }
 }

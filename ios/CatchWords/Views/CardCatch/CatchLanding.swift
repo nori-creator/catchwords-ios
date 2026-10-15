@@ -7,7 +7,7 @@ struct CatchStar: Equatable {
     /// The card-catch screen's scale (design points → points), for the prototype's fixed offsets.
     var k: CGFloat
     /// Film v6: the sticker itself flies into the slot (its cut-out, or the photo round the thing), drawn at `box`.
-    /// nil = the prototype's star (a re-encounter).
+    /// nil = the prototype's star (a landing without a picture).
     var image: UIImage? = nil
     var box: CGSize = .zero
 }
@@ -160,7 +160,8 @@ extension CatchLandingController {
     /// 70 ms before the hit), then the sticker flies on a curve into the square (.40 s, in-cubic, shrinking to the
     /// square and tilting to −7°, three ghosts behind it). Impact: the dex shakes, light rays turn behind the square,
     /// two rings run out, sparkles; the NEW badge pops, the counters roll (category → 枚 → 影), the next shadow gets
-    /// its breathing ring and the goal toast says how many of the category's five base words are left.
+    /// its breathing ring and the goal toast says how many of the category's five base words are left. A re-encounter
+    /// (`alreadyCaught`) lands the same way on its word's square, which is already there, and stops after the impact.
     func runSticker() async {
         play(.c6DexOpen)
         await wait(motion.sleep(300))
@@ -196,6 +197,12 @@ extension CatchLandingController {
         fillStart = CCClock.now
         particles.burst(Double(hit.midX), Double(hit.midY), n: 44, speed: 6, up: 3)
         particles.glints(hit, n: 8)
+        // A re-encounter: the same flight and impact, but the word was caught before — no NEW badge, no counters
+        // rolling, no room for the next shadow and no goal toast (owner 2026-10-15).
+        if alreadyCaught {
+            await wait(1.6)
+            return
+        }
         await wait(0.1)
         play(.c6NewBadge)
         await wait(0.2)

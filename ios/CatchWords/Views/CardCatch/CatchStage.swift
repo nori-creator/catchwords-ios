@@ -565,10 +565,12 @@ struct Star4: Shape {
 struct CatchDexChip: View {
     let label: String?
     var scale: CGFloat = 1
+    /// The blue capsule's word: NEW for a new word, 「再会 N回目」 for a re-encounter.
+    var badge: String? = nil
 
     var body: some View {
         HStack(spacing: 6 * scale) {
-            Text(verbatim: "NEW")
+            Text(verbatim: badge ?? "NEW")
                 .font(.system(size: 9.5 * scale, weight: .heavy))
                 .tracking(0.8 * scale)
                 .foregroundStyle(.white)
