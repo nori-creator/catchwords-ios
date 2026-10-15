@@ -25,6 +25,20 @@ enum SFX: String, CaseIterable {
     case ccReveal = "cc-reveal"
     case ccTwinkle = "cc-twinkle"
     case ccLand = "cc-land"
+    // Concept film v6's catch → GET → 図鑑 (scratchpad catchfilm audio/kit3, loudness-matched by role there; the
+    // catch jingle and the stage pad rendered with the film's own synth, mix6.py `catch_jingle` / `soft_pad`).
+    case c6Choose = "cc6-choose"
+    case c6StagePad = "cc6-stage-pad"
+    case c6CatchJingle = "cc6-catch-jingle"
+    case c6DexOpen = "cc6-dex-open"
+    case c6Riser = "cc6-riser-300"
+    case c6LandImpact = "cc6-land-impact"
+    case c6NewBadge = "cc6-new-badge"
+    case c6Tick1 = "cc6-count-tick-1"
+    case c6Tick2 = "cc6-count-tick-2"
+    case c6Tick3 = "cc6-count-tick-3"
+    case c6Refill = "cc6-refill"
+    case c6GoalOneMore = "cc6-goal-one-more"
 
     var gain: Float {
         switch self {
@@ -45,15 +59,23 @@ enum SFX: String, CaseIterable {
         case .ccReveal: 0.9 * 1.640
         case .ccLand: 0.9 * 1.590
         case .ccTick, .ccScanStart, .ccFound, .ccPop, .ccTwinkle: 0.9
+        // The v6 kit is balanced within itself (ui −26, motion −24, earcon −21, reward −19 LUFS), the earcons as
+        // loud as the pop and the land above (−22 LUFS at 0.9).
+        case .c6Choose, .c6StagePad, .c6CatchJingle, .c6DexOpen, .c6Riser, .c6LandImpact, .c6NewBadge,
+             .c6Tick1, .c6Tick2, .c6Tick3, .c6Refill, .c6GoalOneMore: 1.0
         }
     }
 
     /// The card-catch sounds can overlap themselves (the prototype starts a new WebAudio voice each time).
     var isCardCatch: Bool { rawValue.hasPrefix("cc-") }
 
+    /// The v6 film's kit (16-bit PCM .caf: no encoder delay on the short ticks).
+    var isFilm6: Bool { rawValue.hasPrefix("cc6-") }
+
     /// The pon and card-catch files are AAC (.m4a); everything else is the web's mp3.
     var fileExtension: String {
         if isCardCatch { return "m4a" }
+        if isFilm6 { return "caf" }
         switch self {
         case .ponOpen, .ponBack: return "m4a"
         default: return "mp3"

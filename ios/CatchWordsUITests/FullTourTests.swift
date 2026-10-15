@@ -109,11 +109,14 @@ final class FullTourTests: XCTestCase {
         if close.exists { app.swipeDown(velocity: .fast) }
     }
 
-    /// The celebration's 図鑑に追加, or the re-encounter card for a word already in the dex.
-    private func waitForCatch(_ catchButton: XCUIElement, _ again: XCUIElement, timeout: TimeInterval) -> Bool {
+    /// The GET moment (its card.catch), the re-encounter card for a word already in the dex, or — the GET moment lasts
+    /// about 3 s and then goes into the dex by itself — the NEW badge on the square of the word that just landed
+    /// (`dex.new`, shown only after a catch has landed).
+    private func waitForCatch(_ catchButton: XCUIElement, _ again: XCUIElement, _ landed: XCUIElement,
+                              timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
-        while !catchButton.exists && !again.exists && Date() < deadline { settle(0.5) }
-        return catchButton.exists || again.exists
+        while !catchButton.exists && !again.exists && !landed.exists && Date() < deadline { settle(0.5) }
+        return catchButton.exists || again.exists || landed.exists
     }
 
     /// UTC wall-clock time, matching the app's trace (uitest-trace.txt).
@@ -155,13 +158,19 @@ final class FullTourTests: XCTestCase {
         let aimed = first.exists ? "candidate.0 hittable \(first.isHittable), frame \(first.frame)" : "candidate.0 gone"
         let tappedAt = Self.clock.string(from: Date())
         first.tap()
-        // A thing with several ways to say it lists them first (outside the first tour): take the everyday one.
+        // A thing with several ways to say it lists them first (outside the first tour): take the everyday one once
+        // the choose screen's card has come in (film v6: the rows land 0.6–1.0 s after the tap).
         let everyday = app.buttons["variant.0"]
-        if everyday.waitForExistence(timeout: 3) { everyday.tap() }
+        if everyday.waitForExistence(timeout: 3) {
+            settle(1.2)
+            snap("variants")
+            everyday.tap()
+        }
         let catchButton = app.buttons["card.catch"]
         let again = app.buttons["reencounter.dex"]
+        let landed = app.descendants(matching: .any)["dex.new"]
         // A word already in the dex opens the re-encounter card instead of the celebration.
-        if !waitForCatch(catchButton, again, timeout: 20) {
+        if !waitForCatch(catchButton, again, landed, timeout: 20) {
             // The buttons the screen holds now and where (identifier @ centre), so the failure explains itself.
             let buttons = app.buttons.allElementsBoundByIndex.prefix(12).map { b in
                 "\(b.identifier.isEmpty ? b.label : b.identifier)@\(Int(b.frame.midX)),\(Int(b.frame.midY))"
@@ -173,12 +182,19 @@ final class FullTourTests: XCTestCase {
             let retappedAt = Self.clock.string(from: Date())
             let second = first.exists && first.isHittable
             if second { first.tap() }
-            let secondOpened = second && waitForCatch(catchButton, again, timeout: 20)
+            let secondOpened = second && waitForCatch(catchButton, again, landed, timeout: 20)
             let outcome = secondOpened ? "opened it" : (second ? "did not open it either" : "was not possible")
             let now = buttons.joined(separator: " ")
             XCTFail("[\(display)/\(learning)] the celebration did not open after tapping a word at \(tappedAt) UTC " +
                     "(\(aimed); now: \(now); a second tap at \(retappedAt) UTC \(outcome))")
             guard secondOpened else { return }
+        }
+        if landed.exists && !catchButton.exists && !again.exists {
+            // The GET moment was over (it went into the dex by itself) before the test looked: the word is in the dex.
+            snap("after-catch")
+            settle(3)
+            snap("dex-after-catch")
+            return
         }
         if again.exists && !catchButton.exists {
             settle(1)
@@ -188,9 +204,12 @@ final class FullTourTests: XCTestCase {
             snap("dex-after-reencounter")
             return
         }
-        settle(2)
+        // The GET moment goes into the dex by itself 3 s after the choice (its full-screen card.catch, a skip, goes
+        // with it): wait for that rather than racing it with a tap. In the first tour it holds and card.catch is its
+        // 図鑑に追加 button, which stays: tap that.
+        settle(1)
         snap("celebration")
-        catchButton.tap()
+        if !waitGone(catchButton, timeout: 8), catchButton.exists { catchButton.tap() }
         settle(4)
         snap("after-catch")
         settle(4)

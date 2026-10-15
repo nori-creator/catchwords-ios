@@ -27,8 +27,15 @@ struct CandidatePickerView: View {
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
     @Environment(AppRouter.self) private var router
-    /// The thing whose ways to say it are listed (nil = none open).
-    @State private var openTag: Tag?
+    @Environment(DexStore.self) private var dex
+    /// The choose screen over the photo (film v6 "D"), nil = the tags.
+    @State private var flow: ChooseFlow?
+    /// The photo melting into the app's page under the choose screen.
+    @State private var melt = false
+    /// The photo stage on screen (global): where each thing's sticker lifts from.
+    @State private var stageFrame: CGRect = .zero
+    /// DEBUG previews: open the first thing with several ways to say it once the tags are up.
+    var autoOpen: Bool = false
 
     private let ink = Color(hex: 0x0B121A)
 
@@ -51,6 +58,22 @@ struct CandidatePickerView: View {
         /// Order among the tags (`candidate.<n>`).
         let mainIndex: Int?
         var word: Candidate { choices[0].word }
+    }
+
+    /// The choose screen's state: the tapped thing, when, and the choice (`CCClock` times).
+    private struct ChooseFlow {
+        let tag: Tag
+        let tappedAt: Double
+        var chosenAt: Double?
+        var chosen: Int?
+        var closingAt: Double?
+        let start: CGRect?
+        let cut: UIImage?
+        let fallback: UIImage?
+        let palette: StagePalette
+        let dexLabel: String?
+        /// One way to say it: no card, straight on.
+        let single: Bool
     }
 
     /// A tag with its size and its bottom centre in the photo stage.
@@ -84,24 +107,27 @@ struct CandidatePickerView: View {
                     .opacity(scanning ? 0.5 : 1)
                     .animation(.easeOut(duration: 0.25), value: scanning)
             }
-            if let open = openTag {
-                Color.black.opacity(0.45).ignoresSafeArea()
-                    .onTapGesture { closeChoices() }
-                    .transition(.opacity)
-                choicesPanel(open)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 8)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            if let f = flow {
+                CatchChooseOverlay(words: f.single ? [f.tag.word] : f.tag.choices.map(\.word), thing: f.tag.label,
+                                   dexLabel: f.dexLabel, cut: f.cut ?? (f.chosenAt != nil ? vm.cutout : nil),
+                                   fallback: f.fallback, palette: f.palette, start: f.start,
+                                   tappedAt: f.tappedAt, chosenAt: f.chosenAt, chosen: f.chosen, closingAt: f.closingAt,
+                                   calm: reduceMotion, onChoose: pick, onClose: closeChoices)
+                    .zIndex(5)
             }
-            if vm.isCheckingOwned {
+            // The choose screen keeps its sticker floating while the word is checked (no dark wait over it).
+            if vm.isCheckingOwned && flow == nil {
                 Color.black.opacity(0.25).ignoresSafeArea()
                 ProgressView().controlSize(.large).tint(.white)
             }
         }
         .allowsHitTesting(!vm.isCheckingOwned)
-        // A new photo (撮り直す) or the move on to the celebration closes the list.
-        .onChange(of: scanning) { _, _ in openTag = nil }
+        // A new photo (撮り直す) or the move on to the celebration closes the choose screen.
+        .onChange(of: scanning) { _, _ in
+            flow = nil
+            melt = false
+        }
+        .task(id: autoOpen) { await openForPreview() }
         .onAppear {
             if reduceMotion {
                 appeared = true
@@ -177,6 +203,9 @@ struct CandidatePickerView: View {
                 if let scan = vm.scan, let photo = vm.photo {
                     CatchScanOverlay(scan: scan, photo: photo.size, reduceMotion: reduceMotion)
                         .frame(width: size.width, height: size.height)
+                        // On the tap the outlines fade out in .5 s (the film's v8 note).
+                        .opacity(flow == nil ? 1 : 0)
+                        .animation(.easeOut(duration: 0.5), value: flow == nil)
                 }
                 ForEach(placedTags) { p in
                     tagButton(p)
@@ -184,10 +213,19 @@ struct CandidatePickerView: View {
                 }
             }
             .frame(width: size.width, height: size.height)
+            // The choose screen melts the photo (film: blur 40 px, brightness +6%, scale 1.08 round the thing).
+            .blur(radius: melt ? 15 : 0)
+            .brightness(melt ? 0.06 : 0)
+            .scaleEffect(melt ? 1.08 : 1, anchor: meltAnchor)
             .contentShape(.rect)
             .onTapGesture {
                 UITestTrace.log("stage.tap")
                 inputFocused = false
+            }
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                stageFrame = frame
             }
             .onChange(of: size, initial: true) { _, s in layoutScan(s) }
             .onChange(of: vm.scan.map { ObjectIdentifier($0) }) { _, _ in layoutScan(size) }
@@ -291,12 +329,11 @@ struct CandidatePickerView: View {
             : (reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.7).delay(delay))
         return Button {
             UITestTrace.log("tag.action \(t.id) shown=\(shown) checking=\(vm.isCheckingOwned)")
-            // The first tour's 選ぶ step dims everything but this tag: there the everyday name is taken at once.
-            if t.choices.count > 1, !router.tour.isCapture {
-                Haptics.selection()
-                withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.86)) { openTag = t }
-            } else {
+            // The first tour's 選ぶ step dims everything but this tag: there the everyday name is taken at once, as before.
+            if router.tour.isCapture || vm.photo == nil {
                 vm.choose(t.word, object: t.choices[0].object)
+            } else {
+                open(t)
             }
         } label: {
             HStack(spacing: 7) {
@@ -337,101 +374,118 @@ struct CandidatePickerView: View {
         .offset(y: rise ? 6 : 0)
         .blur(radius: rise ? 3 : 0)
         .opacity(shown ? 1 : 0)
-        .allowsHitTesting(shown)
+        .allowsHitTesting(shown && flow == nil)
         .accessibilityHidden(!shown)
         .animation(motion, value: shown)
+        // A tap puts every tag away (.15 s) as the photo melts.
+        .opacity(flow == nil ? 1 : 0)
+        .animation(.easeOut(duration: 0.15), value: flow == nil)
     }
 
-    // MARK: The ways to say one thing
+    // MARK: The choose screen (film v6 "D")
 
-    private func closeChoices() {
-        withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.9)) { openTag = nil }
+    /// Where the photo melts towards: the thing that was tapped.
+    private var meltAnchor: UnitPoint {
+        guard let o = flow?.tag.object, let photo = vm.photo, stageFrame.width > 0 else { return .center }
+        let fill = Self.fillRect(image: photo.size, in: stageFrame.size)
+        return UnitPoint(x: (fill.minX + o.anchor.x * fill.width) / stageFrame.width,
+                         y: (fill.minY + o.anchor.y * fill.height) / stageFrame.height)
     }
 
-    /// The thing's name in the reader's language on top, then each way to say it in the learning language: what
-    /// kind of word it is (いちばんよく使う / 砕けた / くわしい・専門的 / 固有名詞), its reading, meaning and how it
-    /// differs. A tap on one is the word to learn (owner 2026-10-14: 文旦 → 台湾ではふつう柚子と言う).
-    private func choicesPanel(_ t: Tag) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(t.label)
-                        .scaledFont(size: 24, weight: .heavy)
-                        .foregroundStyle(Theme.foreground)
-                        .lineLimit(2)
-                    Text(L("覚えたい言い方を選んでください"))
-                        .scaledFont(size: 13)
-                        .foregroundStyle(Theme.muted)
-                }
-                Spacer(minLength: 8)
-                Button { closeChoices() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Theme.muted)
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel(L("閉じる"))
-                .accessibilityIdentifier("variant.close")
-            }
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(Array(t.choices.enumerated()), id: \.element.id) { idx, c in
-                        HStack(spacing: 8) {
-                            Button {
-                                openTag = nil
-                                vm.choose(c.word, object: c.object)
-                            } label: {
-                                choiceRow(c.word, first: idx == 0)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(PressableStyle(scale: 0.98))
-                            .accessibilityIdentifier("variant.\(idx)")
-                            PronounceCircle(text: c.word.headword, size: 36)
-                        }
-                        .padding(.vertical, 10)
-                        if idx < t.choices.count - 1 { Divider().overlay(Theme.border) }
-                    }
-                }
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(maxHeight: 420)
+    /// The thing's place on screen (global), where its sticker lifts from.
+    private func startRect(_ o: CatchObject) -> CGRect? {
+        guard let photo = vm.photo, stageFrame.width > 0 else { return nil }
+        let fill = Self.fillRect(image: photo.size, in: stageFrame.size)
+        let b = o.box
+        return CGRect(x: stageFrame.minX + fill.minX + b.minX * fill.width, y: stageFrame.minY + fill.minY + b.minY * fill.height,
+                      width: b.width * fill.width, height: b.height * fill.height)
+    }
+
+    /// A tag was tapped: the photo melts and the thing lifts out as a sticker; several ways to say it are listed to
+    /// choose from, one goes straight on to the GET moment.
+    private func open(_ t: Tag) {
+        guard flow == nil else { return }
+        let now = CCClock.now
+        let o = t.choices[0].object
+        let fallback = o.cut == nil ? StickerCrop.image(vm.photo, box: o.box) : nil
+        let palette = StagePalette.make(from: o.cut ?? fallback)
+        let label = t.choices.lazy.compactMap { CatchDexInfo.label(headword: $0.word.headword, stickers: dex.stickers) }.first
+        let single = t.choices.count <= 1
+        vm.stagePalette = palette
+        vm.stageFallback = fallback
+        vm.lightStage = true
+        var f = ChooseFlow(tag: t, tappedAt: now, start: startRect(o), cut: o.cut, fallback: fallback, palette: palette,
+                           dexLabel: label, single: single)
+        withAnimation(reduceMotion ? nil : .timingCurve(0.65, 0, 0.35, 1, duration: 0.55)) { melt = true }
+        if single {
+            // No card: the sticker lifts out and glides on (P a moment after the tap).
+            let p = now + Film6.singleChoiceDelay
+            f.chosenAt = p
+            f.chosen = 0
+            flow = f
+            vm.choose(t.word, object: o, stage: (origin: p, handoffAt: p + Film6.handoffSingle))
+        } else {
+            Haptics.selection()
+            flow = f
         }
-        .padding(16)
-        .background(Theme.card, in: .rect(cornerRadius: 24, style: .continuous))
-        .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
     }
 
-    private func choiceRow(_ c: Candidate, first: Bool) -> some View {
-        let meaning = ReaderLanguage.gloss(ReaderLanguage.shown(c.meaningJa))
-        let note = ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
-        return VStack(alignment: .leading, spacing: 5) {
-            Text(Self.registerLabel(c.register, first: first))
-                .scaledFont(size: 11, weight: .semibold)
-                .foregroundStyle(first ? Theme.primaryInk : Theme.muted)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(first ? Theme.primary.opacity(0.12) : Theme.secondary, in: Capsule())
-            ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: first ? 30 : 24, pinyin: c.pinyin)
-            if !meaning.isEmpty {
-                Text(meaning)
-                    .scaledFont(size: 13)
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+    /// A way to say it was chosen: blue outline and check, the card folds away, then the GET moment (`vm.choose`
+    /// checks the dex meanwhile; the re-encounter and the rest go on as before).
+    private func pick(_ i: Int) {
+        guard var f = flow, f.chosenAt == nil, f.closingAt == nil, f.tag.choices.indices.contains(i) else { return }
+        let now = CCClock.now
+        f.chosenAt = now
+        f.chosen = i
+        flow = f
+        SoundService.shared.playLayered(.c6Choose)
+        let c = f.tag.choices[i]
+        vm.choose(c.word, object: c.object, stage: (origin: now, handoffAt: now + Film6.handoff))
+    }
+
+    /// × : back to the tags (the photo comes back, the sticker goes).
+    private func closeChoices() {
+        guard var f = flow, f.chosenAt == nil, f.closingAt == nil else { return }
+        let at = CCClock.now
+        f.closingAt = at
+        flow = f
+        vm.lightStage = false
+        vm.stagePalette = nil
+        vm.stageFallback = nil
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { melt = false }
+        Task {
+            try? await Task.sleep(for: .milliseconds(320))
+            if flow?.closingAt == at { flow = nil }
+        }
+    }
+
+    /// DEBUG previews (`-uiPreview variants`): the first thing with several ways to say it opens by itself, the second
+    /// way is chosen (blue outline, the card folds away, the sticker glides on), then it starts again.
+    private func openForPreview() async {
+        guard autoOpen else { return }
+        var marked = false
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(100))
+            guard flow == nil, stageFrame.width > 0,
+                  let t = tags(objects).first(where: { $0.choices.count > 1 }) else { continue }
+            if !marked {
+                UIReady.mark("preview")
+                marked = true
             }
-            if !note.isEmpty {
-                Text(note)
-                    .scaledFont(size: 13, weight: .medium)
-                    .foregroundStyle(Theme.primaryInk)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            try? await Task.sleep(for: .milliseconds(600))
+            open(t)
+            try? await Task.sleep(for: .seconds(2.6))
+            pick(1)
+            try? await Task.sleep(for: .seconds(2.2))
+            flow = nil
+            melt = false
+            vm.backToCandidates()
+            try? await Task.sleep(for: .milliseconds(400))
         }
     }
 
     /// What kind of word it is (candidate-order.ts registers). The first everyday name is the one people say most.
-    private static func registerLabel(_ register: String?, first: Bool) -> String {
+    static func registerLabel(_ register: String?, first: Bool) -> String {
         switch register {
         // Short and telling apart at a glance (owner 2026-10-14: 「日本語を洗練させた言い方を考えて。分かりやすく
         // ユーザーが区別できるようにして」): what kind of word it is, then in brackets when you would use it.
@@ -590,15 +644,17 @@ struct PronounceCircle: View {
     var size: CGFloat = 42
     /// Off in long lists (the dex list), where warming every row would synthesize words nobody plays.
     var prefetch: Bool = true
+    /// White with a blue speaker (the film's light stage and choose card), instead of the vivid blue disc.
+    var light: Bool = false
 
     var body: some View {
         Button { SoundService.shared.speak(text) } label: {
             Image(systemName: "speaker.wave.2")
                 .font(.system(size: size * 0.4, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(light ? Theme.primary : .white)
                 .frame(width: size, height: size)
-                .background(Theme.primary, in: Circle())
-                .shadow(color: Theme.primary.opacity(0.35), radius: 6, y: 3)
+                .background(light ? Color.white.opacity(0.92) : Theme.primary, in: Circle())
+                .shadow(color: Theme.primary.opacity(light ? 0.3 : 0.35), radius: light ? 8 : 6, y: 3)
                 .frame(minWidth: 44, minHeight: 44)
         }
         .buttonStyle(PressableStyle(scale: 0.9))

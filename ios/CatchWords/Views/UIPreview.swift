@@ -77,6 +77,9 @@ struct UIPreviewRoot: View {
             case "enpicker": PickerPreview(learning: "en")
             case "tabbar": TabBarPreview()
             case "reward": CelebrationPreview()
+            case "variants": PickerPreview(autoOpen: true)
+            case "get": CelebrationPreview(replay: 4.6)
+            case "landing": LandingPreview()
             case "analyzing": ScanPreview(namesAfter: 2.4).uiReady("preview")
             case "scanslow": ScanPreview(namesAfter: 6.0).uiReady("preview")
             case "hero": HeroPickerPreview()
@@ -117,7 +120,8 @@ struct UIPreviewRoot: View {
         .environment(router)
     }
 
-    private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer", "webimg"]
+    private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer", "webimg",
+                                                       "variants", "landing"]
 }
 
 /// The catch scan's photo for the simulator (Vision's cut-out does not run there): a mango on a plate and a cup,
@@ -286,6 +290,8 @@ enum PreviewFixtures {
 /// names sit on the mango, the plate's below it.
 private struct PickerPreview: View {
     var learning: String = "zh-TW"
+    /// Film v6 "D": the mango's three ways to say it open by themselves (`-uiPreview variants`), the mango as a cut-out.
+    var autoOpen: Bool = false
     @State private var vm = CaptureViewModel()
 
     /// headword, reading, meaning in ja / en / zh-TW, distinction in ja / en / zh-TW, register, group
@@ -310,7 +316,7 @@ private struct PickerPreview: View {
     }
 
     var body: some View {
-        CandidatePickerView(vm: vm, scanning: false)
+        CandidatePickerView(vm: vm, scanning: false, autoOpen: autoOpen)
             .onAppear {
                 NativeAPI.targetLanguage = learning
                 let i = L10n.lang == "en" ? 1 : L10n.lang == "zh-TW" ? 2 : 0
@@ -319,6 +325,15 @@ private struct PickerPreview: View {
                     Candidate(kind: "object", headword: r.0, zhuyin: r.1, pinyin: "", meaningJa: r.2[i], pos: NativeAPI.defaultPos,
                               point: r.5 == 0 ? [500, 500] : [500, 820], confidence: 0.9, alternatives: [],
                               distinction: r.3[i], register: r.4, group: r.5)
+                }
+                if autoOpen {
+                    // The mango's Vision cut-out, as a phone would have it (the simulator has no Vision cut-out).
+                    let box = CGRect(x: 240.0 / 900, y: 240.0 / 900, width: 420.0 / 900, height: 400.0 / 900)
+                    vm.objects = CatchObject.build(candidates: vm.candidates, masks: nil, photoSize: PreviewFixtures.size).map { o in
+                        guard o.id == 0 else { return o }
+                        return CatchObject(id: o.id, words: o.words, point: o.point, box: box,
+                                           anchor: CGPoint(x: box.midX, y: box.midY), cut: PreviewFixtures.subjectCropped)
+                    }
                 }
                 vm.step = .select
             }
@@ -329,11 +344,13 @@ private struct PickerPreview: View {
 /// the photo as a white-edged card), the word and 「図鑑に追加」. Replayed every 7 seconds.
 private struct CelebrationPreview: View {
     var withCutout: Bool = true
+    /// Seconds between replays (the GET moment hands over at 3.0 s; here it then simply holds).
+    var replay: Double = 7
     @State private var vm = CaptureViewModel()
     @State private var round = 0
 
     var body: some View {
-        CatchCelebrationView(vm: vm, onAdd: { false })
+        CatchCelebrationView(vm: vm, onAdd: { true })
             .id(round)
             .onAppear {
                 NativeAPI.targetLanguage = "zh-TW"
@@ -341,15 +358,86 @@ private struct CelebrationPreview: View {
                 vm.cutout = withCutout ? PreviewFixtures.subjectCropped : nil
                 vm.picked = Candidate(kind: "object", headword: "芒果", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ", pinyin: "mángguǒ",
                                       meaningJa: L10n.lang == "en" ? "mango" : L10n.lang == "zh-TW" ? "芒果" : "マンゴー",
-                                      pos: NativeAPI.defaultPos, point: [500, 500], confidence: 0.9, alternatives: [])
+                                      pos: NativeAPI.defaultPos, point: [500, 500], confidence: 0.9, alternatives: [],
+                                      distinction: L10n.lang == "en" ? "the everyday word" : L10n.lang == "zh-TW" ? "日常說法" : "ふだんの言い方")
                 vm.step = .celebrate
             }
             .task {
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(7))
+                    try? await Task.sleep(for: .seconds(replay))
                     round += 1
                 }
             }
+    }
+}
+
+/// Film v6's finale in the 図鑑 (`-uiPreview landing`): three drinks caught, 果汁 (No.004) lands — the page rises, the
+/// sticker flies into its square, NEW, the counters roll, the next shadow's ring and the goal toast (あと1語).
+/// Replayed every 6.5 s.
+private struct LandingPreview: View {
+    @Environment(DexStore.self) private var dex
+    @Environment(AppRouter.self) private var router
+    @State private var round = 0
+
+    private static func cutout(_ body: UIColor, _ top: UIColor) -> UIImage {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: CGSize(width: 300, height: 420), format: format).image { ctx in
+            let c = ctx.cgContext
+            body.setFill()
+            c.addPath(UIBezierPath(roundedRect: CGRect(x: 50, y: 90, width: 200, height: 320), cornerRadius: 34).cgPath)
+            c.fillPath()
+            top.setFill()
+            c.addPath(UIBezierPath(roundedRect: CGRect(x: 36, y: 60, width: 228, height: 52), cornerRadius: 18).cgPath)
+            c.fillPath()
+            UIColor(white: 1, alpha: 0.35).setFill()
+            c.fill(CGRect(x: 78, y: 130, width: 22, height: 240))
+        }
+    }
+
+    private static func sticker(_ id: String, _ head: String, _ zy: String, _ meaning: String, image: UIImage, ago: Double) -> Sticker? {
+        let path = "preview/landing-\(id).png"
+        ImageCache.shared.set(image, for: path)
+        let json = #"{"id":"w\#(id)","headword":"\#(head)","reading_zhuyin":"\#(zy)","meaning_ja":"\#(meaning)"}"#
+        guard let word = try? JSONDecoder().decode(Word.self, from: Data(json.utf8)) else { return nil }
+        return Sticker(id: id, wordId: "w\(id)", objectImageUrl: path, cutoutImageUrl: path, selfieImageUrl: nil,
+                       caption: nil, locationName: nil, takenAt: Date().addingTimeInterval(-ago), captureType: "photo", word: word)
+    }
+
+    private static let juice = cutout(UIColor(red: 1, green: 0.62, blue: 0.12, alpha: 1), UIColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1))
+
+    private static let caught: [Sticker] = [
+        sticker("l-tea", "茶", "ㄔㄚˊ", "tea", image: cutout(UIColor(red: 0.78, green: 0.45, blue: 0.2, alpha: 1), .white), ago: 3000),
+        sticker("l-coffee", "咖啡", "ㄎㄚ ㄈㄟ", "coffee", image: cutout(UIColor(red: 0.35, green: 0.22, blue: 0.15, alpha: 1), .white), ago: 2000),
+        sticker("l-bubble", "珍珠奶茶", "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", "bubble tea",
+                image: cutout(UIColor(red: 0.84, green: 0.66, blue: 0.48, alpha: 1), UIColor(red: 0.3, green: 0.2, blue: 0.15, alpha: 1)), ago: 1000),
+    ].compactMap { $0 }
+
+    var body: some View {
+        ZStack {
+            DexView().id(round)
+            if let l = router.landing { CatchLandingOverlay(controller: l) }
+        }
+        .task(id: round) {
+            await play()
+            try? await Task.sleep(for: .seconds(6.5))
+            round += 1
+        }
+    }
+
+    private func play() async {
+        NativeAPI.targetLanguage = "zh-TW"
+        guard let new = Self.sticker("local-preview-\(round)", "果汁", "ㄍㄨㄛˇ ㄓ", "juice", image: Self.juice, ago: 0) else { return }
+        dex.stickers = [new] + Self.caught
+        dex.hasLoaded = true
+        try? await Task.sleep(for: .milliseconds(200))
+        let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.size ?? CGSize(width: 393, height: 852)
+        let box = Film6.stickerSize(aspect: Self.juice.size.width / Self.juice.size.height, screen: screen, get: true)
+        router.catchStar = CatchStar(center: CGPoint(x: screen.width / 2, y: Film6.y(Film6.getPosY, screen.height)),
+                                     size: box.width, k: 1, image: Self.juice, box: box)
+        CatchLanding.land(stickerId: new.id, router: router, calm: false,
+                          goal: CatchGoal.make(headword: "果汁", stickers: dex.stickers, lang: "zh-TW"))
+        UIReady.mark("preview")
     }
 }
 
