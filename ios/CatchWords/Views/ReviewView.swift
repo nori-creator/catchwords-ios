@@ -11,8 +11,6 @@ struct ReviewView: View {
     @State private var curveSticker: Sticker?
     /// Verdict for the current card (nil until a choice is picked).
     @State private var answer: Bool?
-    /// The card whose grade is still being saved (nil when none): 次へ waits for it.
-    @State private var gradingId: String?
     @State private var practiceIndex: Int = 0
     /// How far the answer sheet has been dragged sideways (swipe left = next card, like the web's SwipeCard).
     @State private var swipeX: CGFloat = 0
@@ -191,8 +189,8 @@ struct ReviewView: View {
     }
 
     private func goNext() {
-        // A grade still being saved may bring the card back: wait for it (the tour's practice saves nothing).
-        guard router.tour.isReview || gradingId == nil else { return }
+        // Never waits for the grade being saved (it used to: 次へ did nothing until the server had answered and the
+        // whole review list was read again). A grade that fails later brings its card back at the end (`requeue`).
         withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { answer = nil }
         if router.tour.isReview { nextPractice() } else { store.advance() }
     }
@@ -280,15 +278,16 @@ struct ReviewView: View {
             QuizCard(card: card, choices: store.choices(for: card, dex: dex), percent: dex.memoryPercent(for: card.sticker), isAnswered: answer != nil,
                      fitHeight: quizFitHeight) { correct, ms in
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { answer = correct }
-                gradingId = card.id
+                // Saved in the background: 次へ moves on at once while this is still on its way.
                 Task {
                     let saved = await store.grade(card, correct: correct, responseMs: ms, dex: dex)
-                    if gradingId == card.id { gradingId = nil }
-                    // Not saved (offline, server down): the card comes back to be answered again —
-                    // only if it is still the one on screen (never wipe the next card's answer).
+                    // Not saved (offline, server down): the card comes back to be answered again — on screen when
+                    // it is still the current one (never wipe the next card's answer), else at the end of the round.
                     if !saved {
                         if store.current?.id == card.id {
                             withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { answer = nil }
+                        } else {
+                            store.requeue(card)
                         }
                         Haptics.warning()
                     }

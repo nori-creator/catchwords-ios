@@ -498,9 +498,11 @@ struct DexView: View {
                 let id = landingSlot(l)
                 let sticker = l.star.image != nil
                 focus = DexGalleryFocus(id: id, fillStart: start, settle: sticker)
-                if sticker, !l.alreadyCaught, let s = dex.sticker(id: id) {
-                    // Film v6: the NEW badge, the rolling count, the next shadow's ring; the gallery shakes.
-                    marks = DexLandingMarks(newId: id, category: DexBook.category(of: s, lang: lang), impact: start)
+                if sticker, let s = dex.sticker(id: id) {
+                    // Film v6: the NEW badge, the rolling count, the next shadow's ring; the gallery shakes. A
+                    // re-encounter: the same shake, no badge or count (the word was caught before).
+                    marks = DexLandingMarks(newId: id, category: DexBook.category(of: s, lang: lang), impact: start,
+                                            again: l.alreadyCaught)
                     if !reduceMotion {
                         shakeBase = shake
                         withAnimation(.linear(duration: 0.35)) { shake += 1 }

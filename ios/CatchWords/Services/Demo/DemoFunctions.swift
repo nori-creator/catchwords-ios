@@ -599,6 +599,7 @@ nonisolated extension DemoDatabase {
         e["lat"] = DJ.orNull(DJ.num(data["lat"]))
         e["lng"] = DJ.orNull(DJ.num(data["lng"]))
         e["encountered_at"] = DJ.now()
+        e["created_at"] = e["encountered_at"]   // the real table's column (the app reads it)
         insert("encounters", e)
         let count = 1 + rows("encounters").filter { DJ.str($0["sticker_id"]) == sid }.count
         return ["encounter_count": count]

@@ -79,13 +79,16 @@ struct UIPreviewRoot: View {
             case "reward": CelebrationPreview()
             case "variants": PickerPreview(autoOpen: true)
             case "get": CelebrationPreview(replay: 4.6)
+            case "get-again": CelebrationPreview(replay: 4.6, again: true)
             case "landing": LandingPreview()
+            case "landing-again": LandingPreview(again: true)
             case "analyzing": ScanPreview(namesAfter: 2.4).uiReady("preview")
             case "scanslow": ScanPreview(namesAfter: 6.0).uiReady("preview")
             case "hero": HeroPickerPreview()
             case "memorial": MemorialPreview()
             case "carousel": CarouselPreview()
             case "detail": DetailPreview()
+            case "tips": TipsPreview()
             case "webimg": WebImagesPreview()
             case "chunks": ChunkWheelPreview()
             case "jadetail": LanguageCardPreview(kind: .ja)
@@ -121,7 +124,7 @@ struct UIPreviewRoot: View {
     }
 
     private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer", "webimg",
-                                                       "variants", "landing"]
+                                                       "variants", "landing", "landing-again"]
 }
 
 /// The catch scan's photo for the simulator (Vision's cut-out does not run there): a mango on a plate and a cup,
@@ -346,6 +349,9 @@ private struct CelebrationPreview: View {
     var withCutout: Bool = true
     /// Seconds between replays (the GET moment hands over at 3.0 s; here it then simply holds).
     var replay: Double = 7
+    /// `-uiPreview get-again`: the mango is in the dex already (caught 12 days ago in 台北, met once since): the same
+    /// moment says 「また会えた！」 with 「再会 3回目」 and when and where it was first caught.
+    var again: Bool = false
     @State private var vm = CaptureViewModel()
     @State private var round = 0
 
@@ -360,6 +366,13 @@ private struct CelebrationPreview: View {
                                       meaningJa: L10n.lang == "en" ? "mango" : L10n.lang == "zh-TW" ? "芒果" : "マンゴー",
                                       pos: NativeAPI.defaultPos, point: [500, 500], confidence: 0.9, alternatives: [],
                                       distinction: L10n.lang == "en" ? "the everyday word" : L10n.lang == "zh-TW" ? "日常說法" : "ふだんの言い方")
+                if again {
+                    vm.owned = OwnedWord(stickerId: "again", wordId: "w-again", headword: "芒果",
+                                         meaningJa: L10n.lang == "en" ? "mango" : L10n.lang == "zh-TW" ? "芒果" : "マンゴー",
+                                         readingZhuyin: "ㄇㄤˊ ㄍㄨㄛˇ", pinyin: "mángguǒ", cutoutUrl: nil, encounterCount: 2,
+                                         takenAt: SupabaseDate.string(Date().addingTimeInterval(-12 * 86_400)),
+                                         locationName: L10n.lang == "en" ? "Taipei" : "台北")  // l10n-ignore (place name)
+                }
                 vm.step = .celebrate
             }
             .task {
@@ -373,8 +386,10 @@ private struct CelebrationPreview: View {
 
 /// Film v6's finale in the 図鑑 (`-uiPreview landing`): three drinks caught, 果汁 (No.004) lands — the page rises, the
 /// sticker flies into its square, NEW, the counters roll, the next shadow's ring and the goal toast (あと1語).
-/// Replayed every 6.5 s.
+/// `-uiPreview landing-again`: 咖啡, caught before, is met again — the same flight and impact into its own square,
+/// without NEW, counters or toast. Replayed every 6.5 s.
 private struct LandingPreview: View {
+    var again: Bool = false
     @Environment(DexStore.self) private var dex
     @Environment(AppRouter.self) private var router
     @State private var round = 0
@@ -406,9 +421,11 @@ private struct LandingPreview: View {
 
     private static let juice = cutout(UIColor(red: 1, green: 0.62, blue: 0.12, alpha: 1), UIColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1))
 
+    private static let coffee = cutout(UIColor(red: 0.35, green: 0.22, blue: 0.15, alpha: 1), .white)
+
     private static let caught: [Sticker] = [
         sticker("l-tea", "茶", "ㄔㄚˊ", "tea", image: cutout(UIColor(red: 0.78, green: 0.45, blue: 0.2, alpha: 1), .white), ago: 3000),
-        sticker("l-coffee", "咖啡", "ㄎㄚ ㄈㄟ", "coffee", image: cutout(UIColor(red: 0.35, green: 0.22, blue: 0.15, alpha: 1), .white), ago: 2000),
+        sticker("l-coffee", "咖啡", "ㄎㄚ ㄈㄟ", "coffee", image: coffee, ago: 2000),
         sticker("l-bubble", "珍珠奶茶", "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", "bubble tea",
                 image: cutout(UIColor(red: 0.84, green: 0.66, blue: 0.48, alpha: 1), UIColor(red: 0.3, green: 0.2, blue: 0.15, alpha: 1)), ago: 1000),
     ].compactMap { $0 }
@@ -427,6 +444,10 @@ private struct LandingPreview: View {
 
     private func play() async {
         NativeAPI.targetLanguage = "zh-TW"
+        if again {
+            await playAgain()
+            return
+        }
         guard let new = Self.sticker("local-preview-\(round)", "果汁", "ㄍㄨㄛˇ ㄓ", "juice", image: Self.juice, ago: 0) else { return }
         dex.stickers = [new] + Self.caught
         dex.hasLoaded = true
@@ -437,6 +458,19 @@ private struct LandingPreview: View {
                                      size: box.width, k: 1, image: Self.juice, box: box)
         CatchLanding.land(stickerId: new.id, router: router, calm: false,
                           goal: CatchGoal.make(headword: "果汁", stickers: dex.stickers, lang: "zh-TW"))
+        UIReady.mark("preview")
+    }
+
+    /// A re-encounter of 咖啡: the dex as it was (no new entry), the sticker flies from the GET stage into 咖啡's square.
+    private func playAgain() async {
+        dex.stickers = Self.caught
+        dex.hasLoaded = true
+        try? await Task.sleep(for: .milliseconds(200))
+        let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.size ?? CGSize(width: 393, height: 852)
+        let box = Film6.stickerSize(aspect: Self.coffee.size.width / Self.coffee.size.height, screen: screen, get: true)
+        router.catchStar = CatchStar(center: CGPoint(x: screen.width / 2, y: Film6.y(Film6.getPosY, screen.height)),
+                                     size: box.width, k: 1, image: Self.coffee, box: box)
+        CatchLanding.land(stickerId: "l-coffee", router: router, calm: false, alreadyCaught: true)
         UIReady.mark("preview")
     }
 }
@@ -558,12 +592,34 @@ private struct DetailPreview: View {
         }
     }
 
-    private static var sticker: Sticker {
+    /// The prose sections (発音のコツ・語源・覚え方・台湾メモ and the synonyms' difference), several sentences each — the
+    /// first is the owner's sentence that broke early on an iPad (2026-10-15), drawn one sentence per row.
+    private static var prose: [String: String] {
+        switch L10n.lang {
+        case "en":
+            return ["pronunciation_tips": "Say 鐵 in the third tone, low and dipping. However, in Taiwan, take care to keep each tone clear. The last syllable 麵 falls sharply!",
+                    "etymology": "鐵 means iron (e.g. an iron plate). 板 is a board, and 麵 is noodles.",
+                    "mnemonic": "Think of noodles sizzling on an iron board. The sound \"tiě\" is like a hot pan's hiss.",
+                    "taiwan_note": "A breakfast-shop classic in Taiwan. Ask for black-pepper or mushroom sauce, and an egg on top.",
+                    "synonym_diff": "炒麵 is fried in a wok. 鐵板麵 comes on a hot iron plate with sauce poured over."]
+        case "zh-TW":
+            return ["pronunciation_tips": "「鐵」是三聲，先降再升。不過，在台灣要特別注意把每個聲調唸清楚。最後的「麵」是四聲，要往下降！",
+                    "etymology": "「鐵」是金屬（例如：鐵板）。「板」是平板，「麵」是麵條。",
+                    "mnemonic": "想像麵在熱鐵板上滋滋作響。「鐵」的聲音像熱鍋的聲音。",
+                    "taiwan_note": "台灣早餐店的經典。可以選黑胡椒醬或蘑菇醬，再加一顆蛋。",
+                    "synonym_diff": "炒麵是在鍋裡炒的。鐵板麵是放在熱鐵板上，再淋上醬汁。"]
+        default:
+            return ["pronunciation_tips": "「鐵」は3声で、低く下げてから上げます。ただし、台湾では声調をしっかりと意識しましょう。最後の「麵」は4声で、すとんと下げます！",
+                    "etymology": "「鐵」は鉄（例：鉄板）のことです。「板」は板、「麵」は麺を表します。",
+                    "mnemonic": "熱い鉄板の上で麺がジュウジュウ鳴る様子を思い浮かべましょう。「tiě」の音は鉄板の音に似ています。",
+                    "taiwan_note": "台湾の朝食店の定番です。黒胡椒ソースかマッシュルームソースを選び、目玉焼きをのせることもできます。",
+                    "synonym_diff": "炒麵は中華鍋で炒めた麺です。鐵板麵は熱い鉄板にのせて、上からソースをかけます。"]
+        }
+    }
+
+    private static func sticker(withProse: Bool) -> Sticker {
         let n = notes
-        let obj: [String: Any] = [
-            "id": "w-teppan", "headword": "鐵板麵", "language": "zh-TW", "reading_zhuyin": "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ", "meaning_ja": n.meaning,
-            "part_of_speech": "名詞", "example_sentence": "早餐我想吃鐵板麵。", "example_translation": n.translation,
-            "extras": [
+        var extras: [String: Any] = [
                 "explain_lang": L10n.lang,
                 "usage_chunks": [
                     ["parts": [["text": "蘑菇", "pos": "N"], ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[0]],
@@ -575,7 +631,12 @@ private struct DetailPreview: View {
                     ["word": "炒麵", "kind": "syn", "reading": "ㄔㄠˇ ㄇㄧㄢˋ", "note": n.related[0]],
                     ["word": "義大利麵", "kind": "rel", "reading": "ㄧˋ ㄉㄚˋ ㄌㄧˋ ㄇㄧㄢˋ", "note": n.related[1]],
                 ],
-            ] as [String: Any],
+        ]
+        if withProse { for (k, v) in prose { extras[k] = v } }
+        let obj: [String: Any] = [
+            "id": "w-teppan", "headword": "鐵板麵", "language": "zh-TW", "reading_zhuyin": "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ", "meaning_ja": n.meaning,
+            "part_of_speech": "名詞", "example_sentence": "早餐我想吃鐵板麵。", "example_translation": n.translation,
+            "extras": extras,
         ]
         let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
         // Through the same reader-language filter as real cards.
@@ -586,12 +647,26 @@ private struct DetailPreview: View {
     }
 
     var focus: CardSection = .usageChunks
+    var withProse: Bool = false
 
     var body: some View {
-        WordDetailView(sticker: Self.sticker, previewFocus: focus)
+        WordDetailView(sticker: Self.sticker(withProse: withProse), previewFocus: focus)
     }
 
-    static var previewSticker: Sticker { sticker }
+    static var previewSticker: Sticker { sticker(withProse: false) }
+}
+
+/// The word page's prose sections one sentence per row, a hairline under each (`-uiPreview tips`), scrolled to
+/// 発音のコツ. The sections are switched on for this word's language first (they are hidden on a new card).
+private struct TipsPreview: View {
+    init() {
+        CardPrefsStore.shared.use("zh-TW")
+        for s in [CardSection.pronunciationTips, .etymology, .mnemonic, .taiwanNote] { CardPrefsStore.shared.setVisible(s, true) }
+    }
+
+    var body: some View {
+        DetailPreview(focus: .pronunciationTips, withProse: true)
+    }
 }
 
 /// ネットの画像 with three stand-in pictures (no network in CI): the section shows once pictures arrive.

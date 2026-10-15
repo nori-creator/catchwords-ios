@@ -37,6 +37,9 @@ struct DexLandingMarks: Equatable {
     var impact: Double
     /// The category's count still shows the number before the catch (it rolls at impact + .3).
     var countLag: Int = 0
+    /// A re-encounter landed on `newId` (its word was caught before): no NEW badge, no count, no next shadow's ring —
+    /// only an accessibility mark saying it was met again (the UI tests find the square by it).
+    var again: Bool = false
 }
 
 struct DexGallery: View {
@@ -74,7 +77,7 @@ private struct DexCategoryCard: View {
 
     /// The next shadow to find after a landing in this category (its ring breathes).
     private var goalSlot: String? {
-        guard marks != nil else { return nil }
+        guard let marks, !marks.again else { return nil }
         return section.slots.first { slot in
             if case .shadow = slot.kind { return true }
             return false
@@ -94,7 +97,7 @@ private struct DexCategoryCard: View {
                 Text("\(section.caughtCount - (marks?.countLag ?? 0)) / \(section.slots.count)")
                     .font(.system(size: 12, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(marks == nil ? Theme.muted : Theme.primary)
+                    .foregroundStyle(marks == nil || marks?.again == true ? Theme.muted : Theme.primary)
                     .contentTransition(.numericText())
             }
             .padding(.horizontal, 2)
@@ -103,7 +106,9 @@ private struct DexCategoryCard: View {
             LazyVGrid(columns: columns, spacing: 9) {
                 ForEach(Array(section.slots.enumerated()), id: \.element.id) { index, slot in
                     DexSlotView(slot: slot, index: index, focus: focus?.id == slot.id ? focus : nil, calm: calm,
-                                isNew: marks?.newId == slot.id, goalSince: goalSlot == slot.id ? marks?.impact : nil,
+                                isNew: marks?.again != true && marks?.newId == slot.id,
+                                isAgain: marks?.again == true && marks?.newId == slot.id,
+                                goalSince: goalSlot == slot.id ? marks?.impact : nil,
                                 onTargetFrame: focus?.id == slot.id ? onTargetFrame : nil, onOpen: onOpen)
                         .id(slot.id)
                 }
@@ -130,6 +135,8 @@ private struct DexSlotView: View {
     let calm: Bool
     /// Film v6: the word just caught (the NEW badge pops on its square and stays).
     var isNew: Bool = false
+    /// A re-encounter just landed on this square (nothing is drawn: an accessibility mark only).
+    var isAgain: Bool = false
     /// Film v6: the category's next shadow after a landing (a dashed ring breathes round it from impact + 1 s).
     var goalSince: Double? = nil
     let onTargetFrame: ((CGRect) -> Void)?
@@ -148,6 +155,17 @@ private struct DexSlotView: View {
                 // the word that just landed by it).
                 .overlay(alignment: .topTrailing) {
                     if isNew { DexNewBadge(calm: calm).offset(x: 4, y: -2) }
+                }
+                // Its own element too: VoiceOver says the word was met again, and the UI tests find the square by it.
+                .overlay(alignment: .topTrailing) {
+                    if isAgain {
+                        Rectangle().fill(Color.white.opacity(0.001))
+                            .frame(width: 8, height: 8)
+                            .allowsHitTesting(false)
+                            .accessibilityElement()
+                            .accessibilityLabel(L("また会えた！"))
+                            .accessibilityIdentifier("dex.again")
+                    }
                 }
         case .shadow(let item):
             column(shadow: item)
