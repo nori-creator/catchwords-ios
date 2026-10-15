@@ -26,24 +26,55 @@ struct WordExampleCard: View {
     let headword: String
 
     var body: some View {
+        WordExamplesCard(examples: [ExampleItem(sentence: sentence, translation: translation, scene: scene.isEmpty ? nil : scene)],
+                         headword: headword)
+    }
+}
+
+/// The word page's 「例文」 with every usage pattern's example (owner 2026-10-15: 「追加の例文」 is gone): each with its
+/// short situation label right above it (only the label written for that very sentence, `ExampleItem.all`), the
+/// sentence with the word marked, its translation and its voice.
+struct WordExamplesCard: View {
+    let examples: [ExampleItem]
+    let headword: String
+
+    var body: some View {
         SectionCard(title: L("例文"), icon: "text.quote") {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 10) {
-                    if !scene.isEmpty { SceneTag(text: scene) }
-                    Text(WordHighlight.marked(sentence, headword: headword))
-                        .scaledFont(size: 19)
-                        .foregroundStyle(Theme.foreground)
-                        .lineSpacing(8)
-                    if let t = translation, !t.isEmpty {
-                        Text(t).scaledFont(size: 14).foregroundStyle(Theme.muted).lineSpacing(6)
-                    }
+            VStack(spacing: 10) {
+                ForEach(Array(examples.enumerated()), id: \.offset) { _, ex in
+                    ExampleBlock(example: ex, headword: headword)
                 }
-                Spacer(minLength: 0)
-                PronounceCircle(text: sentence, size: 40)
             }
-            .padding(16)
-            .background(Theme.secondary, in: .rect(cornerRadius: 22, style: .continuous))
         }
+    }
+}
+
+/// One example: its label, the sentence, the translation, and the voice button.
+struct ExampleBlock: View {
+    let example: ExampleItem
+    let headword: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                if let scene = example.scene, !scene.isEmpty { SceneTag(text: scene) }
+                Text(WordHighlight.marked(example.sentence, headword: headword))
+                    .scaledFont(size: 19)
+                    .foregroundStyle(Theme.foreground)
+                    .lineSpacing(8)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let t = example.translation, !t.isEmpty {
+                    Text(t).scaledFont(size: 14).foregroundStyle(Theme.muted).lineSpacing(6)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            PronounceCircle(text: example.sentence, size: 40)
+        }
+        .padding(16)
+        .background(Theme.secondary, in: .rect(cornerRadius: 22, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("example.block")
     }
 }
 

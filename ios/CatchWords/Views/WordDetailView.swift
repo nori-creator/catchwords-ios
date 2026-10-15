@@ -50,12 +50,6 @@ struct WordDetailView: View {
     /// Photos of this word from later encounters, paged in the hero by swiping (page 0 = the main picture).
     @State private var laterPhotos: [StickerPhoto] = []
     @State private var heroPage: Int = 0
-    /// ネットの画像 (web WebImagesBody): the search result, the 「別の画像」 round, and the one being applied.
-    @State private var webCandidates: [WebImageCandidate] = []
-    @State private var webRound: Int = 0
-    @State private var webLoading: Bool = false
-    @State private var applyingWeb: String?
-    @State private var confirmWeb: WebImageCandidate?
     @Environment(\.appReduceMotion) private var reduceMotion
 
     /// The word as the dex has it now. A page opened on a catch still being saved (owner 2026-10-11: 「キャッチしたての
@@ -153,13 +147,6 @@ struct WordDetailView: View {
             autoplayed = sticker.id
             try? await Task.sleep(for: .milliseconds(400))
             if !Task.isCancelled { SoundService.shared.speak(headword) }
-        }
-        .task(id: "\(headword)|\(webRound)|\(visibleSections.contains(.webImages))") { await loadWebImages() }
-        .confirmationDialog(L("いまの写真を、この画像に差し替えますか？元には戻せません。"),
-                            isPresented: confirmingWeb,
-                            titleVisibility: .visible, presenting: confirmWeb) { c in
-            Button(L("この画像にする")) { applyWeb(c) }
-            Button(L("キャンセル"), role: .cancel) {}
         }
         .onAppear { prefs.use(learningLang) }
         .onChange(of: learningLang) { _, l in prefs.use(l) }
@@ -671,7 +658,8 @@ struct WordDetailView: View {
                     editingCaption = true
                 } label: {
                     HStack(alignment: .center) {
-                        Text(cap).font(AppFont.hand(18)).foregroundStyle(Theme.foreground.opacity(0.9))
+                        // The app's own font, not the handwriting (owner 2026-10-15).
+                        Text(cap).scaledFont(size: 17).foregroundStyle(Theme.foreground.opacity(0.9))
                             .multilineTextAlignment(.leading)
                         Spacer()
                         Image(systemName: "pencil").font(.system(size: 16)).foregroundStyle(Theme.muted)
@@ -752,15 +740,24 @@ struct WordDetailView: View {
     /// The word's language, corrected from its headword when the stored one is wrong (I4: "lamp" saved
     /// as a Mandarin word showed measure words and a Taiwan note).
     private var learningLang: String { LanguageRules.resolveWordLanguage(stored: word?.language, headword: headword) }
-    private var exampleOK: Bool { let e = word?.exampleSentence ?? ""; return !e.isEmpty && e.isIn(target: learningLang) }
-    private var extraExamples: [ExampleExtra] { (extras?.examplesExtra ?? []).filter { !$0.zh.isEmpty && $0.zh.isIn(target: learningLang) } }
+    /// 「例文」: the main example and every other usage pattern's example (`ExampleItem.all`).
+    private var examples: [ExampleItem] {
+        ExampleItem.all(sentence: word?.exampleSentence, translation: word?.exampleTranslation, extras: extras, target: learningLang)
+    }
     private var chunks: [UsageChunk] { refinedChunks(extras?.usageChunks ?? []) }
     private var measures: [MeasureWord] { (extras?.measureWords ?? []).filter { !$0.word.isEmpty } }
-    private var pronunciationText: String { nonEmpty([extras?.pronunciationTips, extras?.studyTips]) }
     /// Radicals only for Mandarin; English adds the words built from the same parts.
-    private var etymologyText: String {
+    private var etymologyText: String { etymologyText(radicals: true) }
+
+    /// The boxes this word can draw (`EtymologyDiagram.drawable`); nil = the prose only.
+    private var etymologyDiagram: EtymologyDiagram? { extras?.etymologyDiagram?.drawable(for: headword) }
+
+    /// `radicals`: with the 「部首: …」 line (not under the boxes, which show the parts).
+    private func etymologyText(radicals: Bool) -> String {
         switch learningLang {
-        case "zh-TW": return nonEmpty([extras?.etymology, extras?.radicals.map { $0.isEmpty ? "" : L("部首: \($0)") }])
+        case "zh-TW":
+            let r = radicals ? extras?.radicals.map { $0.isEmpty ? "" : L("部首: \($0)") } : nil
+            return nonEmpty([extras?.etymology, r])
         case "en":
             let rel = (extras?.etymologyRelatives ?? []).filter { !$0.word.isEmpty }
                 .map { $0.note.isEmpty ? $0.word : "\($0.word) — \($0.note)" }.joined(separator: "\n")
@@ -786,17 +783,15 @@ struct WordDetailView: View {
     private func hasContent(_ s: CardSection) -> Bool {
         switch s {
         case .meaning: !(word?.meaningJa ?? "").isEmpty
-        case .example: exampleOK
-        case .examplesExtra: !extraExamples.isEmpty
+        case .example: !examples.isEmpty
+        // Gone from the word page (owner 2026-10-15, `CardSection.isRemoved`).
+        case .examplesExtra, .webImages, .pronunciationTips, .mnemonic: false
         case .usageChunks: !chunks.isEmpty
         case .measureWords: !measures.isEmpty
         case .relatedWords: !(extras?.allRelated.isEmpty ?? true) || !(extras?.synonymDiff ?? "").isEmpty
-        case .pronunciationTips: !pronunciationText.isEmpty
-        case .etymology: !etymologyText.isEmpty
-        case .mnemonic: !(extras?.mnemonic ?? "").isEmpty
+        case .etymology: !etymologyText.isEmpty || etymologyDiagram != nil
         case .taiwanNote: learningLang == "zh-TW" && !taiwanText.isEmpty
         case .realUsage: !headword.isEmpty
-        case .webImages: !webCandidates.isEmpty
         case .forms: !forms.isEmpty
         case .countability: extras?.countability != nil
         case .phrasalVerbs: !phrasals.isEmpty
@@ -843,17 +838,14 @@ struct WordDetailView: View {
     private func sectionBody(_ s: CardSection) -> some View {
         switch s {
         case .meaning: meaningCard
-        case .example: exampleCard(word?.exampleSentence ?? "", word?.exampleTranslation)
-        case .examplesExtra: extraExamplesCard
+        case .example: WordExamplesCard(examples: examples, headword: headword)
+        case .examplesExtra, .webImages, .pronunciationTips, .mnemonic: EmptyView()
         case .usageChunks: chunkCard(chunks)
         case .measureWords: measureCard(measures)
         case .relatedWords: relatedCard(extras?.allRelated ?? [])
-        case .pronunciationTips: textCard(s.title, icon: s.icon, pronunciationText)
-        case .etymology: textCard(s.title(for: learningLang), icon: s.icon, etymologyText)
-        case .mnemonic: textCard(s.title, icon: s.icon, extras?.mnemonic ?? "")
+        case .etymology: etymologyCard
         case .taiwanNote: textCard(s.title, icon: s.icon, taiwanText)
         case .realUsage: realUsageCard
-        case .webImages: webImagesCard
         case .forms: formsCard
         case .countability: countabilityCard
         case .phrasalVerbs: phrasalCard
@@ -905,29 +897,6 @@ struct WordDetailView: View {
         return out
     }
 
-    private var extraExamplesCard: some View {
-        SectionCard(title: CardSection.examplesExtra.title, icon: CardSection.examplesExtra.icon) {
-            VStack(spacing: 10) {
-                ForEach(extraExamples, id: \.zh) { ex in
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if !ex.scene.isEmpty { SceneTag(text: ex.scene) }
-                            Text(highlighted(ex.zh)).scaledFont(size: 18).lineSpacing(7)
-                            if !ex.ja.isEmpty {
-                                Text(ex.ja).scaledFont(size: 14).foregroundStyle(Theme.muted).lineSpacing(5)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                        PronounceCircle(text: ex.zh, size: 40)
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Theme.secondary, in: .rect(cornerRadius: 22, style: .continuous))
-                }
-            }
-        }
-    }
-
     // MARK: - Headword edit & report
 
     private func saveHeadword() {
@@ -961,7 +930,13 @@ struct WordDetailView: View {
         guard !Task.isCancelled, !dex.generatingWords.contains(current.wordId) else { return }
         // Writing the missing sections uses the AI: not without the consent (they stay empty, never "filling").
         guard AIConsent.shared.isGranted else { return }
-        let missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
+        var missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
+        // 「例文」 shows every usage pattern's example: the other patterns' examples are written when they are missing,
+        // never for a word used in one situation only (`example_pattern_count` 1).
+        if visibleSections.contains(.example), hasContent(.example), (extras?.examplesExtra ?? []).isEmpty,
+           Self.wantsAutoFill(.examplesExtra, extras: extras) {
+            missing.append(.examplesExtra)
+        }
         guard !missing.isEmpty else { return }
         let wordId = current.wordId
         guard !Task.isCancelled else { return }
@@ -1054,11 +1029,6 @@ struct WordDetailView: View {
             try? await Task.sleep(for: .seconds(2.4))
             withAnimation(.easeOut(duration: 0.25)) { if toast == text { toast = nil } }
         }
-    }
-
-    private func exampleCard(_ sentence: String, _ translation: String?) -> some View {
-        WordExampleCard(sentence: sentence, translation: translation,
-                        scene: ReaderLanguage.shown(extras?.shownExampleScene(for: sentence), source: sentence), headword: headword)
     }
 
     private func highlighted(_ sentence: String) -> AttributedString {
@@ -1348,7 +1318,22 @@ struct WordDetailView: View {
         }
     }
 
-    /// 発音のコツ・語源と部首・覚え方・台湾メモ and the other prose sections: one sentence per row with a thin line
+    /// 語源・部首: the boxes (character + character = the word, owner 2026-10-15) when the card has them, then the prose;
+    /// a word that cannot be taken apart shows what fits it (one character's box, or where a loanword's sound came
+    /// from). Without the boxes, the prose as before.
+    private var etymologyCard: some View {
+        let s = CardSection.etymology
+        let diagram = etymologyDiagram
+        let prose = etymologyText(radicals: diagram == nil)
+        return SectionCard(title: s.title(for: learningLang), icon: s.icon) {
+            VStack(alignment: .leading, spacing: 6) {
+                if let diagram { EtymologyDiagramView(diagram: diagram) }
+                if !prose.isEmpty { SentenceRows(text: prose) }
+            }
+        }
+    }
+
+    /// 語源と部首・台湾メモ and the other prose sections: one sentence per row with a thin line
     /// under each, instead of one block of prose (owner 2026-10-14: 「読みやすいように文の下に線に書いて」).
     private func textCard(_ title: String, icon: String, _ body: String) -> some View {
         SectionCard(title: title, icon: icon) {
@@ -1406,146 +1391,6 @@ struct WordDetailView: View {
                 ("📰", L("台湾のサイトで検索"), "https://www.google.com/search?q=\(q)&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW"),
                 ("📖", L("教育部國語辭典簡編本"), "https://dict.concised.moe.edu.tw/search.jsp?word=\(q)"),
             ]
-        }
-    }
-
-    // MARK: - ネットの画像 (web WebImagesBody)
-
-    private var confirmingWeb: Binding<Bool> {
-        Binding(get: { confirmWeb != nil }, set: { if !$0 { confirmWeb = nil } })
-    }
-
-    /// Three pictures at a time; 「別の画像」 searches again (the web shows a different three each round).
-    private var shownWeb: [WebImageCandidate] {
-        let pages = max(1, Int((Double(webCandidates.count) / 3).rounded(.up)))
-        let off = webRound % pages
-        let page = Array(webCandidates.dropFirst(off * 3).prefix(3))
-        return page.isEmpty ? Array(webCandidates.prefix(3)) : page
-    }
-
-    /// The section is drawn only once a picture has arrived (web: 画像が表示されない時はその項目を表示しない).
-    private func loadWebImages() async {
-        guard visibleSections.contains(.webImages), !headword.isEmpty else { return }
-        webLoading = true
-        defer { webLoading = false }
-        let search: () async throws -> [WebImageCandidate] = { [word, headword, webRound] in
-            if let word, word.headword == headword { return try await WebImages.search(word: word, round: webRound) }
-            return try await WebImages.search(headword: headword, meaning: word?.meaningJa, round: webRound)
-        }
-        guard let found = try? await search(),
-              !Task.isCancelled else { return }
-        withAnimation(.snappy) { webCandidates = found }
-    }
-
-    private var webImagesCard: some View {
-        SectionCard(title: CardSection.webImages.title, icon: CardSection.webImages.icon) {
-            VStack(alignment: .leading, spacing: 12) {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                    ForEach(shownWeb) { c in webTile(c) }
-                }
-                .uiReady("preview")  // CI's 「webimg」 picture waits for the pictures (DEBUG only)
-                HStack(spacing: 14) {
-                    Button {
-                        Haptics.selection()
-                        webRound += 1
-                    } label: {
-                        HStack(spacing: 5) {
-                            if webLoading { ProgressView().controlSize(.mini) } else { Image(systemName: "arrow.clockwise") }
-                            Text(L("別の画像"))
-                        }
-                        .scaledFont(size: 14, weight: .semibold)
-                        .foregroundStyle(Theme.foreground)
-                        .padding(.horizontal, 12)
-                        .frame(minHeight: 36)
-                        .background(Theme.secondary, in: Capsule())
-                        .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.95))
-                    .disabled(webLoading)
-                    if let url = URL(string: "https://www.google.com/search?tbm=isch&q=\(headword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") {
-                        Button { openURL(url) } label: {
-                            Label(L("Google画像検索で見る"), systemImage: "arrow.up.right")
-                                .scaledFont(size: 14, weight: .semibold)
-                                .foregroundStyle(Theme.primaryInk)
-                                .frame(minHeight: 36)
-                        }
-                    }
-                }
-                Text(L("画像をタップすると、この単語の写真にできます。"))
-                    .scaledFont(size: 13)
-                    .foregroundStyle(Theme.muted)
-            }
-        }
-    }
-
-    private func webTile(_ c: WebImageCandidate) -> some View {
-        Button { pickWeb(c) } label: {
-            Theme.surface2
-                .aspectRatio(1, contentMode: .fit)
-                .overlay {
-                    if let img = WebImages.inlineImage(c) {
-                        Image(uiImage: img).resizable().scaledToFill()
-                    } else {
-                        AsyncImage(url: c.previewURL) { phase in
-                            if let img = phase.image { img.resizable().scaledToFill() } else { ProgressView() }
-                        }
-                    }
-                }
-                .overlay(alignment: .bottom) {
-                    if let name = c.credit?.name, !name.isEmpty {
-                        Text(name)
-                            .scaledFont(size: 10, weight: .medium)
-                            .lineLimit(1)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .frame(maxWidth: .infinity)
-                            .background(.black.opacity(0.5))
-                    }
-                }
-                .overlay {
-                    if applyingWeb == c.url {
-                        ZStack {
-                            Color.black.opacity(0.35)
-                            ProgressView().tint(.white)
-                        }
-                    }
-                }
-                .clipShape(.rect(cornerRadius: 12, style: .continuous))
-                .contentShape(.rect(cornerRadius: 12))
-        }
-        .buttonStyle(PressableStyle(scale: 0.95))
-        .disabled(applyingWeb != nil || isProvisional)
-        .accessibilityLabel(L("この画像にする"))
-    }
-
-    /// A word with a photo of its own asks first: the photo is replaced and cannot come back
-    /// (web applyWebImage). A word without one takes the picture as its stand-in, with its credit.
-    private func pickWeb(_ c: WebImageCandidate) {
-        guard applyingWeb == nil else { return }
-        if current.objectImageUrl != nil || current.cutoutImageUrl != nil {
-            confirmWeb = c
-        } else {
-            applyWeb(c)
-        }
-    }
-
-    private func applyWeb(_ c: WebImageCandidate) {
-        applyingWeb = c.url
-        Task {
-            defer { applyingWeb = nil }
-            do {
-                if current.objectImageUrl != nil || current.cutoutImageUrl != nil {
-                    try await dex.replacePhoto(current, with: try await WebImages.image(for: c))
-                } else {
-                    try await dex.setPlaceholder(current, to: c)
-                }
-                Haptics.success()
-                showToast(L("画像を変更しました"))
-            } catch {
-                Haptics.warning()
-                showToast(L("写真を替えられませんでした"))
-            }
         }
     }
 
@@ -1689,10 +1534,12 @@ extension EnvironmentValues {
     @Entry var sectionRefresh: SectionRefresh? = nil
 }
 
-/// White section card with a blue round icon and title (card-sections + section-icon.ts).
 /// Explanatory prose, one sentence per row with a hairline under each (`Sentences.split`). Each row may break between
 /// any two Japanese / Chinese characters (`Sentences.wrappable`), so a line fills the card's width instead of moving a
 /// whole word down early. VoiceOver reads the sentence as written.
+/// The line under each row is two device pixels (`hairline`): a one-pixel line (½ pt on an iPad) that fell between two
+/// pixel rows was drawn as two faint half-pixels and vanished on the light card, so on the owner's iPad some sentences
+/// of 台湾メモ had no line (2026-10-15). The spacing between the sentences stays as it was.
 struct SentenceRows: View {
     let text: String
     var size: CGFloat = 15
@@ -1711,15 +1558,20 @@ struct SentenceRows: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 10)
                     .overlay(alignment: .bottom) {
-                        Rectangle().fill(Theme.border).frame(height: max(1 / displayScale, 0.5))
+                        Rectangle().fill(Theme.border).frame(height: Self.hairline(displayScale))
                     }
                     .accessibilityLabel(line)
                     .accessibilityIdentifier("sentence.row")
             }
         }
     }
+
+    /// Two device pixels: at least one whole pixel is covered wherever the line lands (1 pt on an iPad, ⅔ pt on a
+    /// 3× iPhone).
+    static func hairline(_ scale: CGFloat) -> CGFloat { 2 / max(1, scale) }
 }
 
+/// White section card with a blue round icon and title (card-sections + section-icon.ts).
 struct SectionCard<Content: View>: View {
     let title: String
     let icon: String

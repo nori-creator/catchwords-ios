@@ -86,6 +86,8 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     var studyTips: String?
     var etymology: String?
     var radicals: String?
+    /// 語源・部首 as boxes (`EtymologyDiagram`, server 2026-10-15; nil on older cards — the prose is shown).
+    var etymologyDiagram: EtymologyDiagram?
     var trivia: String?
     var usageNote: String?
     var synonymDiff: String?
@@ -114,6 +116,7 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     enum CodingKeys: String, CodingKey {
         case mnemonic, synonyms, antonyms, etymology, radicals, trivia
         case explainLang = "explain_lang"
+        case etymologyDiagram = "etymology_parts"
         case forms, countability, stress, conjugation, politeness, counters
         case phrasalVerbs = "phrasal_verbs"
         case cultureNote = "culture_note"
@@ -180,6 +183,8 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         studyTips = (try? c.decodeIfPresent(String.self, forKey: .studyTips)).flatMap { $0 }
         etymology = (try? c.decodeIfPresent(String.self, forKey: .etymology)).flatMap { $0 }
         radicals = (try? c.decodeIfPresent(String.self, forKey: .radicals)).flatMap { $0 }
+        // Under any of its names (`EtymologyDiagram.keys`); one that does not read is simply absent.
+        etymologyDiagram = EtymologyDiagram.find(in: decoder)
         trivia = (try? c.decodeIfPresent(String.self, forKey: .trivia)).flatMap { $0 }
         usageNote = (try? c.decodeIfPresent(String.self, forKey: .usageNote)).flatMap { $0 }
         synonymDiff = (try? c.decodeIfPresent(String.self, forKey: .synonymDiff)).flatMap { $0 }
@@ -275,17 +280,69 @@ nonisolated struct RelatedWord: Codable, Sendable, Hashable {
     }
 }
 
-/// `examples_extra` item: sentence + translation + when you'd say it.
+/// `examples_extra` item: sentence + translation + when you'd say it, and the sentence that label was written for
+/// (`scene_for`, server 2026-10-15; absent on older items — then no label is shown, `shownScene`).
 nonisolated struct ExampleExtra: Codable, Sendable, Hashable {
     var zh: String
     var ja: String
     var scene: String
+    var sceneFor: String = ""
+
+    enum CodingKeys: String, CodingKey {
+        case zh, ja, scene
+        case sceneFor = "scene_for"
+    }
+
+    init(zh: String, ja: String = "", scene: String = "", sceneFor: String = "") {
+        self.zh = zh
+        self.ja = ja
+        self.scene = scene
+        self.sceneFor = sceneFor
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         zh = (try? c.decode(String.self, forKey: .zh)) ?? ""
         ja = (try? c.decode(String.self, forKey: .ja)) ?? ""
         scene = (try? c.decode(String.self, forKey: .scene)) ?? ""
+        sceneFor = (try? c.decode(String.self, forKey: .sceneFor)) ?? ""
+    }
+
+    /// The label over this sentence: only when it was written for this very sentence (spaces and punctuation aside),
+    /// the rule of the main example (`WordExtras.shownExampleScene`).
+    var shownScene: String? {
+        let label = scene.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !label.isEmpty else { return nil }
+        let written = WordExtras.sceneMatchKey(sceneFor)
+        guard !written.isEmpty, written == WordExtras.sceneMatchKey(zh) else { return nil }
+        return label
+    }
+}
+
+/// One example in 「例文」: the main one or one of `examples_extra`, each its own usage pattern (owner 2026-10-15:
+/// 「追加の例文」 is gone, every pattern's example is in 「例文」 with its short situation label above it).
+nonisolated struct ExampleItem: Hashable, Sendable {
+    let sentence: String
+    let translation: String?
+    let scene: String?
+
+    /// Every example to show, the main one first. With one usage pattern (`example_pattern_count` 1) only the main
+    /// example; an extra one not in the learning language, or the main sentence again, is left out.
+    static func all(sentence: String?, translation: String?, extras: WordExtras?, target: String) -> [ExampleItem] {
+        var out: [ExampleItem] = []
+        var seen = Set<String>()
+        let main = (sentence ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !main.isEmpty, main.isIn(target: target) {
+            out.append(ExampleItem(sentence: main, translation: translation, scene: extras?.shownExampleScene(for: main)))
+            seen.insert(WordExtras.sceneMatchKey(main))
+        }
+        guard extras?.examplesExtraComplete != true else { return out }
+        for x in extras?.examplesExtra ?? [] {
+            let zh = x.zh.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !zh.isEmpty, zh.isIn(target: target), seen.insert(WordExtras.sceneMatchKey(zh)).inserted else { continue }
+            out.append(ExampleItem(sentence: zh, translation: x.ja.isEmpty ? nil : x.ja, scene: x.shownScene))
+        }
+        return out
     }
 }
 

@@ -18,6 +18,15 @@ final class HeadwordGuardTests: XCTestCase {
         }
     }
 
+    func testMandarinRefusesKanjiOnlyJapanWrites() {
+        // Japanese typed as kanji only: 図 / 駅 are written 圖 / 驛 in Taiwan (the server's kanji-forms.ts).
+        XCTAssertFalse(LanguageRules.headwordSaveable("図鑑", target: "zh-TW"))
+        XCTAssertFalse(LanguageRules.headwordSaveable("駅", target: "zh-TW"))
+        XCTAssertTrue(LanguageRules.headwordSaveable("圖鑑", target: "zh-TW"))
+        // Characters Taiwan also uses as standard ones stay.
+        XCTAssertTrue(LanguageRules.headwordSaveable("月餅", target: "zh-TW"))
+    }
+
     func testMandarinKeepsCapitalsStuckToHan() {
         // Taiwan writes these with Latin capitals (the server's headwordOk lets them through too).
         XCTAssertTrue(LanguageRules.headwordSaveable("T恤", target: "zh-TW"))

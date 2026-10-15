@@ -4646,5 +4646,13 @@
  "覚える単語を選ぶ": {
   "en": "Choose the word to learn",
   "zh-TW": "選擇要學的單字"
+ },
+ "音訳": {
+  "en": "Transliteration",
+  "zh-TW": "音譯"
+ },
+ "「{1}」の音から": {
+  "en": "From the sound of “{1}”",
+  "zh-TW": "取自「{1}」的發音"
  }
 }
