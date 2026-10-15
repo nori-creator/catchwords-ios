@@ -26,16 +26,23 @@ nonisolated struct UsageChunk: Codable, Sendable, Hashable {
 nonisolated struct ChunkAlt: Codable, Sendable, Hashable {
     var text: String
     var ja: String
+    /// Its reading (server chunk tokens, 2026-10-15): shown over the block once it is swapped in. nil on older cards.
+    var pinyin: String?
+    var zhuyin: String?
 
-    init(text: String, ja: String) {
+    init(text: String, ja: String, pinyin: String? = nil, zhuyin: String? = nil) {
         self.text = text
         self.ja = ja
+        self.pinyin = pinyin
+        self.zhuyin = zhuyin
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         text = (try? c.decode(String.self, forKey: .text)) ?? ""
         ja = (try? c.decode(String.self, forKey: .ja)) ?? ""
+        pinyin = ChunkPart.reading(try? c.decodeIfPresent(String.self, forKey: .pinyin))
+        zhuyin = ChunkPart.reading(try? c.decodeIfPresent(String.self, forKey: .zhuyin))
     }
 }
 
@@ -78,7 +85,7 @@ nonisolated struct ChunkPart: Codable, Sendable, Hashable {
     }
 
     /// A reading as sent, trimmed; nil when empty or not a string (an older card, or a broken token).
-    private static func reading(_ raw: String??) -> String? {
+    static func reading(_ raw: String??) -> String? {
         guard let s = (raw ?? nil)?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
         return s
     }
@@ -279,7 +286,10 @@ nonisolated enum ChunkRules {
         guard isPredicateStative(last), isNoun(prev),
               !degreeWords.contains(where: { last.text.hasPrefix($0) }),
               !parts.contains(where: isAdverb) else { return parts }
-        return Array(parts.dropLast()) + [ChunkPart(text: "很", pos: "Adv"), last]  // l10n-ignore (Mandarin word)
+        // Read like its neighbours when they carry the server's readings (a reading-less block among them looks broken).
+        let read = parts.contains { $0.zhuyin != nil || $0.pinyin != nil }
+        return Array(parts.dropLast()) + [ChunkPart(text: "很", pos: "Adv", pinyin: read ? "hěn" : nil,  // l10n-ignore (Mandarin word)
+                                                    zhuyin: read ? "ㄏㄣˇ" : nil), last]
     }
 
     // MARK: - What is shown

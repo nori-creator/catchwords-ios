@@ -4,6 +4,8 @@ import PhotosUI
 /// Word detail (WordCard.tsx): a hero card, then one white card per section that has content.
 struct WordDetailView: View {
     @Environment(DexStore.self) private var dex
+    /// Today's review round (optional: previews have none); told when this page changes the sticker's headword.
+    @Environment(ReviewStore.self) private var review: ReviewStore?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(AppRouter.self) private var router
@@ -1077,6 +1079,8 @@ struct WordDetailView: View {
             defer { isSavingHead = false }
             do {
                 try await dex.setHeadword(current, to: next)
+                // Today's review round must not keep the old word as this card's answer (貓眼 → 門, 2026-10-15).
+                if let fresh = dex.sticker(id: current.id) { review?.replaceSticker(fresh) }
                 Haptics.success()
                 showToast(L("単語を直しました"))
             } catch {
@@ -1150,6 +1154,9 @@ struct WordDetailView: View {
                 let done = r.item ?? (item == "auto" ? nil : item)
                 if r.fixed, let done {
                     showToast(L("「\(Self.itemTitle(done))」を直しました"))
+                } else if r.queued == true {
+                    // Fixed in the background once a second AI agrees; the page shows it the next time it opens.
+                    showToast(L("報告を受け付けました。確認して自動で直します（直ったら次に開いたときに反映されます）"))
                 } else if r.aiFailed == true {
                     showToast(L("報告を受け付けました。AIが応答せず、自動では直せませんでした"))
                 } else if item == "auto" && done == nil {

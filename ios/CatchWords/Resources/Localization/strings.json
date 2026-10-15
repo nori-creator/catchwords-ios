@@ -4812,7 +4812,7 @@
   "zh-TW": "未處理"
  },
  "対応済み": {
-  "en": "Fixed",
+  "en": "Resolved",
   "zh-TW": "已處理"
  },
  "確認中": {
@@ -4858,5 +4858,41 @@
  "単語": {
   "en": "Word",
   "zh-TW": "單字"
+ },
+ "報告を受け付けました。確認して自動で直します（直ったら次に開いたときに反映されます）": {
+  "en": "Report received. We’ll check it and fix it automatically (you’ll see the fix the next time you open this word).",
+  "zh-TW": "已收到回報。確認後會自動修正（修正後，下次打開時就會看到）。"
+ },
+ "自動で直せず確認が必要": {
+  "en": "Needs review",
+  "zh-TW": "需要確認"
+ },
+ "自動で直した": {
+  "en": "Fixed automatically",
+  "zh-TW": "已自動修正"
+ },
+ "却下": {
+  "en": "Dismissed",
+  "zh-TW": "已駁回"
+ },
+ "未対応に戻す": {
+  "en": "Reopen",
+  "zh-TW": "改回未處理"
+ },
+ "対応済みにする": {
+  "en": "Mark resolved",
+  "zh-TW": "標為已處理"
+ },
+ "却下する": {
+  "en": "Dismiss",
+  "zh-TW": "駁回"
+ },
+ "未対応だけ": {
+  "en": "Open only",
+  "zh-TW": "只看未處理"
+ },
+ "状態を変えられませんでした": {
+  "en": "Couldn’t change the status",
+  "zh-TW": "無法變更狀態"
  }
 }

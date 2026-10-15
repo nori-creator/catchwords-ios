@@ -70,4 +70,16 @@ final class ChunkReadingTests: XCTestCase {
         let tidy = ChunkRules.tidy(parts, headword: "鐵板麵", target: "zh-TW", reader: "ja")
         XCTAssertEqual(tidy.map(\.zhuyin), ["ㄉㄧㄢˇ", "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ"])
     }
+
+    func testSwapChoicesCarryTheirReadingsAndANeutralToneStaysAsSent() throws {
+        let c = try chunk(#"{"parts":[{"text":"刷子","pos":"N","pinyin":"shuā zi","zhuyin":"ㄕㄨㄚ ˙ㄗ"},{"text":"鞋子","pos":"N","slot":true,"ja":"shoes","pinyin":"xié zi","zhuyin":"ㄒㄧㄝˊ ˙ㄗ","alts":[{"text":"地板","ja":"floor","pinyin":"dì bǎn","zhuyin":"ㄉㄧˋ ㄅㄢˇ"},{"text":"桌子","ja":"desk"}]}],"ja":"x"}"#)
+        XCTAssertEqual(c.parts[0].zhuyin, "ㄕㄨㄚ ˙ㄗ")
+        XCTAssertEqual(ChunkLineView.reading(for: c.parts[0], target: "zh-TW", pref: "zhuyin"), "ㄕㄨㄚ ˙ㄗ")
+        XCTAssertEqual(ChunkLineView.reading(for: c.parts[0], target: "zh-TW", pref: "pinyin"), "shuā zi")
+        let alts = c.parts[1].alts ?? []
+        XCTAssertEqual(alts.count, 2)
+        XCTAssertEqual(alts[0].zhuyin, "ㄉㄧˋ ㄅㄢˇ")
+        XCTAssertEqual(alts[0].pinyin, "dì bǎn")
+        XCTAssertNil(alts[1].zhuyin, "an old alt has no reading")
+    }
 }

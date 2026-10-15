@@ -1629,6 +1629,20 @@ final class DexStore {
         /// The AI (and its backup) did not answer: the report is recorded, nothing was rewritten (server 2026-10-14;
         /// an older server answered 500 instead).
         let aiFailed: Bool?
+        /// Not fixed on the spot: the server drafts a fix in the background and applies it only when another AI passes
+        /// it, and tells the developer (server #187: a free learner's report, or a report without a chosen item).
+        let queued: Bool?
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            fixed = (try? c.decodeIfPresent(Bool.self, forKey: .fixed)) ?? false
+            item = (try? c.decodeIfPresent(String.self, forKey: .item)) ?? nil
+            by = (try? c.decodeIfPresent(String.self, forKey: .by)) ?? nil
+            aiFailed = (try? c.decodeIfPresent(Bool.self, forKey: .aiFailed)) ?? nil
+            queued = (try? c.decodeIfPresent(Bool.self, forKey: .queued)) ?? nil
+        }
+
+        private enum CodingKeys: String, CodingKey { case fixed, item, by, aiFailed, queued }
     }
 
     func reportAndFix(wordId: String, item: String = "auto", candidates: [String], note: String) async throws -> ReportFix {

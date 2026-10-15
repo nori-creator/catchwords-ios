@@ -289,6 +289,18 @@ final class ReviewStore {
     /// screen redrew — including right after a tap, so the answer you pressed jumped to another slot.
     @ObservationIgnored private var choiceCache: [String: [QuizChoice]] = [:]
 
+    /// A word page changed this sticker's headword (貓眼 → 門, 2026-10-15): the round still held the card with the old
+    /// sticker and its four choices built from it, so the answer kept saying 貓眼. Its cached choices are dropped and the
+    /// reloaded sticker takes the old one's place in the queue and the missed list (the review row stays the same).
+    func replaceSticker(_ sticker: Sticker) {
+        choiceCache[sticker.id] = nil
+        queue = queue.map { $0.sticker.id == sticker.id ? ReviewCard(review: $0.review, sticker: sticker) : $0 }
+        missed = missed.map { $0.sticker.id == sticker.id ? ReviewCard(review: $0.review, sticker: sticker) : $0 }
+    }
+
+    /// Whether choices for this sticker are cached (tests only).
+    func hasCachedChoices(for stickerId: String) -> Bool { choiceCache[stickerId] != nil }
+
     func choices(for card: ReviewCard, dex: DexStore) -> [QuizChoice] {
         if let cached = choiceCache[card.sticker.id] { return cached }
         let made = makeChoices(for: card, dex: dex)

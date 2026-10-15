@@ -1515,9 +1515,9 @@ private struct ChunkReadingsPreview: View {
 /// 設定 › 開発者 › 報告された誤り with made-up reports (`-uiPreview reports`): the rows as the server's answer carries them.
 private struct AdminReportsPreview: View {
     private static let rows = """
-    [{"id":"7a1c9e2d-0000-4000-8000-000000000001","headword":"鐵板麵","kind":"meaning","note":"意味が「鉄板焼き」だけで、麺のことが書かれていない","status":"open","reporter_lang":"ja","created_at":"2026-10-15T11:20:00Z"},
-     {"id":"7a1c9e2d-0000-4000-8000-000000000002","headword":"珍珠奶茶","kind":"example","note":"The example sentence uses 珍奶, not the headword.","status":"fixed","reporter_lang":"en","created_at":"2026-10-14T03:05:00Z"},
-     {"id":"7a1c9e2d-0000-4000-8000-000000000003","headword":"便當","kind":"reading","note":"注音的聲調不對","status":"reviewing","reporter_lang":"zh-TW","created_at":"2026-10-13T09:48:00Z"}]
+    [{"id":"7a1c9e2d-0000-4000-8000-000000000001","headword":"鐵板麵","kind":"content","item":"meaning","note":"意味が「鉄板焼き」だけで、麺のことが書かれていない","status":"needs_review","outcome":"直しの案が確認を通らなかった","reporter_lang":"ja","word_id":"w-1","created_at":"2026-10-15T11:20:00Z","outcome_at":"2026-10-15T11:21:00Z"},
+     {"id":"7a1c9e2d-0000-4000-8000-000000000002","headword":"珍珠奶茶","kind":"content","item":"example","note":"The example sentence uses 珍奶, not the headword.","status":"fixed","outcome":"例文を作り直した","reporter_lang":"en","word_id":"w-2","created_at":"2026-10-14T03:05:00Z","outcome_at":"2026-10-14T03:06:00Z"},
+     {"id":"7a1c9e2d-0000-4000-8000-000000000003","headword":"便當","kind":"content","item":"pronunciation","note":"注音的聲調不對","status":"open","outcome":null,"reporter_lang":"zh-TW","word_id":"w-3","created_at":"2026-10-13T09:48:00Z","outcome_at":null}]
     """
 
     var body: some View {

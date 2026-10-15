@@ -29,9 +29,10 @@ struct ChunkLineView: View {
             guard let t = pick[i], t != p.text else { return p }
             var q = p
             q.text = t
-            // A word swapped in from the wheel has no reading of its own (the server's readings are per token).
-            q.pinyin = nil
-            q.zhuyin = nil
+            // A word swapped in from the wheel carries its own reading when the server gave one (its `alts[]`).
+            let alt = p.alts?.first { $0.text == t }
+            q.pinyin = alt?.pinyin
+            q.zhuyin = alt?.zhuyin
             return q
         }
     }
