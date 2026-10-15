@@ -1136,8 +1136,11 @@ struct WordDetailView: View {
 
     /// An empty section is filled in by the server unless it is complete while empty: 「追加の例文」 of a word used in one
     /// situation only (`example_pattern_count` 1, server PR #182) has no other examples to write.
+    /// 発音のコツ・覚え方・ネットの画像 are off the page (owner 2026-10-15; the server stops writing the first two): their
+    /// absence is never something to fill.
     static func wantsAutoFill(_ s: CardSection, extras: WordExtras?) -> Bool {
-        !(s == .examplesExtra && extras?.examplesExtraComplete == true)
+        if s == .pronunciationTips || s == .mnemonic || s == .webImages { return false }
+        return !(s == .examplesExtra && extras?.examplesExtraComplete == true)
     }
 
     /// Web reportAndFixSection (item = auto): the AI finds the wrong item among what is on screen.

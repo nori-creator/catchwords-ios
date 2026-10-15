@@ -1309,9 +1309,14 @@ final class DexStore {
         }
     }
 
+    /// Sections never asked for any more.
+    nonisolated static let retiredSections: Set<String> = ["pronunciation_tips", "mnemonic", "web_images"]
+
     /// Web `regenerateCardSection`. `onlyIfEmpty` = first fill of a missing section (free, like the web's
     /// AutoFillSections); otherwise a full rewrite of the section (Pro on the web).
     func fillSection(wordId: String, section: String, onlyIfEmpty: Bool) async -> Bool {
+        // 発音のコツ and 覚え方 are no longer on the word page, and the server stops writing them (owner 2026-10-15).
+        guard !Self.retiredSections.contains(section) else { return false }
         struct Res: Decodable { let ok: Bool?; let filled: Bool? }
         let r = try? await NativeAPI.call("regenerateCardSection", [
             "word_id": wordId, "section": section, "only_if_empty": onlyIfEmpty,

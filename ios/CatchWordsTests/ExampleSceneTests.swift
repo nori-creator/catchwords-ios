@@ -51,7 +51,11 @@ final class ExampleSceneTests: XCTestCase {
         XCTAssertTrue(one.examplesExtraComplete)
         XCTAssertFalse(WordDetailView.wantsAutoFill(.examplesExtra, extras: one))
         // Other sections are still filled, and more patterns (or an older card) still fill the examples.
-        XCTAssertTrue(WordDetailView.wantsAutoFill(.mnemonic, extras: one))
+        XCTAssertTrue(WordDetailView.wantsAutoFill(.usageChunks, extras: one))
+        // 発音のコツ and 覚え方 are off the page: never filled (owner 2026-10-15).
+        XCTAssertFalse(WordDetailView.wantsAutoFill(.mnemonic, extras: one))
+        XCTAssertFalse(WordDetailView.wantsAutoFill(.pronunciationTips, extras: nil))
+        XCTAssertFalse(WordDetailView.wantsAutoFill(.webImages, extras: nil))
         let three = try extras(#"{"example_pattern_count":3}"#)
         XCTAssertTrue(WordDetailView.wantsAutoFill(.examplesExtra, extras: three))
         XCTAssertTrue(WordDetailView.wantsAutoFill(.examplesExtra, extras: try extras("{}")))

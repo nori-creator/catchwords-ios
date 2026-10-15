@@ -57,8 +57,11 @@ struct CandidatePickerView: View {
         let object: CatchObject
         /// Its ways to say it: the everyday one first (一般的 → 口語 → より詳しい → 学術的 → 固有名詞).
         let choices: [Choice]
-        /// The tag's text: the thing's name in the reader's language (the headword when there is none).
+        /// The tag's text: the everyday name's meaning in the reader's language (`tagLabel`; never a learning-language
+        /// word).
         let label: String
+        /// The key two tags with the same name are merged by (nil: the label is not a name, never merged).
+        var nameKey: String? = nil
         /// Order among the tags (`candidate.<n>`).
         let mainIndex: Int?
         var word: Candidate { choices[0].word }
@@ -257,19 +260,19 @@ struct CandidatePickerView: View {
         for o in objects {
             // 一般的 → 口語 → より詳しい → 学術的 → 固有名詞, a register on every name (the server orders them too; this
             // keeps the list right with an older answer). Same register keeps the AI's order (likelihood).
-            let choices = NameRegister.finalized(o.words).map { Choice(word: $0, object: o) }
-            guard let main = choices.first else { continue }
-            let label = Self.readerName(main.word)
-            let key = Self.mergeKey(label)
-            if let key, let at = out.firstIndex(where: { Self.mergeKey($0.label) == key }) {
+            let words = NameRegister.finalized(o.words)
+            let choices = words.map { Choice(word: $0, object: o) }
+            guard !choices.isEmpty else { continue }
+            let tag = Self.tagLabel(words)
+            let key = tag.isName ? Self.mergeKey(tag.text) : nil
+            if let key, let at = out.firstIndex(where: { $0.nameKey == key }) {
                 let had = out[at]
                 let added = choices.filter { c in !had.choices.contains { $0.word.headword == c.word.headword } }
                 out[at] = Tag(id: had.id, object: had.object, choices: Self.ordered(had.choices + added),
-                              label: had.label, mainIndex: had.mainIndex)
+                              label: had.label, mainIndex: had.mainIndex, nameKey: had.nameKey)
                 continue
             }
-            out.append(Tag(id: "\(o.id)", object: o, choices: choices,
-                           label: label.isEmpty ? main.word.headword : label, mainIndex: out.count))
+            out.append(Tag(id: "\(o.id)", object: o, choices: choices, label: tag.text, mainIndex: out.count, nameKey: key))
         }
         return out
     }
@@ -282,8 +285,20 @@ struct CandidatePickerView: View {
         }.map { list[$0] }
     }
 
+    /// The tag on a thing (owner 2026-10-15): the most general everyday name, in the reader's language — the meaning of
+    /// the thing's common name (`NameRegister.finalized` puts it first): boxer briefs → 內褲 → 「下着」, never
+    /// 「ボクサーパンツ」 (a more specific name's meaning) and never the learning-language word itself. With no meaning in
+    /// the reader's language, the thing's category in it (服), which is never merged with another tag.
+    static func tagLabel(_ words: [Candidate]) -> (text: String, isName: Bool) {
+        guard let main = words.first else { return ("", false) }
+        let name = readerName(main)
+        if !name.isEmpty { return (name, true) }
+        let category = main.categoryKey ?? words.lazy.compactMap(\.categoryKey).first
+        return (Category.label(for: category), false)
+    }
+
     /// The thing's name in the reader's language: the short meaning the server wrote in it (empty when it came back
-    /// in another language — `ReaderLanguage.shown` drops it, and the tag shows the headword).
+    /// in another language — `ReaderLanguage.shown` drops it).
     private static func readerName(_ c: Candidate) -> String {
         let meaning = ReaderLanguage.shown(c.meaningJa)
         guard !meaning.isEmpty else { return "" }

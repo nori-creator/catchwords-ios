@@ -350,11 +350,11 @@ private struct PickerPreview: View {
                     }
                 }
                 if typed {
-                    // The older server sent a typed word's style in `register` (spoken / written): no tags were shown.
+                    // ボクサーパンツ typed (owner 2026-10-15): 內褲 the everyday word at the top, then the narrower names.
                     let found: [(String, String, [String], String?)] = [
-                        ("四角褲", "ㄙˋ ㄐㄧㄠˇ ㄎㄨˋ", ["トランクス・ボクサーパンツ", "boxer shorts", "四角褲"], "spoken"),
-                        ("內褲", "ㄋㄟˋ ㄎㄨˋ", ["下着のパンツ", "underwear", "內褲"], "common"),
-                        ("平口褲", "ㄆㄧㄥˊ ㄎㄡˇ ㄎㄨˋ", ["ボクサーブリーフ", "boxer briefs", "平口褲"], "specific"),
+                        ("平口褲", "ㄆㄧㄥˊ ㄎㄡˇ ㄎㄨˋ", ["ボクサーパンツ", "boxer briefs", "平口褲"], "specific"),
+                        ("內褲", "ㄋㄟˋ ㄎㄨˋ", ["下着", "underwear", "內褲"], "common"),
+                        ("四角褲", "ㄙˋ ㄐㄧㄠˇ ㄎㄨˋ", ["トランクス", "boxer shorts", "四角褲"], "specific"),
                     ]
                     vm.typedCandidates = NameRegister.finalized(found.map { f in
                         Candidate(kind: "object", headword: f.0, zhuyin: f.1, pinyin: "", meaningJa: f.2[i], pos: NativeAPI.defaultPos,

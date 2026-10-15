@@ -77,4 +77,27 @@ final class NameRegisterTests: XCTestCase {
         L10n.lang = "zh-TW"
         XCTAssertEqual(NameRegister.allCases.map(\.label), ["常用說法", "口語", "更精確的說法", "學術說法", "專有名詞"])
     }
+
+    /// The tag on the photo is the everyday name's meaning in the reader's language (owner 2026-10-15: boxer briefs →
+    /// 「下着」, the meaning of 內褲), never a more specific name's meaning and never the learning-language word.
+    func testCameraTagIsTheEverydayNamesMeaning() {
+        let saved = L10n.lang
+        defer { L10n.lang = saved }
+        L10n.lang = "ja"
+        func named(_ head: String, _ register: String?, _ meaning: String, category: String? = nil) -> Candidate {
+            Candidate(kind: "object", headword: head, zhuyin: "", pinyin: "", meaningJa: meaning, pos: "N", point: [500, 500],
+                      confidence: 0.9, alternatives: [], register: register, group: 0, categoryKey: category)
+        }
+        let boxers = NameRegister.finalized([named("平口褲", "specific", "ボクサーパンツ"), named("內褲", "common", "下着"),
+                                             named("四角褲", "specific", "トランクス")])
+        XCTAssertEqual(boxers.map(\.headword), ["內褲", "平口褲", "四角褲"])
+        XCTAssertEqual(CandidatePickerView.tagLabel(boxers).text, "下着")
+        XCTAssertTrue(CandidatePickerView.tagLabel(boxers).isName)
+        // No meaning in the reader's language: the thing's category, never the headword (and never merged).
+        let bare = NameRegister.finalized([named("內褲", "common", "", category: "clothes"), named("四角褲", "specific", "")])
+        let tag = CandidatePickerView.tagLabel(bare)
+        XCTAssertEqual(tag.text, L("服"))
+        XCTAssertFalse(tag.isName)
+        XCTAssertNotEqual(tag.text, "內褲")
+    }
 }
