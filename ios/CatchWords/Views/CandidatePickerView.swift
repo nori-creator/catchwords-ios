@@ -6,9 +6,11 @@ import SwiftUI
 /// A tap on a tag goes straight to the celebration (owner 2026-10-09: shoot → words → tap → done).
 /// - One tag per THING, named in the reader's own language (owner 2026-10-14: 「表示するのは母語にして」「表示する
 ///   タグは言い方ではなく、異なるものにして」): 鮮乳 / 牛奶 / 全脂鮮乳 were three tags for one bottle, in Mandarin.
-///   A thing with several ways to say it (ふだん / 砕けた / くわしい・専門的 / 固有名詞 — the server's `group` and
-///   `register`) opens the list of them on a tap, to pick the one to learn (web CandidatePicker's ほかの言い方);
-///   a thing with one name goes straight on. Tags never cover each other (`CCPickLayout`), and stay inside the photo.
+///   A thing with several ways to say it (一般的な言い方 / 口語 / より詳しい言い方 / 学術的な言い方 / 固有名詞 — the
+///   server's `group` and `register`, `NameRegister`) opens the list of them on a tap, to pick the one to learn (web
+///   CandidatePicker's ほかの言い方); a thing with one name goes straight on. The tag is the thing's everyday name
+///   (owner 2026-10-15: never a detailed name or a proper noun). Tags never cover each other (`CCPickLayout`), and stay
+///   inside the photo.
 /// - Without a position (the AI gave none) and no Vision instance there, the words gather at the photo's centre,
 ///   still one per line.
 /// - From the shutter on (`.processing`) the same screen runs the catch scan over the photo (v10, owner 2026-10-11:
@@ -51,7 +53,7 @@ struct CandidatePickerView: View {
         let id: String
         /// Where the tag sits and what the scan waits for.
         let object: CatchObject
-        /// Its ways to say it: the everyday one first (ふだん → 砕けた → くわしい → 固有名詞).
+        /// Its ways to say it: the everyday one first (一般的 → 口語 → より詳しい → 学術的 → 固有名詞).
         let choices: [Choice]
         /// The tag's text: the thing's name in the reader's language (the headword when there is none).
         let label: String
@@ -112,7 +114,8 @@ struct CandidatePickerView: View {
                                    dexLabel: f.dexLabel, cut: f.cut ?? (f.chosenAt != nil ? vm.cutout : nil),
                                    fallback: f.fallback, palette: f.palette, start: f.start,
                                    tappedAt: f.tappedAt, chosenAt: f.chosenAt, chosen: f.chosen, closingAt: f.closingAt,
-                                   calm: reduceMotion, onChoose: pick, onClose: closeChoices)
+                                   calm: reduceMotion, searching: vm.isLookingUp, onChoose: pick, onClose: closeChoices,
+                                   onSearch: searchFromChoices)
                     .zIndex(5)
             }
             // The choose screen keeps its sticker floating while the word is checked (no dark wait over it).
@@ -250,12 +253,9 @@ struct CandidatePickerView: View {
     private func tags(_ objects: [CatchObject]) -> [Tag] {
         var out: [Tag] = []
         for o in objects {
-            // ふだん → 砕けた → くわしい → 固有名詞. Same rank keeps the AI's order (likelihood).
-            let order = o.words.indices.sorted { a, b in
-                let ra = Self.rank(o.words[a].register), rb = Self.rank(o.words[b].register)
-                return ra != rb ? ra < rb : a < b
-            }
-            let choices = order.map { Choice(word: o.words[$0], object: o) }
+            // 一般的 → 口語 → より詳しい → 学術的 → 固有名詞, a register on every name (the server orders them too; this
+            // keeps the list right with an older answer). Same register keeps the AI's order (likelihood).
+            let choices = NameRegister.finalized(o.words).map { Choice(word: $0, object: o) }
             guard let main = choices.first else { continue }
             let label = Self.readerName(main.word)
             let key = Self.mergeKey(label)
@@ -275,7 +275,7 @@ struct CandidatePickerView: View {
     /// Everyday names before the others; within a register the order they came in.
     private static func ordered(_ list: [Choice]) -> [Choice] {
         list.indices.sorted { a, b in
-            let ra = rank(list[a].word.register), rb = rank(list[b].word.register)
+            let ra = NameRegister.of(list[a].word).rank, rb = NameRegister.of(list[b].word).rank
             return ra != rb ? ra < rb : a < b
         }.map { list[$0] }
     }
@@ -443,6 +443,17 @@ struct CandidatePickerView: View {
         vm.choose(c.word, object: c.object, stage: (origin: now, handoffAt: now + Film6.handoff))
     }
 
+    /// A word typed at the bottom of the choose screen (owner 2026-10-15: in the display language or the learning
+    /// language): the same lookup as 「違う単語を入力」 (`suggestWordCandidates`). The choose screen goes back to the
+    /// photo; one word found goes straight on with the tapped thing's cut-out, several are listed under the photo.
+    private func searchFromChoices(_ text: String) {
+        let q = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty, !vm.isLookingUp, let f = flow, f.chosenAt == nil, f.closingAt == nil else { return }
+        let object = f.tag.choices.first?.object
+        closeChoices()
+        vm.search(text: q, object: object)
+    }
+
     /// × : back to the tags (the photo comes back, the sticker goes).
     private func closeChoices() {
         guard var f = flow, f.chosenAt == nil, f.closingAt == nil else { return }
@@ -484,28 +495,6 @@ struct CandidatePickerView: View {
         }
     }
 
-    /// What kind of word it is (candidate-order.ts registers). The first everyday name is the one people say most.
-    static func registerLabel(_ register: String?, first: Bool) -> String {
-        switch register {
-        // Short and telling apart at a glance (owner 2026-10-14: 「日本語を洗練させた言い方を考えて。分かりやすく
-        // ユーザーが区別できるようにして」): what kind of word it is, then in brackets when you would use it.
-        case "casual": L("口語（くだけた言い方）")
-        case "specific": L("正式名（くわしい・専門的）")
-        case "proper": L("固有名（商品名・店名）")
-        default: first ? L("定番（いちばんよく使う）") : L("よく使う別の言い方")
-        }
-    }
-
-    /// ふだん → 砕けた → くわしい → 固有名詞 (candidate-order.ts).
-    private static func rank(_ register: String?) -> Int {
-        switch register {
-        case "casual": 1
-        case "specific": 2
-        case "proper": 3
-        default: 0
-        }
-    }
-
     /// Where a scaledToFill image sits inside `size`.
     static func fillRect(image: CGSize, in size: CGSize) -> CGRect {
         guard image.width > 0, image.height > 0 else { return CGRect(origin: .zero, size: size) }
@@ -530,9 +519,11 @@ struct CandidatePickerView: View {
     private var typedList: some View {
         VStack(spacing: 0) {
             ForEach(Array(vm.typedCandidates.enumerated()), id: \.offset) { idx, c in
-                Button { vm.choose(c, object: nil) } label: {
+                Button { vm.choose(c, object: vm.searchObject, typed: true) } label: {
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 2) {
+                            // What kind of name it is, on every row (owner 2026-10-15).
+                            RegisterTag(register: NameRegister.of(c))
                             ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: 20, pinyin: c.pinyin)
                             Text(ReaderLanguage.gloss(ReaderLanguage.shown(c.meaningJa)))
                                 .scaledFont(size: 12)
@@ -610,6 +601,23 @@ struct CandidatePickerView: View {
         inputFocused = false
         typed = ""
         vm.search(text: q)
+    }
+}
+
+/// What kind of name a candidate is (`NameRegister`), the small grey label over each way to say it in the lists.
+struct RegisterTag: View {
+    let register: NameRegister
+    var size: CGFloat = 10.5
+
+    var body: some View {
+        Text(register.label)
+            .scaledFont(size: size, weight: .semibold)
+            .foregroundStyle(register == .common ? Color(hex: 0x1F6FD1) : Color(hex: 0x5C646F))
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(register == .common ? Color(hex: 0x2A9BFF).opacity(0.12) : Color(hex: 0xEEF1F5), in: Capsule())
+            .accessibilityIdentifier("register.\(register.rawValue)")
     }
 }
 

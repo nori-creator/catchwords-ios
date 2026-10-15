@@ -2,10 +2,12 @@ import SwiftUI
 
 /// Choosing the way to say it (concept film v6 "D", `dGet` before the choice): the photo melts into the app's page,
 /// the thing lifts out of the photo as a sticker to the top of the page and floats there, and under it the header
-/// (NEW · its 図鑑 number and category, 「覚える言い方を選ぶ」, what is in the photo) and a white card with each way to
-/// say it. A choice is marked in blue (the others fade), the card folds away and the sticker glides on to the GET
-/// moment — drawn by the same `CatchStageScene`, so the next screen takes over without a seam. A thing with one way to
-/// say it gets no card: its sticker lifts out and goes straight on. × goes back to the tags.
+/// (NEW · its 図鑑 number and category, 「覚える単語を選ぶ」, what is in the photo) and a white card with each way to
+/// say it, each with what kind of name it is (`NameRegister`, owner 2026-10-15). A choice is marked in blue (the others
+/// fade), the card folds away and the sticker glides on to the GET moment — drawn by the same `CatchStageScene`, so the
+/// next screen takes over without a seam. Under the card a word can be typed instead (the display language or the
+/// learning language, `onSearch`). A thing with one way to say it gets no card: its sticker lifts out and goes straight
+/// on. × goes back to the tags.
 struct CatchChooseOverlay: View {
     /// The ways to say it (the everyday one first); one = no card.
     let words: [Candidate]
@@ -24,8 +26,15 @@ struct CatchChooseOverlay: View {
     let chosen: Int?
     let closingAt: Double?
     let calm: Bool
+    /// A typed word is being looked up (`CaptureViewModel.isLookingUp`).
+    var searching: Bool = false
     let onChoose: (Int) -> Void
     let onClose: () -> Void
+    /// A word typed in the field under the card.
+    var onSearch: ((String) -> Void)? = nil
+
+    @State private var typed: String = ""
+    @FocusState private var typing: Bool
 
     private let ink = Color(hex: 0x0B121A)
     private let muted = Color(hex: 0x5C646F)
@@ -87,6 +96,17 @@ struct CatchChooseOverlay: View {
                 }
                 .transition(.opacity)
             }
+
+            // The field sits outside the film's stage, so it rises above the keyboard.
+            if hasCard, onSearch != nil, chosenAt == nil, closingAt == nil {
+                VStack {
+                    Spacer()
+                    typeField
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                }
+                .transition(.opacity)
+            }
         }
         .environment(\.colorScheme, .light)
         .animation(.easeOut(duration: 0.2), value: chosenAt == nil && closingAt == nil)
@@ -102,7 +122,8 @@ struct CatchChooseOverlay: View {
         let cardIn = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.5, 0.82))
         let fold = chosenAt == nil ? 0 : Film6.inOutCubic(Film6.seg(sinceP, 0.22, 0.5))
         let footIn = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.9, 1.1))
-        let maxCard = max(160, H - Film6.y(1150, H) - 96)
+        // Room under the card for the line under it and the field to type a word (`typeField`).
+        let maxCard = max(160, H - Film6.y(1150, H) - 96 - (onSearch == nil ? 0 : Self.fieldHeight))
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 if let dexLabel {
@@ -111,7 +132,7 @@ struct CatchChooseOverlay: View {
                 } else {
                     Color.clear.frame(height: 98 * k)
                 }
-                Text(L("覚える言い方を選ぶ"))
+                Text(L("覚える単語を選ぶ"))
                     .font(.system(size: 50 * k, weight: .heavy))
                     .foregroundStyle(ink)
                     .lineLimit(1)
@@ -225,17 +246,10 @@ struct CatchChooseOverlay: View {
     private func content(_ c: Candidate, first: Bool) -> some View {
         let meaning = ReaderLanguage.gloss(ReaderLanguage.shown(c.meaningJa))
         let note = ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
-        // Film `pickRow`: the everyday way has no chip; the others say what kind of word they are.
-        let chip = ["casual", "specific", "proper"].contains(c.register ?? "")
+        // Every row says what kind of name it is (owner 2026-10-15: 「どの候補にも必ず印を付ける」 — the film's everyday row
+        // had none, and a list whose registers were all common or unknown showed no label at all).
         return VStack(alignment: .leading, spacing: 4) {
-            if chip {
-                Text(CandidatePickerView.registerLabel(c.register, first: first))
-                    .scaledFont(size: 10.5, weight: .semibold)
-                    .foregroundStyle(muted)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color(hex: 0xEEF1F5), in: Capsule())
-            }
+            RegisterTag(register: NameRegister.of(c))
             ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: first ? 30 : 23, weight: first ? .semibold : .medium,
                            color: ink, readingColor: muted, pinyin: c.pinyin)
             if !meaning.isEmpty {
@@ -253,5 +267,58 @@ struct CatchChooseOverlay: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    // MARK: Typing a word
+
+    static let fieldHeight: CGFloat = 92
+
+    /// 「違う単語を入力」 under the card: a word in the display language or the learning language, looked up the same
+    /// way as under the photo (owner 2026-10-15).
+    private var typeField: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("違う単語を入力"))
+                .scaledFont(size: 12, weight: .medium)
+                .foregroundStyle(muted)
+            HStack(spacing: 8) {
+                TextField("", text: $typed, prompt: Text(L("例: \(NativeAPI.sample(.word))")).foregroundStyle(muted.opacity(0.7)))
+                    .scaledFont(size: 16)
+                    .foregroundStyle(ink)
+                    .focused($typing)
+                    .submitLabel(.search)
+                    .onSubmit(submit)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .background(Color(hex: 0xF5F8FB), in: .rect(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.primary.opacity(typing ? 0.6 : 0.25), lineWidth: 1))
+                    .accessibilityIdentifier("variant.field")
+                Button(action: submit) {
+                    HStack(spacing: 6) {
+                        if searching { ProgressView().controlSize(.small) } else { Image(systemName: "magnifyingglass") }
+                        Text(L("検索"))
+                    }
+                    .scaledFont(size: 15, weight: .medium)
+                    .foregroundStyle(ink)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    .background(Color(hex: 0xEEF1F5), in: .rect(cornerRadius: 12))
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty || searching)
+                .accessibilityIdentifier("variant.submit")
+            }
+        }
+        .padding(12)
+        .background(Color.white, in: .rect(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(line, lineWidth: 1))
+        .shadow(color: .rgba(15, 40, 80, 0.08), radius: 14, y: 4)
+    }
+
+    private func submit() {
+        let q = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty, !searching else { return }
+        typing = false
+        typed = ""
+        onSearch?(q)
     }
 }

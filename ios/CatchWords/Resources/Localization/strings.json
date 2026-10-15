@@ -1341,7 +1341,7 @@
  },
  "元の写真": {
   "en": "Original photo",
-  "zh-TW": "原本的照片"
+  "zh-TW": "原始照片"
  },
  "元の写真を見る": {
   "en": "See the original photo",
@@ -4626,5 +4626,25 @@
  "また会えた！": {
   "en": "Together again!",
   "zh-TW": "又見面了！"
+ },
+ "一般的な言い方": {
+  "en": "Common",
+  "zh-TW": "常用說法"
+ },
+ "口語": {
+  "en": "Casual",
+  "zh-TW": "口語"
+ },
+ "より詳しい言い方": {
+  "en": "More specific",
+  "zh-TW": "更精確的說法"
+ },
+ "学術的な言い方": {
+  "en": "Technical",
+  "zh-TW": "學術說法"
+ },
+ "覚える単語を選ぶ": {
+  "en": "Choose the word to learn",
+  "zh-TW": "選擇要學的單字"
  }
 }

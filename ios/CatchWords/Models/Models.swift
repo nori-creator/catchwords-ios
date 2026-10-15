@@ -545,7 +545,8 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
     let alternatives: [String]
     /// Web `suggestWords` / `suggestWordCandidates`: how this name differs from the others (≤15 chars).
     var distinction: String = ""
-    /// common / casual / specific / proper — "ほかの言い方" chips (candidate-order.ts).
+    /// What kind of name it is: common / colloquial / specific / academic / proper (server candidate-register.ts,
+    /// 2026-10-15). Older answers sent casual, or a typed word's style (spoken / written …): `NameRegister.normalize`.
     var register: String?
     /// Which object in the photo; other names of the same object share it.
     var group: Int?
@@ -622,6 +623,73 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         group = try? c.decode(Int.self, forKey: .group)
         categoryKey = try? c.decode(String.self, forKey: .categoryKey)
     }
+
+    /// The same name with another register (`NameRegister.finalized`).
+    func with(register r: NameRegister) -> Candidate {
+        var copy = self
+        copy.register = r.rawValue
+        return copy
+    }
+}
+
+/// What kind of name a candidate is (server candidate-register.ts, owner 2026-10-15: 「写真のタグは台湾の人がふだん
+/// いちばんよく使う言い方」「候補は一般的な言い方を上に、口語・より詳しい言い方・学術的な言い方・固有名詞の順で下へ」
+/// 「どの候補にも必ず印を付ける」). The cases are in list order: the everyday name at the top.
+nonisolated enum NameRegister: String, CaseIterable, Sendable {
+    case common, colloquial, specific, academic, proper
+
+    var rank: Int { NameRegister.allCases.firstIndex(of: self) ?? 0 }
+
+    /// The label on every candidate row (the owner's words).
+    var label: String {
+        switch self {
+        case .common: L("一般的な言い方")
+        case .colloquial: L("口語")
+        case .specific: L("より詳しい言い方")
+        case .academic: L("学術的な言い方")
+        case .proper: L("固有名詞")
+        }
+    }
+
+    /// The server's register read leniently (normalizeNameRegister): the five values, and the older ones — a photo's
+    /// `casual`, a typed word's style (`spoken` → colloquial, `technical` → academic, `written` / `both` / `signage` →
+    /// common). nil = unreadable or missing (`finalized` fills it in).
+    static func normalize(_ raw: String?) -> NameRegister? {
+        let v = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !v.isEmpty else { return nil }
+        if let exact = NameRegister(rawValue: v) { return exact }
+        func starts(_ prefixes: [String]) -> Bool { prefixes.contains { v.hasPrefix($0) } }
+        if starts(["casual", "informal", "spoken", "slang", "colloq"]) { return .colloquial }
+        if starts(["technical", "scientific", "specialist", "professional", "jargon"]) { return .academic }
+        if starts(["brand", "trademark", "name of"]) { return .proper }
+        if starts(["detailed", "narrow", "precise", "formal name"]) { return .specific }
+        if starts(["general", "standard", "neutral", "everyday", "both", "signage", "written"]) { return .common }
+        return nil
+    }
+
+    /// One thing's names (or a typed word's list) with a register on every one, in list order (finalizeNameRegisters):
+    /// a missing register is common for the first name and specific for the others (another name of the same thing is
+    /// usually a narrower one); then common → colloquial → specific → academic → proper, the server's order kept within
+    /// one register. The first name is always an everyday one: with no common name, the first that is not a proper noun
+    /// moves to the top as the common name (the photo's tag is never a detailed name or a brand). Only a list of proper
+    /// nouns stays as it is.
+    static func finalized(_ words: [Candidate]) -> [Candidate] {
+        let filled = words.enumerated().map { i, c in
+            c.with(register: normalize(c.register) ?? (i == 0 ? .common : .specific))
+        }
+        var sorted = filled.indices.sorted { a, b in
+            let ra = of(filled[a]).rank, rb = of(filled[b]).rank
+            return ra != rb ? ra < rb : a < b
+        }.map { filled[$0] }
+        if let first = sorted.first, of(first) != .common, let k = sorted.firstIndex(where: { of($0) != .proper }) {
+            let promoted = sorted.remove(at: k)
+            sorted.insert(promoted.with(register: .common), at: 0)
+        }
+        return sorted
+    }
+
+    /// A candidate's register, read leniently (common when unreadable).
+    static func of(_ c: Candidate) -> NameRegister { normalize(c.register) ?? .common }
 }
 
 /// AI-generated card content for a picked candidate. The card's `level` (the word's exam level) is not read:

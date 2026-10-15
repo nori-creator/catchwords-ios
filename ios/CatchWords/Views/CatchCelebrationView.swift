@@ -267,10 +267,8 @@ struct CatchCelebrationView: View {
 
     /// A register chip only for the other ways of saying it (the everyday word has none, as in the film).
     private static func registerChip(_ register: String?) -> String? {
-        switch register {
-        case "casual", "specific", "proper": CandidatePickerView.registerLabel(register, first: false)
-        default: nil
-        }
+        guard let r = NameRegister.normalize(register), r != .common else { return nil }
+        return r.label
     }
 
     /// The card's meaning once it arrives (reader language, scrubbed), else the candidate's. A re-encounter: the

@@ -1107,15 +1107,24 @@ final class DexStore {
         let head = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !head.isEmpty, head.count <= 60 else { throw APIError.message(L("単語を入れてください。")) }
         if sticker.word?.headword == head { return }
+        // Never a headword in another language (kana or English in a Mandarin word): stopped here before the server.
+        guard LanguageRules.headwordSaveable(head, target: NativeAPI.targetLanguage) else {
+            throw APIError.message(Self.notTargetHeadword)
+        }
         do {
             // The server checks the language, reuses or creates the word row (its contents are
             // filled in afterwards by the detail page's auto-fill, as on the web).
             _ = try await NativeAPI.call("setStickerHeadword", ["sticker_id": sticker.id, "headword": head])
         } catch let APIError.server(_, message) where message.contains("NOT_TARGET_LANGUAGE") {
-            throw APIError.message(NativeAPI.targetLanguage == "en" ? L("英語の単語を入れてください。")
-                : NativeAPI.targetLanguage == "ja" ? L("日本語の単語を入れてください。") : L("繁体字（台湾華語）の単語を入れてください。"))
+            throw APIError.message(Self.notTargetHeadword)
         }
         await reload(stickerId: sticker.id)
+    }
+
+    /// The headword was not in the learning language: what to type instead.
+    static var notTargetHeadword: String {
+        NativeAPI.targetLanguage == "en" ? L("英語の単語を入れてください。")
+            : NativeAPI.targetLanguage == "ja" ? L("日本語の単語を入れてください。") : L("繁体字（台湾華語）の単語を入れてください。")
     }
 
     /// Dictionary error report → `entry_reports` (reports.functions.ts). Lands in the admin review queue.

@@ -225,6 +225,72 @@ nonisolated enum LanguageRules {
         }
     }
 
+    // MARK: R21 — a headword about to be saved
+
+    /// Whether `raw` may be SAVED as a headword of `target` (owner 2026-10-15: 「表示言語で入力しても、単語の見出しに表示
+    /// 言語を絶対に含めない」 — ボクサーパンツ typed by a Japanese reader came back as the headword of a Mandarin word).
+    /// Stricter than `headwordOk`, which drops bracketed notes first: here nothing is dropped, so 「四角褲（ボクサー）」
+    /// is refused too.
+    /// - zh-TW: Han only (digits allowed), no kana and no Latin, Cyrillic or Hangul letters — except 1–3 capital
+    ///   letters stuck to a Han character, which Taiwan writes as part of the word (T恤, 卡拉OK; the server's
+    ///   target-profile.ts headwordOk does the same).
+    /// - en: Latin letters (digits, & and accents allowed), no CJK.
+    /// - ja: kana / kanji (1–2 capitals before katakana are fine: Tシャツ), no other Latin.
+    static func headwordSaveable(_ raw: String, target: String) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        switch target {
+        case "en":
+            let s = saveCore(trimmed)
+            guard !s.isEmpty, counts(s).cjk == 0 else { return false }
+            let ok = s.unicodeScalars.allSatisfy { isLatin($0.value) || ("0"..."9").contains(Character($0)) || $0 == "&" }
+            return ok && s.unicodeScalars.contains { isLatin($0.value) }
+        case "ja":
+            var s = saveCore(trimmed)
+            s = s.replacingOccurrences(of: "^[A-ZＡ-Ｚ]{1,2}(?=[ァ-ヺー])", with: "", options: .regularExpression)  // l10n-ignore (pattern)
+            guard !s.isEmpty else { return false }
+            let jaOnly = s.unicodeScalars.allSatisfy {
+                isKana($0.value) || isHan($0.value) || [0x30FC, 0x3005, 0x3006, 0x3007].contains($0.value) || ("0"..."9").contains(Character($0))
+            }
+            let real = s.unicodeScalars.contains { (isKana($0.value) && $0.value != 0x30FC) || isHan($0.value) }
+            return jaOnly && real
+        default:
+            let s = saveCore(droppingHanLatinAffixes(trimmed))
+            guard !s.isEmpty else { return false }
+            for u in s.unicodeScalars {
+                let v = u.value
+                if isKana(v) || isLatin(v) || isHangul(v) || (0x0400...0x04FF).contains(v) { return false }
+            }
+            return s.unicodeScalars.contains { isHan($0.value) || $0.value == 0x3007 }
+        }
+    }
+
+    /// target-profile.ts headwordCore: the headword without spaces and punctuation (brackets go, what is inside stays).
+    static func saveCore(_ text: String) -> String {
+        let drop = Set("，、。．・…！？!?,.:;：；「」『』（）()【】〔〕[]{}\"'‘’“”—–-~〜·")
+        return String(text.filter { !$0.isWhitespace && !drop.contains($0) })
+    }
+
+    /// target-profile.ts dropHanLatinAffixes: 1–3 capital letters stuck straight onto a Han character (the T of T恤,
+    /// the OK of 卡拉OK) are part of a Mandarin word; any other Latin run stays (and is refused).
+    static func droppingHanLatinAffixes(_ raw: String) -> String {
+        let chars = Array(raw)
+        var out = ""
+        var i = 0
+        func han(_ c: Character?) -> Bool { c.map { $0.unicodeScalars.contains { isHan($0.value) || $0.value == 0x3007 } } ?? false }
+        while i < chars.count {
+            guard chars[i].isASCII, chars[i].isLetter else { out.append(chars[i]); i += 1; continue }
+            var j = i
+            while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
+            let run = chars[i..<j]
+            let capitals = run.count <= 3 && run.allSatisfy { $0.isUppercase }
+            let touchesHan = han(i > 0 ? chars[i - 1] : nil) || han(j < chars.count ? chars[j] : nil)
+            if !(capitals && touchesHan) { out.append(contentsOf: run) }
+            i = j
+        }
+        return out
+    }
+
     /// web resolveWordLanguage: keep the stored language when the headword fits it; otherwise move
     /// the word to the one other language it fits (never into Japanese — kana in a Mandarin row is a
     /// slip of the learner's own language, and Han-only words fit both). An empty language is Mandarin.
