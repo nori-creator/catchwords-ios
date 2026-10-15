@@ -417,6 +417,12 @@ private struct PickerPreview: View {
                     }
                     vm.objects = CatchObject.build(candidates: vm.candidates, masks: nil, photoSize: PreviewFixtures.deskSize)
                     if let note = CatchObject.placementNote(vm.objects) { DevLog.shared.add("tags", note) }
+                    // As the camera flow brings the tags up on the simulator (no Vision outlines): the catch scan
+                    // reveals each one where it sits.
+                    let session = CatchScanSession()
+                    session.setOutlines([], at: Date())
+                    session.setNames(vm.objects, at: Date())
+                    vm.scan = session
                     vm.step = .select
                     return
                 }
@@ -784,6 +790,12 @@ private struct DetailPreview: View {
                     ["parts": [["text": "蘑菇", "pos": "N"], ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[0]],
                     ["parts": [["text": "黑胡椒", "pos": "N"], ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[1]],
                     ["parts": [["text": "點", "pos": "V"], ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[2]],
+                    // Every kind of block, so the legend under the chunks shows all five (owner 2026-10-15: the English
+                    // legend wrapped inside its labels).
+                    ["parts": [["text": "在", "pos": "P"], ["text": "早餐店", "pos": "N"], ["text": "點", "pos": "V"], ["text": "鐵板麵", "pos": "N"]],
+                     "ja": L10n.lang == "en" ? "order teppan noodles at a breakfast shop" : L10n.lang == "zh-TW" ? "在早餐店點鐵板麵" : "朝ごはんの店で鉄板焼きそばを注文する"],
+                    ["parts": [["text": "鐵板麵", "pos": "N"], ["text": "很", "pos": "Adv"], ["text": "香", "pos": "Vs"]],
+                     "ja": L10n.lang == "en" ? "teppan noodles smell great" : L10n.lang == "zh-TW" ? "鐵板麵很香" : "鉄板焼きそばはいい香り"],
                 ],
                 "measure_words": [["word": "份", "zhuyin": "ㄈㄣˋ", "note": n.measure]],
                 "related_words": [
@@ -1527,12 +1539,33 @@ private struct AdminReportsPreview: View {
     }
 }
 
-/// The Collection map of the demo's day (`-uiPreview map`): the timeline panel at its low height over the map.
+/// The Collection map of one day in Taipei (`-uiPreview map`): the timeline panel at its low height over the map —
+/// one row's picture and time show, the map stays readable (owner 2026-10-15).
 private struct MapPreview: View {
-    @Environment(DexStore.self) private var dex
+    private static func word(_ head: String, _ meaning: String) -> Word? {
+        let obj: [String: Any] = ["id": "w-\(head)", "headword": head, "language": "zh-TW", "meaning_ja": meaning]
+        return (try? JSONSerialization.data(withJSONObject: obj)).flatMap { try? JSONDecoder().decode(Word.self, from: $0) }
+    }
+
+    private static var stickers: [Sticker] {
+        let day = Calendar.current.startOfDay(for: Date())
+        let rows: [(String, String, Double, Double, Double, String)] = [
+            ("珍珠奶茶", "タピオカミルクティー", 9.5, 25.0339, 121.5645, "信義區"),
+            ("便當", "弁当", 12.25, 25.0478, 121.5170, "台北車站"),
+            ("芒果冰", "マンゴーかき氷", 15.0, 25.0418, 121.5440, "大安區"),
+            ("雞排", "フライドチキン", 19.5, 25.0880, 121.5240, "士林夜市"),
+        ]
+        return rows.enumerated().map { i, r in
+            var s = Sticker(id: "map-\(i)", wordId: "w-\(r.0)", objectImageUrl: nil, cutoutImageUrl: nil, selfieImageUrl: nil,
+                            caption: nil, locationName: r.5, takenAt: day.addingTimeInterval(r.2 * 3600), captureType: "photo",
+                            word: word(r.0, r.1))
+            s.lat = r.3
+            s.lng = r.4
+            return s
+        }
+    }
 
     var body: some View {
-        DexMapView(stickers: dex.stickers) { _ in }
-            .task { await dex.load() }
+        DexMapView(stickers: Self.stickers) { _ in }
     }
 }

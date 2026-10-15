@@ -361,11 +361,12 @@ struct CapsuleTabBar: View {
                 }
             }
             .frame(width: width, height: Self.height)
+            // The hairline is part of the background, under the items: variant B's raised disc is never crossed by it.
             .background {
                 Capsule().fill(.thinMaterial)
                     .overlay(Capsule().fill(Theme.card.opacity(onCamera ? 0.7 : 0.45)))
+                    .overlay(Capsule().stroke(Theme.border.opacity(0.9), lineWidth: 0.5))
             }
-            .overlay(Capsule().stroke(Theme.border.opacity(0.9), lineWidth: 0.5))
             .shadow(color: .black.opacity(onCamera ? 0.3 : 0.1), radius: 16, y: 6)
             .frame(maxWidth: .infinity)
         }
