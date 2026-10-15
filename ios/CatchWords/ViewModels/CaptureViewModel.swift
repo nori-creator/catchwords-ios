@@ -20,8 +20,14 @@ final class CaptureViewModel {
     var photo: UIImage?
     var selfie: UIImage?
     var candidates: [Candidate] = []
-    /// Words typed under the photo ("違う単語を入力") when the lookup found several: shown beside the photo's tags.
+    /// The words found for what was typed ("違う単語を入力"), the everyday one first: the choose screen lists them
+    /// (覚える単語を選ぶ), and they stay listed under the photo when it is closed.
     var typedCandidates: [Candidate] = []
+    /// What was typed for `typedCandidates` (the choose screen's line under its title).
+    var typedQuery: String = ""
+    /// Goes up each time a lookup brings words: the photo screen opens the choose screen on them (never straight on to
+    /// the catch, owner 2026-10-15 — 犬 typed in Japanese must never add 犬 as a Mandarin word without a choice).
+    var typedRound: Int = 0
     /// The thing the word was typed for (typed on its choose screen): its cut-out is the sticker. nil = typed under the
     /// photo (the photo's main subject is lifted).
     var searchObject: CatchObject?
@@ -244,10 +250,12 @@ final class CaptureViewModel {
 
     /// "違う単語を入力" under the photo or on a thing's choose screen (`suggestWordCandidates`, any language — the
     /// display language or the learning language): the photo stays the sticker (`object`: the thing it was typed for,
-    /// whose cut-out is used) and the screen stays put. One result goes straight on; several are listed beside the
-    /// photo's words, each with what kind of name it is, the everyday one first; a miss is shown inline, never as a
-    /// full-screen failure. A word whose headword is not written in the learning language alone (ボクサーパンツ typed in
-    /// Japanese must never become a Mandarin headword, `LanguageRules.headwordSaveable`) is never offered.
+    /// whose cut-out is used) and the screen stays put. Whatever was found — one word or several — opens the choose
+    /// screen (覚える単語を選ぶ, owner 2026-10-15: a typed word went straight to the catch, so 犬 typed in Japanese became
+    /// the Mandarin word 犬): each word with what kind of name it is, the everyday one first, and the learner picks; then
+    /// the GET moment as for a tag. A miss is shown inline, never as a full-screen failure. A word whose headword is not
+    /// written in the learning language alone (ボクサーパンツ typed in Japanese must never become a Mandarin headword,
+    /// `LanguageRules.headwordSaveable`) is never offered.
     func search(text: String, object: CatchObject? = nil) {
         runToken += 1
         let token = runToken
@@ -263,11 +271,9 @@ final class CaptureViewModel {
                 guard token == runToken else { return }
                 let found = NameRegister.finalized(Self.saveable(raw))
                 guard !found.isEmpty else { throw APIError.message(Self.notTargetWordFound) }
-                if found.count == 1 {
-                    choose(found[0], object: object, typed: true)
-                } else {
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { typedCandidates = found }
-                }
+                typedQuery = text
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { typedCandidates = found }
+                typedRound += 1
             } catch {
                 guard token == runToken else { return }
                 Haptics.warning()
@@ -547,8 +553,8 @@ final class CaptureViewModel {
     /// (`DexStore.fillCard`). Nothing here is a made-up value: the empty fields are filled only from the real card.
     func provisionalDetails() -> CardDetails? {
         guard let picked else { return nil }
-        // The headword's rule first (CategoryRules): a typed word comes with no category, and the photo's quick
-        // answer can be the wrong one.
+        // The category the picked word came with (`category_key`: a photo's, and a typed word's since server #185),
+        // after the headword's rule (CategoryRules, the same as the saved entry's shelf): the quick answer can be wrong.
         let category = CategoryRules.normalize(headword: picked.headword, key: picked.categoryKey)
         return CardDetails(categoryKey: category, exampleSentence: "", exampleTranslation: "", extras: WordExtras())
     }

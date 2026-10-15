@@ -48,6 +48,8 @@ final class ReadingAndCategoryTests: XCTestCase {
             ("健康餐", "food"), ("健康便當", "food"), ("光雕投影", "street"),
             ("麥芽牛乳", "drink"), ("優酪乳", "drink"), ("巧克力牛奶", "drink"), ("拿鐵", "drink"), ("鮮乳", "drink"),
             ("桃花", "flower"), ("插座", "home"), ("抹布", "tool"), ("燒仙草", "dessert"),
+            // 2026-10-15: a bouquet caught before its card came sat in その他.
+            ("花束", "flower"), ("花籃", "flower"), ("捧花", "flower"), ("花圈", "flower"),
         ]
         for (headword, key) in cases {
             XCTAssertEqual(CategoryRules.rule(for: headword), key, headword)

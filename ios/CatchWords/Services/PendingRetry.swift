@@ -13,6 +13,9 @@ import UserNotifications
 ///   and shows its reason, like the manual retry. Tapping the photo retries it by hand at any time.
 /// - After a successful analysis the photo stays in the queue (the catch is made when the learner picks the
 ///   word); a local notification says so — only when notifications are already allowed, never asked here.
+/// - A catch whose save failed (「保存待ち」, `PendingCatch.save`) is not analyzed again: its word is saved again as it
+///   is (`DexStore.retryUnsaved`, with the same `client_catch_id`), on the same triggers and spacing; no connection
+///   is not counted as a try.
 final class PendingRetry {
     static let shared = PendingRetry()
     static let maxAttempts = 5
@@ -52,6 +55,9 @@ final class PendingRetry {
     private var cameras: [WeakCamera] = []
 
     private struct WeakCamera { weak var vm: CaptureViewModel? }
+
+    /// The dex that saves 「保存待ち」 catches again (set at sign-in, RootView).
+    weak var dex: DexStore?
 
     // MARK: - Triggers
 
@@ -154,14 +160,21 @@ final class PendingRetry {
 
     private func pass() async {
         loadRecords()
-        if let until = pausedUntil, until > Date() { return }
         guard online != false, let owner = SupabaseClient.shared.userId else { return }
-        // No consent to send photos to AI: nothing is tried (agreeing kicks a new pass).
-        guard AIConsent.shared.allowsSending() else { return }
+        let paused = (pausedUntil ?? .distantPast) > Date()
+        // No consent to send photos to AI: no photo is analyzed (agreeing kicks a new pass). Saving a word already
+        // chosen sends nothing to AI and goes on.
+        let mayAnalyze = AIConsent.shared.allowsSending() && !paused
         PendingQueue.shared.reload()
         for item in PendingQueue.shared.items.reversed() {   // oldest first
             guard active, !Task.isCancelled, SupabaseClient.shared.userId == owner else { return }
             guard isDue(item.id), !isHeld(item.id) else { continue }
+            if item.isUnsaved {
+                if await attemptSave(item) == .stop { return }
+                try? await Task.sleep(for: .seconds(2))
+                continue
+            }
+            guard mayAnalyze else { continue }
             // A photo whose file is gone is left as it is (opening it by hand removes it).
             guard let image = PendingQueue.shared.image(for: item) else { continue }
             if await attempt(item.id, image: image) == .stop { return }
@@ -230,6 +243,65 @@ final class PendingRetry {
             saveRecords()
             return outcome
         }
+    }
+
+    /// A 「保存待ち」 catch: its word saved again (`DexStore.retryUnsaved`). Only for the learning language shown now (its
+    /// word then takes its place in this dex); another language's waits until that language is studied again.
+    private func attemptSave(_ item: PendingCatch) async -> Outcome {
+        guard let dex, item.save?.language == NativeAPI.targetLanguage else { return .next }
+        var r = records[item.id] ?? Record()
+        r.attempts += 1
+        r.updatedAt = Date()
+        records[item.id] = r
+        saveRecords()
+        do {
+            try await dex.retryUnsaved(pendingId: item.id)
+            dex.refreshPending()
+            return .next
+        } catch {
+            var failed = records[item.id] ?? r
+            let outcome: Outcome
+            if error is CancellationError {
+                // Being saved by hand right now: not a try.
+                failed.attempts -= 1
+                outcome = .next
+            } else {
+                switch SaveFailure.classify(error) {
+                case .offline:
+                    // No connection: not counted; the connection coming back tries again.
+                    failed.attempts -= 1
+                    failed.nextAt = nil
+                    outcome = .stop
+                case .signedOut:
+                    failed.attempts -= 1
+                    outcome = .stop
+                default:
+                    failed.nextAt = Date().addingTimeInterval(Self.backoff(after: failed.attempts))
+                    outcome = .next
+                }
+            }
+            failed.attempts = max(0, failed.attempts)
+            records[item.id] = failed
+            saveRecords()
+            return outcome
+        }
+    }
+
+    /// A catch's first save failed just now (`CaptureView.finishSave`): its first automatic retry comes a minute later
+    /// (at once when the connection comes back, if there was none), not in the same breath.
+    func noteFailedSave(_ id: String, error: Error) {
+        loadRecords()
+        var r = records[id] ?? Record()
+        if SaveFailure.classify(error) == .offline {
+            r.nextAt = nil
+        } else {
+            r.attempts += 1
+            r.nextAt = Date().addingTimeInterval(Self.backoff(after: r.attempts))
+        }
+        r.updatedAt = Date()
+        records[id] = r
+        saveRecords()
+        if runner == nil { scheduleWake() }
     }
 
     /// 1, 4, 16, 64 minutes after the 1st, 2nd, 3rd, 4th failed try.

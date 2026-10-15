@@ -48,6 +48,7 @@ final class FullTourTests: XCTestCase {
         dexAndDetail()
         photoAndCatch()
         photoAndCatch(pick: 1, expectAgain: true)
+        typedCatch()
         review()
         settings()
         signOutAndBackIn()
@@ -113,10 +114,16 @@ final class FullTourTests: XCTestCase {
     /// The GET moment (its card.catch), the same moment for a word already in the dex (its reencounter.get), or — the
     /// GET moment lasts about 3 s and then goes into the dex by itself — the mark on the square the word just landed on:
     /// the NEW badge of a new word (`dex.new`) or the re-encounter's mark (`dex.again`), shown only after a landing.
-    private func waitForCatch(_ outcomes: [XCUIElement], timeout: TimeInterval) -> Bool {
+    /// Returns the first of `outcomes` seen (nil: none within `timeout`). What was seen is returned, never looked up
+    /// again: the GET moment can go between two looks, a moment before the landing's mark comes (2026-10-15, en/ja: the
+    /// re-encounter's GET moment was seen, gone at the second look, and the tour failed with the word landing fine).
+    private func waitForCatch(_ outcomes: [XCUIElement], timeout: TimeInterval) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
-        while !outcomes.contains(where: { $0.exists }) && Date() < deadline { settle(0.5) }
-        return outcomes.contains { $0.exists }
+        while true {
+            if let seen = outcomes.first(where: { $0.exists }) { return seen }
+            guard Date() < deadline else { return nil }
+            settle(0.5)
+        }
     }
 
     /// UTC wall-clock time, matching the app's trace (uitest-trace.txt).
@@ -163,11 +170,12 @@ final class FullTourTests: XCTestCase {
         first.tap()
         // A thing with several ways to say it lists them first (outside the first tour): take the everyday one once
         // the choose screen's card has come in (film v6: the rows land 0.6–1.0 s after the tap).
+        // A thing with one way to say it opens the card too (2026-10-15), with that one row.
         let everyday = app.buttons["variant.0"]
         if everyday.waitForExistence(timeout: 3) {
             settle(1.2)
             snap(p + "variants")
-            checkChooseScreen()
+            checkChooseScreen(several: app.buttons["variant.1"].exists)
             everyday.tap()
         }
         let catchButton = app.buttons["card.catch"]
@@ -176,7 +184,8 @@ final class FullTourTests: XCTestCase {
         let landed = app.descendants(matching: .any)["dex.new"]
         let landedAgain = app.descendants(matching: .any)["dex.again"]
         let outcomes = [catchButton, again, landed, landedAgain]
-        if !waitForCatch(outcomes, timeout: 20) {
+        var seen = waitForCatch(outcomes, timeout: 20)
+        if seen == nil {
             // The buttons the screen holds now and where (identifier @ centre), so the failure explains itself.
             let buttons = app.buttons.allElementsBoundByIndex.prefix(12).map { b in
                 "\(b.identifier.isEmpty ? b.label : b.identifier)@\(Int(b.frame.midX)),\(Int(b.frame.midY))"
@@ -187,17 +196,21 @@ final class FullTourTests: XCTestCase {
             // (where each touch landed, which gestures took it) is trace.txt next to the screenshots.
             let retappedAt = Self.clock.string(from: Date())
             let second = first.exists && first.isHittable
-            if second { first.tap() }
-            let secondOpened = second && waitForCatch(outcomes, timeout: 20)
+            if second {
+                first.tap()
+                seen = waitForCatch(outcomes, timeout: 20)
+            }
+            let secondOpened = seen != nil
             let outcome = secondOpened ? "opened it" : (second ? "did not open it either" : "was not possible")
             let now = buttons.joined(separator: " ")
             XCTFail("[\(display)/\(learning)] the celebration did not open after tapping a word at \(tappedAt) UTC " +
                     "(\(aimed); now: \(now); a second tap at \(retappedAt) UTC \(outcome))")
             guard secondOpened else { return }
         }
-        if again.exists || (landedAgain.exists && !catchButton.exists) {
+        if seen === again || seen === landedAgain || again.exists || (landedAgain.exists && !catchButton.exists) {
             // The re-encounter's GET moment (「また会えた！」), then its sticker flies into the word's square, which is
             // already there: it gets the re-encounter's mark, never the NEW badge (the word was caught before).
+            // Its GET moment may already have gone (seen a moment ago): then only its landing is waited for.
             if again.exists {
                 settle(1)
                 snap(p + "reencounter")
@@ -233,9 +246,69 @@ final class FullTourTests: XCTestCase {
         snap(p + "dex-after-catch")
     }
 
+    /// 「違う単語を入力」 under the photo (owner 2026-10-15): what is typed never goes straight on to the catch — the words
+    /// found open the choose screen (覚える単語を選ぶ), the everyday one first with its register tag, and the learner
+    /// picks; then the GET moment and the dex as for a tag. The demo finds 鳳梨 / pineapple / パイナップル for "pineapple"
+    /// typed in any display language (a meaning in English), a word not caught yet.
+    private func typedCatch() {
+        tap("tab.camera")
+        settle(2)
+        let shutter = app.buttons["camera.shutter"]
+        guard shutter.waitForExistence(timeout: 10), shutter.isEnabled else {
+            XCTFail("[\(display)/\(learning)] the shutter is missing or disabled (typed search)")
+            return
+        }
+        shutter.tap()
+        guard app.buttons["candidate.0"].firstMatch.waitForExistence(timeout: 30) else {
+            XCTFail("[\(display)/\(learning)] the words did not appear on the photo (typed search)")
+            snap("typed-analysis-failed")
+            return
+        }
+        settle(1.5)
+        let field = app.textFields["picker.field"]
+        guard field.waitForExistence(timeout: 5) else {
+            XCTFail("[\(display)/\(learning)] no field to type a word under the photo")
+            return
+        }
+        field.tap()
+        // Return on the keyboard (the field's search key) sends it, wherever the keyboard leaves the button.
+        field.typeText("pineapple\n")
+        let everyday = app.buttons["variant.0"]
+        let catchButton = app.buttons["card.catch"]
+        let landed = app.descendants(matching: .any)["dex.new"]
+        guard everyday.waitForExistence(timeout: 15) else {
+            let wentOn = catchButton.exists || landed.exists
+            snap("typed-no-picker")
+            XCTFail("[\(display)/\(learning)] the typed word " + (wentOn ? "went straight on to the catch" : "showed no choose screen"))
+            return
+        }
+        settle(1.2)
+        snap("typed-picker")
+        // Never straight on: no GET moment before the choice, and the everyday name carries its register tag.
+        XCTAssertFalse(catchButton.exists, "[\(display)/\(learning)] the GET moment opened before a typed word was chosen")
+        let common = ["ja": "一般的な言い方", "en": "Common", "zh-TW": "常用說法"][display] ?? ""
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", common)).count > 0,
+                      "[\(display)/\(learning)] the typed words have no register tag (\(common))")
+        everyday.tap()
+        guard waitForCatch([catchButton, landed], timeout: 20) != nil else {
+            snap("typed-pick-failed")
+            XCTFail("[\(display)/\(learning)] choosing a typed word did not open the GET moment")
+            return
+        }
+        if catchButton.exists {
+            settle(1)
+            snap("typed-celebration")
+            if !waitGone(catchButton, timeout: 8), catchButton.exists { catchButton.tap() }
+        }
+        XCTAssertTrue(landed.waitForExistence(timeout: 15), "[\(display)/\(learning)] the typed word did not land in the dex")
+        settle(2)
+        snap("typed-dex-after-catch")
+    }
+
     /// The choose screen (owner 2026-10-15): every way to say it carries its register tag — the everyday word's
     /// 一般的な言い方 first, the demo's other name より詳しい言い方 — and a word can be typed under the card.
-    private func checkChooseScreen() {
+    /// `several`: the card lists more than one way to say it (the demo's scooter: 機車 and 速克達).
+    private func checkChooseScreen(several: Bool) {
         let labels: [String: (common: String, specific: String)] = [
             "ja": ("一般的な言い方", "より詳しい言い方"), "en": ("Common", "More specific"), "zh-TW": ("常用說法", "更精確的說法"),
         ]
@@ -244,7 +317,9 @@ final class FullTourTests: XCTestCase {
             app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).count > 0
         }
         XCTAssertTrue(shown(want.common), "[\(display)/\(learning)] the everyday name has no register tag (\(want.common))")
-        XCTAssertTrue(shown(want.specific), "[\(display)/\(learning)] the other name has no register tag (\(want.specific))")
+        if several {
+            XCTAssertTrue(shown(want.specific), "[\(display)/\(learning)] the other name has no register tag (\(want.specific))")
+        }
         XCTAssertTrue(app.textFields["variant.field"].exists, "[\(display)/\(learning)] no field to type a word on the choose screen")
     }
 
@@ -339,11 +414,23 @@ final class FullTourTests: XCTestCase {
 
     private func tap(_ id: String) {
         let e = app.buttons[id]
-        if e.waitForExistence(timeout: 10) {
-            e.tap()
-        } else {
+        guard e.waitForExistence(timeout: 10) else {
             XCTFail("[\(display)/\(learning)] \(id) not found")
+            return
         }
+        // A tab under something else is never tapped blind (2026-10-15, ja/en: the tab bar was in the tree but out of
+        // sight after a catch, the taps went to the dex page and the tour failed later at settings): wait for it to come
+        // up, and say so when it does not.
+        if id.hasPrefix("tab.") {
+            let deadline = Date().addingTimeInterval(10)
+            while !e.isHittable && Date() < deadline { settle(0.5) }
+            guard e.isHittable else {
+                snap("covered-" + id)
+                XCTFail("[\(display)/\(learning)] \(id) is there but cannot be tapped (something covers it)")
+                return
+            }
+        }
+        e.tap()
     }
 
     private func fill(_ id: String, _ text: String) {

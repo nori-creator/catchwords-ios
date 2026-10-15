@@ -437,11 +437,16 @@ nonisolated extension DemoDatabase {
                 explanations[wordId] = byLang
             }
         }
+        // The catch's own id (`client_catch_id`, as the server): a save tried again gets the sticker already made for it.
+        let catchId = DJ.str(data["client_catch_id"])
+        if let catchId, let made = rows("stickers").first(where: { DJ.str($0["id"]) == catchId }) {
+            return .json(["result": ["id": catchId, "word_id": DJ.str(made["word_id"]) ?? wordId]])
+        }
         // One sticker per word (the server's duplicate guard).
         if let owned = rows("stickers").first(where: { DJ.str($0["word_id"]) == wordId }), let sid = DJ.str(owned["id"]) {
             return .json(["result": ["id": sid]])
         }
-        let sid = "demo-sticker-" + String(DJ.uuid().prefix(8))
+        let sid = catchId ?? ("demo-sticker-" + String(DJ.uuid().prefix(8)))
         let objectPath = DJ.str(data["object_path"])
         let caption = (DJ.str(data["caption"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         var s: [String: Any] = [:]
@@ -649,7 +654,10 @@ nonisolated extension DemoDatabase {
 
     private func gradeReview(_ data: [String: Any]) -> DemoResponse {
         let rid = DJ.str(data["review_id"]) ?? ""
-        guard let review = first("reviews", id: rid) else { return notFound() }
+        // The server (2026-10-15): a review row that no longer exists (its word was deleted mid-round) is no error.
+        guard let review = first("reviews", id: rid) else {
+            return .json(["result": ["gone": true, "score": NSNull(), "interval_days": NSNull()] as [String: Any]])
+        }
         let correct = DJ.bool(data["correct"]) ?? false
         var ease = DJ.num(review["ease"]) ?? 2.5
         var interval = DJ.int(review["interval_days"]) ?? 0

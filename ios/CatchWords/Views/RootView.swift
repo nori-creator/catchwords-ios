@@ -78,6 +78,8 @@ struct RootView: View {
                         if NativeAPI.targetLanguage != guessed { await dex.load() }
                         // Photos left in 「解析待ち」 are analyzed again on their own (in this account's
                         // learning language, now known); also when the connection comes back.
+                        // 「保存待ち」 words (a save that failed) are saved again by the same runner.
+                        PendingRetry.shared.dex = dex
                         PendingRetry.shared.start()
                         await plan.bootstrap()
                         await ReminderService.loadFromAccount()

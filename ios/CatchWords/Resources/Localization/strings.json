@@ -4666,5 +4666,121 @@
  "日本語の単語が見つかりませんでした。別の言葉で試してください": {
   "en": "No Japanese word was found. Try a different word.",
   "zh-TW": "找不到日文單字。請換個詞試試。"
+ },
+ "サーバーとの通信が途中で切れました（{1}）。": {
+  "en": "The connection to the server dropped ({1}).",
+  "zh-TW": "與伺服器的連線中斷了（{1}）。"
+ },
+ "サーバーとの通信が途中で切れました。": {
+  "en": "The connection to the server dropped.",
+  "zh-TW": "與伺服器的連線中斷了。"
+ },
+ "サーバーの応答が時間切れになりました。": {
+  "en": "The server took too long to answer.",
+  "zh-TW": "伺服器回應逾時。"
+ },
+ "サーバーで問題が起きました（{1}）。": {
+  "en": "Something went wrong on the server ({1}).",
+  "zh-TW": "伺服器發生問題（{1}）。"
+ },
+ "サーバーが保存を受け付けませんでした（{1}）。": {
+  "en": "The server didn't accept the save ({1}).",
+  "zh-TW": "伺服器沒有接受這次儲存（{1}）。"
+ },
+ "サーバーが保存を受け付けませんでした。": {
+  "en": "The server didn't accept the save.",
+  "zh-TW": "伺服器沒有接受這次儲存。"
+ },
+ "サーバーの返事を読み取れませんでした。": {
+  "en": "Couldn't read the server's answer.",
+  "zh-TW": "無法讀取伺服器的回應。"
+ },
+ "保存できませんでした。": {
+  "en": "Couldn't save.",
+  "zh-TW": "無法儲存。"
+ },
+ "写真を送れませんでした：{1}": {
+  "en": "Couldn't send the photo: {1}",
+  "zh-TW": "無法傳送照片：{1}"
+ },
+ "記録はまだありません": {
+  "en": "Nothing logged yet",
+  "zh-TW": "尚無紀錄"
+ },
+ "コピーしました": {
+  "en": "Copied",
+  "zh-TW": "已複製"
+ },
+ "記録をコピー": {
+  "en": "Copy the log",
+  "zh-TW": "複製紀錄"
+ },
+ "記録を消す": {
+  "en": "Clear the log",
+  "zh-TW": "清除紀錄"
+ },
+ "最近の記録": {
+  "en": "Recent log",
+  "zh-TW": "最近的紀錄"
+ },
+ "保存の失敗などの本当の理由です。開発者だけが見られます。": {
+  "en": "The real reasons behind failed saves and other problems. Only developers can see this.",
+  "zh-TW": "儲存失敗等問題的真正原因。只有開發者看得到。"
+ },
+ "「{1}」で見つかった言葉": {
+  "en": "Words found for “{1}”",
+  "zh-TW": "用「{1}」找到的詞"
+ },
+ "図鑑に保存しました": {
+  "en": "Saved to your collection",
+  "zh-TW": "已儲存到圖鑑"
+ },
+ "まだ保存できていません：{1}": {
+  "en": "Not saved yet: {1}",
+  "zh-TW": "尚未儲存：{1}"
+ },
+ "まだ保存できていません：{1}\n図鑑に「保存待ち」で残してあります。あとで自動でもう一度保存します。": {
+  "en": "Not saved yet: {1}\nIt stays in your collection as “waiting to save” and will be saved again automatically.",
+  "zh-TW": "尚未儲存：{1}\n已在圖鑑中標為「等待儲存」，稍後會自動再儲存一次。"
+ },
+ "保存待ち：{1}": {
+  "en": "Waiting to save: {1}",
+  "zh-TW": "等待儲存：{1}"
+ },
+ "保存待ち": {
+  "en": "Waiting to save",
+  "zh-TW": "等待儲存"
+ },
+ "まだ保存できていません": {
+  "en": "Not saved yet",
+  "zh-TW": "尚未儲存"
+ },
+ "この単語は図鑑に残してあります。つながると自動でもう一度保存します。": {
+  "en": "This word stays in your collection. It will be saved again automatically once you're connected.",
+  "zh-TW": "這個單字會留在圖鑑裡，連上網路後會自動再儲存一次。"
+ },
+ "もう一度保存": {
+  "en": "Save again",
+  "zh-TW": "再儲存一次"
+ },
+ "写真を送っている途中で接続が切れました（{1}）。": {
+  "en": "The connection dropped while the photo was being sent ({1}).",
+  "zh-TW": "傳送照片時連線中斷了（{1}）。"
+ },
+ "写真を送っている途中で接続が切れました。": {
+  "en": "The connection dropped while the photo was being sent.",
+  "zh-TW": "傳送照片時連線中斷了。"
+ },
+ "別のネットワークに切り替えるか、少し時間をおいてお試しください。": {
+  "en": "Try another network, or try again a little later.",
+  "zh-TW": "請換一個網路，或稍後再試。"
+ },
+ "採点を保存できませんでした。": {
+  "en": "Couldn't save your answer.",
+  "zh-TW": "無法儲存作答。"
+ },
+ "採点を保存できませんでした。\n{1}": {
+  "en": "Couldn't save your answer.\n{1}",
+  "zh-TW": "無法儲存作答。\n{1}"
  }
 }

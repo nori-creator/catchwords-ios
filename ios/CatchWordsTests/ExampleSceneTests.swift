@@ -44,22 +44,48 @@ final class ExampleSceneTests: XCTestCase {
         XCTAssertNil(try extras(#"{"example_pattern_count":"many"}"#).examplePatternCount)
     }
 
-    /// One usage pattern: the empty 「追加の例文」 is complete, so the word page never asks the server to fill it.
+    /// Nothing ever fetches extra examples on its own (owner 2026-10-15): 「例文」 shows the examples the card came with,
+    /// whatever its pattern count. Other empty sections are still filled.
     @MainActor
-    func testOnePatternSkipsTheExamplesFill() throws {
+    func testExtraExamplesAreNeverFetchedOnTheirOwn() throws {
         let one = try extras(#"{"example_pattern_count":1,"examples_extra":[]}"#)
         XCTAssertTrue(one.examplesExtraComplete)
-        XCTAssertFalse(WordDetailView.wantsAutoFill(.examplesExtra, extras: one))
-        // Other sections are still filled, and more patterns (or an older card) still fill the examples.
+        let three = try extras(#"{"example_pattern_count":3}"#)
+        let old = try extras("{}")
+        for e in [one, three, old, nil] as [WordExtras?] {
+            XCTAssertFalse(WordDetailView.wantsAutoFill(.examplesExtra, extras: e))
+        }
+        XCTAssertTrue(DexStore.retiredSections.contains("examples_extra"))
         XCTAssertTrue(WordDetailView.wantsAutoFill(.usageChunks, extras: one))
-        // 発音のコツ and 覚え方 are off the page: never filled (owner 2026-10-15).
+        // 発音のコツ・覚え方・ネットの画像 are off the page: never filled (owner 2026-10-15).
         XCTAssertFalse(WordDetailView.wantsAutoFill(.mnemonic, extras: one))
         XCTAssertFalse(WordDetailView.wantsAutoFill(.pronunciationTips, extras: nil))
         XCTAssertFalse(WordDetailView.wantsAutoFill(.webImages, extras: nil))
-        let three = try extras(#"{"example_pattern_count":3}"#)
-        XCTAssertTrue(WordDetailView.wantsAutoFill(.examplesExtra, extras: three))
-        XCTAssertTrue(WordDetailView.wantsAutoFill(.examplesExtra, extras: try extras("{}")))
-        XCTAssertTrue(WordDetailView.wantsAutoFill(.examplesExtra, extras: nil))
+    }
+
+    /// 語源・部首 is gone from the word page (owner 2026-10-15; the server stops writing it): never a section, never
+    /// asked for, and an older card that still carries it (prose, radicals, the boxes of #183) reads as before.
+    @MainActor
+    func testEtymologyIsGoneButOldCardsStillRead() throws {
+        for lang in ["zh-TW", "en", "ja"] {
+            XCTAssertFalse(CardSection.sections(for: lang).contains(.etymology), lang)
+            XCTAssertFalse(CardSection.defaultOrder(for: lang).contains(.etymology), lang)
+        }
+        XCTAssertTrue(CardSection.etymology.isRemoved)
+        XCTAssertFalse(WordDetailView.wantsAutoFill(.etymology, extras: nil))
+        for section in ["etymology", "etymology_diagram", "radicals", "pronunciation_tips", "mnemonic"] {
+            XCTAssertTrue(DexStore.retiredSections.contains(section), section)
+        }
+        let old = try extras(#"""
+        {"etymology":"どちらの字も「日」が付きます。","radicals":"日","mnemonic":"x",
+         "etymology_diagram":{"kind":"compound","parts":[{"text":"曖","components":["日","愛"],"meaning":"日がかげる"}],
+                              "result_meaning":"はっきり見えない"},
+         "example_scene":"朝ごはんを頼むとき","example_scene_for":"我要一份鐵板麵。"}
+        """#)
+        XCTAssertEqual(old.etymology, "どちらの字も「日」が付きます。")
+        XCTAssertEqual(old.shownExampleScene(for: "我要一份鐵板麵。"), "朝ごはんを頼むとき")
+        // A saved order naming the section still reads (the case stays).
+        XCTAssertEqual(CardSection(rawValue: "etymology"), .etymology)
     }
 
     /// 「例文」 lists every usage pattern's example (owner 2026-10-15): the main one, then examples_extra, each with
@@ -83,6 +109,53 @@ final class ExampleSceneTests: XCTestCase {
         let all = ExampleItem.all(sentence: nil, translation: nil, extras: e, target: "zh-TW")
         XCTAssertEqual(all.map(\.sentence), ["鐵板麵要加蛋嗎？"])
         XCTAssertNil(all[0].scene)
+    }
+
+    /// The card as the server writes it now (2026-10-15: `example_v` 3, `example_scene` / `example_scene_for` on the main
+    /// example, `{zh, ja, scene, scene_for, chunks}` in `examples_extra`): every example shows its label (防曬乳).
+    func testProductionPayloadShowsEveryLabel() throws {
+        let e = try extras(#"""
+        {"explain_lang":"ja","example_v":3,"example_pattern_count":2,
+         "example_scene":"出かける家族に声をかけるとき","example_scene_for":"出門前記得擦防曬乳。",
+         "example_chunks":[{"parts":[{"text":"擦","pos":"V"},{"text":"防曬乳","pos":"N"}],"ja":"日焼け止めを塗る"}],
+         "examples_extra":[{"zh":"這瓶防曬乳擦起來很清爽。","ja":"この日焼け止めは塗り心地がさっぱりしている。",
+                            "scene":"ドラッグストアで使い心地を話すとき","scene_for":"這瓶防曬乳擦起來很清爽。",
+                            "chunks":[{"parts":[{"text":"擦起來","pos":"V"},{"text":"很清爽","pos":"Vs"}],"ja":"塗るとさっぱりする"}]}]}
+        """#)
+        XCTAssertEqual(e.exampleV, 3)
+        let all = ExampleItem.all(sentence: "出門前記得擦防曬乳。", translation: "出かける前に日焼け止めを塗るのを忘れないでね。",
+                                  extras: e, target: "zh-TW")
+        XCTAssertEqual(all.map(\.sentence), ["出門前記得擦防曬乳。", "這瓶防曬乳擦起來很清爽。"])
+        XCTAssertEqual(all.map(\.scene), ["出かける家族に声をかけるとき", "ドラッグストアで使い心地を話すとき"])
+        XCTAssertEqual(ExampleItem.missingLabels(sentence: "出門前記得擦防曬乳。", extras: e, target: "zh-TW"), [])
+    }
+
+    /// `scene_for` is the very sentence, spaces and full-width / half-width punctuation aside (and full-width letters).
+    func testLabelMatchIgnoresSpacesAndWidth() throws {
+        let e = try extras(#"""
+        {"example_scene":"店で","example_scene_for":"這瓶是 SPF50 的!",
+         "examples_extra":[{"zh":"你要買哪一瓶？","scene":"店員に聞かれたとき","scene_for":"你要買 哪一瓶?"}]}
+        """#)
+        let all = ExampleItem.all(sentence: "這瓶是ＳＰＦ５０的！", translation: nil, extras: e, target: "zh-TW")
+        XCTAssertEqual(all.map(\.scene), ["店で", "店員に聞かれたとき"])
+        XCTAssertEqual(WordExtras.sceneMatchKey("你要買 哪一瓶?"), WordExtras.sceneMatchKey("你要買哪一瓶？"))
+    }
+
+    /// An example without a matching label is still shown, and why goes to the developer log.
+    func testExamplesWithoutTheirLabelAreReported() throws {
+        let e = try extras(#"""
+        {"example_v":2,"example_scene":"友達が眼鏡をしていないことに気づいたとき","example_scene_for":"你今天沒戴眼鏡嗎？",
+         "examples_extra":[{"zh":"眼鏡放在桌上。","scene":"家族に聞かれたとき"},{"zh":"我的眼鏡呢？"}]}
+        """#)
+        let all = ExampleItem.all(sentence: "我戴眼鏡。", translation: nil, extras: e, target: "zh-TW")
+        XCTAssertEqual(all.count, 3)
+        XCTAssertTrue(all.allSatisfy { $0.scene == nil })
+        let lines = ExampleItem.missingLabels(sentence: "我戴眼鏡。", extras: e, target: "zh-TW")
+        XCTAssertEqual(lines.count, 3)
+        XCTAssertTrue(lines[0].contains("你今天沒戴眼鏡嗎？"))
+        XCTAssertTrue(lines[1].contains("without scene_for"))
+        XCTAssertTrue(lines[2].contains("no scene label"))
+        XCTAssertTrue(lines[0].contains("example_v 2"))
     }
 
     func testOnePatternShowsOneExample() throws {

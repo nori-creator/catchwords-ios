@@ -156,7 +156,13 @@ struct ReviewView: View {
                 // Read at launch (`preload`): shown at once; a queue read long ago is read again on its first card.
                 await store.refreshIfStale(dex: dex, limit: profile.effectiveReviewLimit)
             }
+            // A word deleted while this tab was closed: its cards leave the round.
+            store.dropDeleted(dex: dex)
             applyReviewNow()
+        }
+        // A word deleted from its page opened here: its cards leave the round.
+        .onChange(of: dex.stickers.count) { old, new in
+            if new < old { store.dropDeleted(dex: dex) }
         }
         // 「いま復習する」 on a word's page: that word becomes the next card, due or not.
         .onChange(of: router.reviewNow) { _, _ in applyReviewNow() }
@@ -280,15 +286,22 @@ struct ReviewView: View {
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { answer = correct }
                 // Saved in the background: 次へ moves on at once while this is still on its way.
                 Task {
-                    let saved = await store.grade(card, correct: correct, responseMs: ms, dex: dex)
-                    // Not saved (offline, server down): the card comes back to be answered again — on screen when
-                    // it is still the current one (never wipe the next card's answer), else at the end of the round.
-                    if !saved {
+                    switch await store.grade(card, correct: correct, responseMs: ms, dex: dex) {
+                    case .saved, .gone:
+                        // Saved; or its word was deleted meanwhile (nothing to save — the card leaves the round).
+                        break
+                    case .retry:
+                        // Not saved (offline, the connection dropped, the server failed): the card comes back to be
+                        // answered again — on screen when it is still the current one (never wipe the next card's
+                        // answer), else at the end of the round (unless its word was deleted meanwhile).
                         if store.current?.id == card.id {
                             withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { answer = nil }
-                        } else {
+                        } else if dex.sticker(id: card.sticker.id) != nil {
                             store.requeue(card)
                         }
+                        Haptics.warning()
+                    case .refused:
+                        // The server refused it (its reason is shown): sent again it would be refused again.
                         Haptics.warning()
                     }
                 }

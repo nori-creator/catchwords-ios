@@ -74,6 +74,8 @@ struct WordDetailView: View {
     /// Still being saved: no id on the server yet, so nothing here asks the server about it and the edits wait
     /// (「保存しています…」 in the top bar). A word without its word id yet waits the same way for its notes.
     private var isProvisional: Bool { DexStore.isProvisional(current.id) }
+    /// Its save failed and it waits to be saved again (「保存待ち」): kept in the dex, never removed (owner 2026-10-15).
+    private var isUnsaved: Bool { dex.isUnsaved(current.id) }
     private var word: Word? { current.word }
     private var extras: WordExtras? { word?.extras }
     private var headword: String { word?.headword ?? "" }
@@ -105,6 +107,7 @@ struct WordDetailView: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 14) {
+                    if isUnsaved { unsavedBanner }
                     if !photos.isEmpty { photoHero }
                     metaCard
                     heroCard
@@ -151,6 +154,12 @@ struct WordDetailView: View {
         // Keyed on the word id and the sticker id: a catch saved while its page is open runs these once it is saved.
         .task(id: current.wordId + "|" + L10n.lang) { await autoFill() }
         .task(id: current.id) { if !isProvisional { await dex.autoHero(current) } }
+        // An example shown without its scene label is still shown; why it has none goes to the developer log.
+        .task(id: current.id + "|" + L10n.lang + "|labels") {
+            for line in ExampleItem.missingLabels(sentence: word?.exampleSentence, extras: extras, target: learningLang) {
+                DevLog.shared.add("example", "\(headword) \(line)")
+            }
+        }
         // Every picture is cut out (owner 2026-10-11): a photo without a cut-out yet gets one now, behind the page
         // (the scissors button is gone). Never for a catch still being saved (`needsCutout`).
         .task(id: current.id + "|cutout") {
@@ -224,6 +233,14 @@ struct WordDetailView: View {
         }
         .confirmationDialog(L("この単語を図鑑から削除しますか？"), isPresented: $confirmDelete, titleVisibility: .visible) {
             Button(L("削除"), role: .destructive) {
+                // A 「保存待ち」 word was never written to the server: it is thrown away here, and the catch is not counted.
+                if let pid = dex.unsaved[current.id] {
+                    dex.discardUnsaved(pendingId: pid)
+                    dex.refreshPending()
+                    plan.undoCatch()
+                    dismiss()
+                    return
+                }
                 Task {
                     do {
                         try await dex.delete(current)
@@ -247,11 +264,16 @@ struct WordDetailView: View {
                 .foregroundStyle(Theme.muted)
             if isProvisional {
                 HStack(spacing: 5) {
-                    ProgressView().controlSize(.mini)
-                    Text(L("保存しています…"))
+                    if isUnsaved && !dex.isRetrying(current.id) {
+                        Image(systemName: "icloud.and.arrow.up")
+                        Text(L("保存待ち"))
+                    } else {
+                        ProgressView().controlSize(.mini)
+                        Text(L("保存しています…"))
+                    }
                 }
                 .scaledFont(size: 12, weight: .semibold)
-                .foregroundStyle(Theme.muted)
+                .foregroundStyle(isUnsaved ? Theme.primaryInk : Theme.muted)
                 .accessibilityElement(children: .combine)
             }
             Spacer()
@@ -927,25 +949,6 @@ struct WordDetailView: View {
     }
     private var chunks: [UsageChunk] { refinedChunks(extras?.usageChunks ?? []) }
     private var measures: [MeasureWord] { (extras?.measureWords ?? []).filter { !$0.word.isEmpty } }
-    /// Radicals only for Mandarin; English adds the words built from the same parts.
-    private var etymologyText: String { etymologyText(radicals: true) }
-
-    /// The boxes this word can draw (`EtymologyDiagram.drawable`); nil = the prose only.
-    private var etymologyDiagram: EtymologyDiagram? { extras?.etymologyDiagram?.drawable(for: headword) }
-
-    /// `radicals`: with the 「部首: …」 line (not under the boxes, which show the parts).
-    private func etymologyText(radicals: Bool) -> String {
-        switch learningLang {
-        case "zh-TW":
-            let r = radicals ? extras?.radicals.map { $0.isEmpty ? "" : L("部首: \($0)") } : nil
-            return nonEmpty([extras?.etymology, r])
-        case "en":
-            let rel = (extras?.etymologyRelatives ?? []).filter { !$0.word.isEmpty }
-                .map { $0.note.isEmpty ? $0.word : "\($0.word) — \($0.note)" }.joined(separator: "\n")
-            return nonEmpty([extras?.etymology, rel])
-        default: return nonEmpty([extras?.etymology])
-        }
-    }
     private var taiwanText: String { nonEmpty([extras?.taiwanNote, extras?.trivia, extras?.usageNote]) }
     private var forms: [(String, String)] {
         guard let f = extras?.forms else { return [] }
@@ -965,12 +968,11 @@ struct WordDetailView: View {
         switch s {
         case .meaning: !(word?.meaningJa ?? "").isEmpty
         case .example: !examples.isEmpty
-        // Gone from the word page (owner 2026-10-15, `CardSection.isRemoved`).
-        case .examplesExtra, .webImages, .pronunciationTips, .mnemonic: false
+        // Gone from the word page (owner 2026-10-15, `CardSection.isRemoved`), whatever an older card still holds.
+        case .examplesExtra, .webImages, .pronunciationTips, .mnemonic, .etymology: false
         case .usageChunks: !chunks.isEmpty
         case .measureWords: !measures.isEmpty
         case .relatedWords: !(extras?.allRelated.isEmpty ?? true) || !(extras?.synonymDiff ?? "").isEmpty
-        case .etymology: !etymologyText.isEmpty || etymologyDiagram != nil
         case .taiwanNote: learningLang == "zh-TW" && !taiwanText.isEmpty
         case .realUsage: !headword.isEmpty
         case .forms: !forms.isEmpty
@@ -1020,12 +1022,12 @@ struct WordDetailView: View {
         switch s {
         case .meaning: meaningCard
         case .example: WordExamplesCard(examples: examples, headword: headword)
-        case .examplesExtra, .webImages, .pronunciationTips, .mnemonic: EmptyView()
+        case .examplesExtra, .webImages, .pronunciationTips, .mnemonic, .etymology: EmptyView()
         case .usageChunks: chunkCard(chunks)
         case .measureWords: measureCard(measures)
         case .relatedWords: relatedCard(extras?.allRelated ?? [])
-        case .etymology: etymologyCard
-        case .taiwanNote: textCard(s.title, icon: s.icon, taiwanText)
+        // 台湾メモ: no line under its sentences (owner 2026-10-15); the other prose sections keep theirs.
+        case .taiwanNote: textCard(s.title, icon: s.icon, taiwanText, ruled: false)
         case .realUsage: realUsageCard
         case .forms: formsCard
         case .countability: countabilityCard
@@ -1111,13 +1113,8 @@ struct WordDetailView: View {
         guard !Task.isCancelled, !dex.generatingWords.contains(current.wordId) else { return }
         // Writing the missing sections uses the AI: not without the consent (they stay empty, never "filling").
         guard AIConsent.shared.isGranted else { return }
-        var missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
-        // 「例文」 shows every usage pattern's example: the other patterns' examples are written when they are missing,
-        // never for a word used in one situation only (`example_pattern_count` 1).
-        if visibleSections.contains(.example), hasContent(.example), (extras?.examplesExtra ?? []).isEmpty,
-           Self.wantsAutoFill(.examplesExtra, extras: extras) {
-            missing.append(.examplesExtra)
-        }
+        // 「例文」 shows the examples the card came with (the main one and `examples_extra`); more are never fetched here.
+        let missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
         guard !missing.isEmpty else { return }
         let wordId = current.wordId
         guard !Task.isCancelled else { return }
@@ -1134,13 +1131,13 @@ struct WordDetailView: View {
         withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { filling = [] }
     }
 
-    /// An empty section is filled in by the server unless it is complete while empty: 「追加の例文」 of a word used in one
-    /// situation only (`example_pattern_count` 1, server PR #182) has no other examples to write.
-    /// 発音のコツ・覚え方・ネットの画像 are off the page (owner 2026-10-15; the server stops writing the first two): their
-    /// absence is never something to fill.
+    /// Whether an empty visible section is filled in by the server (`regenerateCardSection` only_if_empty): only the
+    /// sections still on the page.
     static func wantsAutoFill(_ s: CardSection, extras: WordExtras?) -> Bool {
-        if s == .pronunciationTips || s == .mnemonic || s == .webImages { return false }
-        return !(s == .examplesExtra && extras?.examplesExtraComplete == true)
+        // Off the page, never asked for (their absence is not something to fill): 発音のコツ・覚え方・ネットの画像 and
+        // 語源・部首 (owner 2026-10-15; the server stops writing them), and the extra examples — 「例文」 shows those the card
+        // came with, and nothing ever fetches more on its own (owner 2026-10-15).
+        !s.isRemoved
     }
 
     /// Web reportAndFixSection (item = auto): the AI finds the wrong item among what is on screen.
@@ -1502,26 +1499,12 @@ struct WordDetailView: View {
         }
     }
 
-    /// 語源・部首: the boxes (character + character = the word, owner 2026-10-15) when the card has them, then the prose;
-    /// a word that cannot be taken apart shows what fits it (one character's box, or where a loanword's sound came
-    /// from). Without the boxes, the prose as before.
-    private var etymologyCard: some View {
-        let s = CardSection.etymology
-        let diagram = etymologyDiagram
-        let prose = etymologyText(radicals: diagram == nil)
-        return SectionCard(title: s.title(for: learningLang), icon: s.icon) {
-            VStack(alignment: .leading, spacing: 6) {
-                if let diagram { EtymologyDiagramView(diagram: diagram) }
-                if !prose.isEmpty { SentenceRows(text: prose) }
-            }
-        }
-    }
-
-    /// 語源と部首・台湾メモ and the other prose sections: one sentence per row with a thin line
-    /// under each, instead of one block of prose (owner 2026-10-14: 「読みやすいように文の下に線に書いて」).
-    private func textCard(_ title: String, icon: String, _ body: String) -> some View {
+    /// The prose sections: one sentence per row with a thin line under each, instead of one block of prose (owner
+    /// 2026-10-14: 「読みやすいように文の下に線に書いて」). `ruled` false: the same rows and spacing without the lines
+    /// (台湾メモ, owner 2026-10-15).
+    private func textCard(_ title: String, icon: String, _ body: String, ruled: Bool = true) -> some View {
         SectionCard(title: title, icon: icon) {
-            SentenceRows(text: body)
+            SentenceRows(text: body, ruled: ruled)
         }
     }
 
@@ -1602,6 +1585,67 @@ struct WordDetailView: View {
         }
     }
 
+    /// 「保存待ち」: why the save failed (the real kind of failure, `SaveFailure`), that the word is kept, and 「もう一度保存」.
+    private var unsavedBanner: some View {
+        let running = dex.isRetrying(current.id)
+        let reason = L10n.readerSafe(dex.unsavedReason(current.id) ?? "", fallback: "")
+        return VStack(alignment: .leading, spacing: 8) {
+            Label(L("まだ保存できていません"), systemImage: "icloud.and.arrow.up")
+                .scaledFont(size: 16, weight: .bold)
+                .foregroundStyle(Theme.foreground)
+            if !reason.isEmpty {
+                Text(reason)
+                    .scaledFont(size: 14)
+                    .foregroundStyle(Theme.foreground.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(L("この単語は図鑑に残してあります。つながると自動でもう一度保存します。"))
+                .scaledFont(size: 13)
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                retrySave()
+            } label: {
+                HStack(spacing: 8) {
+                    if running { ProgressView().controlSize(.small).tint(.white) } else { Image(systemName: "arrow.clockwise") }
+                    Text(running ? L("保存しています…") : L("もう一度保存"))
+                }
+                .scaledFont(size: 15, weight: .semibold)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .frame(minHeight: 44)
+                .background(Theme.primary, in: Capsule())
+            }
+            .buttonStyle(PressableStyle(scale: 0.96))
+            .disabled(running)
+            .accessibilityIdentifier("detail.retrySave")
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accent.opacity(0.6), in: .rect(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Theme.primary.opacity(0.35), lineWidth: 1))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("detail.unsaved")
+    }
+
+    /// 「もう一度保存」: the same save again (`DexStore.retryUnsaved`); done, the page turns into the saved word in place.
+    private func retrySave() {
+        let id = current.id
+        Task {
+            do {
+                try await dex.retryUnsaved(stickerId: id)
+                dex.refreshPending()
+                Haptics.success()
+                showToast(L("図鑑に保存しました"))
+            } catch is CancellationError {
+                // Already being saved (the automatic retry).
+            } catch {
+                Haptics.warning()
+                showToast(L("まだ保存できていません：\(SaveFailure.message(for: error))"))
+            }
+        }
+    }
+
     /// The bottom of the page: 報告 beside 削除 (as on the web). The 「〇日前にキャッチしました」 line is gone, and
     /// 写真を替える (owner 2026-10-11) and 自撮りを撮る (owner 2026-10-14) moved into the long-press photo sheet.
     private var footer: some View {
@@ -1629,7 +1673,8 @@ struct WordDetailView: View {
                         .overlay(Capsule().stroke(Theme.destructive.opacity(0.3), lineWidth: 1))
                 }
                 .buttonStyle(PressableStyle(scale: 0.95))
-                .disabled(isProvisional)
+                // A 「保存待ち」 word can be thrown away (it was never saved); one being saved right now cannot.
+                .disabled(isProvisional && !isUnsaved)
             }
         }
         .padding(.top, 6)
@@ -1764,6 +1809,8 @@ struct SentenceRows: View {
     let text: String
     var size: CGFloat = 15
     var color: Color = Theme.foreground.opacity(0.9)
+    /// The line under each sentence (台湾メモ has none, owner 2026-10-15: the rows and their spacing stay the same).
+    var ruled: Bool = true
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -1778,7 +1825,7 @@ struct SentenceRows: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 10)
                     .overlay(alignment: .bottom) {
-                        Rectangle().fill(Theme.border).frame(height: Self.hairline(displayScale))
+                        if ruled { Rectangle().fill(Theme.border).frame(height: Self.hairline(displayScale)) }
                     }
                     .accessibilityLabel(line)
                     .accessibilityIdentifier("sentence.row")
