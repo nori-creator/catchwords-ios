@@ -167,6 +167,7 @@ final class FullTourTests: XCTestCase {
         if everyday.waitForExistence(timeout: 3) {
             settle(1.2)
             snap(p + "variants")
+            checkChooseScreen()
             everyday.tap()
         }
         let catchButton = app.buttons["card.catch"]
@@ -230,6 +231,21 @@ final class FullTourTests: XCTestCase {
         snap(p + "after-catch")
         settle(4)
         snap(p + "dex-after-catch")
+    }
+
+    /// The choose screen (owner 2026-10-15): every way to say it carries its register tag — the everyday word's
+    /// 一般的な言い方 first, the demo's other name より詳しい言い方 — and a word can be typed under the card.
+    private func checkChooseScreen() {
+        let labels: [String: (common: String, specific: String)] = [
+            "ja": ("一般的な言い方", "より詳しい言い方"), "en": ("Common", "More specific"), "zh-TW": ("常用說法", "更精確的說法"),
+        ]
+        guard let want = labels[display] else { return }
+        func shown(_ text: String) -> Bool {
+            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).count > 0
+        }
+        XCTAssertTrue(shown(want.common), "[\(display)/\(learning)] the everyday name has no register tag (\(want.common))")
+        XCTAssertTrue(shown(want.specific), "[\(display)/\(learning)] the other name has no register tag (\(want.specific))")
+        XCTAssertTrue(app.textFields["variant.field"].exists, "[\(display)/\(learning)] no field to type a word on the choose screen")
     }
 
     private func review() {

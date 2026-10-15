@@ -454,6 +454,11 @@ final class DexStore {
     /// phone is added at once by `recordEncounter`).
     private(set) var encounterEntries: [EncounterEntry] = []
 
+    #if DEBUG
+    /// `-uiPreview`: re-encounters as the server would list them (the word page's slideshow).
+    func seedEncountersForPreview(_ entries: [EncounterEntry]) { encounterEntries = entries }
+    #endif
+
     /// Album entries for re-encounters carry this prefix before the encounter's id (they are not stickers).
     nonisolated static let encounterAlbumPrefix = "encounter-"
 

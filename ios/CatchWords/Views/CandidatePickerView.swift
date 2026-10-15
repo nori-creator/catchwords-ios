@@ -38,6 +38,8 @@ struct CandidatePickerView: View {
     @State private var stageFrame: CGRect = .zero
     /// DEBUG previews: open the first thing with several ways to say it once the tags are up.
     var autoOpen: Bool = false
+    /// DEBUG previews (`-uiPreview choose`): open it once and keep it open (nothing is chosen).
+    var holdOpen: Bool = false
 
     private let ink = Color(hex: 0x0B121A)
 
@@ -474,6 +476,18 @@ struct CandidatePickerView: View {
     /// way is chosen (blue outline, the card folds away, the sticker glides on), then it starts again.
     private func openForPreview() async {
         guard autoOpen else { return }
+        if holdOpen {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard flow == nil, stageFrame.width > 0, let t = tags(objects).first(where: { $0.choices.count > 1 }) else { continue }
+                open(t)
+                // The card's rows and the field have come in (film: 0.6–1.1 s after the tap).
+                try? await Task.sleep(for: .seconds(1.6))
+                UIReady.mark("preview")
+                return
+            }
+            return
+        }
         var marked = false
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(100))

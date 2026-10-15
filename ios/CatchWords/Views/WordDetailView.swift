@@ -11,6 +11,8 @@ struct WordDetailView: View {
     let sticker: Sticker
     /// DEBUG preview: open scrolled to this section so the simulator frame shows it.
     var previewFocus: CardSection? = nil
+    /// DEBUG preview: the selfie side opens on the selfie as it was taken (its 「元の写真」).
+    var previewSelfieOriginal: Bool = false
 
     @State private var isAddingSelfie: Bool = false
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
@@ -164,7 +166,10 @@ struct WordDetailView: View {
         }
         .onAppear { prefs.use(learningLang) }
         .onChange(of: learningLang) { _, l in prefs.use(l) }
-        .onAppear { applyHeroRole(animated: false) }
+        .onAppear {
+            applyHeroRole(animated: false)
+            if previewSelfieOriginal { selfieOriginal = true }
+        }
         .aiConsentSheet(isPresented: $askAIConsent)
         .sheet(isPresented: $pickingHero) {
             HeroPhotoPickerSheet(sticker: current, onPick: { role in
