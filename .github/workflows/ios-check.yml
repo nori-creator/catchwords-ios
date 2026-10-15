@@ -99,6 +99,7 @@ jobs:
             -only-testing:CatchWordsTests/NameRegisterTests \
             -only-testing:CatchWordsTests/HeadwordGuardTests \
             -only-testing:CatchWordsTests/SaveErrorTests \
+            -only-testing:CatchWordsTests/ReviewGradeTests \
             -only-testing:CatchWordsTests/MaskCoverageTests \
             CODE_SIGNING_ALLOWED=NO \
             | tee "$RUNNER_TEMP/symbols.log" | grep -E "error:|Test Case|failed|passed|TEST (SUCCEEDED|FAILED)|BUILD FAILED" || true

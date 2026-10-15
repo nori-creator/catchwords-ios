@@ -654,7 +654,10 @@ nonisolated extension DemoDatabase {
 
     private func gradeReview(_ data: [String: Any]) -> DemoResponse {
         let rid = DJ.str(data["review_id"]) ?? ""
-        guard let review = first("reviews", id: rid) else { return notFound() }
+        // The server (2026-10-15): a review row that no longer exists (its word was deleted mid-round) is no error.
+        guard let review = first("reviews", id: rid) else {
+            return .json(["result": ["gone": true, "score": NSNull(), "interval_days": NSNull()] as [String: Any]])
+        }
         let correct = DJ.bool(data["correct"]) ?? false
         var ease = DJ.num(review["ease"]) ?? 2.5
         var interval = DJ.int(review["interval_days"]) ?? 0

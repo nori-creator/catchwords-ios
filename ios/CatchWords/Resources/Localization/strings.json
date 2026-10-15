@@ -4774,5 +4774,13 @@
  "別のネットワークに切り替えるか、少し時間をおいてお試しください。": {
   "en": "Try another network, or try again a little later.",
   "zh-TW": "請換一個網路，或稍後再試。"
+ },
+ "採点を保存できませんでした。": {
+  "en": "Couldn't save your answer.",
+  "zh-TW": "無法儲存作答。"
+ },
+ "採点を保存できませんでした。\n{1}": {
+  "en": "Couldn't save your answer.\n{1}",
+  "zh-TW": "無法儲存作答。\n{1}"
  }
 }

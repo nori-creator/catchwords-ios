@@ -38,8 +38,36 @@ final class ReviewStore {
     var isLoading: Bool = false
     var hasLoaded: Bool = false
     var loadError: String?
-    /// Set when a grade could not be saved (the card stays on screen to answer again).
-    var gradeError: String?
+    /// Answers that could not be saved, by card, oldest first. One per card: a later card saved never takes an earlier
+    /// card's failure off the screen while that card still waits to be answered again (owner 2026-10-15).
+    private(set) var gradeFailures: [GradeFailure] = []
+
+    struct GradeFailure: Equatable {
+        let cardId: String
+        let message: String
+        /// The card comes back to be answered again (`GradeOutcome.retry`); a refusal does not, and its message goes
+        /// once the learner moves on.
+        let comesBack: Bool
+    }
+
+    /// What the card on screen says about a save that failed: its own failure, else the latest one still waiting.
+    var gradeError: String? {
+        if let id = current?.id, let own = gradeFailures.last(where: { $0.cardId == id }) { return own.message }
+        return gradeFailures.last?.message
+    }
+
+    /// What became of an answer sent to `gradeReview`.
+    enum GradeOutcome: Equatable {
+        /// Saved (a practice answer is never sent, and counts as saved).
+        case saved
+        /// Not saved for now — no network, a dropped connection, too slow, or the server failed (5xx, 503 included):
+        /// the card is answered again.
+        case retry
+        /// The server refused it (4xx, its reason shown): sent again it would be refused again, so it is not asked again.
+        case refused
+        /// The card's review is gone — its word was deleted while the round was on (server `gone`): it leaves the round.
+        case gone
+    }
     var streak: Int = 0
     var doneToday: Int = 0
     var correctCount: Int = 0
@@ -99,6 +127,7 @@ final class ReviewStore {
         missed = []
         isRetry = false
         moreAvailable = false
+        gradeFailures = []
     }
 
     /// Go over this round's wrong answers once more. Practice only: the schedule was already updated
@@ -111,6 +140,7 @@ final class ReviewStore {
         index = 0
         correctCount = 0
         isRetry = true
+        gradeFailures = []
     }
 
     /// Keep going past the daily limit: the next batch of due cards.
@@ -221,6 +251,7 @@ final class ReviewStore {
             moreAvailable = dueRemaining > 0
             missed = []
             isRetry = false
+            gradeFailures = []
             loadedTarget = NativeAPI.targetLanguage
             index = 0
             correctCount = 0
@@ -293,26 +324,23 @@ final class ReviewStore {
     /// Graded by the web's own `gradeReview` (reviews.functions.ts): the same scoring (correct=5,
     /// −1 when slow, wrong=1), the same interval engine (SM-2 with the Jev guardrails) and the same
     /// history rows as the web — so a word comes due on the same day on the iPhone and on the web.
-    /// If the server cannot be reached, nothing is written locally (a half-graded card would drift):
-    /// returns false, `gradeError` says why, and the card is not counted as done (the optimistic count is undone).
+    /// If the server cannot be reached, nothing is written locally (a half-graded card would drift): the card is not
+    /// counted as done (the optimistic count is undone) and the outcome says what to do with it (`GradeOutcome`).
     @discardableResult
-    func grade(_ card: ReviewCard, correct: Bool, responseMs: Int, dex: DexStore) async -> Bool {
-        gradeError = nil
+    func grade(_ card: ReviewCard, correct: Bool, responseMs: Int, dex: DexStore) async -> GradeOutcome {
         if isRetry {
             if correct { correctCount += 1 } else if !missed.contains(where: { $0.id == card.id }) { missed.append(card) }
-            return true
+            return .saved
         }
         let r = card.review
         let now = Date()
-        guard let rid = r.id else { return true }
+        guard let rid = r.id else { return .saved }
         // Counted at once: the learner moves on to the next card without waiting for the server (owner 2026-10-15
         // 「次へを押してもすぐに次の問題にならない」). Taken back below if the grade cannot be saved.
         let wasMissed = missed.contains(where: { $0.id == card.id })
         if correct { correctCount += 1 } else if !wasMissed { missed.append(card) }
-        struct Graded: Decodable {
-            let score: Int?
-            let intervalDays: Double?
-            enum CodingKeys: String, CodingKey { case score, intervalDays = "interval_days" }
+        func takeBack() {
+            if correct { correctCount = max(0, correctCount - 1) } else if !wasMissed { missed.removeAll { $0.id == card.id } }
         }
         let graded: Graded
         do {
@@ -323,10 +351,22 @@ final class ReviewStore {
                 "response_ms": max(0, responseMs),
             ], as: Graded.self, timeout: 20)
         } catch {
-            if correct { correctCount = max(0, correctCount - 1) } else if !wasMissed { missed.removeAll { $0.id == card.id } }
+            takeBack()
+            let again = Self.isWorthRetrying(error)
             let reason = (error as? LocalizedError)?.errorDescription ?? ""
-            gradeError = reason.isEmpty ? L("採点を保存できませんでした。もう一度答えてください。") : L("採点を保存できませんでした。もう一度答えてください。\n\(reason)")
-            return false
+            let message = again
+                ? (reason.isEmpty ? L("採点を保存できませんでした。もう一度答えてください。") : L("採点を保存できませんでした。もう一度答えてください。\n\(reason)"))
+                : (reason.isEmpty ? L("採点を保存できませんでした。") : L("採点を保存できませんでした。\n\(reason)"))
+            noteGradeFailure(message, card: card.id, comesBack: again)
+            return again ? .retry : .refused
+        }
+        noteGradeFailure(nil, card: card.id)
+        if graded.gone == true {
+            // Its review row is gone (the word was deleted while the round was on): nothing was saved, so nothing is
+            // counted, and the card is not asked again.
+            takeBack()
+            removeUpcoming { $0.id == card.id }
+            return .gone
         }
         let intervalAfter = graded.intervalDays.map { Int($0.rounded()) } ?? r.intervalDays
         doneToday += 1
@@ -335,7 +375,51 @@ final class ReviewStore {
         }
         if streak == 0 || !Calendar.current.isDateInToday(now) { streak = max(streak, 1) }
         await dex.reloadReviews()
-        return true
+        return .saved
+    }
+
+    /// `gradeReview`'s answer. `gone` (server 2026-10-15): the review row no longer exists — nothing was graded.
+    struct Graded: Decodable {
+        let score: Int?
+        let intervalDays: Double?
+        let gone: Bool?
+        enum CodingKeys: String, CodingKey { case score, gone, intervalDays = "interval_days" }
+    }
+
+    /// A grade worth sending again: no network, a dropped connection, too slow, or the server failed (5xx, 503
+    /// included). A refusal (4xx), a sign-in that ended or an answer this build cannot read is not — sent again it
+    /// would get the same answer (and an unreadable one may already have been saved).
+    nonisolated static func isWorthRetrying(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        switch error as? APIError {
+        case .offline?, .connectionLost?, .timeout?: return true
+        case .server(let code, _)?: return code >= 500
+        default: return false
+        }
+    }
+
+    /// Keeps (or with nil clears) the one failure of a card.
+    func noteGradeFailure(_ message: String?, card id: String, comesBack: Bool = true) {
+        gradeFailures.removeAll { $0.cardId == id }
+        if let message { gradeFailures.append(GradeFailure(cardId: id, message: message, comesBack: comesBack)) }
+    }
+
+    /// Takes the cards matching `match` out of what is left of the round and out of the missed list. The card on screen
+    /// stays until the learner moves on (taking it away would put the next card under the answer just given), and the
+    /// cards already answered stay counted.
+    func removeUpcoming(where match: (ReviewCard) -> Bool) {
+        missed.removeAll(where: match)
+        guard index + 1 < queue.count else { return }
+        let ahead = queue[(index + 1)...].filter { !match($0) }
+        queue.replaceSubrange((index + 1)..., with: ahead)
+    }
+
+    /// Words deleted while the round is on (their page, the dex): their cards leave the round. Only against a dex that
+    /// has been read (an empty list while it is being read again deletes nothing).
+    func dropDeleted(dex: DexStore) {
+        guard dex.hasLoaded, !dex.stickers.isEmpty else { return }
+        let kept = Set(dex.stickers.map(\.id))
+        removeUpcoming { !kept.contains($0.sticker.id) }
     }
 
     /// 「全体の記憶率（前後2週間）」 for every sticker that has a review row.
@@ -355,6 +439,8 @@ final class ReviewStore {
     }
 
     func advance() {
+        // A refusal has been read on the card it came with: it does not follow the learner to the next one.
+        gradeFailures.removeAll { !$0.comesBack }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { index += 1 }
         // The card after next is made ready while this one is answered.
         guard let dex = prefetchDex else { return }
