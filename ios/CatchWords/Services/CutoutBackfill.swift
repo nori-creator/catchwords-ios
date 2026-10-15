@@ -92,13 +92,57 @@ final class CutoutBackfill {
         triedCache = nil
     }
 
-    /// Cuts this word's photo out now and attaches the cut-out. The photo comes from the cache when it is kept,
-    /// else from its link.
+    // MARK: - Cut-outs whose upload failed at the catch
+
+    /// The folder of cut-outs made at the catch that could not be uploaded then (owner 2026-10-15: the catch is saved
+    /// without its cut-out rather than failing, and the very cut-out — the thing the learner picked — is attached later).
+    private static let keptDir: URL = {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let dir = base.appendingPathComponent("pending-cutouts", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    private static func keptURL(_ stickerId: String) -> URL {
+        keptDir.appendingPathComponent(stickerId.filter { $0.isLetter || $0.isNumber || $0 == "-" } + ".png")
+    }
+
+    /// Keeps a catch's cut-out until it is attached (`make(for:)` uses it instead of cutting the photo again).
+    static func keep(_ image: UIImage, for stickerId: String) {
+        let url = keptURL(stickerId)
+        Task.detached(priority: .utility) {
+            guard let png = ImageTools.pngUpload(image)?.data else { return }
+            try? png.write(to: url, options: .atomic)
+        }
+    }
+
+    /// The cut-out kept for this word, if its upload is still to be done.
+    static func kept(for stickerId: String) -> UIImage? {
+        UIImage(contentsOfFile: keptURL(stickerId).path)
+    }
+
+    static func forget(_ stickerId: String) {
+        try? FileManager.default.removeItem(at: keptURL(stickerId))
+    }
+
+    /// Cuts this word's photo out now and attaches the cut-out — or attaches the cut-out kept from its catch, when its
+    /// upload failed then (`keep`). The photo comes from the cache when it is kept, else from its link.
     @discardableResult
     func make(for sticker: Sticker, dex: DexStore) async -> Outcome {
         guard Self.needsCutout(sticker), let path = sticker.objectImageUrl, !running.contains(sticker.id) else { return .failed }
         running.insert(sticker.id)
         defer { running.remove(sticker.id) }
+        if let kept = Self.kept(for: sticker.id) {
+            do {
+                try await dex.addCutout(to: sticker, image: kept)
+                Self.forget(sticker.id)
+                DevLog.shared.add("upload", "\(sticker.word?.headword ?? sticker.id): cut-out kept from the catch attached later")
+                return .made
+            } catch {
+                return .failed
+            }
+        }
         var image = await ImageCache.shared.cached(for: path)
         if image == nil {
             // Signed (when needed) and put on disk, then read from there.

@@ -13,9 +13,13 @@ struct AppInfoView: View {
     @State private var aiFailed = false
     @State private var disk: (images: Int64, voices: Int64, snapshot: Int64)?
     @State private var copied = false
+    @State private var logCopied = false
+    @State private var log = DevLog.shared
 
     var body: some View {
         List {
+            // First: what went wrong lately (a failed save's real reason), the thing to look at when something broke.
+            logSection
             Section(L("アプリ")) {
                 AdminRow(label: L("バージョン"), value: Self.info("CFBundleShortVersionString"))
                 AdminRow(label: L("ビルド"), value: Self.info("CFBundleVersion"))
@@ -76,6 +80,52 @@ struct AppInfoView: View {
         }
         .task { await loadAI() }
         .task { disk = await Self.measureDisk() }
+    }
+
+    /// 最近の記録 (`DevLog`): the real error of a failed save, an answer that did not decode, an example shown without its
+    /// scene label — newest first, with when it happened, to copy into a message.
+    private var logSection: some View {
+        Section {
+            if log.entries.isEmpty {
+                Text(L("記録はまだありません"))
+                    .scaledFont(size: 14)
+                    .foregroundStyle(Theme.muted)
+            } else {
+                ForEach(log.entries.prefix(40)) { e in
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(e.area)
+                                .scaledFont(size: 11, weight: .bold)
+                                .foregroundStyle(Theme.primaryInk)
+                            Text(e.at, format: .dateTime.month().day().hour().minute().second())
+                                .scaledFont(size: 11)
+                                .foregroundStyle(Theme.muted)
+                        }
+                        Text(e.text)
+                            .scaledFont(size: 13)
+                            .foregroundStyle(Theme.foreground)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 2)
+                    .accessibilityIdentifier("devlog.entry")
+                }
+                Button {
+                    UIPasteboard.general.string = log.text
+                    Haptics.success()
+                    withAnimation(.snappy) { logCopied = true }
+                } label: {
+                    Label(logCopied ? L("コピーしました") : L("記録をコピー"), systemImage: logCopied ? "checkmark" : "doc.on.doc")
+                }
+                Button(role: .destructive) { log.clear() } label: {
+                    Label(L("記録を消す"), systemImage: "trash")
+                }
+            }
+        } header: {
+            Text(L("最近の記録"))
+        } footer: {
+            Text(L("保存の失敗などの本当の理由です。開発者だけが見られます。"))
+        }
     }
 
     private var aiStatus: String {

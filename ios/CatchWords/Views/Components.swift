@@ -159,6 +159,26 @@ struct StickerImage: View {
     @Environment(DexStore.self) private var dex: DexStore?
     @State private var image: UIImage?
 
+    /// A picture already in memory is drawn in the very first frame. It used to come one frame later (the `.task`), so
+    /// a dex page drawn anew — the catch's landing opens it fresh — showed every square empty for a moment, and longer
+    /// for the ones read from disk (owner 2026-10-15: the dex went blank during the add animation).
+    init(path: String?, url: URL?, contentMode: ContentMode = .fit, onLoad: ((CGSize) -> Void)? = nil) {
+        self.path = path
+        self.url = url
+        self.contentMode = contentMode
+        self.onLoad = onLoad
+        _image = State(initialValue: Self.inMemory(path: path, url: url))
+    }
+
+    /// The picture (or its stand-in size) already in memory, read without waiting.
+    private static func inMemory(path: String?, url: URL?) -> UIImage? {
+        guard let path else { return nil }
+        let thumb = url.map { $0.path.hasSuffix(DexStore.thumbSuffix) } ?? false
+        let key = thumb ? path + DexStore.thumbSuffix : path
+        return ImageCache.shared.image(for: key)
+            ?? ImageCache.shared.image(for: thumb ? path : path + DexStore.thumbSuffix)
+    }
+
     var body: some View {
         Group {
             if let image {
@@ -175,10 +195,14 @@ struct StickerImage: View {
         .task(id: "\(path ?? "")|\(url?.absoluteString ?? "")") { await fill() }
         .onChange(of: image) { _, img in
             guard let img else { return }
-            onLoad?(img.size)
-            // A cut-out that came out (almost) empty: the dex shows the word's photo instead.
-            if let path, path.contains("-cutout"), ImageTools.isNearlyBlank(img) { dex?.markBlankCutout(path) }
+            loaded(img)
         }
+    }
+
+    private func loaded(_ img: UIImage) {
+        onLoad?(img.size)
+        // A cut-out that came out (almost) empty: the dex shows the word's photo instead.
+        if let path, path.contains("-cutout"), ImageTools.isNearlyBlank(img) { dex?.markBlankCutout(path) }
     }
 
     private func fill() async {
@@ -188,7 +212,8 @@ struct StickerImage: View {
         let key = thumb ? path + DexStore.thumbSuffix : path
         // Already here: the very picture, or the full one where a thumbnail was asked for (only better).
         if let hit = ImageCache.shared.image(for: key) ?? (thumb ? ImageCache.shared.image(for: path) : nil) {
-            image = hit
+            // Drawn from the first frame already (`init`): told now, since no change of `image` will tell it.
+            if image === hit { loaded(hit) } else { image = hit }
             return
         }
         // While the full picture comes, its thumbnail stands in.

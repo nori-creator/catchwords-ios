@@ -67,10 +67,21 @@ struct CandidatePickerView: View {
         var word: Candidate { choices[0].word }
     }
 
-    /// The choose screen's state: the tapped thing, when, and the choice (`CCClock` times).
+    /// The choose screen's state: what is chosen from, when, and the choice (`CCClock` times).
     private struct ChooseFlow {
-        let tag: Tag
+        /// The ways to say it, the everyday one first.
+        let words: [Candidate]
+        /// The thing each word's cut-out comes from (nil: a word typed under the photo — the photo's main subject).
+        let objects: [CatchObject?]
+        /// The line under 「覚える単語を選ぶ」: what is in the photo, or what was typed.
+        let subtitle: String
+        /// The thing the photo melts towards and a typed word is looked up for (nil: the photo itself).
+        let anchor: CatchObject?
+        /// The words were found by typing (`CaptureViewModel.search`): always a card, even for one, and chosen as typed.
+        let typed: Bool
         let tappedAt: Double
+        /// When the rows came in (a search on the open card replaces its rows; nil = with the card).
+        var rowsAt: Double? = nil
         var chosenAt: Double?
         var chosen: Int?
         var closingAt: Double?
@@ -79,8 +90,6 @@ struct CandidatePickerView: View {
         let fallback: UIImage?
         let palette: StagePalette
         let dexLabel: String?
-        /// One way to say it: no card, straight on.
-        let single: Bool
     }
 
     /// A tag with its size and its bottom centre in the photo stage.
@@ -115,11 +124,12 @@ struct CandidatePickerView: View {
                     .animation(.easeOut(duration: 0.25), value: scanning)
             }
             if let f = flow {
-                CatchChooseOverlay(words: f.single ? [f.tag.word] : f.tag.choices.map(\.word), thing: f.tag.label,
+                CatchChooseOverlay(words: f.words, subtitle: f.subtitle,
                                    dexLabel: f.dexLabel, cut: f.cut ?? (f.chosenAt != nil ? vm.cutout : nil),
                                    fallback: f.fallback, palette: f.palette, start: f.start,
                                    tappedAt: f.tappedAt, chosenAt: f.chosenAt, chosen: f.chosen, closingAt: f.closingAt,
-                                   calm: reduceMotion, searching: vm.isLookingUp, onChoose: pick, onClose: closeChoices,
+                                   calm: reduceMotion, alwaysCard: true, rowsAt: f.rowsAt, searching: vm.isLookingUp,
+                                   searchError: vm.searchError, onChoose: pick, onClose: closeChoices,
                                    onSearch: searchFromChoices)
                     .zIndex(5)
             }
@@ -136,6 +146,8 @@ struct CandidatePickerView: View {
             melt = false
         }
         .task(id: autoOpen) { await openForPreview() }
+        // A typed word's lookup brought words: the choose screen lists them (never straight on to the catch).
+        .onChange(of: vm.typedRound) { _, _ in openTyped() }
         .onAppear {
             if reduceMotion {
                 appeared = true
@@ -415,7 +427,7 @@ struct CandidatePickerView: View {
 
     /// Where the photo melts towards: the thing that was tapped.
     private var meltAnchor: UnitPoint {
-        guard let o = flow?.tag.object, let photo = vm.photo, stageFrame.width > 0 else { return .center }
+        guard let o = flow?.anchor, let photo = vm.photo, stageFrame.width > 0 else { return .center }
         let fill = Self.fillRect(image: photo.size, in: stageFrame.size)
         return UnitPoint(x: (fill.minX + o.anchor.x * fill.width) / stageFrame.width,
                          y: (fill.minY + o.anchor.y * fill.height) / stageFrame.height)
@@ -430,8 +442,9 @@ struct CandidatePickerView: View {
                       width: b.width * fill.width, height: b.height * fill.height)
     }
 
-    /// A tag was tapped: the photo melts and the thing lifts out as a sticker; several ways to say it are listed to
-    /// choose from, one goes straight on to the GET moment.
+    /// A tag was tapped: the photo melts and the thing lifts out as a sticker, and its ways to say it are listed to choose
+    /// from — one too (2026-10-15: a thing with a single name went straight on, so the strawberry cake was taken as
+    /// 草莓蛋糕 without the learner seeing the word and its meaning first). The choice goes on to the GET moment.
     private func open(_ t: Tag) {
         guard flow == nil else { return }
         let now = CCClock.now
@@ -439,48 +452,80 @@ struct CandidatePickerView: View {
         let fallback = o.cut == nil ? StickerCrop.image(vm.photo, box: o.box) : nil
         let palette = StagePalette.make(from: o.cut ?? fallback)
         let label = t.choices.lazy.compactMap { CatchDexInfo.label(headword: $0.word.headword, stickers: dex.stickers) }.first
-        let single = t.choices.count <= 1
         vm.stagePalette = palette
         vm.stageFallback = fallback
         vm.lightStage = true
-        var f = ChooseFlow(tag: t, tappedAt: now, start: startRect(o), cut: o.cut, fallback: fallback, palette: palette,
-                           dexLabel: label, single: single)
         withAnimation(reduceMotion ? nil : .timingCurve(0.65, 0, 0.35, 1, duration: 0.55)) { melt = true }
-        if single {
-            // No card: the sticker lifts out and glides on (P a moment after the tap).
-            let p = now + Film6.singleChoiceDelay
-            f.chosenAt = p
-            f.chosen = 0
-            flow = f
-            vm.choose(t.word, object: o, stage: (origin: p, handoffAt: p + Film6.handoffSingle))
-        } else {
+        Haptics.selection()
+        flow = ChooseFlow(words: t.choices.map(\.word), objects: t.choices.map { $0.object as CatchObject? },
+                          subtitle: L("写っている物：\(t.label)"), anchor: o, typed: false, tappedAt: now,
+                          start: startRect(o), cut: o.cut, fallback: fallback, palette: palette, dexLabel: label)
+    }
+
+    /// The words found for a typed word (owner 2026-10-15: 「違う単語を入力」 must show the candidates and let the learner
+    /// choose, never go straight on — 犬 typed in Japanese listed 狗 first, 犬 only if it is really said): the choose
+    /// screen lists them, even one, each with what kind of name it is, the everyday one first. Typed on the open choose
+    /// screen, its rows become the words found and the thing's sticker stays; typed under the photo, the choose screen
+    /// opens with the thing typed for (or the photo) lifting out.
+    private func openTyped() {
+        let words = vm.typedCandidates
+        guard !words.isEmpty, vm.photo != nil else { return }
+        let object = vm.searchObject
+        let now = CCClock.now
+        let subtitle = L("「\(vm.typedQuery)」で見つかった言葉")
+        let label = words.lazy.compactMap { CatchDexInfo.label(headword: $0.headword, stickers: dex.stickers) }.first
+        if let f = flow, f.chosenAt == nil, f.closingAt == nil {
+            var next = ChooseFlow(words: words, objects: words.map { _ in object ?? f.anchor }, subtitle: subtitle,
+                                  anchor: object ?? f.anchor, typed: true, tappedAt: f.tappedAt, start: f.start, cut: f.cut,
+                                  fallback: f.fallback, palette: f.palette, dexLabel: label)
+            next.rowsAt = now
             Haptics.selection()
-            flow = f
+            flow = next
+            return
         }
+        guard flow == nil else {
+            // The choose screen is still folding away: open once it has gone.
+            Task {
+                try? await Task.sleep(for: .milliseconds(360))
+                if flow == nil, vm.typedCandidates == words { openTyped() }
+            }
+            return
+        }
+        let fallback = object?.cut == nil
+            ? (object.map { StickerCrop.image(vm.photo, box: $0.box) } ?? vm.photo.map { ImageTools.resized($0, maxSide: 700) })
+            : nil
+        let palette = StagePalette.make(from: object?.cut ?? fallback)
+        vm.stagePalette = palette
+        vm.stageFallback = fallback
+        vm.lightStage = true
+        inputFocused = false
+        let start = object.flatMap { startRect($0) } ?? (stageFrame.width > 0 ? stageFrame : nil)
+        flow = ChooseFlow(words: words, objects: words.map { _ in object }, subtitle: subtitle, anchor: object, typed: true,
+                          tappedAt: now, start: start, cut: object?.cut, fallback: fallback, palette: palette,
+                          dexLabel: label)
+        withAnimation(reduceMotion ? nil : .timingCurve(0.65, 0, 0.35, 1, duration: 0.55)) { melt = true }
+        Haptics.selection()
     }
 
     /// A way to say it was chosen: blue outline and check, the card folds away, then the GET moment (`vm.choose`
     /// checks the dex meanwhile; the re-encounter and the rest go on as before).
     private func pick(_ i: Int) {
-        guard var f = flow, f.chosenAt == nil, f.closingAt == nil, f.tag.choices.indices.contains(i) else { return }
+        guard var f = flow, f.chosenAt == nil, f.closingAt == nil, f.words.indices.contains(i) else { return }
         let now = CCClock.now
         f.chosenAt = now
         f.chosen = i
         flow = f
         SoundService.shared.playLayered(.c6Choose)
-        let c = f.tag.choices[i]
-        vm.choose(c.word, object: c.object, stage: (origin: now, handoffAt: now + Film6.handoff))
+        vm.choose(f.words[i], object: f.objects[i], typed: f.typed, stage: (origin: now, handoffAt: now + Film6.handoff))
     }
 
     /// A word typed at the bottom of the choose screen (owner 2026-10-15: in the display language or the learning
-    /// language): the same lookup as 「違う単語を入力」 (`suggestWordCandidates`). The choose screen goes back to the
-    /// photo; one word found goes straight on with the tapped thing's cut-out, several are listed under the photo.
+    /// language): the same lookup as 「違う単語を入力」 (`suggestWordCandidates`). The choose screen stays (its field shows
+    /// the lookup running) and its rows become the words found (`openTyped`), the tapped thing's cut-out the sticker.
     private func searchFromChoices(_ text: String) {
         let q = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, !vm.isLookingUp, let f = flow, f.chosenAt == nil, f.closingAt == nil else { return }
-        let object = f.tag.choices.first?.object
-        closeChoices()
-        vm.search(text: q, object: object)
+        vm.search(text: q, object: f.anchor)
     }
 
     /// × : back to the tags (the photo comes back, the sticker goes).

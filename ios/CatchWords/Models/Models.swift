@@ -18,7 +18,8 @@ nonisolated struct Word: Codable, Sendable, Hashable {
     let pinyin: String?
     var meaningJa: String
     let partOfSpeech: String?
-    let categoryKey: String?
+    /// `var`: a word just saved keeps the category it landed in until its landing is over (`DexStore.settleLanding`).
+    var categoryKey: String?
     let exampleSentence: String?
     var exampleTranslation: String?
     var extras: WordExtras?
@@ -85,10 +86,10 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     var examplePatternCount: Int?
     var pronunciationTips: String?
     var studyTips: String?
+    /// 語源・部首 is no longer shown (owner 2026-10-15) and no longer written by the server; an older card's text is still
+    /// read (and its `etymology_diagram` simply skipped), so nothing about an old payload stops it from decoding.
     var etymology: String?
     var radicals: String?
-    /// 語源・部首 as boxes (`extras.etymology_diagram`, server #183; nil on older cards — the prose is shown).
-    var etymologyDiagram: EtymologyDiagram?
     var trivia: String?
     var usageNote: String?
     var synonymDiff: String?
@@ -117,7 +118,6 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     enum CodingKeys: String, CodingKey {
         case mnemonic, synonyms, antonyms, etymology, radicals, trivia
         case explainLang = "explain_lang"
-        case etymologyDiagram = "etymology_diagram"
         case forms, countability, stress, conjugation, politeness, counters
         case phrasalVerbs = "phrasal_verbs"
         case cultureNote = "culture_note"
@@ -184,8 +184,6 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         studyTips = (try? c.decodeIfPresent(String.self, forKey: .studyTips)).flatMap { $0 }
         etymology = (try? c.decodeIfPresent(String.self, forKey: .etymology)).flatMap { $0 }
         radicals = (try? c.decodeIfPresent(String.self, forKey: .radicals)).flatMap { $0 }
-        // Under any of its names (`EtymologyDiagram.keys`); one that does not read is simply absent.
-        etymologyDiagram = EtymologyDiagram.find(in: decoder)
         trivia = (try? c.decodeIfPresent(String.self, forKey: .trivia)).flatMap { $0 }
         usageNote = (try? c.decodeIfPresent(String.self, forKey: .usageNote)).flatMap { $0 }
         synonymDiff = (try? c.decodeIfPresent(String.self, forKey: .synonymDiff)).flatMap { $0 }
@@ -226,9 +224,11 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         return scene
     }
 
-    /// A sentence without its spaces and punctuation (「我戴眼鏡。」 = 「我戴眼鏡」 = "我 戴 眼鏡!").
+    /// A sentence without its spaces and punctuation, full-width and half-width alike (「我戴眼鏡。」 = 「我戴眼鏡」 =
+    /// "我 戴 眼鏡!" = 「我戴眼鏡！」; ＡＢＣ = ABC): compared after NFKC, which folds the full-width forms.
     static func sceneMatchKey(_ s: String) -> String {
-        String(String.UnicodeScalarView(s.unicodeScalars.filter {
+        let folded = s.precomposedStringWithCompatibilityMapping
+        return String(String.UnicodeScalarView(folded.unicodeScalars.filter {
             !CharacterSet.whitespacesAndNewlines.contains($0) && !CharacterSet.punctuationCharacters.contains($0)
                 && !CharacterSet.symbols.contains($0)
         }))
@@ -344,6 +344,40 @@ nonisolated struct ExampleItem: Hashable, Sendable {
             out.append(ExampleItem(sentence: zh, translation: x.ja.isEmpty ? nil : x.ja, scene: x.shownScene))
         }
         return out
+    }
+
+    /// Why each example shown without its scene label has none, for the developer log (owner 2026-10-15: an example with
+    /// no matching label is still shown, and logged): no label at all (or one not in the reader's language), a label
+    /// without the mark of the sentence it was written for (an older card), or a label written for another sentence.
+    static func missingLabels(sentence: String?, extras: WordExtras?, target: String) -> [String] {
+        let main = (sentence ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let version = extras?.exampleV.map { "example_v \($0)" } ?? "no example_v"
+        return all(sentence: sentence, translation: nil, extras: extras, target: target).compactMap { ex in
+            guard ex.scene == nil else { return nil }
+            let label: String
+            let written: String
+            if !main.isEmpty, ex.sentence == main {
+                label = extras?.exampleScene ?? ""
+                written = extras?.exampleSceneFor ?? ""
+            } else if let x = extras?.examplesExtra?.first(where: {
+                WordExtras.sceneMatchKey($0.zh) == WordExtras.sceneMatchKey(ex.sentence)
+            }) {
+                label = x.scene
+                written = x.sceneFor
+            } else {
+                label = ""
+                written = ""
+            }
+            let why: String
+            if label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                why = "no scene label"
+            } else if written.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                why = "scene label without scene_for"
+            } else {
+                why = "scene label written for 「\(written)」"
+            }
+            return "「\(ex.sentence)」: \(why) (\(version))"
+        }
     }
 }
 

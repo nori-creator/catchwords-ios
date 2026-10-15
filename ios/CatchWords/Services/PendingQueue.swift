@@ -12,6 +12,13 @@ nonisolated struct PendingCatch: Codable, Identifiable, Sendable, Hashable {
     /// saves it into its own dex); the file stays until its owner comes back. nil = taken before
     /// photos were kept per account, or as a local guest — the next account that signs in adopts it.
     var ownerId: String? = nil
+    /// The word was already chosen and its save failed (「保存待ち」, owner 2026-10-15): everything to save it again, so
+    /// a retry saves that word (it is never analyzed again) and the dex keeps showing it meanwhile. nil = a photo
+    /// whose analysis is still to be done.
+    var save: PendingSave? = nil
+
+    /// Waiting to be saved again, not to be analyzed.
+    var isUnsaved: Bool { save != nil }
 }
 
 /// "Never lose a photo that can't be retaken" — any failure type keeps the photo.
@@ -116,6 +123,65 @@ final class PendingQueue {
         if stillQueued { save(all.filter { $0.id != id }) }
     }
 
+    /// The catch's save failed (「保存待ち」): the word, its card and the photos already in storage are kept with the
+    /// photo, its cut-out and selfie are written next to it (off the main thread), and it shows in the list again.
+    func markUnsaved(id: String, save pending: PendingSave, cutout: UIImage?, selfie: UIImage?, reason: String) {
+        var all = readIndex()
+        guard let i = all.firstIndex(where: { $0.id == id }) else { return }
+        all[i].save = pending
+        all[i].reason = reason
+        saving.remove(id)
+        save(all)
+        let cutURL = extraURL(id, .cutout), selfieURL = extraURL(id, .selfie)
+        Task.detached(priority: .utility) {
+            if let cutout, let png = ImageTools.pngUpload(cutout)?.data { try? png.write(to: cutURL, options: .atomic) }
+            if let selfie, let jpeg = ImageTools.jpegForUpload(selfie) { try? jpeg.write(to: selfieURL, options: .atomic) }
+        }
+    }
+
+    /// Changes what is kept to save a 「保存待ち」 catch again (the card that came later, the photos that went up).
+    func updateSave(id: String, _ change: (inout PendingSave) -> Void) {
+        var all = readIndex()
+        guard let i = all.firstIndex(where: { $0.id == id }), var s = all[i].save else { return }
+        change(&s)
+        all[i].save = s
+        save(all)
+    }
+
+    /// The entry with this id, of the account signed in now (hidden ones included).
+    func item(id: String) -> PendingCatch? {
+        readIndex().first { $0.id == id && $0.ownerId == currentOwner }
+    }
+
+    /// This account's 「保存待ち」 catches, oldest first (hidden ones included: one being saved right now too).
+    func unsavedItems() -> [PendingCatch] {
+        readIndex().filter { $0.ownerId == currentOwner && $0.save != nil }.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private enum Extra: String { case cutout, selfie }
+
+    private func extraURL(_ id: String, _ kind: Extra) -> URL {
+        dir.appendingPathComponent(kind == .cutout ? "\(id)-cutout.png" : "\(id)-selfie.jpg")
+    }
+
+    /// A 「保存待ち」 catch's cut-out, as it was when it was saved.
+    func cutout(for item: PendingCatch) -> UIImage? {
+        guard item.save?.hasCutout == true else { return nil }
+        return UIImage(contentsOfFile: extraURL(item.id, .cutout).path)
+    }
+
+    /// A 「保存待ち」 catch's selfie.
+    func selfie(for item: PendingCatch) -> UIImage? {
+        guard item.save?.hasSelfie == true else { return nil }
+        return UIImage(contentsOfFile: extraURL(item.id, .selfie).path)
+    }
+
+    private func removeFiles(_ id: String) {
+        try? FileManager.default.removeItem(at: fileURL(id))
+        try? FileManager.default.removeItem(at: extraURL(id, .cutout))
+        try? FileManager.default.removeItem(at: extraURL(id, .selfie))
+    }
+
     func updateReason(id: String, reason: String) {
         var all = readIndex()
         guard let i = all.firstIndex(where: { $0.id == id }) else { return }
@@ -140,7 +206,7 @@ final class PendingQueue {
     func remove(id: String) {
         inFlight[id] = nil
         saving.remove(id)
-        try? FileManager.default.removeItem(at: fileURL(id))
+        removeFiles(id)
         thumbs.removeObject(forKey: id as NSString)
         save(readIndex().filter { $0.id != id })
     }
@@ -150,7 +216,7 @@ final class PendingQueue {
         let all = readIndex()
         for item in all where item.ownerId == ownerId {
             inFlight[item.id] = nil
-            try? FileManager.default.removeItem(at: fileURL(item.id))
+            removeFiles(item.id)
             thumbs.removeObject(forKey: item.id as NSString)
         }
         save(all.filter { $0.ownerId != ownerId })

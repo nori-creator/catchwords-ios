@@ -7,7 +7,7 @@ import CoreImage.CIFilterBuiltins
 nonisolated enum ImageTools {
     /// Same budget as the web (1600px / q0.9) so payloads stay far below the 8MB cap.
     static func jpegForUpload(_ image: UIImage, maxSide: CGFloat = 1600, quality: CGFloat = 0.88) -> Data? {
-        resized(image, maxSide: maxSide).jpegData(compressionQuality: quality)
+        jpegUpload(image, maxSide: maxSide, quality: quality)?.data
     }
 
     /// `jpegForUpload` off the main thread (a full-size photo takes 100–200 ms to resize and encode).
@@ -15,15 +15,85 @@ nonisolated enum ImageTools {
         await Task.detached(priority: .userInitiated) { jpegForUpload(image, maxSide: maxSide, quality: quality) }.value
     }
 
-    static func resized(_ image: UIImage, maxSide: CGFloat) -> UIImage {
+    /// A canvas for pictures that are kept, sent or shown in a list: 8 bits per channel, standard range (sRGB). The
+    /// default (`preferredRange` .automatic) draws into an extended-range, 16-bit float canvas on an iPad with an EDR
+    /// display whenever the photo is wide colour or HDR: the camera photo then took twice the memory, and a cut-out PNG
+    /// came out 16-bit and several times larger — on 2026-10-15 nothing of one photo (a strawberry cake) ever reached
+    /// storage in five tries, while photos taken minutes before and after went up.
+    static func standardFormat(scale: CGFloat = 1, opaque: Bool = false) -> UIGraphicsImageRendererFormat {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = scale
+        format.opaque = opaque
+        format.preferredRange = .standard
+        return format
+    }
+
+    static func resized(_ image: UIImage, maxSide: CGFloat, opaque: Bool = false) -> UIImage {
         let size = image.size
         let scale = min(1, maxSide / max(size.width, size.height))
-        let target = CGSize(width: floor(size.width * scale), height: floor(size.height * scale))
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: target, format: format).image { _ in
+        let target = CGSize(width: max(1, floor(size.width * scale)), height: max(1, floor(size.height * scale)))
+        return UIGraphicsImageRenderer(size: target, format: standardFormat(opaque: opaque)).image { _ in
             image.draw(in: CGRect(origin: .zero, size: target))
         }
+    }
+
+    // MARK: - Uploads (8-bit, within a budget)
+
+    /// The most a cut-out PNG may weigh. Larger uploads dropped more often on the way (owner 2026-10-15: 花束's 2.15 MB
+    /// cut-out failed about ten times, the strawberry cake's 5 of 5; cut-outs of 0.6–1.6 MB went up at once).
+    static let cutoutBudget = 1_200_000
+    /// The sides a cut-out is drawn at, largest first, until it fits `cutoutBudget` (its transparency kept).
+    static let cutoutSides: [CGFloat] = [1024, 900, 768, 640, 512]
+    /// A photo JPEG (1600 px, q 0.88) is 0.3–1 MB; only a picture far past that is made smaller.
+    static let photoCap = 3_000_000
+
+    /// One picture ready to upload, and what the developer log needs to know about it.
+    nonisolated struct UploadData: Sendable {
+        let data: Data
+        let width: Int
+        let height: Int
+        /// Bits per channel of the picture it was drawn from (16: a wide-colour / HDR source, drawn into 8 bits here).
+        let sourceBits: Int
+        /// Drawn smaller (or at a lower JPEG quality) to fit its budget.
+        let shrunk: Bool
+
+        var summary: String { "\(data.count)B \(width)x\(height) from \(sourceBits)bpc\(shrunk ? " shrunk" : "")" }
+    }
+
+    /// A photo as an upload: an 8-bit sRGB JPEG at most `maxSide` px (as before: 1600 px, q 0.88). Only one past `cap`
+    /// gets a lower quality, then a smaller size (never below 480 px).
+    static func jpegUpload(_ image: UIImage, maxSide: CGFloat = 1600, quality: CGFloat = 0.88, cap: Int = photoCap) -> UploadData? {
+        let bits = image.cgImage?.bitsPerComponent ?? 8
+        var side = maxSide
+        var q = quality
+        var shrunk = false
+        while true {
+            let flat = resized(image, maxSide: side, opaque: true)
+            guard let data = flat.jpegData(compressionQuality: q) else { return nil }
+            if data.count <= cap || side <= 480 {
+                return UploadData(data: data, width: Int(flat.size.width), height: Int(flat.size.height), sourceBits: bits, shrunk: shrunk)
+            }
+            shrunk = true
+            if q > 0.72 { q = 0.72 } else { side = (side * 0.8).rounded(.down) }
+        }
+    }
+
+    /// A cut-out as an upload: an 8-bit sRGB PNG with its transparency, at most `maxSide` px (and never above 1024 px),
+    /// drawn smaller (900, 768 … 512 px) until it fits `budget`.
+    static func pngUpload(_ image: UIImage, maxSide: CGFloat = 1024, budget: Int = cutoutBudget) -> UploadData? {
+        let bits = image.cgImage?.bitsPerComponent ?? 8
+        let first = min(maxSide, cutoutSides[0])
+        let sides = [first] + cutoutSides.filter { $0 < first }
+        var last: UploadData?
+        for (i, side) in sides.enumerated() {
+            let flat = resized(image, maxSide: side)
+            guard let data = flat.pngData() else { return last }
+            let up = UploadData(data: data, width: Int(flat.size.width), height: Int(flat.size.height), sourceBits: bits, shrunk: i > 0)
+            if data.count <= budget { return up }
+            last = up
+        }
+        // Still past the budget at the smallest side: sent as it is (the retries carry it).
+        return last
     }
 
     /// Decodes an image file at most `maxSide` px on its long side, already upright (EXIF orientation
@@ -516,11 +586,11 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
 
 extension UIImage {
     /// Camera images carry EXIF orientation; bake it so Vision coordinates match what the user sees.
+    /// Drawn in 8 bits, standard range (`ImageTools.standardFormat`): a 16-bit extended-range copy of a 12 MP photo
+    /// took ~100 MB and made every upload made from it 16-bit.
     nonisolated func normalizedOrientation() -> UIImage {
         guard imageOrientation != .up else { return self }
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = scale
-        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+        return UIGraphicsImageRenderer(size: size, format: ImageTools.standardFormat(scale: scale)).image { _ in
             draw(in: CGRect(origin: .zero, size: size))
         }
     }

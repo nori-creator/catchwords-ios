@@ -188,6 +188,10 @@ private struct DexSlotView: View {
     private func column(caught s: Sticker) -> some View {
         VStack(spacing: 3) {
             sart(caught: true) { picture(s) }
+                .overlay(alignment: .bottomTrailing) {
+                    // Its save failed and it waits to be saved again (owner 2026-10-15: never removed from the dex).
+                    if dex.isUnsaved(s.id) { DexUnsavedMark() }
+                }
                 .detailZoomSource(s.id)   // the word sheet zooms out of this square
             noText
             // A long word (冷氣遙控器) shrinks to its own column instead of running over the next one.
@@ -502,6 +506,24 @@ private struct DexAnticipTint: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+/// A 「保存待ち」 word's square: a small cloud-with-arrow mark in its corner (its page says why and saves it again).
+private struct DexUnsavedMark: View {
+    var body: some View {
+        Image(systemName: "icloud.and.arrow.up")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 22, height: 22)
+            .background(Theme.primary, in: Circle())
+            .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+            .shadow(color: .rgba(0, 40, 90, 0.25), radius: 2, y: 1)
+            .offset(x: 2, y: 2)
+            .allowsHitTesting(false)
+            .accessibilityElement()
+            .accessibilityLabel(L("保存待ち"))
+            .accessibilityIdentifier("dex.unsaved")
     }
 }
 

@@ -15,6 +15,13 @@ struct CatchDraft {
     let captureType: String
     /// Photos already uploaded while the card was on screen (card catch); nil = upload while saving.
     var uploads: CatchPreupload? = nil
+    /// The catch's own id, sent as `client_catch_id`: the server answers with the sticker it already made for it, so a
+    /// save tried again after a dropped answer never makes a second one (the same id on every try, `PendingSave`).
+    var catchId: String = UUID().uuidString.lowercased()
+    /// Photos already in storage from an earlier try (「保存待ち」): only the row is saved.
+    var uploaded: CatchUploads? = nil
+    /// The learning language it was caught in (nil: the current one). A 「保存待ち」 catch keeps its own.
+    var language: String? = nil
 }
 
 /// A card catch's photos going up while its card is on screen (`DexStore.preupload`). `ts` names the files,
@@ -34,7 +41,7 @@ struct CatchPreupload {
 }
 
 /// Storage paths of a catch's photos.
-struct CatchUploads: Sendable {
+nonisolated struct CatchUploads: Sendable {
     let object: String?
     let cutout: String?
     let selfie: String?
@@ -148,7 +155,7 @@ final class DexStore {
             guard client.userId == uid else { return }
             // Only the words of the language being learned (web listMyStickers → matchesTargetLanguage).
             // A catch still being saved in the background stays on screen (its save swaps it for the real row).
-            let provisional = stickers.filter { Self.isProvisional($0.id) }
+            let provisional = stickers.filter { Self.isProvisional($0.id) && ($0.word?.matches(language) ?? true) }
             // A catch saved while the rows were being read (not among them yet) stays too.
             let rowIds = Set(rows.map(\.id))
             let savedMeanwhile = stickers.filter { savedSinceLoad.contains($0.id) && !rowIds.contains($0.id) }
@@ -163,6 +170,8 @@ final class DexStore {
                 return r
             }
             stickers = provisional + savedMeanwhile + present(fresh.filter { $0.word?.matches(language) ?? true })
+            // 「保存待ち」 words of this language that are not on screen yet (launch without a snapshot, a language switch).
+            restoreUnsaved()
             loadError = nil
             hasLoaded = true
             await loadReviews()
@@ -336,6 +345,7 @@ final class DexStore {
         }
         albumPlacements = places
         hasLoaded = true
+        restoreUnsaved()
     }
 
     /// Writes the snapshot a moment after the dex changed (many changes in a row are written once).
@@ -517,6 +527,21 @@ final class DexStore {
         return nil
     }
 
+    /// Puts in memory, from the phone's copies, the pictures a catch's landing shows first: the squares of the category
+    /// the word lands in (owner 2026-10-15: the dex went blank during the add animation — every square of the freshly drawn
+    /// dex page was read from disk while it rose). Started on the GET moment and again on 「図鑑に追加」; squares further
+    /// away load as they come on screen, as ever.
+    func warmLanding(headword: String, categoryKey: String?) {
+        let category = DexCatalog.item(headword: headword, lang: language)?.category ?? DexCatalog.category(forKey: categoryKey)
+        let words = DexBook.words(stickers, lang: language).filter { DexBook.category(of: $0, lang: language) == category }
+        for w in words.prefix(40) {
+            guard let p = dexPicture(of: w) else { continue }
+            let key = signed[p.path + Self.thumbSuffix] != nil ? p.path + Self.thumbSuffix : p.path
+            guard ImageCache.shared.image(for: key) == nil else { continue }
+            Task(priority: .userInitiated) { _ = await ImageCache.shared.cached(for: key) }
+        }
+    }
+
     // MARK: - Save a catch
 
     /// Saves a new catch through the web's own `saveSticker` (stickers.functions.ts): the same
@@ -527,19 +552,40 @@ final class DexStore {
     /// `ts` names the uploaded files (a provisional entry made by `addProvisional` already shows the photos
     /// under those names). `replacing`: that provisional entry is swapped for the saved one in place, and
     /// `adopted` runs at that very moment (the caller moves anything pointing at the provisional id).
-    func save(_ draft: CatchDraft, ts given: Int? = nil, replacing provisionalId: String? = nil,
+    ///
+    /// A failure is thrown as a `CatchSaveError` naming the step (photos or row) with the photos already in storage, so
+    /// the caller keeps the word in 「保存待ち」 and a retry saves the row with them. Every try sends the catch's own id
+    /// (`client_catch_id`): when the first answer was lost after the server had saved it, the retry gets that sticker back.
+    ///
+    /// `holdCategory`: a catch still landing — when the server filed the word under another category than its provisional
+    /// entry, its square keeps the provisional one until `settleLanding` (the landing is over).
+    func save(_ draft: CatchDraft, ts given: Int? = nil, replacing provisionalId: String? = nil, holdCategory: Bool = false,
               adopted: ((Sticker) -> Void)? = nil) async throws -> SaveOutcome {
         guard let uid = client.userId else { throw APIError.unauthorized }
         guard let card = draft.details else { throw APIError.message(L("カード生成に失敗しました")) }
         let paths: CatchUploads
-        if let pre = draft.uploads, pre.uid == uid, let done = try? await pre.task.value {
+        if let done = draft.uploaded {
+            // A 「保存待ち」 catch whose photos went up on an earlier try: only the row is saved — after the cut-out and the
+            // selfie that did not go up then (each may fail: the catch is saved without it).
+            let stamp = Self.uploadStamp()
+            var cut = done.cutout
+            if cut == nil { cut = await uploadPNG(draft.cutout, uid: uid, ts: stamp, kind: "cutout") }
+            var sel = done.selfie
+            if sel == nil, let found = try? await uploadJPEG(draft.selfie, uid: uid, ts: stamp, kind: "selfie") { sel = found }
+            paths = CatchUploads(object: done.object, cutout: cut, selfie: sel)
+        } else if let pre = draft.uploads, pre.uid == uid, let done = try? await pre.task.value {
             // The card catch's photos went up while the card was on screen (`preupload`): only the row is saved.
             paths = done
         } else {
             // Nothing uploaded ahead (or that upload failed: a fresh stamp then, since uploads never overwrite
             // a file it may have written).
             let ts = draft.uploads == nil ? (given ?? Self.uploadStamp()) : Self.uploadStamp()
-            paths = try await upload(photo: draft.photo, cutout: draft.cutout, selfie: draft.selfie, uid: uid, ts: ts)
+            do {
+                paths = try await upload(photo: draft.photo, cutout: draft.cutout, selfie: draft.selfie, uid: uid, ts: ts)
+            } catch {
+                guard client.userId == uid else { throw Self.accountChanged }
+                throw CatchSaveError(stage: .upload, underlying: error, uploads: nil)
+            }
         }
         // The save runs behind the dex (card catch): someone may have signed out, or into another account,
         // meanwhile. The row then must never be written to the account now signed in.
@@ -550,11 +596,13 @@ final class DexStore {
 
         let word = Self.wordFields(draft.candidate, card)
         let caption = draft.caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        let language = draft.language ?? NativeAPI.targetLanguage
         let data: [String: Any] = [
+            "client_catch_id": draft.catchId,
             "word": word,
             // Custom shelves are gone from the app (owner 2026-10-02): never ask the server to make one.
             "new_shelf": NSNull(),
-            "language": NativeAPI.targetLanguage,
+            "language": language,
             "object_path": orNull(obj),
             "cutout_path": orNull(cut),
             "selfie_path": orNull(selfieRef),
@@ -568,13 +616,31 @@ final class DexStore {
             let wordId: String?
             enum CodingKeys: String, CodingKey { case id, wordId = "word_id" }
         }
-        let saved = try await NativeAPI.call("saveSticker", data, as: Saved.self, timeout: 45, asUser: uid)
+        let saved: Saved
+        do {
+            // Safe to send twice: the server answers a second time with the sticker it made for this `client_catch_id`.
+            saved = try await NativeAPI.call("saveSticker", data, as: Saved.self, timeout: 45, asUser: uid, retryOnDrop: true)
+        } catch {
+            if Self.isAccountChanged(error) || client.userId != uid { throw Self.accountChanged }
+            throw CatchSaveError(stage: .save, underlying: error, uploads: paths)
+        }
         // Saved to the account that caught it; only this phone's list may now belong to someone else.
         guard client.userId == uid else { throw Self.accountChanged }
 
         cacheLocal(path: obj, image: draft.photo)
         cacheLocal(path: cut, image: draft.cutout)
         cacheLocal(path: selfieRef, image: draft.selfie)
+        // Its cut-out did not go up (after its tries): the catch is saved without it, and the very cut-out is kept and
+        // attached a little later (`CutoutBackfill.keep`: the album and the dex get their sticker then).
+        if cut == nil, let lost = draft.cutout {
+            CutoutBackfill.keep(lost, for: saved.id)
+            let sid = saved.id
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(20))
+                guard let self, let s = self.sticker(id: sid), CutoutBackfill.needsCutout(s) else { return }
+                await CutoutBackfill.shared.make(for: s, dex: self)
+            }
+        }
         let sticker: Sticker
         if let fresh = try? await fetchSticker(id: saved.id), client.userId == uid {
             sticker = fresh
@@ -585,33 +651,71 @@ final class DexStore {
             sticker = present([Sticker(
                 id: saved.id, wordId: saved.wordId ?? "", objectImageUrl: obj, cutoutImageUrl: cut,
                 selfieImageUrl: selfieRef, caption: caption.isEmpty ? nil : caption, locationName: draft.placeName,
-                takenAt: Date(), captureType: draft.captureType, word: Self.localWord(word, id: saved.wordId ?? ""),
+                takenAt: Date(), captureType: draft.captureType, word: Self.localWord(word, id: saved.wordId ?? "", language: language),
                 lat: draft.location?.coordinate.latitude, lng: draft.location?.coordinate.longitude
             )])[0]
         }
         guard client.userId == uid else { throw Self.accountChanged }
-        stickers.removeAll { $0.id == sticker.id }
-        savedSinceLoad.insert(sticker.id)
         if let provisionalId { adoptedIds[provisionalId] = sticker.id }
-        if let provisionalId, let i = stickers.firstIndex(where: { $0.id == provisionalId }) {
-            stickers[i] = sticker
-        } else {
-            stickers.insert(sticker, at: 0)
+        if let provisionalId { unsaved[provisionalId] = nil }
+        var shown = sticker
+        if language == self.language {
+            stickers.removeAll { $0.id == sticker.id }
+            savedSinceLoad.insert(sticker.id)
+            if holdCategory, let provisionalId, let old = stickers.first(where: { $0.id == provisionalId }),
+               DexBook.category(of: old, lang: language) != DexBook.category(of: sticker, lang: language) {
+                let held = HeldCategory(key: old.word?.categoryKey, shelf: old.shelfKey,
+                                        realKey: sticker.word?.categoryKey, realShelf: sticker.shelfKey)
+                heldCategories[sticker.id] = held
+                shown.word?.categoryKey = held.key
+                shown.shelfKey = held.shelf
+            }
+            if let provisionalId, let i = stickers.firstIndex(where: { $0.id == provisionalId }) {
+                stickers[i] = shown
+            } else {
+                stickers.insert(shown, at: 0)
+            }
+        } else if let provisionalId {
+            // Saved for another learning language than the one shown now: it belongs to that dex, not this one.
+            stickers.removeAll { $0.id == provisionalId }
         }
-        adopted?(sticker)
+        adopted?(shown)
         scheduleSnapshot()
         // The photos are already in the local cache under these paths (`cacheLocal` above): signing never holds
         // the landing or the caller.
         Task { await signPaths(for: [sticker]) }
         saveToPhotosIfEnabled(draft.photo)
-        return .created(sticker)
+        return .created(shown)
+    }
+
+    /// A word just saved whose square keeps, until its landing is over, the category its provisional entry landed in
+    /// (2026-10-15: 花束, caught before its card came, landed in その他; its saved row — filed under 花 by the server — came
+    /// back mid-flight and the square jumped to another category card, leaving the dex blank where it had landed).
+    private struct HeldCategory {
+        let key: String?
+        let shelf: String?
+        let realKey: String?
+        let realShelf: String?
+    }
+
+    @ObservationIgnored private var heldCategories: [String: HeldCategory] = [:]
+
+    /// The landing of `id` is over: its square goes to the category the server filed it under.
+    func settleLanding(_ id: String) {
+        guard let held = heldCategories.removeValue(forKey: id) else { return }
+        replace(id) { old in
+            var s = applyReader(old)
+            s.word?.categoryKey = held.realKey
+            s.shelfKey = held.realShelf
+            return s
+        }
     }
 
     /// A save that finished (or stopped) after its account was left. Nothing is shown to whoever is signed in now.
     static let accountChanged = APIError.server(409, "account changed")
 
     static func isAccountChanged(_ error: Error) -> Bool {
-        if case .server(409, "account changed")? = error as? APIError { return true }
+        if case .server(409, "account changed")? = SaveFailure.root(error) as? APIError { return true }
         return false
     }
 
@@ -640,14 +744,15 @@ final class DexStore {
         }
     }
 
-    /// Photo, cut-out and selfie in parallel; a failed cut-out or selfie never blocks the catch.
-    private func upload(photo: UIImage, cutout: UIImage?, selfie: UIImage?, uid: String, ts: Int) async throws -> CatchUploads {
-        async let objectPath: String? = uploadJPEG(photo, uid: uid, ts: ts, kind: "object")
-        async let cutoutPath: String? = uploadPNG(cutout, uid: uid, ts: ts, kind: "cutout")
-        async let selfiePath: String? = try? uploadJPEG(selfie, uid: uid, ts: ts, kind: "selfie")
-        let obj = try await objectPath
-        let cut = await cutoutPath
-        let sel: String? = await selfiePath
+    /// Photo, cut-out and selfie, one at a time, the photo first and alone; a failed cut-out or selfie never blocks the
+    /// catch. Owner 2026-10-15: on a Wi-Fi that dropped connections during the larger uploads, the three sent together on
+    /// one connection went down together — nothing of the strawberry cake reached storage in five tries, not even its
+    /// photo. Each picture is tried again on its own (`send`), drawn in 8 bits, and a cut-out kept within its budget
+    /// (`ImageTools.pngUpload`).
+    func upload(photo: UIImage, cutout: UIImage?, selfie: UIImage?, uid: String, ts: Int) async throws -> CatchUploads {
+        let obj = try await uploadJPEG(photo, uid: uid, ts: ts, kind: "object")
+        let cut = await uploadPNG(cutout, uid: uid, ts: ts, kind: "cutout")
+        let sel: String? = try? await uploadJPEG(selfie, uid: uid, ts: ts, kind: "selfie")
         return CatchUploads(object: obj, cutout: cut, selfie: sel)
     }
 
@@ -688,10 +793,165 @@ final class DexStore {
         return (sticker, ts)
     }
 
-    /// The background save failed: the provisional entry goes (the photo is back in 「解析待ち」).
+    /// The background save could not be kept for a retry (signed out meanwhile): the provisional entry goes. Never a
+    /// word that was saved (its provisional id was adopted): a failure that comes later never takes a saved word away.
     func discardProvisional(_ id: String) {
-        guard Self.isProvisional(id) else { return }
+        guard Self.isProvisional(id), adoptedIds[id] == nil else { return }
         stickers.removeAll { $0.id == id }
+    }
+
+    // MARK: - 「保存待ち」 (a catch whose save failed stays in the dex and is saved again)
+
+    /// Provisional id → its entry in 「解析待ち」 (`PendingCatch.save`), for every catch whose save failed. The word stays in
+    /// the dex where it landed, marked 「保存待ち」 (owner 2026-10-15: after 「保存に失敗しました」 花束 and 草莓蛋糕 were gone
+    /// from the dex), and is saved again on its own (`PendingRetry`) or from its page — with the same `client_catch_id`,
+    /// so a save whose answer was lost is never made twice.
+    private(set) var unsaved: [String: String] = [:]
+    /// 「保存待ち」 catches being saved right now (by entry id): never two saves of the same catch at once.
+    private(set) var retrying: Set<String> = []
+
+    func isUnsaved(_ stickerId: String) -> Bool { unsaved[stickerId] != nil }
+
+    /// A 「保存待ち」 word being saved again right now.
+    func isRetrying(_ stickerId: String) -> Bool { unsaved[stickerId].map { retrying.contains($0) } ?? false }
+
+    /// Why a 「保存待ち」 word is waiting (its last failure, in the display language).
+    func unsavedReason(_ stickerId: String) -> String? {
+        guard let pid = unsaved[stickerId] else { return nil }
+        return PendingQueue.shared.item(id: pid)?.reason
+    }
+
+    /// The save of a provisional entry failed: everything to save it again is kept with its photo in 「解析待ち」 (a new
+    /// entry when the photo had none), the entry stays in the dex as 「保存待ち」. Returns the entry's id (nil: nothing could
+    /// be kept — no card at all). Kept for the account signed in now (`PendingQueue`).
+    @discardableResult
+    func keepUnsaved(_ draft: CatchDraft, provisional: String, ts: Int, pendingId: String?, error: Error) -> String? {
+        guard let card = draft.details else { return nil }
+        let reason = SaveFailure.message(for: error)
+        let id: String
+        if let pendingId, PendingQueue.shared.item(id: pendingId) != nil {
+            id = pendingId
+        } else if let added = PendingQueue.shared.add(image: draft.photo, reason: reason, lat: draft.location?.coordinate.latitude,
+                                                      lng: draft.location?.coordinate.longitude) {
+            id = added.id
+        } else {
+            return nil
+        }
+        let landed = (error as? CatchSaveError)?.uploads ?? draft.uploaded
+        let pending = PendingSave(
+            catchId: draft.catchId, provisionalId: provisional, ts: ts, language: draft.language ?? language,
+            candidate: draft.candidate, card: card.raw, categoryKey: card.categoryKey, exampleSentence: card.exampleSentence,
+            exampleTranslation: card.exampleTranslation, caption: draft.caption, placeName: draft.placeName,
+            lat: draft.location?.coordinate.latitude, lng: draft.location?.coordinate.longitude, captureType: draft.captureType,
+            takenAt: sticker(id: provisional)?.takenAt ?? Date(), hasCutout: draft.cutout != nil, hasSelfie: draft.selfie != nil,
+            uploads: landed.map { SavedUploads($0) }
+        )
+        PendingQueue.shared.markUnsaved(id: id, save: pending, cutout: draft.cutout, selfie: draft.selfie, reason: reason)
+        unsaved[provisional] = id
+        return id
+    }
+
+    /// The 「保存待ち」 words of this account and learning language, back in the dex (launch, a reload, another learning
+    /// language): an app kill never loses them. Their pictures come from the phone (the image cache, else the files kept
+    /// with the photo).
+    func restoreUnsaved() {
+        guard let uid = client.userId else { return }
+        for item in PendingQueue.shared.unsavedItems() {
+            guard let ps = item.save, ps.language == language else { continue }
+            unsaved[ps.provisionalId] = item.id
+            guard !stickers.contains(where: { $0.id == ps.provisionalId }) else { continue }
+            let obj = ps.uploads?.object ?? "\(uid)/\(ps.ts)-object.jpg"
+            let cut: String? = ps.hasCutout ? (ps.uploads?.cutout ?? "\(uid)/\(ps.ts)-cutout.png") : nil
+            let selfie: String? = ps.hasSelfie ? (ps.uploads?.selfie ?? "\(uid)/\(ps.ts)-selfie.jpg") : nil
+            if !ImageCache.shared.hasFile(for: obj), let img = PendingQueue.shared.image(for: item) { cacheLocal(path: obj, image: img) }
+            if let cut, !ImageCache.shared.hasFile(for: cut), let img = PendingQueue.shared.cutout(for: item) { cacheLocal(path: cut, image: img) }
+            if let selfie, !ImageCache.shared.hasFile(for: selfie), let img = PendingQueue.shared.selfie(for: item) {
+                cacheLocal(path: selfie, image: img)
+            }
+            let caption = ps.caption.trimmingCharacters(in: .whitespacesAndNewlines)
+            let entry = Sticker(
+                id: ps.provisionalId, wordId: "", objectImageUrl: obj, cutoutImageUrl: cut, selfieImageUrl: selfie,
+                caption: caption.isEmpty ? nil : caption, locationName: ps.placeName, takenAt: ps.takenAt,
+                captureType: ps.captureType,
+                word: Self.localWord(Self.wordFields(ps.candidate, ps.details), id: "", language: ps.language),
+                lat: ps.lat, lng: ps.lng
+            )
+            stickers.insert(entry, at: 0)
+        }
+    }
+
+    /// Saves a 「保存待ち」 catch again: the same word, card and photos (only those not in storage yet go up), the same
+    /// `client_catch_id`. Done: the entry becomes the saved sticker in place and leaves 「解析待ち」. A failure is kept as its
+    /// new reason (and in the developer log) and thrown; the word stays.
+    @discardableResult
+    func retryUnsaved(pendingId: String) async throws -> SaveOutcome {
+        guard let item = PendingQueue.shared.item(id: pendingId), let ps = item.save else { throw CancellationError() }
+        guard !retrying.contains(pendingId) else { throw CancellationError() }
+        retrying.insert(pendingId)
+        defer { retrying.remove(pendingId) }
+        PendingQueue.shared.setSaving(pendingId, true)
+        let photo = PendingQueue.shared.image(for: item) ?? CaptureViewModel.textCard(for: ps.candidate.headword)
+        let location: CLLocation? = {
+            guard let lat = ps.lat, let lng = ps.lng else { return nil }
+            return CLLocation(latitude: lat, longitude: lng)
+        }()
+        var draft = CatchDraft(candidate: ps.candidate, details: ps.details, photo: photo, cutout: PendingQueue.shared.cutout(for: item),
+                               selfie: PendingQueue.shared.selfie(for: item), caption: ps.caption, location: location,
+                               placeName: ps.placeName, captureType: ps.captureType)
+        draft.catchId = ps.catchId
+        draft.uploaded = ps.uploads?.uploads
+        draft.language = ps.language
+        let provisional = ps.provisionalId
+        do {
+            let outcome = try await save(draft, replacing: stickers.contains { $0.id == provisional } ? provisional : nil)
+            PendingQueue.shared.remove(id: pendingId)
+            PendingRetry.shared.forget(pendingId)
+            unsaved[provisional] = nil
+            DevLog.shared.add("save", "\(ps.candidate.headword): saved on a retry (\(outcome.sticker.id))")
+            return outcome
+        } catch {
+            if let landed = (error as? CatchSaveError)?.uploads {
+                PendingQueue.shared.updateSave(id: pendingId) { $0.uploads = SavedUploads(landed) }
+            }
+            if !Self.isAccountChanged(error), !(error is CancellationError) {
+                PendingQueue.shared.updateReason(id: pendingId, reason: SaveFailure.message(for: error))
+                DevLog.shared.add("save", SaveFailure.log(error, headword: ps.candidate.headword) + " (retry)")
+            }
+            PendingQueue.shared.setSaving(pendingId, false)
+            throw error
+        }
+    }
+
+    #if DEBUG
+    /// DEBUG previews (`-uiPreview unsaved`): this entry shown as 「保存待ち」 without a save having run.
+    func previewUnsaved(_ stickerId: String, pendingId: String) { unsaved[stickerId] = pendingId }
+    #endif
+
+    /// Saves the 「保存待ち」 word shown as `stickerId` again (its page's 「もう一度保存」).
+    @discardableResult
+    func retryUnsaved(stickerId: String) async throws -> SaveOutcome {
+        guard let pid = unsaved[stickerId] else { throw CancellationError() }
+        return try await retryUnsaved(pendingId: pid)
+    }
+
+    /// The learner threw a 「保存待ち」 word away (its page's 削除, or swiped off 「解析待ち」): the entry, its kept photo and
+    /// any photos already in storage go. Nothing was written to the server for it.
+    func discardUnsaved(pendingId: String) {
+        let ps = PendingQueue.shared.item(id: pendingId)?.save
+        PendingQueue.shared.remove(id: pendingId)
+        PendingRetry.shared.forget(pendingId)
+        if let ps {
+            unsaved[ps.provisionalId] = nil
+            stickers.removeAll { $0.id == ps.provisionalId }
+            if let up = ps.uploads {
+                let client = client
+                Task {
+                    for path in [up.object, up.cutout, up.selfie].compactMap({ $0 }) {
+                        try? await client.removeObject(path: path, bucket: "stickers")
+                    }
+                }
+            }
+        }
     }
 
     /// The `words` fields `saveSticker` gets for a catch.
@@ -743,10 +1003,10 @@ final class DexStore {
     }
 
     /// A `Word` made from the fields sent to `saveSticker` (shown until the server's row is read).
-    private static func localWord(_ fields: [String: Any], id: String) -> Word? {
+    private static func localWord(_ fields: [String: Any], id: String, language: String? = nil) -> Word? {
         var w = fields
         w["id"] = id
-        w["language"] = NativeAPI.targetLanguage
+        w["language"] = language ?? NativeAPI.targetLanguage
         return (try? JSONSerialization.data(withJSONObject: w)).flatMap { try? JSONDecoder().decode(Word.self, from: $0) }
     }
 
@@ -777,6 +1037,11 @@ final class DexStore {
         var s = s
         s.word = ReaderLanguage.resolve(shared, explanation: explanations[s.wordId],
                                         readerMeaning: readerMeanings[s.wordId], reader: L10n.lang)
+        // Still landing: the category it landed in (`settleLanding`).
+        if let held = heldCategories[s.id] {
+            s.word?.categoryKey = held.key
+            s.shelfKey = held.shelf
+        }
         return s
     }
 
@@ -913,10 +1178,9 @@ final class DexStore {
             enum CodingKeys: String, CodingKey { case encounterCount = "encounter_count" }
         }
         do {
-            async let imagePath: String? = uploadJPEG(photo, uid: uid, ts: ts, kind: "encounter")
-            async let cutoutPath: String? = uploadPNG(cutout, uid: uid, ts: ts, kind: "encounter-cutout", maxSide: 800)
-            let image = try await imagePath
-            let cut = await cutoutPath
+            // One at a time, the photo first (`upload(photo:cutout:selfie:)`).
+            let image = try await uploadJPEG(photo, uid: uid, ts: ts, kind: "encounter")
+            let cut = await uploadPNG(cutout, uid: uid, ts: ts, kind: "encounter-cutout", maxSide: 800)
             if photo != nil && image == nil { throw APIError.message(L("記録に失敗しました")) }
             let res = try await NativeAPI.call("recordEncounter", [
                 "sticker_id": sid,
@@ -944,31 +1208,61 @@ final class DexStore {
 
     private func uploadJPEG(_ image: UIImage?, uid: String, ts: Int, kind: String) async throws -> String? {
         // Encoded off the main thread: this runs while the reward animation plays.
-        guard let image, let jpeg = await ImageTools.jpegForUploadInBackground(image) else { return nil }
+        guard let image,
+              let up = await Task.detached(priority: .userInitiated, operation: { ImageTools.jpegUpload(image) }).value
+        else { return nil }
         let path = "\(uid)/\(ts)-\(kind).jpg"
-        try await client.upload(jpeg, path: path)
+        try await send(up, path: path, contentType: "image/jpeg", kind: kind)
         return path
     }
 
-    /// Cutout failures never block the catch.
-    private func uploadPNG(_ image: UIImage?, uid: String, ts: Int, kind: String, maxSide: CGFloat = 1200) async -> String? {
+    /// Cutout failures never block the catch (the catch is saved without it, and it is attached later:
+    /// `CutoutBackfill.keep`).
+    private func uploadPNG(_ image: UIImage?, uid: String, ts: Int, kind: String, maxSide: CGFloat = 1024) async -> String? {
         guard let image,
-              let png = await Task.detached(priority: .userInitiated, operation: { ImageTools.resized(image, maxSide: maxSide).pngData() }).value
+              let up = await Task.detached(priority: .userInitiated, operation: { ImageTools.pngUpload(image, maxSide: maxSide) }).value
         else { return nil }
         let path = "\(uid)/\(ts)-\(kind).png"
         do {
-            try await client.upload(png, path: path, contentType: "image/png")
+            try await send(up, path: path, contentType: "image/png", kind: kind)
             return path
         } catch {
             return nil
         }
     }
 
+    /// Sends one picture, tried again when the connection dropped or could not be made (`UploadRetry`: after 1, 2 and 4 s;
+    /// a try after the first counts a file already there as sent). Every failed try goes to the developer log with which
+    /// picture, its size, the try's number and the error (its URLError code or HTTP status).
+    private func send(_ up: ImageTools.UploadData, path: String, contentType: String, kind: String) async throws {
+        try await UploadRetry.run(sleep: retrySleepOverride) { attempt in
+            do {
+                if let fake = sendUploadOverride {
+                    try await fake(up.data, path, contentType, attempt > 1)
+                } else {
+                    try await client.upload(up.data, path: path, contentType: contentType, existsIsDone: attempt > 1)
+                }
+                if attempt > 1 || up.shrunk || up.sourceBits > 8 {
+                    DevLog.shared.add("upload", "\(kind) sent on try \(attempt): \(up.summary)")
+                }
+            } catch {
+                DevLog.shared.add("upload", "\(kind) try \(attempt) failed \(up.summary): \(APIError.describe(error))")
+                throw error
+            }
+        }
+    }
+
+    /// Tests: stands in for storage (data, path, content type, another try of the same file) and for the waits.
+    @ObservationIgnored var sendUploadOverride: ((Data, String, String, Bool) async throws -> Void)?
+    @ObservationIgnored var retrySleepOverride: ((TimeInterval) async -> Void)?
+
     /// A picture taken on this phone goes into the cache under its storage path — in memory and on disk, so the
     /// album and the dex show it at once, also after a relaunch, without downloading it back.
+    /// At most the size it is uploaded at (1600 px, a cut-out 1024 px): a full camera photo in memory pushed the dex's own
+    /// pictures out of the cache just as the catch landed (`ImageCache.store(_:for:maxSide:)`).
     private func cacheLocal(path: String?, image: UIImage?) {
-        guard let path, let image else { return }
-        ImageCache.shared.store(image, for: path)
+        guard let path, let image, ImageCache.shared.image(for: path) == nil else { return }
+        ImageCache.shared.store(image, for: path, maxSide: path.hasSuffix(".png") ? 1024 : 1600)
     }
 
     private func saveToPhotosIfEnabled(_ image: UIImage) {
@@ -1309,13 +1603,15 @@ final class DexStore {
         }
     }
 
-    /// Sections never asked for any more.
-    nonisolated static let retiredSections: Set<String> = ["pronunciation_tips", "mnemonic", "web_images"]
+    /// Sections never asked for any more: 発音のコツ・覚え方 and 語源・部首 (the server stops writing them, owner 2026-10-15),
+    /// ネットの画像, and the extra examples (「例文」 shows those the card came with; nothing fetches more on its own).
+    nonisolated static let retiredSections: Set<String> = ["pronunciation_tips", "mnemonic", "web_images", "etymology",
+                                                          "etymology_diagram", "radicals", "examples_extra"]
 
     /// Web `regenerateCardSection`. `onlyIfEmpty` = first fill of a missing section (free, like the web's
     /// AutoFillSections); otherwise a full rewrite of the section (Pro on the web).
     func fillSection(wordId: String, section: String, onlyIfEmpty: Bool) async -> Bool {
-        // 発音のコツ and 覚え方 are no longer on the word page, and the server stops writing them (owner 2026-10-15).
+        // 発音のコツ・覚え方・語源・部首 are no longer on the word page, and the server stops writing them (owner 2026-10-15).
         guard !Self.retiredSections.contains(section) else { return false }
         struct Res: Decodable { let ok: Bool?; let filled: Bool? }
         let r = try? await NativeAPI.call("regenerateCardSection", [
@@ -1367,6 +1663,7 @@ final class DexStore {
         freshEncounters = [:]
         encounterEntries = []
         adoptedIds = [:]
+        unsaved = [:]
         signedAt = [:]
         forcedAt = [:]
         sharedWords = [:]

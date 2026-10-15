@@ -108,6 +108,9 @@ struct CaptureView: View {
             if step == .select { router.advanceTour(from: .shoot, to: .pick) }
             if step == .celebrate {
                 router.advanceTour(from: .pick, to: .detail)
+                // The dex page the word lands on next: its squares are read into memory now, while the word is
+                // celebrated, so the page never rises blank (owner 2026-10-15).
+                if let w = vm.picked { dex.warmLanding(headword: w.headword, categoryKey: w.categoryKey) }
                 // The photos go up while the word is celebrated: 図鑑に追加 then only saves the row.
                 // A cut-out still being made is waited for, so the upload carries the sticker that is saved.
                 // A re-encounter uploads its photos with its record (`DexStore.recordEncounter`).
@@ -152,6 +155,11 @@ struct CaptureView: View {
         .sheet(isPresented: $showPending) {
             PendingListView { item in
                 showPending = false
+                if item.isUnsaved {
+                    // A word whose save failed (「保存待ち」): saved again as it is — never analyzed or chosen again.
+                    retryUnsaved(item)
+                    return
+                }
                 guard plan.canCatch else { router.showPaywall = true; return }
                 vm.restore(item)
             }
@@ -517,6 +525,24 @@ struct CaptureView: View {
         }
     }
 
+    /// 「保存待ち」 tapped in the list: the same save again (`DexStore.retryUnsaved`); the result is told over every tab.
+    private func retryUnsaved(_ item: PendingCatch) {
+        let store = dex, nav = router
+        Task {
+            do {
+                try await store.retryUnsaved(pendingId: item.id)
+                Haptics.success()
+                nav.showNotice(L("図鑑に保存しました"))
+            } catch is CancellationError {
+                // Already being saved (the automatic retry): nothing to tell.
+            } catch {
+                Haptics.warning()
+                nav.showNotice(L("まだ保存できていません：\(SaveFailure.message(for: error))"), seconds: 5)
+            }
+            store.refreshPending()
+        }
+    }
+
     private func beginAnalyze(_ img: UIImage, askSelfie: Bool) {
         guard plan.canCatch else { router.showPaywall = true; return }
         vm.analyze(img, askSelfie: askSelfie)
@@ -550,6 +576,8 @@ struct CaptureView: View {
             vm.showToast(L("保存に失敗しました"))
             return false
         }
+        // The squares around the word's place are read into memory while the dex page rises.
+        dex.warmLanding(headword: want.headword, categoryKey: d.categoryKey)
         plan.recordCatch()
         let pendingId = vm.detachPendingForSave()
         // Photos uploaded while the celebration was on screen now belong to this save (`reset` must not delete them).
@@ -631,6 +659,7 @@ struct CaptureView: View {
             // Signed out (or into another account) meanwhile: the photo stays with the account that took it.
             if let pid = pendingId { PendingQueue.shared.setSaving(pid, false) }
         } catch {
+            DevLog.shared.add("encounter", "\(owned.headword): \(APIError.describe(error))")
             let failed = L("記録に失敗しました")
             let reason = (error as? LocalizedError)?.errorDescription ?? ""
             if let pid = pendingId {
@@ -645,8 +674,12 @@ struct CaptureView: View {
 
     /// The save, behind the dex. Success: the provisional entry becomes the saved sticker (the landing and the
     /// tour follow it; a word page opened on it meanwhile turns into it in place, `DexStore.current`) and the
-    /// queued photo goes. Failure: no entry is left behind (a word page open on it closes), the catch is not
-    /// counted, and the photo is back in 「解析待ち」 with the reason.
+    /// queued photo goes. Failure: the word stays in the dex as 「保存待ち」 (owner 2026-10-15: after 「保存に失敗しました。
+    /// ネットワークに接続できませんでした」 花束 and 草莓蛋糕 were gone from the dex) — its word, card, photos and the photos
+    /// already in storage are kept with the photo in 「解析待ち」 — and it is saved again on its own (`PendingRetry`: when
+    /// the connection comes back, when the app comes to the front, after a while) or from its page, with the same
+    /// `client_catch_id` so it is never saved twice. The learner reads what really happened; the real error goes to the
+    /// developer log (`DevLog`).
     /// `cardLater`: the card still being generated when it was saved from the word's own fields; its notes are
     /// filled into the saved word when it arrives (a card that fails leaves the word as saved — the detail page
     /// writes the notes when it is opened, as for any word without them).
@@ -654,9 +687,19 @@ struct CaptureView: View {
                                    cardLater: Task<CardDetails?, Never>? = nil,
                                    dex: DexStore, plan: PlanStore, router: AppRouter) async {
         do {
-            let outcome = try await dex.save(draft, ts: ts, replacing: provisional) { saved in
+            let outcome = try await dex.save(draft, ts: ts, replacing: provisional, holdCategory: true) { saved in
                 if let l = router.landing, l.stickerId == provisional { l.stickerId = saved.id }
                 if router.tourStickerId == provisional { router.tourStickerId = saved.id }
+            }
+            // Its square stays in the category it landed in while the landing plays, then goes where the server filed it.
+            let savedId = outcome.sticker.id
+            Task {
+                var waited = 0
+                while router.landing?.stickerId == savedId, waited < 40 {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    waited += 1
+                }
+                dex.settleLanding(savedId)
             }
             if let cardLater, case .created(let saved) = outcome, !saved.wordId.isEmpty {
                 Task { if let card = await cardLater.value { await dex.fillCard(wordId: saved.wordId, card: card) } }
@@ -673,18 +716,38 @@ struct CaptureView: View {
             if router.detailSticker?.id == provisional { router.detailSticker = nil }
             if let pid = pendingId { PendingQueue.shared.setSaving(pid, false) }
         } catch {
-            dex.discardProvisional(provisional)
-            plan.undoCatch()
-            if router.tourStickerId == provisional { router.tourStickerId = nil }
-            // Its page, opened while it was being saved, has nothing left to show.
-            if router.detailSticker?.id == provisional { router.detailSticker = nil }
-            let reason = (error as? LocalizedError)?.errorDescription ?? ""
-            if let pid = pendingId {
-                PendingQueue.shared.updateReason(id: pid, reason: L("保存に失敗しました"))
-                PendingQueue.shared.setSaving(pid, false)
+            DevLog.shared.add("save", SaveFailure.log(error, headword: draft.candidate.headword))
+            if let pid = dex.keepUnsaved(draft, provisional: provisional, ts: ts, pendingId: pendingId, error: error) {
+                PendingRetry.shared.noteFailedSave(pid, error: error)
+                // The card still being generated: kept for the next try when it comes (the word is then saved with it).
+                if let cardLater {
+                    Task {
+                        guard let card = await cardLater.value, let raw = card.raw else { return }
+                        PendingQueue.shared.updateSave(id: pid) { s in
+                            s.card = raw
+                            s.categoryKey = card.categoryKey
+                            s.exampleSentence = card.exampleSentence
+                            s.exampleTranslation = card.exampleTranslation
+                        }
+                    }
+                }
+                dex.refreshPending()
+                Haptics.warning()
+                router.showNotice(L("まだ保存できていません：\(SaveFailure.message(for: error))\n図鑑に「保存待ち」で残してあります。あとで自動でもう一度保存します。"),
+                                  seconds: 6)
+            } else {
+                // Nothing could be kept for a retry (no card at all): the entry goes and the catch is not counted.
+                dex.discardProvisional(provisional)
+                plan.undoCatch()
+                if router.tourStickerId == provisional { router.tourStickerId = nil }
+                if router.detailSticker?.id == provisional { router.detailSticker = nil }
+                if let pid = pendingId {
+                    PendingQueue.shared.updateReason(id: pid, reason: SaveFailure.message(for: error))
+                    PendingQueue.shared.setSaving(pid, false)
+                }
+                dex.refreshPending()
+                router.showNotice(L("保存に失敗しました\n\(SaveFailure.message(for: error))"))
             }
-            dex.refreshPending()
-            router.showNotice(reason.isEmpty ? L("保存に失敗しました") : L("保存に失敗しました\n\(reason)"))
         }
     }
 }
@@ -868,6 +931,7 @@ struct FailedView: View {
 
 struct PendingListView: View {
     @Environment(DexStore.self) private var dex
+    @Environment(PlanStore.self) private var plan
     let onRestore: (PendingCatch) -> Void
 
     var body: some View {
@@ -882,18 +946,32 @@ struct PendingListView: View {
                                     .clipShape(.rect(cornerRadius: 10))
                             }
                             VStack(alignment: .leading, spacing: 4) {
+                                if let word = item.save?.candidate.headword {
+                                    // A word whose save failed: it is in the dex already, waiting to be saved.
+                                    Text(L("保存待ち：\(word)"))
+                                        .scaledFont(size: 15, weight: .semibold)
+                                        .foregroundStyle(Theme.primaryInk)
+                                }
                                 Text(item.createdAt, format: .dateTime.month().day().hour().minute())
-                                    .scaledFont(size: 15, weight: .semibold)
-                                    .foregroundStyle(Theme.foreground)
+                                    .scaledFont(size: item.isUnsaved ? 12 : 15, weight: item.isUnsaved ? .regular : .semibold)
+                                    .foregroundStyle(item.isUnsaved ? Theme.muted : Theme.foreground)
                                 Text(L10n.readerSafe(item.reason, fallback: L("解析待ちの写真"))).scaledFont(size: 12).foregroundStyle(Theme.muted).lineLimit(2)
                             }
                             Spacer()
-                            Image(systemName: "arrow.clockwise.circle.fill").font(.title2).foregroundStyle(Theme.primary)
+                            Image(systemName: item.isUnsaved ? "icloud.and.arrow.up.fill" : "arrow.clockwise.circle.fill")
+                                .font(.title2).foregroundStyle(Theme.primary)
                         }
                     }
+                    .accessibilityIdentifier(item.isUnsaved ? "pending.unsaved" : "pending.photo")
                     .swipeActions {
                         Button(L("削除"), role: .destructive) {
-                            PendingQueue.shared.remove(id: item.id)
+                            if item.isUnsaved {
+                                // Its word leaves the dex too (it was never saved), and the catch is not counted.
+                                dex.discardUnsaved(pendingId: item.id)
+                                plan.undoCatch()
+                            } else {
+                                PendingQueue.shared.remove(id: item.id)
+                            }
                             dex.refreshPending()
                         }
                     }

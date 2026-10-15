@@ -92,8 +92,9 @@ struct UIPreviewRoot: View {
             case "detail": DetailPreview()
             case "tips": TipsPreview()
             case "examples": ExamplesPreview()
-            case "etym": EtymologyPreview(kind: .compound)
-            case "etymloan": EtymologyPreview(kind: .loanword)
+            case "sunscreen": SunscreenExamplesPreview()
+            case "unsaved": UnsavedWordPreview()
+            case "devlog": DevLogPreview()
             case "selfie": SelfieDetailPreview(original: false)
             case "selfie-original": SelfieDetailPreview(original: true)
             case "slides": SlidesPreview()
@@ -131,7 +132,7 @@ struct UIPreviewRoot: View {
     }
 
     private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer",
-                                                       "variants", "choose", "landing", "landing-again"]
+                                                       "variants", "choose", "landing", "landing-again", "typed"]
 }
 
 /// The catch scan's photo for the simulator (Vision's cut-out does not run there): a mango on a plate and a cup,
@@ -304,7 +305,8 @@ private struct PickerPreview: View {
     var autoOpen: Bool = false
     /// `-uiPreview choose`: the choose screen stays open — every name's register tag and the field to type a word.
     var holdOpen: Bool = false
-    /// `-uiPreview typed`: ボクサーパンツ typed under the photo — the names found, each with its register tag.
+    /// `-uiPreview typed`: ボクサーパンツ typed under the photo — the choose screen opens on the names found (never straight
+    /// on to the catch), each with its register tag, the everyday 內褲 first.
     var typed: Bool = false
     @State private var vm = CaptureViewModel()
 
@@ -360,8 +362,18 @@ private struct PickerPreview: View {
                         Candidate(kind: "object", headword: f.0, zhuyin: f.1, pinyin: "", meaningJa: f.2[i], pos: NativeAPI.defaultPos,
                                   point: [500, 500], confidence: 0.9, alternatives: [], register: f.3)
                     })
+                    vm.typedQuery = ["ボクサーパンツ", "boxer briefs", "平口褲"][i]
                 }
                 vm.step = .select
+            }
+            .task {
+                guard typed else { return }
+                // As a lookup does when its words come (`CaptureViewModel.search`): the choose screen opens on them.
+                try? await Task.sleep(for: .milliseconds(500))
+                vm.typedRound += 1
+                // The card's rows have come in.
+                try? await Task.sleep(for: .seconds(1.6))
+                UIReady.mark("preview")
             }
     }
 }
@@ -615,8 +627,8 @@ private struct DetailPreview: View {
         }
     }
 
-    /// The prose sections (発音のコツ・語源・覚え方・台湾メモ and the synonyms' difference), several sentences each — the
-    /// first is the owner's sentence that broke early on an iPad (2026-10-15), drawn one sentence per row.
+    /// The prose sections (台湾メモ and the synonyms' difference; 発音のコツ・語源・覚え方 as older cards still carry them, never
+    /// shown), several sentences each — the first is the owner's sentence that broke early on an iPad (2026-10-15).
     private static var prose: [String: String] {
         switch L10n.lang {
         case "en":
@@ -712,17 +724,17 @@ private struct DetailPreview: View {
     static var previewSticker: Sticker { sticker(withProse: false) }
 }
 
-/// The word page's prose sections one sentence per row, a line under every one (`-uiPreview tips`), scrolled to
-/// 語源・部首 (prose only: this card has no boxes) and 台湾メモ. The sections are switched on for this word's language
-/// first (they are hidden on a new card).
+/// The word page's prose sections (`-uiPreview tips`), scrolled to 台湾メモ: one sentence per row with the same spacing,
+/// and no line under its sentences (owner 2026-10-15); 類義語 keeps its look. The card's old 語源 text is in its payload
+/// and never shown (the section is gone). 台湾メモ is switched on first (it is hidden on a new card).
 private struct TipsPreview: View {
     init() {
         CardPrefsStore.shared.use("zh-TW")
-        for s in [CardSection.etymology, .taiwanNote] { CardPrefsStore.shared.setVisible(s, true) }
+        CardPrefsStore.shared.setVisible(.taiwanNote, true)
     }
 
     var body: some View {
-        DetailPreview(focus: .etymology, withProse: true)
+        DetailPreview(focus: .taiwanNote, withProse: true)
     }
 }
 
@@ -731,6 +743,105 @@ private struct TipsPreview: View {
 private struct ExamplesPreview: View {
     var body: some View {
         DetailPreview(focus: .example, withExamples: true)
+    }
+}
+
+/// 「例文」 of a card as the server writes it now (`-uiPreview sunscreen`, production shape of 2026-10-15: `example_v` 3,
+/// `example_scene` / `example_scene_for` on the main example, `examples_extra` items `{zh, ja, scene, scene_for, chunks}`):
+/// 防曬乳 with its main example and one more, each with its short scene label right above it.
+private struct SunscreenExamplesPreview: View {
+    private func pick(_ ja: String, _ en: String, _ zh: String) -> String {
+        L10n.lang == "en" ? en : L10n.lang == "zh-TW" ? zh : ja
+    }
+
+    private var sticker: Sticker {
+        let main = "出門前記得擦防曬乳。"
+        let extra = "這瓶防曬乳擦起來很清爽。"
+        let obj: [String: Any] = [
+            "id": "w-sunscreen", "headword": "防曬乳", "language": "zh-TW", "reading_zhuyin": "ㄈㄤˊ ㄕㄞˋ ㄖㄨˇ",
+            "pinyin": "fángshàirǔ", "meaning_ja": pick("日焼け止め", "sunscreen", "防曬乳"), "part_of_speech": "N",
+            "category_key": "body_care", "level": "TOCFL-3",
+            "example_sentence": main,
+            "example_translation": pick("出かける前に日焼け止めを塗るのを忘れないでね。", "Remember to put on sunscreen before you go out.", ""),
+            "extras": [
+                "explain_lang": L10n.lang,
+                "example_v": 3,
+                "example_pattern_count": 2,
+                "example_scene": pick("出かける家族に声をかけるとき", "Reminding family as they head out", "提醒家人出門時"),
+                "example_scene_for": main,
+                "example_chunks": [["parts": [["text": "擦", "pos": "V"], ["text": "防曬乳", "pos": "N"]],
+                                    "ja": pick("日焼け止めを塗る", "put on sunscreen", "擦防曬乳")]],
+                "examples_extra": [[
+                    "zh": extra,
+                    "ja": pick("この日焼け止めは塗り心地がさっぱりしている。", "This sunscreen feels light on the skin.", ""),
+                    "scene": pick("ドラッグストアで使い心地を話すとき", "Talking about how it feels at a drugstore", "在藥妝店聊使用感時"),
+                    "scene_for": extra,
+                    "chunks": [["parts": [["text": "擦起來", "pos": "V"], ["text": "很清爽", "pos": "Vs"]],
+                                "ja": pick("塗るとさっぱりする", "feels light when applied", "擦起來很清爽")]],
+                ] as [String: Any]],
+            ] as [String: Any],
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        // Through the same reader-language filter as real cards.
+        let word = (try? JSONDecoder().decode(Word.self, from: data))
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
+        return Sticker(id: "sunscreen", wordId: "w-sunscreen", objectImageUrl: nil, cutoutImageUrl: nil, selfieImageUrl: nil,
+                       caption: nil, locationName: nil, takenAt: Date(), captureType: "photo", word: word)
+    }
+
+    var body: some View {
+        WordDetailView(sticker: sticker, previewFocus: .example)
+    }
+}
+
+/// A catch whose save failed (`-uiPreview unsaved`): its word page says why (a connection that dropped, not 「offline」),
+/// that the word stays in the dex as 「保存待ち」, and offers 「もう一度保存」 (nothing is sent in the preview).
+private struct UnsavedWordPreview: View {
+    @Environment(DexStore.self) private var dex
+
+    private var sticker: Sticker {
+        let obj: [String: Any] = [
+            "id": "", "headword": "花束", "language": "zh-TW", "reading_zhuyin": "ㄏㄨㄚ ㄕㄨˋ", "pinyin": "huāshù",
+            "meaning_ja": L10n.lang == "en" ? "bouquet" : L10n.lang == "zh-TW" ? "花束" : "花束", "part_of_speech": "N",
+            "category_key": "plant",
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        let word = try? JSONDecoder().decode(Word.self, from: data)
+        ImageCache.shared.set(PreviewFixtures.photo, for: "preview/unsaved.jpg")
+        return Sticker(id: DexStore.provisionalPrefix + "preview-unsaved", wordId: "", objectImageUrl: "preview/unsaved.jpg",
+                       cutoutImageUrl: nil, selfieImageUrl: nil, caption: nil, locationName: nil, takenAt: Date(),
+                       captureType: "photo", word: word)
+    }
+
+    var body: some View {
+        let s = sticker
+        WordDetailView(sticker: s)
+            .onAppear {
+                dex.stickers = [s]
+                dex.hasLoaded = true
+                let reason = SaveFailure.message(for: CatchSaveError(stage: .save, underlying: APIError.connectionLost(-1005), uploads: nil))
+                if let item = PendingQueue.shared.add(image: PreviewFixtures.photo, reason: reason, lat: nil, lng: nil) {
+                    dex.previewUnsaved(s.id, pendingId: item.id)
+                }
+            }
+    }
+}
+
+/// 設定 › 開発者 › アプリの情報 with the developer log (`-uiPreview devlog`): a dropped save, a decode failure and an example
+/// shown without its label, as a failed catch writes them.
+private struct DevLogPreview: View {
+    init() {
+        DevLog.shared.clear()
+        DevLog.shared.add("example", "草莓蛋糕 「我買了一個草莓蛋糕。」: scene label without scene_for (example_v 2)")
+        DevLog.shared.add("decode", "suggestWordCandidates: DecodingError keyNotFound candidates")
+        DevLog.shared.add("save", SaveFailure.log(CatchSaveError(stage: .save, underlying: APIError.connectionLost(-1005),
+                                                                 uploads: CatchUploads(object: "uid/1760500000000-object.jpg",
+                                                                                       cutout: "uid/1760500000000-cutout.png", selfie: nil)),
+                                                  headword: "花束"))
+    }
+
+    var body: some View {
+        NavigationStack { AppInfoView() }
     }
 }
 
@@ -846,78 +957,6 @@ private struct ReviewPreview: View {
                 AnswerPanel(sticker: c.sticker, correct: true, onDex: {}, onNext: {})
             }
         }
-    }
-}
-
-/// 語源・部首 as boxes (`-uiPreview etym`: 曖 + 昧 = 曖昧) and a word that cannot be taken apart (`-uiPreview etymloan`:
-/// 沙發, from the sound of English "sofa"), scrolled to the section (switched on first: it is hidden on a new card).
-private struct EtymologyPreview: View {
-    enum Kind { case compound, loanword }
-    let kind: Kind
-
-    init(kind: Kind) {
-        self.kind = kind
-        CardPrefsStore.shared.use("zh-TW")
-        CardPrefsStore.shared.setVisible(.etymology, true)
-    }
-
-    private func pick(_ ja: String, _ en: String, _ zh: String) -> String {
-        L10n.lang == "en" ? en : L10n.lang == "zh-TW" ? zh : ja
-    }
-
-    private var sticker: Sticker {
-        let obj: [String: Any]
-        switch kind {
-        case .compound:
-            obj = [
-                "id": "w-aimei", "headword": "曖昧", "language": "zh-TW", "reading_zhuyin": "ㄞˋ ㄇㄟˋ",
-                "meaning_ja": pick("あいまい", "ambiguous", "不明確"), "part_of_speech": "VS",
-                "example_sentence": "他們的關係很曖昧。",
-                "example_translation": pick("二人の関係はあいまいだ。", "Their relationship is ambiguous.", ""),
-                "extras": [
-                    "explain_lang": L10n.lang,
-                    "etymology": pick("どちらの字も「日」が付き、光が足りずはっきり見えない様子を表します。",
-                                      "Both characters carry 日 (sun): not enough light to see clearly.",
-                                      "兩個字都有「日」，表示光線不足、看不清楚。"),
-                    "etymology_diagram": [
-                        "kind": "compound",
-                        "parts": [
-                            ["text": "曖", "components": ["日", "愛"], "meaning": pick("日がかげる", "the sun dims", "日光昏暗")],
-                            ["text": "昧", "components": ["日", "未"], "meaning": pick("夜明け前", "before dawn", "天未亮")],
-                        ],
-                        "result_meaning": pick("はっきり見えない", "not clearly seen", "看不清楚"),
-                        "source": "", "note": "",
-                    ] as [String: Any],
-                ] as [String: Any],
-            ]
-        case .loanword:
-            obj = [
-                "id": "w-sofa", "headword": "沙發", "language": "zh-TW", "reading_zhuyin": "ㄕㄚ ㄈㄚ",
-                "meaning_ja": pick("ソファー", "sofa", "沙發"), "part_of_speech": "N",
-                "example_sentence": "我坐在沙發上看電視。",
-                "example_translation": pick("ソファーに座ってテレビを見る。", "I sit on the sofa and watch TV.", ""),
-                "extras": [
-                    "explain_lang": L10n.lang,
-                    "etymology_diagram": [
-                        "kind": "loanword_phonetic", "parts": [] as [Any], "result_meaning": "",
-                        "source": "sofa",
-                        "note": pick("英語 sofa の音に字を当てた言葉です。字の意味（沙＝砂、發＝出す）とは関係ありません。",
-                                     "The characters spell the sound of English \"sofa\"; their meanings (sand, send out) play no part.",
-                                     "用字來表示英文 sofa 的發音，和字義（沙、發）無關。"),
-                    ] as [String: Any],
-                ] as [String: Any],
-            ]
-        }
-        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
-        let word = (try? JSONDecoder().decode(Word.self, from: data))
-            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
-        return Sticker(id: "etym-\(kind)", wordId: kind == .compound ? "w-aimei" : "w-sofa", objectImageUrl: nil,
-                       cutoutImageUrl: nil, selfieImageUrl: nil, caption: nil, locationName: nil, takenAt: Date(),
-                       captureType: "photo", word: word)
-    }
-
-    var body: some View {
-        WordDetailView(sticker: sticker, previewFocus: .etymology)
     }
 }
 

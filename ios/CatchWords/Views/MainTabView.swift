@@ -60,12 +60,13 @@ final class AppRouter {
     var notice: String?
     @ObservationIgnored private var noticeToken = 0
 
-    func showNotice(_ text: String) {
+    /// `seconds`: how long it stays (a notice of several lines needs longer to read).
+    func showNotice(_ text: String, seconds: Double = 3.5) {
         noticeToken += 1
         let token = noticeToken
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { notice = text }
         Task {
-            try? await Task.sleep(for: .seconds(3.5))
+            try? await Task.sleep(for: .seconds(seconds))
             guard noticeToken == token else { return }
             withAnimation(.easeOut(duration: 0.25)) { notice = nil }
         }
@@ -146,7 +147,9 @@ struct MainTabView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Theme.toastInk.opacity(0.88), in: Capsule())
+                    // Several lines (a failed save says what happened and that the word was kept): a rounded card.
+                    .background(Theme.toastInk.opacity(0.88),
+                                in: RoundedRectangle(cornerRadius: notice.contains("\n") ? 18 : 30, style: .continuous))
                     .padding(.top, 60)
                     .padding(.horizontal, 24)
                     .transition(.move(edge: .top).combined(with: .opacity))

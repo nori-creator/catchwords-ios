@@ -437,11 +437,16 @@ nonisolated extension DemoDatabase {
                 explanations[wordId] = byLang
             }
         }
+        // The catch's own id (`client_catch_id`, as the server): a save tried again gets the sticker already made for it.
+        let catchId = DJ.str(data["client_catch_id"])
+        if let catchId, let made = rows("stickers").first(where: { DJ.str($0["id"]) == catchId }) {
+            return .json(["result": ["id": catchId, "word_id": DJ.str(made["word_id"]) ?? wordId]])
+        }
         // One sticker per word (the server's duplicate guard).
         if let owned = rows("stickers").first(where: { DJ.str($0["word_id"]) == wordId }), let sid = DJ.str(owned["id"]) {
             return .json(["result": ["id": sid]])
         }
-        let sid = "demo-sticker-" + String(DJ.uuid().prefix(8))
+        let sid = catchId ?? ("demo-sticker-" + String(DJ.uuid().prefix(8)))
         let objectPath = DJ.str(data["object_path"])
         let caption = (DJ.str(data["caption"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         var s: [String: Any] = [:]

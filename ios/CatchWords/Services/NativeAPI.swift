@@ -57,14 +57,19 @@ enum NativeAPI {
     /// Returns the function's `result` as raw JSON bytes.
     /// `asUser`: send only while this account is the one signed in, checked right before the request leaves
     /// with that account's token (an answer about one person must never be recorded for another).
+    /// `retryOnDrop`: a connection that dropped before the answer came (-1005) is tried once more on a new one — only for
+    /// calls that are safe to send twice (`saveSticker` with its `client_catch_id`).
     static func call(_ fn: String, _ data: [String: Any], timeout: TimeInterval = 40,
-                     asUser: String? = nil) async throws -> Data {
+                     asUser: String? = nil, retryOnDrop: Bool = false) async throws -> Data {
         // Photos, words and text go on to a third-party AI only after this account agreed (Guideline 5.1.2(i)).
         // Refused here, before anything leaves the phone; the screens turn the error into the consent screen.
         if AIConsent.aiFunctions.contains(fn), !AIConsent.shared.allowsSending() {
             throw APIError.aiConsentRequired
         }
         do {
+            return try await post(fn, data, timeout: timeout, asUser: asUser)
+        } catch APIError.connectionLost(let code) where retryOnDrop && code == URLError.Code.networkConnectionLost.rawValue {
+            DevLog.shared.add("network", "\(fn): connection dropped (-1005), sent once more")
             return try await post(fn, data, timeout: timeout, asUser: asUser)
         } catch APIError.aiConsentRequired where !AIConsent.recordFunctions.contains(fn) {
             // The server's record has no agreement for this account (web patch, docs/ios-spec/23-ai-consent.md).
@@ -111,7 +116,10 @@ enum NativeAPI {
         let message = (json?["error"] as? String) ?? ""
         switch status {
         case 200:
-            guard let json, let result = json["result"] else { throw APIError.decoding }
+            guard let json, let result = json["result"] else {
+                DevLog.shared.add("decode", "\(fn): 200 without a result (\(body.count) bytes)")
+                throw APIError.decoding
+            }
             if result is NSNull { return Data("null".utf8) }
             return try JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed])
         case 401: throw APIError.unauthorized
@@ -142,11 +150,14 @@ enum NativeAPI {
     private static var lastWarmUp = Date.distantPast
 
     static func call<T: Decodable>(_ fn: String, _ data: [String: Any], as type: T.Type,
-                                   timeout: TimeInterval = 40, asUser: String? = nil) async throws -> T {
-        let raw = try await call(fn, data, timeout: timeout, asUser: asUser)
+                                   timeout: TimeInterval = 40, asUser: String? = nil, retryOnDrop: Bool = false) async throws -> T {
+        let raw = try await call(fn, data, timeout: timeout, asUser: asUser, retryOnDrop: retryOnDrop)
         do {
             return try JSONDecoder().decode(T.self, from: raw)
         } catch {
+            // The answer came but not in the shape this build reads: the detail goes to the developer log (the learner
+            // reads 「データの読み込みに失敗しました」, never a network problem).
+            DevLog.shared.add("decode", "\(fn): \(APIError.describe(error))")
             throw APIError.decoding
         }
     }

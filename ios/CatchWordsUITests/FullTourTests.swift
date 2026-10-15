@@ -48,6 +48,7 @@ final class FullTourTests: XCTestCase {
         dexAndDetail()
         photoAndCatch()
         photoAndCatch(pick: 1, expectAgain: true)
+        typedCatch()
         review()
         settings()
         signOutAndBackIn()
@@ -231,6 +232,68 @@ final class FullTourTests: XCTestCase {
         snap(p + "after-catch")
         settle(4)
         snap(p + "dex-after-catch")
+    }
+
+    /// 「違う単語を入力」 under the photo (owner 2026-10-15): what is typed never goes straight on to the catch — the words
+    /// found open the choose screen (覚える単語を選ぶ), the everyday one first with its register tag, and the learner
+    /// picks; then the GET moment and the dex as for a tag. The demo finds 鳳梨 / pineapple / パイナップル for "pineapple"
+    /// typed in any display language (a meaning in English), a word not caught yet.
+    private func typedCatch() {
+        tap("tab.camera")
+        settle(2)
+        let shutter = app.buttons["camera.shutter"]
+        guard shutter.waitForExistence(timeout: 10), shutter.isEnabled else {
+            XCTFail("[\(display)/\(learning)] the shutter is missing or disabled (typed search)")
+            return
+        }
+        shutter.tap()
+        guard app.buttons["candidate.0"].firstMatch.waitForExistence(timeout: 30) else {
+            XCTFail("[\(display)/\(learning)] the words did not appear on the photo (typed search)")
+            snap("typed-analysis-failed")
+            return
+        }
+        settle(1.5)
+        let field = app.textFields["picker.field"]
+        guard field.waitForExistence(timeout: 5) else {
+            XCTFail("[\(display)/\(learning)] no field to type a word under the photo")
+            return
+        }
+        field.tap()
+        field.typeText("pineapple")
+        settle(0.5)
+        snap("typed-input")
+        // Return on the keyboard (the field's search key) sends it, wherever the keyboard leaves the button.
+        field.typeText("\n")
+        let everyday = app.buttons["variant.0"]
+        let catchButton = app.buttons["card.catch"]
+        let landed = app.descendants(matching: .any)["dex.new"]
+        guard everyday.waitForExistence(timeout: 15) else {
+            let wentOn = catchButton.exists || landed.exists
+            snap("typed-no-picker")
+            XCTFail("[\(display)/\(learning)] the typed word " + (wentOn ? "went straight on to the catch" : "showed no choose screen"))
+            return
+        }
+        settle(1.2)
+        snap("typed-picker")
+        // Never straight on: no GET moment before the choice, and the everyday name carries its register tag.
+        XCTAssertFalse(catchButton.exists, "[\(display)/\(learning)] the GET moment opened before a typed word was chosen")
+        let common = ["ja": "一般的な言い方", "en": "Common", "zh-TW": "常用說法"][display] ?? ""
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", common)).count > 0,
+                      "[\(display)/\(learning)] the typed words have no register tag (\(common))")
+        everyday.tap()
+        guard waitForCatch([catchButton, landed], timeout: 20) else {
+            snap("typed-pick-failed")
+            XCTFail("[\(display)/\(learning)] choosing a typed word did not open the GET moment")
+            return
+        }
+        if catchButton.exists {
+            settle(1)
+            snap("typed-celebration")
+            if !waitGone(catchButton, timeout: 8), catchButton.exists { catchButton.tap() }
+        }
+        XCTAssertTrue(landed.waitForExistence(timeout: 15), "[\(display)/\(learning)] the typed word did not land in the dex")
+        settle(2)
+        snap("typed-dex-after-catch")
     }
 
     /// The choose screen (owner 2026-10-15): every way to say it carries its register tag — the everyday word's

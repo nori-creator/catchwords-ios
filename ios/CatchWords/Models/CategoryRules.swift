@@ -101,7 +101,9 @@ nonisolated enum CategoryRules {
 
     /// Word endings that decide the kind of thing (〜傘, 〜鞋 …).
     private static let suffix: [(NSRegularExpression, String)] = rules([
-        ("(花|玫瑰|櫻花|向日葵|鬱金香|百合)$", "flower"),  // l10n-ignore (headword rules)
+        // 花束 / 花籃 / 花圈 end in another character (2026-10-15: a 花束 caught without its card sat in その他, then moved
+        // when the server's row came back during the landing).
+        ("(花|玫瑰|櫻花|向日葵|鬱金香|百合|花束|花籃|花圈)$", "flower"),  // l10n-ignore (headword rules)
         ("(樹|竹|草|葉|盆栽)$", "plant"),  // l10n-ignore (headword rules)
         ("(菇|蕈|菌菇)$", "plant"),  // l10n-ignore (headword rules)
         ("(傘|雨傘|陽傘)$", "accessory"),  // l10n-ignore (headword rules)

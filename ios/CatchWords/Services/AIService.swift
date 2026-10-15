@@ -56,8 +56,8 @@ final class AIService {
         return out
     }
 
-    /// Typed word (Japanese or Chinese) → 2–5 names, each with how it differs
-    /// (`suggestWordCandidates`). One result goes straight to the card; several go to the picker.
+    /// Typed word (any language) → 1–5 names, each with how it differs and what kind of name it is
+    /// (`suggestWordCandidates`). The camera always lists them on the choose screen, even one (owner 2026-10-15).
     func candidates(for query: String, scene: String? = nil) async throws -> [Candidate] {
         var data: [String: Any] = ["query": String(query.prefix(60)), "targetLanguage": NativeAPI.targetLanguage]
         if let scene, !scene.isEmpty { data["scene"] = String(scene.prefix(200)) }

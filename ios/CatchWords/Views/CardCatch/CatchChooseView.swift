@@ -6,13 +6,14 @@ import SwiftUI
 /// say it, each with what kind of name it is (`NameRegister`, owner 2026-10-15). A choice is marked in blue (the others
 /// fade), the card folds away and the sticker glides on to the GET moment — drawn by the same `CatchStageScene`, so the
 /// next screen takes over without a seam. Under the card a word can be typed instead (the display language or the
-/// learning language, `onSearch`). A thing with one way to say it gets no card: its sticker lifts out and goes straight
-/// on. × goes back to the tags.
+/// learning language, `onSearch`); the words found are listed on this card the same way (owner 2026-10-15: a typed word
+/// is chosen here, never taken straight on). The camera shows the card for a thing with one way to say it too
+/// (`alwaysCard`); without it, one way gets no card and its sticker lifts out and goes straight on. × goes back to the tags.
 struct CatchChooseOverlay: View {
-    /// The ways to say it (the everyday one first); one = no card.
+    /// The ways to say it (the everyday one first); one = no card, unless `alwaysCard`.
     let words: [Candidate]
-    /// The thing's name in the reader's language.
-    let thing: String
+    /// The line under the title: 「写っている物：…」 (the thing's name in the reader's language), or what was typed.
+    let subtitle: String
     /// 「No.001 · 飲み物」, nil when the 図鑑's catalog does not know the thing.
     let dexLabel: String?
     let cut: UIImage?
@@ -26,8 +27,14 @@ struct CatchChooseOverlay: View {
     let chosen: Int?
     let closingAt: Double?
     let calm: Bool
+    /// Words found by typing: the card even for one word (the learner always chooses).
+    var alwaysCard: Bool = false
+    /// When the rows came in, when a lookup replaced them on the open card (nil: with the card).
+    var rowsAt: Double? = nil
     /// A typed word is being looked up (`CaptureViewModel.isLookingUp`).
     var searching: Bool = false
+    /// Nothing found for what was typed (shown under the field).
+    var searchError: String? = nil
     let onChoose: (Int) -> Void
     let onClose: () -> Void
     /// A word typed in the field under the card.
@@ -42,7 +49,7 @@ struct CatchChooseOverlay: View {
     private let muted = Color(hex: 0x5C646F)
     private let line = Color(hex: 0xE0E5EB)
 
-    private var hasCard: Bool { words.count > 1 }
+    private var hasCard: Bool { words.count > 1 || (alwaysCard && !words.isEmpty) }
 
     var body: some View {
         ZStack {
@@ -144,7 +151,7 @@ struct CatchChooseOverlay: View {
                     .foregroundStyle(ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                Text(L("写っている物：\(thing)"))
+                Text(subtitle)
                     .font(.system(size: 30 * k, weight: .medium))
                     .foregroundStyle(muted)
                     .lineLimit(1)
@@ -185,9 +192,11 @@ struct CatchChooseOverlay: View {
     }
 
     private func rows(now: Double, tD: Double, k: CGFloat) -> some View {
-        VStack(spacing: 0) {
+        // Rows that replaced others on the open card (a lookup) come in as the card's first rows did.
+        let tR = rowsAt.map { now - $0 + 0.58 } ?? tD
+        return VStack(spacing: 0) {
             ForEach(Array(words.enumerated()), id: \.offset) { i, c in
-                let ri = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.58 + 0.07 * Double(i), 0.9 + 0.07 * Double(i)))
+                let ri = calm ? Film6.clamp(tR / 0.2) : Film6.outCubic(Film6.seg(tR, 0.58 + 0.07 * Double(i), 0.9 + 0.07 * Double(i)))
                 row(i, c, now: now, k: k)
                     .opacity(ri)
                     .offset(y: CGFloat(1 - ri) * 18 * k)
@@ -313,6 +322,13 @@ struct CatchChooseOverlay: View {
                 .buttonStyle(PressableStyle())
                 .disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty || searching)
                 .accessibilityIdentifier("variant.submit")
+            }
+            if let searchError, !searching {
+                Text(searchError)
+                    .scaledFont(size: 12)
+                    .foregroundStyle(Theme.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("variant.searchError")
             }
         }
         .padding(12)

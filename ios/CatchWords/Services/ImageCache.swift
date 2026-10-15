@@ -45,20 +45,48 @@ final class ImageCache {
         cache.setObject(image, forKey: key as NSString, cost: Self.cost(of: image))
     }
 
+    /// In memory under `key`, counted as `cost` bytes (`store(_:for:maxSide:)`: a picture about to be replaced by its
+    /// smaller copy).
+    private func set(_ image: UIImage, for key: String, cost: Int) {
+        cache.setObject(image, forKey: key as NSString, cost: cost)
+    }
+
     // MARK: Disk
 
     /// A picture made on this phone (a catch's photo, cut-out or selfie, a replaced photo): in memory now, and on
     /// disk, so the album and the dex show it at once after a relaunch — no download and no signed link needed.
-    func store(_ image: UIImage, for key: String) {
-        set(image, for: key)
-        let file = Self.file(for: key)
+    ///
+    /// `maxSide`: kept at most this size (the size it is uploaded at). A camera photo is 12 MP or more (48 MB decoded on
+    /// an iPad): put in memory as it is, it pushed the dex's pictures out of the 160 MB cache right as the catch landed,
+    /// and every square of the dex had to be read again from disk — the dex looked blank behind the landing (owner
+    /// 2026-10-15). It is shown at once, counted at the size it is about to be, and replaced by its smaller copy (the one
+    /// written to disk) a moment later.
+    func store(_ image: UIImage, for key: String, maxSide: CGFloat? = nil) {
         let png = key.lowercased().hasSuffix(".png")
+        let file = Self.file(for: key)
         noteWrite()
-        Task.detached(priority: .utility) {
-            guard !FileManager.default.fileExists(atPath: file.path) else { return }
-            // A cut-out keeps its transparency (PNG); photos are JPEG.
-            guard let data = png ? image.pngData() : image.jpegData(compressionQuality: 0.9) else { return }
-            try? data.write(to: file, options: .atomic)
+        let side = max(image.size.width, image.size.height) * image.scale
+        guard let maxSide, side > maxSide * 1.05 else {
+            set(image, for: key)
+            Task.detached(priority: .utility) {
+                guard !FileManager.default.fileExists(atPath: file.path) else { return }
+                // A cut-out keeps its transparency (PNG); photos are JPEG.
+                guard let data = png ? image.pngData() : image.jpegData(compressionQuality: 0.9) else { return }
+                try? data.write(to: file, options: .atomic)
+            }
+            return
+        }
+        let ratio = maxSide / side
+        set(image, for: key, cost: max(1, Int(Double(Self.cost(of: image)) * Double(ratio * ratio))))
+        Task {
+            let small = await Task.detached(priority: .userInitiated) { ImageTools.resized(image, maxSide: maxSide) }.value
+            // Still the very picture under this key (not removed, not replaced meanwhile).
+            if self.image(for: key) === image { self.set(small, for: key) }
+            Task.detached(priority: .utility) {
+                guard !FileManager.default.fileExists(atPath: file.path) else { return }
+                guard let data = png ? small.pngData() : small.jpegData(compressionQuality: 0.9) else { return }
+                try? data.write(to: file, options: .atomic)
+            }
         }
     }
 

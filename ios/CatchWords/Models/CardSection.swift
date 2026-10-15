@@ -40,29 +40,27 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
 
     /// The sections a card in `target` can have, in the web's order (target-profile.ts).
     /// ネットの画像・追加の例文・発音のコツ・覚え方 are gone from the word page (owner 2026-10-15): the extra examples are
-    /// in 「例文」 with the main one, and the page never asks the server for the others. Their cases stay so a saved
-    /// order or a report naming them still reads.
+    /// in 「例文」 with the main one, and the page never asks the server for the others. 語源・部首 is gone too (owner
+    /// 2026-10-15; the server stops writing it): no diagram, no prose. Their cases stay so a saved order or a report
+    /// naming them still reads.
     static func sections(for target: String) -> [CardSection] {
         switch target {
         case "en":
             [.meaning, .example, .usageChunks, .forms, .countability, .phrasalVerbs, .relatedWords,
-             .stress, .etymology, .cultureNote, .realUsage]
+             .stress, .cultureNote, .realUsage]
         case "ja":
             [.meaning, .example, .usageChunks, .kanjiBreakdown, .conjugation, .politeness, .counters,
-             .relatedWords, .pitchAccent, .wordOrigin, .etymology, .japanNote, .realUsage]
+             .relatedWords, .pitchAccent, .wordOrigin, .japanNote, .realUsage]
         default:
-            [.meaning, .example, .usageChunks, .measureWords, .relatedWords, .etymology, .taiwanNote, .realUsage]
+            [.meaning, .example, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
         }
     }
 
     /// No longer on the word page (`sections(for:)`).
-    var isRemoved: Bool { [.webImages, .examplesExtra, .pronunciationTips, .mnemonic].contains(self) }
+    var isRemoved: Bool { [.webImages, .examplesExtra, .pronunciationTips, .mnemonic, .etymology].contains(self) }
 
-    /// card-sections.ts sectionTitleKey: 「語源・部首」 only where the language has radicals.
-    func title(for target: String) -> String {
-        if self == .etymology, target != "zh-TW" { return L("語源") }
-        return title
-    }
+    /// The title in a card of `target`'s language.
+    func title(for target: String) -> String { title }
 
     var title: String {
         switch self {

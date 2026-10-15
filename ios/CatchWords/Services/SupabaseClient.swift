@@ -4,7 +4,12 @@ nonisolated enum APIError: LocalizedError {
     case notConfigured
     case unauthorized
     case timeout
+    /// This device has no network at all (airplane mode, no signal, cellular data off for the app).
     case offline
+    /// The device is online, but the connection to the server could not be made or dropped mid-request (the
+    /// `URLError` code is kept for the developer log, e.g. -1005 for a connection the server closed). Before
+    /// 2026-10-15 these all read 「インターネットに接続できません」 too, so a dropped save looked like being offline.
+    case connectionLost(Int)
     case server(Int, String)
     case decoding
     case message(String)
@@ -22,6 +27,7 @@ nonisolated enum APIError: LocalizedError {
         case .unauthorized: L("ログインの有効期限が切れました。もう一度ログインしてください。")
         case .timeout: L("通信が時間切れになりました。電波の良い場所でもう一度お試しください。")
         case .offline: L("インターネットに接続できません。")
+        case .connectionLost(let code): L("サーバーとの通信が途中で切れました（\(code)）。")
         case .server(let code, let msg): L10n.readerSafe(msg, fallback: L("サーバーエラー（\(code)）"))
         case .decoding: L("データの読み込みに失敗しました。")
         case .message(let m): L10n.readerSafe(m, fallback: L("うまくいきませんでした。もう一度お試しください。"))
@@ -33,7 +39,7 @@ nonisolated enum APIError: LocalizedError {
     /// Whether retrying later may succeed (the web app shows the reason instead of a blanket "later").
     var isRetryable: Bool {
         switch self {
-        case .timeout, .offline: true
+        case .timeout, .offline, .connectionLost: true
         case .server(let code, _): code >= 500 || code == 429
         case .limit: false
         default: false
@@ -458,7 +464,10 @@ final class SupabaseClient {
 
     // MARK: - Storage (private bucket "stickers": {uuid}/{ts}-{kind}.jpg)
 
-    func upload(_ data: Data, path: String, contentType: String = "image/jpeg", bucket: String = "stickers", upsert: Bool = false) async throws {
+    /// `existsIsDone`: this is another try of the same file (`UploadRetry`). If an earlier try had landed after all,
+    /// storage answers that the file exists — every name is new (a time stamp), so it is ours and the upload is done.
+    func upload(_ data: Data, path: String, contentType: String = "image/jpeg", bucket: String = "stickers", upsert: Bool = false,
+                existsIsDone: Bool = false) async throws {
         try await refreshForRequest()
         guard let baseURL, let url = URL(string: "storage/v1/object/\(bucket)/\(path)", relativeTo: baseURL) else {
             throw APIError.notConfigured
@@ -476,8 +485,20 @@ final class SupabaseClient {
         }
         guard (200..<300).contains(response.statusCode) else {
             let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any]
-            throw APIError.server(response.statusCode, (json?["message"] as? String) ?? L("写真の保存に失敗しました。"))
+            let message = (json?["message"] as? String) ?? ""
+            if existsIsDone, Self.isAlreadyThere(status: response.statusCode, json: json) { return }
+            throw APIError.server(response.statusCode, message.isEmpty ? L("写真の保存に失敗しました。") : message)
         }
+    }
+
+    /// Storage's answer to a file that is already there (409, or 400 with statusCode "409" / error "Duplicate").
+    nonisolated static func isAlreadyThere(status: Int, json: [String: Any]?) -> Bool {
+        if status == 409 { return true }
+        guard status == 400, let json else { return false }
+        let code = (json["statusCode"] as? String) ?? (json["statusCode"] as? Int).map { String($0) } ?? ""
+        let error = ((json["error"] as? String) ?? "").lowercased()
+        let message = ((json["message"] as? String) ?? "").lowercased()
+        return code == "409" || error == "duplicate" || message.contains("already exists")
     }
 
     /// Deletes one object (`DELETE /storage/v1/object/<bucket>/<path>`). Storage's RLS lets an account delete
@@ -549,19 +570,68 @@ final class SupabaseClient {
 }
 
 extension APIError {
-    /// One mapping for every request: no connection (airplane mode, no signal, a captive Wi-Fi that
-    /// breaks TLS, cellular data off for the app) reads as offline with a retry, never as a raw system
-    /// string; a cancelled request (the screen went away) is a cancellation, not an error to show.
+    /// One mapping for every request, never a raw system string. Only a device with no network at all reads as
+    /// offline (airplane mode, no signal, cellular data off for the app); a connection that could not be made or
+    /// dropped while the device is online (the server closed it, DNS, TLS, a captive Wi-Fi) is `connectionLost` with
+    /// its code; an answer that cannot be read is `decoding`. Owner 2026-10-15: a save that failed was reported as
+    /// 「ネットワークに接続できませんでした」 whatever had happened. A cancelled request (the screen went away) is a
+    /// cancellation, not an error to show.
     nonisolated static func from(_ error: URLError) -> Error {
         switch error.code {
         case .timedOut: return APIError.timeout
         case .cancelled: return CancellationError()
-        case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost,
-             .dnsLookupFailed, .dataNotAllowed, .internationalRoamingOff, .callIsActive,
-             .secureConnectionFailed, .cannotLoadFromNetwork, .resourceUnavailable:
+        case .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff, .callIsActive:
             return APIError.offline
+        case .badServerResponse, .cannotParseResponse, .cannotDecodeRawData, .cannotDecodeContentData, .zeroByteResource:
+            return APIError.decoding
         default:
-            return APIError.message("")
+            // networkConnectionLost, cannotConnectToHost, cannotFindHost, dnsLookupFailed, secureConnectionFailed …
+            return APIError.connectionLost(error.code.rawValue)
+        }
+    }
+
+    /// The error as the developer log writes it (設定 › 開発者 › アプリの情報): the kind and every detail kept.
+    nonisolated static func describe(_ error: Error) -> String {
+        switch error {
+        case let e as APIError:
+            switch e {
+            case .notConfigured: return "notConfigured"
+            case .unauthorized: return "unauthorized (401)"
+            case .timeout: return "timeout"
+            case .offline: return "offline (no network on the device)"
+            case .connectionLost(let code): return "connectionLost URLError \(code) \(urlErrorName(code))"
+            case .server(let code, let msg): return "server \(code) \(msg.prefix(200))"
+            case .decoding: return "decoding (an answer the app could not read)"
+            case .message(let m): return "message \(m.prefix(200))"
+            case .limit(let m): return "limit \(m.prefix(120))"
+            case .aiConsentRequired: return "aiConsentRequired"
+            }
+        case let e as URLError:
+            return "URLError \(e.code.rawValue) \(urlErrorName(e.code.rawValue))"
+        case let e as DecodingError:
+            return "DecodingError \(String(describing: e).prefix(300))"
+        case is CancellationError:
+            return "cancelled"
+        default:
+            let ns = error as NSError
+            return "\(ns.domain) \(ns.code) \(ns.localizedDescription.prefix(200))"
+        }
+    }
+
+    /// The name of the commonest connection failures, for the developer log.
+    nonisolated static func urlErrorName(_ code: Int) -> String {
+        switch URLError.Code(rawValue: code) {
+        case .networkConnectionLost: return "networkConnectionLost"
+        case .cannotConnectToHost: return "cannotConnectToHost"
+        case .cannotFindHost: return "cannotFindHost"
+        case .dnsLookupFailed: return "dnsLookupFailed"
+        case .secureConnectionFailed: return "secureConnectionFailed"
+        case .notConnectedToInternet: return "notConnectedToInternet"
+        case .timedOut: return "timedOut"
+        case .cannotLoadFromNetwork: return "cannotLoadFromNetwork"
+        case .resourceUnavailable: return "resourceUnavailable"
+        case .backgroundSessionWasDisconnected: return "backgroundSessionWasDisconnected"
+        default: return ""
         }
     }
 }
