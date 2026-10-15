@@ -961,7 +961,7 @@ struct WordDetailView: View {
         guard !Task.isCancelled, !dex.generatingWords.contains(current.wordId) else { return }
         // Writing the missing sections uses the AI: not without the consent (they stay empty, never "filling").
         guard AIConsent.shared.isGranted else { return }
-        let missing = visibleSections.filter { !$0.isExternal && !hasContent($0) }
+        let missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
         guard !missing.isEmpty else { return }
         let wordId = current.wordId
         guard !Task.isCancelled else { return }
@@ -976,6 +976,12 @@ struct WordDetailView: View {
         await dex.reload(stickerId: current.id)
         guard !Task.isCancelled else { return }
         withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { filling = [] }
+    }
+
+    /// An empty section is filled in by the server unless it is complete while empty: 「追加の例文」 of a word used in one
+    /// situation only (`example_pattern_count` 1, server PR #182) has no other examples to write.
+    static func wantsAutoFill(_ s: CardSection, extras: WordExtras?) -> Bool {
+        !(s == .examplesExtra && extras?.examplesExtraComplete == true)
     }
 
     /// Web reportAndFixSection (item = auto): the AI finds the wrong item among what is on screen.
@@ -1052,7 +1058,7 @@ struct WordDetailView: View {
 
     private func exampleCard(_ sentence: String, _ translation: String?) -> some View {
         WordExampleCard(sentence: sentence, translation: translation,
-                        scene: ReaderLanguage.shown(extras?.exampleScene, source: sentence), headword: headword)
+                        scene: ReaderLanguage.shown(extras?.shownExampleScene(for: sentence), source: sentence), headword: headword)
     }
 
     private func highlighted(_ sentence: String) -> AttributedString {

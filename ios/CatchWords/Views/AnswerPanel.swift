@@ -122,7 +122,7 @@ struct AnswerPanel: View {
                     if !meaning.isEmpty { WordMeaningCard(meaning: meaning) }
                     if !example.isEmpty {
                         WordExampleCard(sentence: example, translation: word?.exampleTranslation,
-                                        scene: ReaderLanguage.shown(word?.extras?.exampleScene, source: example),
+                                        scene: ReaderLanguage.shown(word?.extras?.shownExampleScene(for: example), source: example),
                                         headword: headword)
                     }
                 }

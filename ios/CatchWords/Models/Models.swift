@@ -74,6 +74,14 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     var examplesExtra: [ExampleExtra]?
     /// The scene / feeling the main example is said in (server 2026-10-14; empty on older cards).
     var exampleScene: String?
+    /// The sentence `exampleScene` was written for (server PR #182, 2026-10-15; absent on older cards). The label is
+    /// shown only over that very sentence (`shownExampleScene(for:)`).
+    var exampleSceneFor: String?
+    /// The version of the way the examples were written (server PR #182; nil on older cards).
+    var exampleV: Int?
+    /// How many usage patterns the word has (1–4; nil on older cards). 1 = it is used in one situation only: no
+    /// 「追加の例文」, and that is complete (never filled in).
+    var examplePatternCount: Int?
     var pronunciationTips: String?
     var studyTips: String?
     var etymology: String?
@@ -117,6 +125,9 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         case taiwanNote = "taiwan_note"
         case examplesExtra = "examples_extra"
         case exampleScene = "example_scene"
+        case exampleSceneFor = "example_scene_for"
+        case exampleV = "example_v"
+        case examplePatternCount = "example_pattern_count"
         case pronunciationTips = "pronunciation_tips"
         case studyTips = "study_tips"
         case usageNote = "usage_note"
@@ -162,6 +173,9 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         taiwanNote = (try? c.decodeIfPresent(String.self, forKey: .taiwanNote)).flatMap { $0 }
         examplesExtra = (try? c.decodeIfPresent([ExampleExtra].self, forKey: .examplesExtra)).flatMap { $0 }
         exampleScene = (try? c.decodeIfPresent(String.self, forKey: .exampleScene)).flatMap { $0 }
+        exampleSceneFor = (try? c.decodeIfPresent(String.self, forKey: .exampleSceneFor)).flatMap { $0 }
+        exampleV = Self.lenientInt(c, .exampleV)
+        examplePatternCount = Self.lenientInt(c, .examplePatternCount)
         pronunciationTips = (try? c.decodeIfPresent(String.self, forKey: .pronunciationTips)).flatMap { $0 }
         studyTips = (try? c.decodeIfPresent(String.self, forKey: .studyTips)).flatMap { $0 }
         etymology = (try? c.decodeIfPresent(String.self, forKey: .etymology)).flatMap { $0 }
@@ -186,6 +200,37 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         imageQuery = (try? c.decodeIfPresent(String.self, forKey: .imageQuery)).flatMap { $0 }
         imageAvoid = (try? c.decodeIfPresent([String].self, forKey: .imageAvoid)).flatMap { $0 }
     }
+
+    /// An optional whole number however it comes (1, 1.0, "1"); anything else or null is nil.
+    private static func lenientInt(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> Int? {
+        if let i = (try? c.decodeIfPresent(Int.self, forKey: key)).flatMap({ $0 }) { return i }
+        if let d = (try? c.decodeIfPresent(Double.self, forKey: key)).flatMap({ $0 }), d.isFinite, d == d.rounded() { return Int(d) }
+        if let t = (try? c.decodeIfPresent(String.self, forKey: key)).flatMap({ $0 }) { return Int(t.trimmingCharacters(in: .whitespaces)) }
+        return nil
+    }
+
+    /// The scene label to draw over `sentence` (the example on screen): only when it was written for that very sentence
+    /// (`example_scene_for`, compared without spaces and punctuation). Older labels carry no such mark and could belong
+    /// to another sentence (眼鏡: 「友達が眼鏡をしていないことに気づいたとき」 over 我戴眼鏡。), so they are not shown.
+    func shownExampleScene(for sentence: String) -> String? {
+        let scene = (exampleScene ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !scene.isEmpty else { return nil }
+        let written = Self.sceneMatchKey(exampleSceneFor ?? "")
+        guard !written.isEmpty, written == Self.sceneMatchKey(sentence) else { return nil }
+        return scene
+    }
+
+    /// A sentence without its spaces and punctuation (「我戴眼鏡。」 = 「我戴眼鏡」 = "我 戴 眼鏡!").
+    static func sceneMatchKey(_ s: String) -> String {
+        String(String.UnicodeScalarView(s.unicodeScalars.filter {
+            !CharacterSet.whitespacesAndNewlines.contains($0) && !CharacterSet.punctuationCharacters.contains($0)
+                && !CharacterSet.symbols.contains($0)
+        }))
+    }
+
+    /// 「追加の例文」 is complete as it is when the word has a single usage pattern (no other examples to write): the word
+    /// page then never asks the server to fill it (`regenerateCardSection` only_if_empty) and shows no empty section.
+    var examplesExtraComplete: Bool { examplePatternCount == 1 }
 
     /// related_words, falling back to the legacy synonyms/antonyms string lists (card-sections.ts).
     var allRelated: [RelatedWord] {

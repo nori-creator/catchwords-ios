@@ -95,6 +95,7 @@ jobs:
             -only-testing:CatchWordsTests/CatchScanTests \
             -only-testing:CatchWordsTests/ReadingAndCategoryTests \
             -only-testing:CatchWordsTests/SentencesTests \
+            -only-testing:CatchWordsTests/ExampleSceneTests \
             CODE_SIGNING_ALLOWED=NO \
             | tee "$RUNNER_TEMP/symbols.log" | grep -E "error:|Test Case|failed|passed|TEST (SUCCEEDED|FAILED)|BUILD FAILED" || true
           grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/symbols.log" || { grep -E "error:" "$RUNNER_TEMP/symbols.log" | head -20; echo "::error::図鑑の影の SF Symbols の確認に失敗しました（上のログを見てください）"; exit 1; }
