@@ -328,9 +328,11 @@ struct MainTabView: View {
 }
 
 /// TabBar.tsx: floating capsule (87.6% width, ~55pt, full-capsule corners), a bubble exactly one
-/// cell wide that slides between cells. The camera sits in the same row, same size (blue icon).
-/// It stays the same white strip on the camera too (owner request 2026-10-02: no dark glass there),
-/// only fully opaque so the dark machine behind it does not grey it.
+/// cell wide that slides between cells. The camera is the one item that stands out (owner 2026-10-15: 「下のバーの
+/// カメラのアイコン青にして、目立たせたい。今白の部分が多すぎる。」): a filled blue disc in the bar (A, the default), or —
+/// to compare on the device from 設定 › 開発者 (`DevChoices.tabBar`) — a disc raised above the bar's edge (B) or the blue
+/// icon on a light capsule (C). The bar itself is a thin translucent material with a hairline edge instead of the
+/// solid white strip; on the camera's dark machine it keeps a stronger wash so the grey items stay readable.
 struct CapsuleTabBar: View {
     @Binding var selection: AppTab
     var onCamera: Bool
@@ -340,6 +342,11 @@ struct CapsuleTabBar: View {
     @Namespace private var bubble
     /// Taps per tab: drives each icon's bounce, so only the tab just chosen bounces.
     @State private var bounces: [AppTab: Int] = [:]
+    @AppStorage(DevChoices.tabBarKey) private var variant: String = DevChoices.tabBarDefault
+
+    /// The bar's height; variant B's disc rises `raise` points above its top edge.
+    static let height: CGFloat = 58
+    static let raise: CGFloat = 16
 
     var body: some View {
         GeometryReader { geo in
@@ -353,24 +360,26 @@ struct CapsuleTabBar: View {
                     }
                 }
             }
-            .frame(width: width, height: 58)
+            .frame(width: width, height: Self.height)
+            // The hairline is part of the background, under the items: variant B's raised disc is never crossed by it.
             .background {
-                Capsule().fill(Theme.card.opacity(onCamera ? 1 : 0.9)).background(.regularMaterial, in: Capsule())
+                Capsule().fill(.thinMaterial)
+                    .overlay(Capsule().fill(Theme.card.opacity(onCamera ? 0.7 : 0.45)))
+                    .overlay(Capsule().stroke(Theme.border.opacity(0.9), lineWidth: 0.5))
             }
-            .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
             .shadow(color: .black.opacity(onCamera ? 0.3 : 0.1), radius: 16, y: 6)
             .frame(maxWidth: .infinity)
         }
-        .frame(height: 58)
+        .frame(height: Self.height)
         .animation(.easeInOut(duration: 0.25), value: onCamera)
     }
 
-    private func cell(_ tab: AppTab, iconColor: Color? = nil) -> some View {
+    private func cell(_ tab: AppTab, iconColor: Color? = nil, icon: String? = nil, alwaysBubble: Bool = false) -> some View {
         let isOn = selection == tab
         let tint = isOn ? Theme.primary : Theme.foreground.opacity(0.75)
         return Button { select(tab) } label: {
             VStack(spacing: 5) {
-                Image(systemName: tab.icon)
+                Image(systemName: icon ?? tab.icon)
                     .font(.system(size: 19, weight: .regular))
                     .frame(height: 21)
                     .foregroundStyle(isOn ? Theme.primary : (iconColor ?? tint))
@@ -385,6 +394,9 @@ struct CapsuleTabBar: View {
                         .fill(Theme.primary.opacity(0.14))
                         .matchedGeometryEffect(id: "bubble", in: bubble)
                         .padding(4)
+                } else if alwaysBubble {
+                    // Variant C: the camera keeps a light capsule of its own even when another tab is on.
+                    Capsule().fill(Theme.primary.opacity(0.1)).padding(4)
                 }
             }
             .contentShape(Rectangle())
@@ -394,11 +406,43 @@ struct CapsuleTabBar: View {
         .accessibilityIdentifier("tab.\(String(describing: tab))")
     }
 
-    /// The camera cell: the same size and height as every other tab, in one row
-    /// (owner request 2026-09-30: no raised disc). The icon stays blue so it is still easy to find.
-    private var cameraCell: some View {
-        cell(.camera, iconColor: Theme.primary)
-            .tourAnchor(.cameraTab)
+    /// The camera cell, as chosen in 設定 › 開発者 (A unless the owner switched): the same width as every other cell,
+    /// its identifier, label and tour anchor the same in every variant.
+    @ViewBuilder private var cameraCell: some View {
+        switch variant {
+        case "b": cameraDisc(size: 56, raised: true).tourAnchor(.cameraTab)
+        case "c": cell(.camera, iconColor: Theme.primary, icon: "camera.fill", alwaysBubble: true).tourAnchor(.cameraTab)
+        default: cameraDisc(size: 46, raised: false).tourAnchor(.cameraTab)
+        }
+    }
+
+    /// A: a filled blue disc with the white camera, a little larger than the other items, inside the bar.
+    /// B: the same disc, larger, standing up over the bar's top edge with a soft shadow (a centre notch). It is drawn
+    /// above the bar and still takes the tap there (nothing clips it); the bar's own height does not change, so the
+    /// landing's hide / show and the safe area are as before.
+    private func cameraDisc(size: CGFloat, raised: Bool) -> some View {
+        let isOn = selection == .camera
+        return Button { select(.camera) } label: {
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(colors: [Theme.primaryBright, Theme.primaryDeep], startPoint: .top, endPoint: .bottom))
+                    .overlay(Circle().stroke(.white.opacity(raised ? 0.9 : (isOn ? 0.85 : 0)), lineWidth: raised ? 3 : 2).padding(raised ? 0 : 3))
+                    .shadow(color: Theme.primary.opacity(raised ? 0.45 : 0.3), radius: raised ? 12 : 6, y: raised ? 6 : 3)
+                Image(systemName: "camera.fill")
+                    .font(.system(size: size * 0.42, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .symbolEffect(.bounce, value: bounces[.camera, default: 0])
+            }
+            .frame(width: size, height: size)
+            .offset(y: raised ? -Self.raise : 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The whole cell takes the tap; raised, the tap area moves up with the disc so its top is reachable.
+            .contentShape(Rectangle().offset(y: raised ? -Self.raise : 0))
+        }
+        .buttonStyle(PressableStyle(scale: 0.92))
+        .accessibilityLabel(AppTab.camera.title)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityIdentifier("tab.camera")
     }
 
     private func select(_ tab: AppTab) {

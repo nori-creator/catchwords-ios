@@ -78,28 +78,21 @@ struct ExampleBlock: View {
     }
 }
 
-/// The scene / feeling an example is said in, as a short label right above it. White with a blue edge and dark blue
-/// text on the grey example block (owner 2026-10-15: 「場面の説明が見えない」 — the pale blue capsule at 12 pt sank into
-/// the block): 13 pt, about 7:1 contrast, and a long label wraps instead of being cut.
+/// The scene / feeling an example is said in, as a short label right above it: the original blue design — dark blue
+/// text in a pale blue capsule (owner 2026-10-15 evening: 「元の青いデザインに戻して」; the white box with a blue edge of
+/// PR #34 is gone). Kept from that pass: 13 pt, and a long label wraps instead of being cut.
 struct SceneTag: View {
     let text: String
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Image(systemName: "bubble.left.fill")
-                .font(.system(size: 10, weight: .bold))
-                .accessibilityHidden(true)
-            Text(text)
-                .scaledFont(size: 13, weight: .semibold)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .foregroundStyle(Theme.primaryInk)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Theme.card, in: .rect(cornerRadius: 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.primary.opacity(0.35), lineWidth: 1))
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("example.scene")
+        Text(text)
+            .scaledFont(size: 13, weight: .semibold)
+            .foregroundStyle(Theme.primaryInk)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Theme.primary.opacity(0.12), in: Capsule())
+            .accessibilityIdentifier("example.scene")
     }
 }
 

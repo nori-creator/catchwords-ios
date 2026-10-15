@@ -18,10 +18,56 @@ nonisolated enum UITestTrace {
         #if DEBUG
         guard DemoBackend.isOn else { return }
         let d = UserDefaults.standard
-        log("launch uiDemo=\(d.string(forKey: "uiDemo") ?? "-") lang=\(d.string(forKey: "ui.lang") ?? "-")")
+        // The pid: an XCUITest failure names the process it could not read (kAXErrorIPCTimeout "for <pid>", tour
+        // 2026-10-15), so it can be told whether that was this app or a process of the simulator.
+        log("launch uiDemo=\(d.string(forKey: "uiDemo") ?? "-") lang=\(d.string(forKey: "ui.lang") ?? "-") pid=\(getpid())")
         UIWindow.traceTouches()
+        MainWatchdog.shared.start()
         #endif
     }
+
+    #if DEBUG
+    /// Logs every time the main thread does not answer for more than a second, and when it answers again: an
+    /// accessibility query that times out during the tour can then be laid against what the app's main thread did.
+    nonisolated private final class MainWatchdog: @unchecked Sendable {
+        static let shared = MainWatchdog()
+        private let queue = DispatchQueue(label: "app.catchwords.uitest-watchdog")
+        private let lock = NSLock()
+        private var beat = Date()
+        private var stalledSince: Date?
+        private var timer: DispatchSourceTimer?
+
+        func start() {
+            guard timer == nil else { return }
+            let t = DispatchSource.makeTimerSource(queue: queue)
+            t.schedule(deadline: .now() + 1, repeating: 0.5)
+            t.setEventHandler { [self] in check() }
+            timer = t
+            t.resume()
+        }
+
+        private func check() {
+            let now = Date()
+            lock.lock()
+            let gap = now.timeIntervalSince(beat)
+            let first = gap > 1 && stalledSince == nil
+            if first { stalledSince = beat }
+            lock.unlock()
+            if first { UITestTrace.log("main thread not answering for \(String(format: "%.1f", gap)) s") }
+            DispatchQueue.main.async { [self] in
+                let back = Date()
+                lock.lock()
+                let since = stalledSince
+                beat = back
+                stalledSince = nil
+                lock.unlock()
+                if let since {
+                    UITestTrace.log("main thread answering again after \(String(format: "%.1f", back.timeIntervalSince(since))) s")
+                }
+            }
+        }
+    }
+    #endif
 
     #if DEBUG
     /// Appends off the main thread, in order.

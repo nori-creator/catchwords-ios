@@ -44,6 +44,8 @@ PENDING_WEB_DEPLOY = {
     # (PR #176).
     # The developer's users and metrics (adminListUsers … adminGetBetaMetrics, Services/AdminAnalytics.swift) are on
     # the web's main now (PR #178). Until the web is published they answer 404 and the screens say so.
+    # The learners' error reports (adminListEntryReports / adminSetEntryReportStatus, Views/Admin/AdminReportsView.swift)
+    # are on the web's main now (PR #187). Until the web is published they answer 404 and the screen says so.
 }
 
 

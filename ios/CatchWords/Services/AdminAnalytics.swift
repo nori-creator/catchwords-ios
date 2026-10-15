@@ -45,6 +45,26 @@ enum AdminAnalytics {
         await run { try await NativeAPI.call("adminGetBetaMetrics", [:], timeout: 120) }
     }
 
+    /// The learners' error reports, newest first (web `adminListEntryReports`, server #187): rows of `{id, headword,
+    /// kind, item, note, status, outcome, reporter_lang, word_id, created_at, outcome_at}`. `open` asks for the open
+    /// ones and those that need a look (`needs_review`); `all` for every one. Until the web is published with it the
+    /// answer is 404 → `notDeployed`.
+    static func reports(all: Bool = false, limit: Int = 100) async -> Answer {
+        await run {
+            try await NativeAPI.call("adminListEntryReports", ["status": all ? "all" : "open", "limit": max(1, min(200, limit))],
+                                     timeout: 120)
+        }
+    }
+
+    /// A report's new state (web `adminSetEntryReportStatus`: open / resolved / dismissed) → `{ok: true}`.
+    static func setReportStatus(id: String, status: String) async -> Bool {
+        guard ["open", "resolved", "dismissed"].contains(status) else { return false }
+        guard case .success(let v) = await run({
+            try await NativeAPI.call("adminSetEntryReportStatus", ["id": id, "status": status], timeout: 60)
+        }) else { return false }
+        return v["ok"]?.bool ?? true
+    }
+
     private static func run(_ work: () async throws -> Data) async -> Answer {
         do {
             let data = try await work()

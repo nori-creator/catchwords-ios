@@ -26,16 +26,23 @@ nonisolated struct UsageChunk: Codable, Sendable, Hashable {
 nonisolated struct ChunkAlt: Codable, Sendable, Hashable {
     var text: String
     var ja: String
+    /// Its reading (server chunk tokens, 2026-10-15): shown over the block once it is swapped in. nil on older cards.
+    var pinyin: String?
+    var zhuyin: String?
 
-    init(text: String, ja: String) {
+    init(text: String, ja: String, pinyin: String? = nil, zhuyin: String? = nil) {
         self.text = text
         self.ja = ja
+        self.pinyin = pinyin
+        self.zhuyin = zhuyin
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         text = (try? c.decode(String.self, forKey: .text)) ?? ""
         ja = (try? c.decode(String.self, forKey: .ja)) ?? ""
+        pinyin = ChunkPart.reading(try? c.decodeIfPresent(String.self, forKey: .pinyin))
+        zhuyin = ChunkPart.reading(try? c.decodeIfPresent(String.self, forKey: .zhuyin))
     }
 }
 
@@ -49,13 +56,21 @@ nonisolated struct ChunkPart: Codable, Sendable, Hashable {
     var ja: String?
     /// Other words natives often put here, most frequent first.
     var alts: [ChunkAlt]?
+    /// This block's reading, one syllable per character (server chunk tokens, 2026-10-15: `pinyin` with tone marks and
+    /// `zhuyin` on every token), shown small above the block in the reading the learner chose (設定 › 発音表記). nil on
+    /// older cards: the block shows its text alone, as before.
+    var pinyin: String?
+    var zhuyin: String?
 
-    init(text: String, pos: String, slot: Bool? = nil, ja: String? = nil, alts: [ChunkAlt]? = nil) {
+    init(text: String, pos: String, slot: Bool? = nil, ja: String? = nil, alts: [ChunkAlt]? = nil,
+         pinyin: String? = nil, zhuyin: String? = nil) {
         self.text = text
         self.pos = pos
         self.slot = slot
         self.ja = ja
         self.alts = alts
+        self.pinyin = pinyin
+        self.zhuyin = zhuyin
     }
 
     init(from decoder: Decoder) throws {
@@ -65,6 +80,21 @@ nonisolated struct ChunkPart: Codable, Sendable, Hashable {
         slot = try? c.decodeIfPresent(Bool.self, forKey: .slot)
         ja = try? c.decodeIfPresent(String.self, forKey: .ja)
         alts = (try? c.decodeIfPresent([ChunkAlt].self, forKey: .alts))?.filter { !$0.text.isEmpty }
+        pinyin = Self.reading(try? c.decodeIfPresent(String.self, forKey: .pinyin))
+        zhuyin = Self.reading(try? c.decodeIfPresent(String.self, forKey: .zhuyin))
+    }
+
+    /// A reading as sent, trimmed; nil when empty or not a string (an older card, or a broken token).
+    static func reading(_ raw: String??) -> String? {
+        guard let s = (raw ?? nil)?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+        return s
+    }
+
+    /// Two blocks' readings as one (C7, `ChunkRules.mergeCompounds`: 芒果＋冰 → 芒果冰 keeps ㄇㄤˊ ㄍㄨㄛˇ ㄅㄧㄥ); nil as
+    /// soon as either block has none (half a reading over a word would mislead).
+    static func joinedReading(_ a: String?, _ b: String?) -> String? {
+        guard let a, let b, !a.isEmpty, !b.isEmpty else { return nil }
+        return a + " " + b
     }
 }
 
@@ -239,7 +269,9 @@ nonisolated enum ChunkRules {
             if let last = out.last, last.pos.uppercased().hasPrefix("N"), p.pos.uppercased().hasPrefix("N"),
                last.text.contains(core) || p.text.contains(core),
                (last.text + p.text).count <= 6 {
-                out[out.count - 1] = ChunkPart(text: last.text + p.text, pos: last.pos)
+                out[out.count - 1] = ChunkPart(text: last.text + p.text, pos: last.pos,
+                                               pinyin: ChunkPart.joinedReading(last.pinyin, p.pinyin),
+                                               zhuyin: ChunkPart.joinedReading(last.zhuyin, p.zhuyin))
             } else {
                 out.append(p)
             }
@@ -254,7 +286,10 @@ nonisolated enum ChunkRules {
         guard isPredicateStative(last), isNoun(prev),
               !degreeWords.contains(where: { last.text.hasPrefix($0) }),
               !parts.contains(where: isAdverb) else { return parts }
-        return Array(parts.dropLast()) + [ChunkPart(text: "很", pos: "Adv"), last]  // l10n-ignore (Mandarin word)
+        // Read like its neighbours when they carry the server's readings (a reading-less block among them looks broken).
+        let read = parts.contains { $0.zhuyin != nil || $0.pinyin != nil }
+        return Array(parts.dropLast()) + [ChunkPart(text: "很", pos: "Adv", pinyin: read ? "hěn" : nil,  // l10n-ignore (Mandarin word)
+                                                    zhuyin: read ? "ㄏㄣˇ" : nil), last]
     }
 
     // MARK: - What is shown

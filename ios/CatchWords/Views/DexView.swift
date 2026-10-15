@@ -821,13 +821,20 @@ struct DexMapView: View {
     /// user (web `programmatic`), so the list and the map never fight the user's own scroll.
     @State private var quietUntil: Date = .distantPast
 
-    /// The timeline panel's height (kept low so the pins above it stay in view).
-    private static let panelHeight: CGFloat = 250
-    /// The reading line, from the panel's top: the row on it is the current word (web `onListScroll`: 35%).
-    private static let readingLine: CGFloat = panelHeight * 0.35
+    /// The panel pulled up to its old height (a drag up on its grabber); down again on a drag down.
+    @State private var panelExpanded: Bool = false
+
+    /// The timeline panel's heights: low by default, about half of what it was (owner 2026-10-15: the day's list hid
+    /// the map while scrolling — one row's picture and time still show, the map stays readable), and the old height
+    /// when pulled up.
+    static let compactPanelHeight: CGFloat = 128
+    static let expandedPanelHeight: CGFloat = 250
+    private var panelHeight: CGFloat { panelExpanded ? Self.expandedPanelHeight : Self.compactPanelHeight }
+    /// The reading line, from the list's top: the row on it is the current word (web `onListScroll`: 35%).
+    private var readingLine: CGFloat { panelHeight * 0.35 }
     /// Room under the last row, so the last words too can be scrolled up to the reading line (web
     /// `dex-daymap__timeline-tail`).
-    private static let timelineTail: CGFloat = panelHeight * 0.4
+    private var timelineTail: CGFloat { panelHeight * 0.4 }
     private static let timelineSpace = "dex.map.timeline"
     private static let timelineTop = "dex.map.timeline.top"
 
@@ -966,6 +973,10 @@ struct DexMapView: View {
     /// stop's pin rises wearing it, and the map moves there when it is out of view (web `onListScroll`).
     private func read(_ s: Sticker) {
         guard Date() >= quietUntil, s.id != selectedId else { return }
+        // A word passing the reading line ticks (owner 2026-10-15; which tick, or none: 設定 › 開発者), with the same
+        // light tap as a picker's detent.
+        SoundService.shared.tick(.timeline)
+        Haptics.selection()
         withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) { selectedId = s.id }
         focusOn(s)
     }
@@ -1045,32 +1056,38 @@ struct DexMapView: View {
     }
 
     private func timeline(_ visits: [MapVisit]) -> some View {
-        let line = Self.readingLine
+        let line = readingLine
         let space = Self.timelineSpace
         let words = visits.reduce(0) { $0 + $1.items.count }
         return ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Color.clear.frame(height: 0).id(Self.timelineTop)
+            VStack(spacing: 0) {
+                panelGrabber
+                ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(visits) { v in
-                            visitRows(v, line: line, space: space)
-                                .id(v.id)
+                        Color.clear.frame(height: 0).id(Self.timelineTop)
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(visits) { v in
+                                visitRows(v, line: line, space: space)
+                                    .id(v.id)
+                            }
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 18)
+                        .padding(.top, 6)
+                        // From two words up, every word can be scrolled onto the reading line — the last ones too.
+                        if words >= 2 {
+                            Color.clear.frame(height: timelineTail)
                         }
                     }
-                    .padding(18)
-                    // From two words up, every word can be scrolled onto the reading line — the last ones too.
-                    if words >= 2 {
-                        Color.clear.frame(height: Self.timelineTail)
-                    }
                 }
+                .coordinateSpace(NamedCoordinateSpace.named(space))
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxHeight: panelHeight)
             }
-            .coordinateSpace(NamedCoordinateSpace.named(space))
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(maxHeight: Self.panelHeight)
             .background(Theme.card.opacity(0.94), in: .rect(cornerRadius: 26, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Theme.border, lineWidth: 1))
             .shadow(color: .black.opacity(0.12), radius: 14, y: 6)
+            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: panelExpanded)
             // Only a pin tap or a new day moves the list (`jumpList`): a word picked by scrolling or by tapping
             // its row never scrolls it under the user's finger.
             .onAppear {
@@ -1080,6 +1097,48 @@ struct DexMapView: View {
                 if let id { scrollList(to: id, proxy) }
             }
         }
+    }
+
+    /// The grabber on the panel's top edge: drag up to pull the list to its old height, down to lower it again (and
+    /// down once more to close it); a tap does the same as a drag up or down.
+    private var panelGrabber: some View {
+        Capsule()
+            .fill(Theme.muted.opacity(0.35))
+            .frame(width: 40, height: 5)
+            .frame(maxWidth: .infinity, minHeight: 22)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 12)
+                    .onEnded { g in
+                        if g.translation.height < -24 {
+                            setPanel(expanded: true)
+                        } else if g.translation.height > 24 {
+                            if panelExpanded { setPanel(expanded: false) } else { closePanel() }
+                        }
+                    }
+            )
+            .onTapGesture { setPanel(expanded: !panelExpanded) }
+            .accessibilityElement()
+            .accessibilityLabel(panelExpanded ? L("一覧を低くする") : L("一覧を広げる"))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("dex.map.grabber")
+    }
+
+    private func setPanel(expanded: Bool) {
+        guard expanded != panelExpanded else { return }
+        Haptics.selection()
+        // The reading line moves with the panel's height: rows crossing it during the resize are not the user's
+        // scroll, so nothing is read (no new word, no map move, no tick) until the spring has settled.
+        quietUntil = Date().addingTimeInterval(Self.resizeQuiet)
+        panelExpanded = expanded
+    }
+
+    /// How long reads stay off after the panel changes height (the spring's 0.35 s response, settled).
+    static let resizeQuiet: TimeInterval = 0.7
+
+    private func closePanel() {
+        Haptics.selection()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { panelOpen = false }
     }
 
     /// One stop: its place, then each word with its own time. Each row watches the reading line; the row that

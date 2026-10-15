@@ -11,8 +11,9 @@ import SwiftUI
 ///   CandidatePicker's ほかの言い方); a thing with one name goes straight on. The tag is the thing's everyday name
 ///   (owner 2026-10-15: never a detailed name or a proper noun). Tags never cover each other (`CCPickLayout`), and stay
 ///   inside the photo.
-/// - Without a position (the AI gave none) and no Vision instance there, the words gather at the photo's centre,
-///   still one per line.
+/// - Without a position (the AI gave none, or the same for two things) a thing takes a free Vision instance, else a
+///   spot of its own spread over the photo (`CatchObject.build`, `TagPlacement`) — never a pile in the middle
+///   (owner 2026-10-15). The developer log notes it.
 /// - From the shutter on (`.processing`) the same screen runs the catch scan over the photo (v10, owner 2026-10-11:
 ///   bracket, light pen, `CatchScan.swift`), and each tag comes up where it is tapped, when the scan brings it up.
 ///   Typing a word waits until the names are in.
@@ -348,8 +349,9 @@ struct CandidatePickerView: View {
         for (i, t) in list.enumerated() {
             // Centred on the object's own place inside its Vision instance, put on the stage exactly as the scan puts
             // that instance's outline (`CatchScanShape`: the same `fill`), so the tag lands inside its own outline.
-            let a = t.object.anchor
-            let p = CGPoint(x: fill.minX + a.x * fill.width, y: fill.minY + a.y * fill.height)
+            // The photo is drawn scaledToFill, so its place goes through the rect the photo really covers
+            // (`TagPlacement.stagePoint`), never through the stage as if the photo filled it exactly.
+            let p = TagPlacement.stagePoint(t.object.anchor, in: fill)
             anchors.append(CCPickLayout.anchor(at: p, size: sizes[i], in: area))
         }
         let spots = CCPickLayout.layout(anchors: anchors, sizes: sizes, in: area)
@@ -581,12 +583,9 @@ struct CandidatePickerView: View {
         }
     }
 
-    /// Where a scaledToFill image sits inside `size`.
+    /// Where a scaledToFill image sits inside `size` (`TagPlacement.displayedRect`, checked by TagPlacementTests).
     static func fillRect(image: CGSize, in size: CGSize) -> CGRect {
-        guard image.width > 0, image.height > 0 else { return CGRect(origin: .zero, size: size) }
-        let scale = max(size.width / image.width, size.height / image.height)
-        let w = image.width * scale, h = image.height * scale
-        return CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h)
+        TagPlacement.displayedRect(image: image, in: size, mode: .fill)
     }
 
     // MARK: "違う単語を入力"
@@ -640,7 +639,9 @@ struct CandidatePickerView: View {
                 .scaledFont(size: 13, weight: .medium)
                 .foregroundStyle(Theme.muted)
             HStack(spacing: 8) {
-                TextField("", text: $typed, prompt: Text(L("例: \(NativeAPI.sample(.word))")).foregroundStyle(Theme.muted.opacity(0.7)))
+                // The example is in the display language (owner 2026-10-15: 「例: 椅子」 read as Chinese under a Japanese
+                // UI), so it says "type in your own language"; the server takes either language.
+                TextField("", text: $typed, prompt: Text(L("例: ティッシュ")).foregroundStyle(Theme.muted.opacity(0.7)))
                     .scaledFont(size: 16)
                     .foregroundStyle(Theme.foreground)
                     .focused($inputFocused)

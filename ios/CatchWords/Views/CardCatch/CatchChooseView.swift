@@ -298,7 +298,7 @@ struct CatchChooseOverlay: View {
                 .scaledFont(size: 12, weight: .medium)
                 .foregroundStyle(muted)
             HStack(spacing: 8) {
-                TextField("", text: $typed, prompt: Text(L("例: \(NativeAPI.sample(.word))")).foregroundStyle(muted.opacity(0.7)))
+                TextField("", text: $typed, prompt: Text(L("例: ティッシュ")).foregroundStyle(muted.opacity(0.7)))
                     .scaledFont(size: 16)
                     .foregroundStyle(ink)
                     .focused($typing)

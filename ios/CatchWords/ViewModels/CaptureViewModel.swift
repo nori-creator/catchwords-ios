@@ -186,6 +186,9 @@ final class CaptureViewModel {
                 }.value
                 guard token == runToken else { return }
                 objects = built
+                // Things the server gave no place (or the same place twice) went to free Vision instances or spots of
+                // their own instead of the middle; the developer log says which (owner 2026-10-15).
+                if let note = CatchObject.placementNote(built) { DevLog.shared.add("tags", note) }
                 scan?.setNames(built, at: Date())
                 detectOutcome = .success(found)
                 prefetchOwnedChecks(found)

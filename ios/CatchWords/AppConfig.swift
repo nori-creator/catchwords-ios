@@ -13,14 +13,25 @@ enum AppConfig {
     nonisolated static let webBaseURL = URL(string: "https://catchwords.lovable.app")!
 
     /// The legal pages on the web app (texts in docs/legal). Built from `webBaseURL`, so every link in the
-    /// app (sign-in, settings, paywall, AI consent) moves with it.
-    nonisolated static let termsURL = webBaseURL.appendingPathComponent("terms")
-    nonisolated static let privacyURL = webBaseURL.appendingPathComponent("privacy")
+    /// app (sign-in, settings, paywall, AI consent) moves with it. Each carries the display language as `?lang=`
+    /// (owner 2026-10-15: under the English UI the pages opened in Japanese — the web falls back to Japanese when
+    /// Safari has no stored language; the web now reads `lang=ja|en|zh-TW`).
+    nonisolated static var termsURL: URL { legalURL("terms") }
+    nonisolated static var privacyURL: URL { legalURL("privacy") }
     /// 特定商取引法に基づく表記. The web app serves it at /legal/tokushoho (src/components/legal/TokushohoDocument.tsx).
-    nonisolated static let tokushohoURL = webBaseURL.appendingPathComponent("legal/tokushoho")
+    nonisolated static var tokushohoURL: URL { legalURL("legal/tokushoho") }
     /// 設定 › お問い合わせ・サポート. The same page goes into App Store Connect's support URL.
     // Web の /support（docs/web-changes/ の 0001〈旧 docs/legal/web/legal.patch〉で足す頁。連絡先は LEGAL_EMAIL から出る）
-    nonisolated static let supportURL = webBaseURL.appendingPathComponent("support")
+    nonisolated static var supportURL: URL { legalURL("support") }
+
+    /// A page of the web app with the display language as its `lang` query (`URLComponents`, never pasted strings).
+    /// `lang` defaults to the app's display language (`L10n.lang`: ja / en / zh-TW, the web's own codes).
+    nonisolated static func legalURL(_ path: String, lang: String? = nil) -> URL {
+        var parts = URLComponents(url: webBaseURL, resolvingAgainstBaseURL: false) ?? URLComponents()
+        parts.path = "/" + path.split(separator: "/").joined(separator: "/")
+        parts.queryItems = [URLQueryItem(name: "lang", value: L10n.normalize(lang ?? L10n.lang))]
+        return parts.url ?? webBaseURL.appendingPathComponent(path)
+    }
     /// Apple's page for the subscriptions of the signed-in Apple ID (cancel there).
     nonisolated static let manageSubscriptionsURL = URL(string: "https://apps.apple.com/account/subscriptions")!
 

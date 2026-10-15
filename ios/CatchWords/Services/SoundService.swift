@@ -39,6 +39,14 @@ enum SFX: String, CaseIterable {
     case c6Tick3 = "cc6-count-tick-3"
     case c6Refill = "cc6-refill"
     case c6GoalOneMore = "cc6-goal-one-more"
+    // The small UI ticks (owner 2026-10-15, scripts/render_ui_ticks.py, −26 LUFS like the kit's `ui` role): three
+    // alternatives each, chosen in 設定 › 開発者 (`DevChoices`) — the map's timeline passing a word, a Settings picker.
+    case c6ScrollTick1 = "cc6-scroll-tick-1"
+    case c6ScrollTick2 = "cc6-scroll-tick-2"
+    case c6ScrollTick3 = "cc6-scroll-tick-3"
+    case c6PickTick1 = "cc6-pick-tick-1"
+    case c6PickTick2 = "cc6-pick-tick-2"
+    case c6PickTick3 = "cc6-pick-tick-3"
 
     var gain: Float {
         switch self {
@@ -63,6 +71,8 @@ enum SFX: String, CaseIterable {
         // loud as the pop and the land above (−22 LUFS at 0.9).
         case .c6Choose, .c6StagePad, .c6CatchJingle, .c6DexOpen, .c6Riser, .c6LandImpact, .c6NewBadge,
              .c6Tick1, .c6Tick2, .c6Tick3, .c6Refill, .c6GoalOneMore: 1.0
+        // Rendered at the kit's `ui` loudness already; kept low (they can come several times a second).
+        case .c6ScrollTick1, .c6ScrollTick2, .c6ScrollTick3, .c6PickTick1, .c6PickTick2, .c6PickTick3: 0.9
         }
     }
 
@@ -172,6 +182,27 @@ final class SoundService {
     func pon(open: Bool) {
         play(open ? .ponOpen : .ponBack)
         Haptics.pon(open: open)
+    }
+
+    /// Where a small tick is heard (owner 2026-10-15).
+    enum Tick {
+        /// A word passing the reading line of the Collection map's timeline while scrolling.
+        case timeline
+        /// A Settings pill chosen, or the wheel passing a value.
+        case picker
+    }
+
+    /// The small tick for `kind`: the alternative chosen in 設定 › 開発者 (`DevChoices`, 1–3, or none), on the same
+    /// rules as every SFX — the sound level (控えめ / しっかり / オフ) scales it, and the device's own switches apply as
+    /// they do to the pon. A tick restarts the one before it (a fast scroll never piles them up). `number` plays that
+    /// alternative instead of the chosen one (the developer card's preview of each).
+    func tick(_ kind: Tick, number: Int? = nil) {
+        let key = kind == .timeline ? DevChoices.timelineTickKey : DevChoices.pickerTickKey
+        guard let n = number ?? DevChoices.tick(key), (1...3).contains(n) else { return }
+        let files: [SFX] = kind == .timeline
+            ? [.c6ScrollTick1, .c6ScrollTick2, .c6ScrollTick3]
+            : [.c6PickTick1, .c6PickTick2, .c6PickTick3]
+        play(files[n - 1])
     }
 
     func startAnalyzeLoop() {
