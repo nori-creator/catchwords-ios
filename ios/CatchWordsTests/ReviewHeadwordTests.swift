@@ -47,4 +47,46 @@ final class ReviewHeadwordTests: XCTestCase {
         XCTAssertTrue(after.contains { $0.headword == "門" })
         XCTAssertFalse(after.contains { $0.headword == "貓眼" })
     }
+
+    /// The headword change saved but the reload failed: the dex still holds the old sticker. It must not go back into
+    /// the round as the answer: the card's cached choices go, and its later copy and missed entry leave the round.
+    func testAFailedReloadNeverPutsTheOldAnswerBack() {
+        NativeAPI.targetLanguage = "zh-TW"
+        let old = sticker("s1", word("貓眼", "ㄇㄠ ㄧㄢˇ"))
+        let other = sticker("s2", word("杯子", "ㄅㄟ ㄗ˙"))
+        let store = ReviewStore()
+        store.queue = [card(other), card(old), card(old)]
+        store.index = 1
+        store.missed = [card(old), card(other)]
+        let dex = DexStore()
+        _ = store.choices(for: store.queue[1], dex: dex)
+        XCTAssertTrue(store.hasCachedChoices(for: "s1"))
+
+        // The dex answered with the sticker as it was (still 貓眼).
+        store.headwordChanged(stickerId: "s1", to: "門", reloaded: old)
+
+        XCTAssertFalse(store.hasCachedChoices(for: "s1"), "the old choices are dropped")
+        XCTAssertEqual(store.queue.map(\.sticker.id), ["s2", "s1"], "the later copy left; the card on screen stays")
+        XCTAssertEqual(store.index, 1)
+        XCTAssertEqual(store.missed.map(\.sticker.id), ["s2"], "the missed entry left")
+        XCTAssertFalse(store.queue.dropFirst(2).contains { $0.sticker.word?.headword == "貓眼" })
+
+        // No sticker at all from the dex: the same.
+        let again = ReviewStore()
+        again.queue = [card(old), card(old)]
+        again.missed = [card(old)]
+        again.headwordChanged(stickerId: "s1", to: "門", reloaded: nil)
+        XCTAssertEqual(again.queue.count, 1)
+        XCTAssertTrue(again.missed.isEmpty)
+    }
+
+    func testASuccessfulReloadReplacesTheCardThroughHeadwordChanged() {
+        let old = sticker("s1", word("貓眼", "ㄇㄠ ㄧㄢˇ"))
+        let store = ReviewStore()
+        store.queue = [card(old), card(old)]
+        store.missed = [card(old)]
+        store.headwordChanged(stickerId: "s1", to: "門", reloaded: sticker("s1", word("門", "ㄇㄣˊ")))
+        XCTAssertEqual(store.queue.map { $0.sticker.word?.headword }, ["門", "門"], "nothing leaves the round")
+        XCTAssertEqual(store.missed.first?.sticker.word?.headword, "門")
+    }
 }

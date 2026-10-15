@@ -298,6 +298,19 @@ final class ReviewStore {
         missed = missed.map { $0.sticker.id == sticker.id ? ReviewCard(review: $0.review, sticker: sticker) : $0 }
     }
 
+    /// After the word page changed a sticker's headword to `headword`: the reloaded sticker replaces the old one only
+    /// when it really carries the new headword. If the reload failed (it keeps the old sticker), the stale card must not
+    /// come back with the old answer: its cached choices are dropped and its later copies and missed entry leave the
+    /// round (the card on screen stays where it is; tomorrow's round reads the word afresh).
+    func headwordChanged(stickerId: String, to headword: String, reloaded: Sticker?) {
+        if let fresh = reloaded, fresh.id == stickerId, fresh.word?.headword == headword {
+            replaceSticker(fresh)
+            return
+        }
+        choiceCache[stickerId] = nil
+        removeUpcoming { $0.sticker.id == stickerId }
+    }
+
     /// Whether choices for this sticker are cached (tests only).
     func hasCachedChoices(for stickerId: String) -> Bool { choiceCache[stickerId] != nil }
 

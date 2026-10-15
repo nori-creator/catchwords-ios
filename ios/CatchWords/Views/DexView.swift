@@ -1127,8 +1127,14 @@ struct DexMapView: View {
     private func setPanel(expanded: Bool) {
         guard expanded != panelExpanded else { return }
         Haptics.selection()
+        // The reading line moves with the panel's height: rows crossing it during the resize are not the user's
+        // scroll, so nothing is read (no new word, no map move, no tick) until the spring has settled.
+        quietUntil = Date().addingTimeInterval(Self.resizeQuiet)
         panelExpanded = expanded
     }
+
+    /// How long reads stay off after the panel changes height (the spring's 0.35 s response, settled).
+    static let resizeQuiet: TimeInterval = 0.7
 
     private func closePanel() {
         Haptics.selection()

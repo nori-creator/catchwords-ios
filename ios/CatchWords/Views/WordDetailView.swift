@@ -1079,8 +1079,10 @@ struct WordDetailView: View {
             defer { isSavingHead = false }
             do {
                 try await dex.setHeadword(current, to: next)
-                // Today's review round must not keep the old word as this card's answer (貓眼 → 門, 2026-10-15).
-                if let fresh = dex.sticker(id: current.id) { review?.replaceSticker(fresh) }
+                // Today's review round must not keep the old word as this card's answer (貓眼 → 門, 2026-10-15), even
+                // when the reload after the change failed and the dex still holds the old sticker.
+                let head = next.trimmingCharacters(in: .whitespacesAndNewlines)
+                review?.headwordChanged(stickerId: current.id, to: head, reloaded: dex.sticker(id: current.id))
                 Haptics.success()
                 showToast(L("単語を直しました"))
             } catch {

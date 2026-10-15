@@ -334,14 +334,14 @@ struct SettingsView: View {
                         selection: Binding(get: { timelineTick }, set: { v in
                             timelineTick = v
                             if let n = Int(v) { SoundService.shared.tick(.timeline, number: n) }
-                        }))
+                        }), ticks: false)
                 .accessibilityIdentifier("settings.dev.timelineTick")
             label(L("設定の選択肢の音")).padding(.top, 6)
             ChoicePills(options: [("off", L("なし")), ("1", "1"), ("2", "2"), ("3", "3")],
                         selection: Binding(get: { pickerTick }, set: { v in
                             pickerTick = v
                             if let n = Int(v) { SoundService.shared.tick(.picker, number: n) }
-                        }))
+                        }), ticks: false)
                 .accessibilityIdentifier("settings.dev.pickerTick")
             Text(L("1 が今のおすすめです。選ぶとその音が鳴ります。"))
                 .scaledFont(size: 12).foregroundStyle(Theme.muted)
@@ -684,6 +684,9 @@ struct SettingsCard<Content: View>: View {
 struct ChoicePills: View {
     let options: [(value: String, label: String)]
     @Binding var selection: String
+    /// The picker's tick on a choice. Off for the developer's sound pickers: they play the chosen sound themselves,
+    /// once, after the choice is saved (and nothing for なし) — the stored tick before it doubled them.
+    var ticks: Bool = true
     @Namespace private var ns
     @Environment(\.appReduceMotion) private var reduceMotion
 
@@ -695,7 +698,7 @@ struct ChoicePills: View {
                     guard !on else { return }
                     Haptics.selection()
                     // The picker's tick (owner 2026-10-15; which one, or none: 設定 › 開発者).
-                    SoundService.shared.tick(.picker)
+                    if ticks { SoundService.shared.tick(.picker) }
                     withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.72)) { selection = o.value }
                 } label: {
                     Text(o.label)
