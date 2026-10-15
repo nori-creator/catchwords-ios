@@ -1,8 +1,9 @@
 import XCTest
 @testable import CatchWords
 
-/// A headword is saved only when it is written in the learning language alone (owner 2026-10-15: 「表示言語で入力しても、
-/// 単語の見出しに表示言語を絶対に含めない」 — ボクサーパンツ typed by a Japanese reader came back as a Mandarin headword).
+/// A headword is saved only when it is written in the learning language alone (owner 2026-10-15: never the display
+/// language in a headword, even when the word was typed in it — ボクサーパンツ typed by a Japanese reader came back as a
+/// Mandarin headword).
 /// Run on its own by .github/workflows/ios-check.yml.
 @MainActor
 final class HeadwordGuardTests: XCTestCase {

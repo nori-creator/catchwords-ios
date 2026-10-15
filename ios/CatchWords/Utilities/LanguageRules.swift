@@ -227,8 +227,9 @@ nonisolated enum LanguageRules {
 
     // MARK: R21 — a headword about to be saved
 
-    /// Whether `raw` may be SAVED as a headword of `target` (owner 2026-10-15: 「表示言語で入力しても、単語の見出しに表示
-    /// 言語を絶対に含めない」 — ボクサーパンツ typed by a Japanese reader came back as the headword of a Mandarin word).
+    /// Whether `raw` may be SAVED as a headword of `target` (owner 2026-10-15: never the display language in a headword,
+    /// even when the word was typed in it — ボクサーパンツ typed by a Japanese reader came back as the headword of a
+    /// Mandarin word).
     /// Stricter than `headwordOk`, which drops bracketed notes first: here nothing is dropped, so 「四角褲（ボクサー）」
     /// is refused too.
     /// - zh-TW: Han only (digits allowed), no kana and no Latin, Cyrillic or Hangul letters — except 1–3 capital

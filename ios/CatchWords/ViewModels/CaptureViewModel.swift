@@ -78,6 +78,8 @@ final class CaptureViewModel {
     private var detailsTask: Task<CardDetails?, Never>?
     /// Cards already being generated for this photo, by headword.
     private var detailsCache: [String: Task<CardDetails?, Never>] = [:]
+    /// Words the server refused to make in the learning language (`NOT_TARGET_LANGUAGE`), by `detailsKey`.
+    @ObservationIgnored private var refusedWords: Set<String> = []
     /// "Is this word already in the dex?" — started for each object's first word as soon as the words are found, so
     /// a tap opens the celebration at once instead of waiting for the round trip (0.6–1.0 s measured 2026-10-10;
     /// owner: 「ただ待たされる時間は苦痛」). nil = that check failed (asked again at the tap).
@@ -260,7 +262,7 @@ final class CaptureViewModel {
                 let raw = try await AIService.shared.candidates(for: text, scene: placeName)
                 guard token == runToken else { return }
                 let found = NameRegister.finalized(Self.saveable(raw))
-                guard !found.isEmpty else { throw APIError.message(Self.notTargetLang) }
+                guard !found.isEmpty else { throw APIError.message(Self.notTargetWordFound) }
                 if found.count == 1 {
                     choose(found[0], object: object, typed: true)
                 } else {
@@ -270,7 +272,8 @@ final class CaptureViewModel {
                 guard token == runToken else { return }
                 Haptics.warning()
                 let message: String = {
-                    if case .message? = error as? APIError { return Self.notTargetLang }
+                    if case .message(let m)? = error as? APIError { return m }
+                    if Self.isNotTargetLanguage(error) { return Self.notTargetWordFound }
                     return (error as? LocalizedError)?.errorDescription ?? Self.notTargetLang
                 }()
                 searchError = message
@@ -280,6 +283,22 @@ final class CaptureViewModel {
 
     /// input.notTargetLang (web i18n), with the learning language filled in.
     static var notTargetLang: String { L("学習している言語の単語が見つかりませんでした。別の言い方で調べてみてください。") }
+
+    /// No word of the learning language came out of what was typed (the app's own check, or the server's
+    /// `NOT_TARGET_LANGUAGE`: neither the AI's headword nor the typed word is in the learning language).
+    static var notTargetWordFound: String {
+        switch NativeAPI.targetLanguage {
+        case "en": L("英語の単語が見つかりませんでした。別の言葉で試してください")
+        case "ja": L("日本語の単語が見つかりませんでした。別の言葉で試してください")
+        default: L("台湾華語の単語が見つかりませんでした。別の言葉で試してください")
+        }
+    }
+
+    /// The server refused to make the word because it is not in the learning language (server #183).
+    nonisolated static func isNotTargetLanguage(_ error: Error) -> Bool {
+        if case .server(_, let m)? = error as? APIError { return m.contains("NOT_TARGET_LANGUAGE") }
+        return false
+    }
 
     /// The candidates whose headword can be saved for the learning language (`LanguageRules.headwordSaveable`): a
     /// headword with the reader's own language in it (kana or English in a Mandarin word) is dropped, never saved.
@@ -348,7 +367,7 @@ final class CaptureViewModel {
         // Never a headword in another language (owner 2026-10-15): asked to look again instead of saving it.
         guard LanguageRules.headwordSaveable(word.headword, target: NativeAPI.targetLanguage) else {
             Haptics.warning()
-            searchError = Self.notTargetLang
+            searchError = Self.notTargetWordFound
             return
         }
         let token = runToken
@@ -475,7 +494,12 @@ final class CaptureViewModel {
         isLoadingDetails = true
         let key = Self.detailsKey(candidate)
         let task = detailsCache[key] ?? Task<CardDetails?, Never> {
-            try? await AIService.shared.cardDetails(for: candidate)
+            do {
+                return try await AIService.shared.cardDetails(for: candidate)
+            } catch {
+                if Self.isNotTargetLanguage(error) { self.refusedWords.insert(key) }
+                return nil
+            }
         }
         detailsCache[key] = task
         detailsTask = task
@@ -486,6 +510,12 @@ final class CaptureViewModel {
             isLoadingDetails = false
             if let d {
                 withAnimation(.easeOut(duration: 0.3)) { details = d }
+            } else if refusedWords.contains(key), step == .celebrate, owned == nil {
+                // The server cannot make it a word of the learning language (`NOT_TARGET_LANGUAGE`): never saved
+                // under a headword in another language — back to the words, with what to do.
+                backToCandidates()
+                Haptics.warning()
+                searchError = Self.notTargetWordFound
             }
         }
     }

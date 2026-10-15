@@ -2,9 +2,10 @@ import SwiftUI
 
 /// 語源・部首 drawn as boxes (`EtymologyDiagram`, owner 2026-10-15, as on the web):
 /// [曖 / 日+愛 / 日がかげる] + [昧 / 日+未 / 夜明け前] = [曖昧 / はっきり見えない], the word's box highlighted.
-/// A character that cannot be taken apart is one box with what it is made of and a line about it; a loanword, a
-/// transliteration or a brand name is the word's box with where its sound came from. Boxes wrap onto the next line on
-/// a narrow screen (a word of five characters too). VoiceOver reads it as one sentence.
+/// A character that cannot be taken apart is one box with what it is made of and a line about it; a loanword or a
+/// transliteration is the word's box with the word it sounds like and where its sound came from; a brand name or
+/// another word is the word's box with its note. Boxes wrap onto the next line on a narrow screen (a word of five
+/// characters too). VoiceOver reads it as one sentence.
 struct EtymologyDiagramView: View {
     /// Already checked to draw (`EtymologyDiagram.drawable`).
     let diagram: EtymologyDiagram
@@ -21,7 +22,7 @@ struct EtymologyDiagramView: View {
             switch diagram.kind {
             case .compound: compound
             case .single: single
-            case .phonetic: phonetic
+            case .loanword, .proper, .other: noted
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -69,16 +70,19 @@ struct EtymologyDiagramView: View {
         }
     }
 
-    private var phonetic: some View {
+    /// Not taken apart: what kind of word it is (音訳 / 固有名詞) and its note beside the word's box.
+    private var noted: some View {
         HStack(alignment: .center, spacing: 14) {
             resultBox
             VStack(alignment: .leading, spacing: 6) {
-                Text(L("音訳"))
-                    .scaledFont(size: 12, weight: .semibold)
-                    .foregroundStyle(Theme.primaryInk)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
-                    .background(Theme.primary.opacity(0.1), in: Capsule())
+                if let kind = kindLabel {
+                    Text(kind)
+                        .scaledFont(size: 12, weight: .semibold)
+                        .foregroundStyle(Theme.primaryInk)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(Theme.primary.opacity(0.1), in: Capsule())
+                }
                 if !diagram.note.isEmpty {
                     Text(Sentences.wrappable(diagram.note))  // lang-ok: the word's extras, scrubbed for the reader (ReaderLanguage.scrub)
                         .scaledFont(size: 15)
@@ -91,6 +95,14 @@ struct EtymologyDiagramView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+        }
+    }
+
+    private var kindLabel: String? {
+        switch diagram.kind {
+        case .loanword: L("音訳")
+        case .proper: L("固有名詞")
+        default: nil
         }
     }
 
@@ -135,6 +147,14 @@ struct EtymologyDiagramView: View {
                 .foregroundStyle(Theme.primaryInk)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
+            // The word a loanword sounds like (sofa) under it.
+            if diagram.kind == .loanword, !diagram.source.isEmpty {
+                Text(diagram.source)
+                    .scaledFont(size: 14, weight: .semibold)
+                    .foregroundStyle(Theme.foreground.opacity(0.75))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
             if !diagram.meaning.isEmpty, diagram.kind != .single {
                 Text(Sentences.wrappable(diagram.meaning))  // lang-ok: the word's extras, scrubbed for the reader (ReaderLanguage.scrub)
                     .scaledFont(size: 12, weight: .semibold)

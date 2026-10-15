@@ -4654,5 +4654,17 @@
  "「{1}」の音から": {
   "en": "From the sound of “{1}”",
   "zh-TW": "取自「{1}」的發音"
+ },
+ "台湾華語の単語が見つかりませんでした。別の言葉で試してください": {
+  "en": "No Taiwanese Mandarin word was found. Try a different word.",
+  "zh-TW": "找不到台灣華語的單字。請換個詞試試。"
+ },
+ "英語の単語が見つかりませんでした。別の言葉で試してください": {
+  "en": "No English word was found. Try a different word.",
+  "zh-TW": "找不到英文單字。請換個詞試試。"
+ },
+ "日本語の単語が見つかりませんでした。別の言葉で試してください": {
+  "en": "No Japanese word was found. Try a different word.",
+  "zh-TW": "找不到日文單字。請換個詞試試。"
  }
 }

@@ -16,13 +16,12 @@ final class NameRegisterTests: XCTestCase {
         XCTAssertEqual(NameRegister.normalize("specific"), .specific)
         XCTAssertEqual(NameRegister.normalize("academic"), .academic)
         XCTAssertEqual(NameRegister.normalize("proper"), .proper)
-        // A photo's older `casual`, and a typed word's older style values.
+        // A photo's older `casual`.
         XCTAssertEqual(NameRegister.normalize("casual"), .colloquial)
-        XCTAssertEqual(NameRegister.normalize("spoken"), .colloquial)
-        XCTAssertEqual(NameRegister.normalize("technical"), .academic)
-        XCTAssertEqual(NameRegister.normalize("written"), .common)
-        XCTAssertEqual(NameRegister.normalize("both"), .common)
-        XCTAssertEqual(NameRegister.normalize("signage"), .common)
+        // A typed word's older style values are never a register (server #183 moved them to `style`).
+        for style in ["spoken", "written", "both", "technical", "signage"] {
+            XCTAssertNil(NameRegister.normalize(style), style)
+        }
         XCTAssertNil(NameRegister.normalize(nil))
         XCTAssertNil(NameRegister.normalize(""))
         XCTAssertNil(NameRegister.normalize("whatever"))
@@ -42,10 +41,18 @@ final class NameRegisterTests: XCTestCase {
     }
 
     func testMissingRegistersAreFilledSoEveryRowHasALabel() {
-        // ボクサーパンツ typed: the older server sent no five-value register (or a style it does not know).
-        let out = NameRegister.finalized([word("平口褲", nil), word("四角褲", nil), word("內褲", "unknown")])
+        // ボクサーパンツ typed: the older server sent a style in `register` (spoken / written), or nothing.
+        let out = NameRegister.finalized([word("平口褲", "spoken"), word("四角褲", nil), word("內褲", "written")])
         XCTAssertEqual(out.map(\.headword), ["平口褲", "四角褲", "內褲"])
         XCTAssertEqual(out.map(\.register), ["common", "specific", "specific"])
+    }
+
+    func testTypedWordsDecodeWithTheirRegister() throws {
+        let json = #"{"candidates":[{"headword":"內褲","register":"common","style":"spoken"},"#
+            + #"{"headword":"四角褲","register":"specific","style":"both"},{"headword":"平口褲","register":"specific"}]}"#
+        struct Res: Decodable { let candidates: [Candidate] }
+        let list = try JSONDecoder().decode(Res.self, from: Data(json.utf8)).candidates
+        XCTAssertEqual(NameRegister.finalized(list).map { NameRegister.of($0) }, [.common, .specific, .specific])
     }
 
     func testFirstNameIsAlwaysEveryday() {

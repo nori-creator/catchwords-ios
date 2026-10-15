@@ -3,13 +3,16 @@ import Foundation
 /// 語源・部首 as a diagram (owner 2026-10-15, as on the web): each character's box (the character, what it is built
 /// from, what that means) joined with + into the word's box (the word and what it means), highlighted —
 /// [曖 / 日+愛 / 日がかげる] + [昧 / 日+未 / 夜明け前] = [曖昧 / はっきり見えない].
-/// A word that cannot be taken apart gets what fits it instead: one character's box with its radical (`single`), or
-/// where the sound came from for a loanword, a transliteration or a brand name (`phonetic`: 沙發 — 英語 sofa の音から).
+/// A word that cannot be taken apart gets what fits it instead: one character's box with its radical (`single`),
+/// where the sound came from for a loanword or a transliteration (`loanword`: 沙發 — 英語 sofa の音から), or a line about
+/// a brand or another word (`proper`, `other`).
 ///
-/// Read leniently from `extras.etymology_parts` (server 2026-10-15); the older names of the same thing are read too, and
-/// anything that would draw an empty or broken diagram is not a diagram (`drawable`): the page then shows the prose.
+/// Read leniently from `extras.etymology_diagram` (server nori-creator/Lovable-catch-words-app#183: `{kind: compound |
+/// single_char | loanword_phonetic | proper | other, parts: [{text, components, meaning}], result_meaning, source,
+/// note}`; null on older cards); anything that would draw an empty or broken diagram is not a diagram (`drawable`): the
+/// page then shows the prose.
 nonisolated struct EtymologyDiagram: Codable, Sendable, Hashable {
-    nonisolated enum Kind: String, Sendable, Hashable { case compound, single, phonetic }
+    nonisolated enum Kind: String, Sendable, Hashable { case compound, single, loanword, proper, other }
 
     /// One character: 曖, built from 日 and 愛, meaning 日がかげる.
     nonisolated struct Part: Sendable, Hashable {
@@ -31,9 +34,8 @@ nonisolated struct EtymologyDiagram: Codable, Sendable, Hashable {
     /// As the server sent it (written back unchanged).
     var raw: JSONValue
 
-    /// The key the server writes it under, then older names of the same thing.
-    static let keys = ["etymology_parts", "etymology_diagram", "etymology_structure", "char_breakdown",
-                       "character_breakdown", "radical_parts", "hanzi_breakdown"]
+    /// The key the server writes it under, then other names of the same thing.
+    static let keys = ["etymology_diagram", "etymology_parts", "etymology_structure", "char_breakdown"]
 
     init(from decoder: Decoder) throws {
         let value = try JSONValue(from: decoder)
@@ -89,6 +91,8 @@ nonisolated struct EtymologyDiagram: Codable, Sendable, Hashable {
             let parts = items.compactMap(part)
             guard !parts.isEmpty else { return nil }
             return EtymologyDiagram(kind: parts.count > 1 ? .compound : .single, parts: parts, raw: value)
+        case .null:
+            return nil
         case .object(let o):
             let parts = array(o, ["parts", "chars", "characters", "components", "items", "breakdown"]).compactMap(part)
             var word = text(o, ["word", "whole", "combined", "headword"])
@@ -104,7 +108,7 @@ nonisolated struct EtymologyDiagram: Codable, Sendable, Hashable {
             let note = text(o, ["note", "explanation", "summary", "origin", "description", "loan_note", "reason"])
             let source = text(o, ["source", "source_word", "origin_word", "from", "loan_source", "sound_of"])
             let declared = kindNamed(text(o, ["kind", "type", "mode", "category"]))
-            let k: Kind = declared ?? (parts.count > 1 ? .compound : parts.count == 1 ? .single : .phonetic)
+            let k: Kind = declared ?? (parts.count > 1 ? .compound : parts.count == 1 ? .single : source.isEmpty ? .other : .loanword)
             return EtymologyDiagram(kind: k, parts: parts, word: word, meaning: meaning, note: note, source: source, raw: value)
         default:
             return nil
@@ -114,8 +118,10 @@ nonisolated struct EtymologyDiagram: Codable, Sendable, Hashable {
     private static func kindNamed(_ raw: String) -> Kind? {
         let v = raw.lowercased()
         guard !v.isEmpty else { return nil }
-        let phonetic = ["phonetic", "loan", "translit", "sound", "brand", "borrow", "foreign", "音訳", "音譯", "外来", "外來"]  // l10n-ignore (data values)
-        if phonetic.contains(where: { v.contains($0) }) { return .phonetic }
+        let loanword = ["phonetic", "loan", "translit", "sound", "borrow", "foreign", "音訳", "音譯", "外来", "外來"]  // l10n-ignore (data values)
+        if loanword.contains(where: { v.contains($0) }) { return .loanword }
+        if ["proper", "brand", "trademark"].contains(where: { v.contains($0) }) { return .proper }
+        if v == "other" || v == "none" || v == "unknown" { return .other }
         let single = ["single", "pictograph", "simple", "radical", "indivisible", "象形", "指事"]  // l10n-ignore (data values)
         if single.contains(where: { v.contains($0) }) { return .single }
         let compound = ["compound", "component", "combin", "semantic", "decompos", "parts", "形声", "形聲", "会意", "會意"]  // l10n-ignore (data values)
@@ -169,12 +175,15 @@ nonisolated struct EtymologyDiagram: Codable, Sendable, Hashable {
     /// What to draw for `headword`, or nil when the data would draw an empty or broken diagram:
     /// - compound: two or more characters of the word, each with what it is built from or what it means;
     /// - single: one character with its parts or meaning;
-    /// - phonetic: something to say about where the sound came from.
+    /// - loanword: where the sound came from (a note or the source word); proper / other: their note.
+    /// Boxes that would be broken with a note to say instead show the note (`other`).
     func drawable(for headword: String) -> EtymologyDiagram? {
         var d = self
         let word = (d.word.isEmpty ? headword : d.word).trimmingCharacters(in: .whitespacesAndNewlines)
         d.word = word
         let explained = d.parts.filter { !$0.components.isEmpty || !$0.meaning.isEmpty }
+        let noteOnly: EtymologyDiagram? = d.note.isEmpty ? nil
+            : EtymologyDiagram(kind: .other, parts: [], word: word, meaning: d.meaning, note: d.note, source: d.source, raw: d.raw)
         switch d.kind {
         case .compound:
             // Every box has something under its character, and every character is one of the word's.
@@ -182,18 +191,19 @@ nonisolated struct EtymologyDiagram: Codable, Sendable, Hashable {
                   d.parts.allSatisfy({ word.contains($0.char) }) else {
                 // A compound written for one character only reads as that character's box.
                 if d.parts.count == 1, explained.count == 1 { d.kind = .single; return d }
-                return nil
+                return noteOnly
             }
             return d
         case .single:
-            guard let first = d.parts.first, !first.components.isEmpty || !first.meaning.isEmpty else {
-                return d.note.isEmpty ? nil : EtymologyDiagram(kind: .phonetic, parts: [], word: word, meaning: d.meaning,
-                                                               note: d.note, source: d.source, raw: d.raw)
-            }
+            guard let first = d.parts.first, !first.components.isEmpty || !first.meaning.isEmpty else { return noteOnly }
             d.parts = [first]
             return d
-        case .phonetic:
+        case .loanword:
+            d.parts = []
             return d.note.isEmpty && d.source.isEmpty ? nil : d
+        case .proper, .other:
+            d.parts = []
+            return d.note.isEmpty ? nil : d
         }
     }
 

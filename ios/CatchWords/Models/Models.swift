@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 nonisolated struct AuthSession: Codable, Sendable {
     let accessToken: String
@@ -86,7 +87,7 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     var studyTips: String?
     var etymology: String?
     var radicals: String?
-    /// 語源・部首 as boxes (`EtymologyDiagram`, server 2026-10-15; nil on older cards — the prose is shown).
+    /// 語源・部首 as boxes (`extras.etymology_diagram`, server #183; nil on older cards — the prose is shown).
     var etymologyDiagram: EtymologyDiagram?
     var trivia: String?
     var usageNote: String?
@@ -116,7 +117,7 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     enum CodingKeys: String, CodingKey {
         case mnemonic, synonyms, antonyms, etymology, radicals, trivia
         case explainLang = "explain_lang"
-        case etymologyDiagram = "etymology_parts"
+        case etymologyDiagram = "etymology_diagram"
         case forms, countability, stress, conjugation, politeness, counters
         case phrasalVerbs = "phrasal_verbs"
         case cultureNote = "culture_note"
@@ -604,15 +605,20 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
     var distinction: String = ""
     /// What kind of name it is: common / colloquial / specific / academic / proper (server candidate-register.ts,
     /// 2026-10-15). Older answers sent casual, or a typed word's style (spoken / written …): `NameRegister.normalize`.
+    /// (The style itself now comes as `style`, which the app does not show.)
     var register: String?
     /// Which object in the photo; other names of the same object share it.
     var group: Int?
     /// Category hint passed to `generateCard` as `hintCategory`.
     var categoryKey: String?
+    /// The box the AI drew round the thing (`box_2d`: [ymin, xmin, ymax, xmax], 0–1000 of the photo, web
+    /// suggestion-position.ts); nil when it sent none or a broken one. `objectBox` is the same box, 0–1.
+    var box: [Double]?
 
     enum CodingKeys: String, CodingKey {
         case kind, headword, zhuyin, pinyin, pos, point, confidence, alternatives
         case distinction, register, group
+        case box = "box_2d"
         case meaningJa = "meaning_ja"
         case readingZhuyin = "reading_zhuyin"
         case categoryKey = "category_key"
@@ -651,6 +657,7 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         try c.encodeIfPresent(register, forKey: .register)
         try c.encodeIfPresent(group, forKey: .group)
         try c.encodeIfPresent(categoryKey, forKey: .categoryKey)
+        try c.encodeIfPresent(box, forKey: .box)
     }
 
     /// Lenient decode (scan-detect-parse.ts): nulls, percentages, strings all accepted.
@@ -679,6 +686,19 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         register = try? c.decode(String.self, forKey: .register)
         group = try? c.decode(Int.self, forKey: .group)
         categoryKey = try? c.decode(String.self, forKey: .categoryKey)
+        box = (try? c.decode([Double].self, forKey: .box)).flatMap(Self.validBox)
+    }
+
+    /// validBox2d: four numbers in 0–1000, top above bottom and left before right.
+    static func validBox(_ raw: [Double]) -> [Double]? {
+        guard raw.count == 4, raw.allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 1000 }), raw[2] > raw[0], raw[3] > raw[1] else { return nil }
+        return raw
+    }
+
+    /// The AI's box round the thing, 0–1 of the photo (top-left origin).
+    var objectBox: CGRect? {
+        guard let b = box, b.count == 4 else { return nil }
+        return CGRect(x: b[1] / 1000, y: b[0] / 1000, width: (b[3] - b[1]) / 1000, height: (b[2] - b[0]) / 1000)
     }
 
     /// The same name with another register (`NameRegister.finalized`).
@@ -708,20 +728,14 @@ nonisolated enum NameRegister: String, CaseIterable, Sendable {
         }
     }
 
-    /// The server's register read leniently (normalizeNameRegister): the five values, and the older ones — a photo's
-    /// `casual`, a typed word's style (`spoken` → colloquial, `technical` → academic, `written` / `both` / `signage` →
-    /// common). nil = unreadable or missing (`finalized` fills it in).
+    /// The server's register (nori-creator/Lovable-catch-words-app#183: always one of the five). The photo's older
+    /// `casual` is colloquial. A typed word's style (spoken / written / both / technical / signage — older answers put
+    /// it in `register`, it is `style` now) is never read as a register: like a missing one it is nil, and `finalized`
+    /// fills it in, so the row still has its label.
     static func normalize(_ raw: String?) -> NameRegister? {
         let v = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !v.isEmpty else { return nil }
-        if let exact = NameRegister(rawValue: v) { return exact }
-        func starts(_ prefixes: [String]) -> Bool { prefixes.contains { v.hasPrefix($0) } }
-        if starts(["casual", "informal", "spoken", "slang", "colloq"]) { return .colloquial }
-        if starts(["technical", "scientific", "specialist", "professional", "jargon"]) { return .academic }
-        if starts(["brand", "trademark", "name of"]) { return .proper }
-        if starts(["detailed", "narrow", "precise", "formal name"]) { return .specific }
-        if starts(["general", "standard", "neutral", "everyday", "both", "signage", "written"]) { return .common }
-        return nil
+        if v == "casual" { return .colloquial }
+        return NameRegister(rawValue: v)
     }
 
     /// One thing's names (or a typed word's list) with a register on every one, in list order (finalizeNameRegisters):
