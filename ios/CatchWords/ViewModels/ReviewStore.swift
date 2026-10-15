@@ -164,12 +164,15 @@ final class ReviewStore {
         for card in upcoming {
             for c in choices(for: card, dex: dex) { SoundService.shared.prefetch(c.headword) }
         }
-        let paths = upcoming.compactMap(\.sticker.dexImagePath)
-        if let first = paths.first {
-            if dex.url(for: first, preferThumb: false) == nil { await dex.prefetchPictures([first]) }
-            if let url = dex.url(for: first, preferThumb: false) { _ = await ImageCache.shared.load(url: url, key: first) }
+        // The picture the quiz card really draws (the dex's choice: a missing or blank cut-out falls back to the
+        // photo), so the prefetched file is the one the card asks for.
+        let paths = upcoming.compactMap { c in dex.dexPicture(of: dex.sticker(id: c.sticker.id) ?? c.sticker)?.path }
+        // The card on screen and the one after it are decoded into memory: 次へ shows the next picture at once.
+        for path in paths.prefix(2) {
+            if dex.url(for: path, preferThumb: false) == nil { await dex.prefetchPictures([path]) }
+            if let url = dex.url(for: path, preferThumb: false) { _ = await ImageCache.shared.load(url: url, key: path) }
         }
-        await dex.prefetchPictures(Array(paths.dropFirst()))
+        await dex.prefetchPictures(Array(paths.dropFirst(2)))
     }
 
     func load(dex: DexStore, limit: Int) async {
@@ -291,7 +294,7 @@ final class ReviewStore {
     /// −1 when slow, wrong=1), the same interval engine (SM-2 with the Jev guardrails) and the same
     /// history rows as the web — so a word comes due on the same day on the iPhone and on the web.
     /// If the server cannot be reached, nothing is written locally (a half-graded card would drift):
-    /// returns false, `gradeError` says why, and the card is not counted as done.
+    /// returns false, `gradeError` says why, and the card is not counted as done (the optimistic count is undone).
     @discardableResult
     func grade(_ card: ReviewCard, correct: Bool, responseMs: Int, dex: DexStore) async -> Bool {
         gradeError = nil
@@ -302,6 +305,10 @@ final class ReviewStore {
         let r = card.review
         let now = Date()
         guard let rid = r.id else { return true }
+        // Counted at once: the learner moves on to the next card without waiting for the server (owner 2026-10-15
+        // 「次へを押してもすぐに次の問題にならない」). Taken back below if the grade cannot be saved.
+        let wasMissed = missed.contains(where: { $0.id == card.id })
+        if correct { correctCount += 1 } else if !wasMissed { missed.append(card) }
         struct Graded: Decodable {
             let score: Int?
             let intervalDays: Double?
@@ -316,11 +323,11 @@ final class ReviewStore {
                 "response_ms": max(0, responseMs),
             ], as: Graded.self, timeout: 20)
         } catch {
+            if correct { correctCount = max(0, correctCount - 1) } else if !wasMissed { missed.removeAll { $0.id == card.id } }
             let reason = (error as? LocalizedError)?.errorDescription ?? ""
             gradeError = reason.isEmpty ? L("採点を保存できませんでした。もう一度答えてください。") : L("採点を保存できませんでした。もう一度答えてください。\n\(reason)")
             return false
         }
-        if correct { correctCount += 1 } else if !missed.contains(where: { $0.id == card.id }) { missed.append(card) }
         let intervalAfter = graded.intervalDays.map { Int($0.rounded()) } ?? r.intervalDays
         doneToday += 1
         if let row = ReviewHistoryRow(stickerId: r.stickerId, reviewedAt: now, intervalDaysAfter: intervalAfter, easeAfter: r.ease) {
@@ -338,6 +345,13 @@ final class ReviewStore {
             return .init(stickerId: s.id, takenAt: s.takenAt, ease: r.ease, intervalDays: r.intervalDays, lastReviewedAt: r.lastReviewedAt)
         }
         return RetentionSeries.build(cards: cards, history: allHistory)
+    }
+
+    /// A grade the server refused after the learner had already moved on: the card comes back at the end of this
+    /// round to be answered again, so no answer is lost (the next card was never held back for the save).
+    func requeue(_ card: ReviewCard) {
+        guard !queue.dropFirst(index).contains(where: { $0.id == card.id }) else { return }
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { queue.append(card) }
     }
 
     func advance() {
