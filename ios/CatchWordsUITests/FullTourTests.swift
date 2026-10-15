@@ -114,10 +114,16 @@ final class FullTourTests: XCTestCase {
     /// The GET moment (its card.catch), the same moment for a word already in the dex (its reencounter.get), or — the
     /// GET moment lasts about 3 s and then goes into the dex by itself — the mark on the square the word just landed on:
     /// the NEW badge of a new word (`dex.new`) or the re-encounter's mark (`dex.again`), shown only after a landing.
-    private func waitForCatch(_ outcomes: [XCUIElement], timeout: TimeInterval) -> Bool {
+    /// Returns the first of `outcomes` seen (nil: none within `timeout`). What was seen is returned, never looked up
+    /// again: the GET moment can go between two looks, a moment before the landing's mark comes (2026-10-15, en/ja: the
+    /// re-encounter's GET moment was seen, gone at the second look, and the tour failed with the word landing fine).
+    private func waitForCatch(_ outcomes: [XCUIElement], timeout: TimeInterval) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
-        while !outcomes.contains(where: { $0.exists }) && Date() < deadline { settle(0.5) }
-        return outcomes.contains { $0.exists }
+        while true {
+            if let seen = outcomes.first(where: { $0.exists }) { return seen }
+            guard Date() < deadline else { return nil }
+            settle(0.5)
+        }
     }
 
     /// UTC wall-clock time, matching the app's trace (uitest-trace.txt).
@@ -178,7 +184,8 @@ final class FullTourTests: XCTestCase {
         let landed = app.descendants(matching: .any)["dex.new"]
         let landedAgain = app.descendants(matching: .any)["dex.again"]
         let outcomes = [catchButton, again, landed, landedAgain]
-        if !waitForCatch(outcomes, timeout: 20) {
+        var seen = waitForCatch(outcomes, timeout: 20)
+        if seen == nil {
             // The buttons the screen holds now and where (identifier @ centre), so the failure explains itself.
             let buttons = app.buttons.allElementsBoundByIndex.prefix(12).map { b in
                 "\(b.identifier.isEmpty ? b.label : b.identifier)@\(Int(b.frame.midX)),\(Int(b.frame.midY))"
@@ -189,17 +196,21 @@ final class FullTourTests: XCTestCase {
             // (where each touch landed, which gestures took it) is trace.txt next to the screenshots.
             let retappedAt = Self.clock.string(from: Date())
             let second = first.exists && first.isHittable
-            if second { first.tap() }
-            let secondOpened = second && waitForCatch(outcomes, timeout: 20)
+            if second {
+                first.tap()
+                seen = waitForCatch(outcomes, timeout: 20)
+            }
+            let secondOpened = seen != nil
             let outcome = secondOpened ? "opened it" : (second ? "did not open it either" : "was not possible")
             let now = buttons.joined(separator: " ")
             XCTFail("[\(display)/\(learning)] the celebration did not open after tapping a word at \(tappedAt) UTC " +
                     "(\(aimed); now: \(now); a second tap at \(retappedAt) UTC \(outcome))")
             guard secondOpened else { return }
         }
-        if again.exists || (landedAgain.exists && !catchButton.exists) {
+        if seen === again || seen === landedAgain || again.exists || (landedAgain.exists && !catchButton.exists) {
             // The re-encounter's GET moment (「また会えた！」), then its sticker flies into the word's square, which is
             // already there: it gets the re-encounter's mark, never the NEW badge (the word was caught before).
+            // Its GET moment may already have gone (seen a moment ago): then only its landing is waited for.
             if again.exists {
                 settle(1)
                 snap(p + "reencounter")
@@ -279,7 +290,7 @@ final class FullTourTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", common)).count > 0,
                       "[\(display)/\(learning)] the typed words have no register tag (\(common))")
         everyday.tap()
-        guard waitForCatch([catchButton, landed], timeout: 20) else {
+        guard waitForCatch([catchButton, landed], timeout: 20) != nil else {
             snap("typed-pick-failed")
             XCTFail("[\(display)/\(learning)] choosing a typed word did not open the GET moment")
             return

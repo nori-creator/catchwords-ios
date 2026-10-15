@@ -546,7 +546,7 @@ final class DexStore {
 
     /// Saves a new catch through the web's own `saveSticker` (stickers.functions.ts): the same
     /// word upsert, extras merge (service role), first-catch event and
-    /// duplicate guard as the web. Photos are uploaded first, in parallel; a failed cutout or
+    /// duplicate guard as the web. Photos are uploaded first, one at a time (`upload`); a failed cutout or
     /// selfie never blocks the catch.
     ///
     /// `ts` names the uploaded files (a provisional entry made by `addProvisional` already shows the photos
