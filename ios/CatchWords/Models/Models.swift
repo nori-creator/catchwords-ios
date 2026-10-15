@@ -614,11 +614,15 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
     /// The box the AI drew round the thing (`box_2d`: [ymin, xmin, ymax, xmax], 0–1000 of the photo, web
     /// suggestion-position.ts); nil when it sent none or a broken one. `objectBox` is the same box, 0–1.
     var box: [Double]?
+    /// The thing's general everyday name in the reader's language (`object_label`, server #184: the same for every name
+    /// of one `group`, e.g. 下着 for boxer briefs): the photo's tag. Empty on older answers.
+    var objectLabel: String = ""
 
     enum CodingKeys: String, CodingKey {
         case kind, headword, zhuyin, pinyin, pos, point, confidence, alternatives
         case distinction, register, group
         case box = "box_2d"
+        case objectLabel = "object_label"
         case meaningJa = "meaning_ja"
         case readingZhuyin = "reading_zhuyin"
         case categoryKey = "category_key"
@@ -658,6 +662,7 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         try c.encodeIfPresent(group, forKey: .group)
         try c.encodeIfPresent(categoryKey, forKey: .categoryKey)
         try c.encodeIfPresent(box, forKey: .box)
+        if !objectLabel.isEmpty { try c.encode(objectLabel, forKey: .objectLabel) }
     }
 
     /// Lenient decode (scan-detect-parse.ts): nulls, percentages, strings all accepted.
@@ -687,6 +692,7 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         group = try? c.decode(Int.self, forKey: .group)
         categoryKey = try? c.decode(String.self, forKey: .categoryKey)
         box = (try? c.decode([Double].self, forKey: .box)).flatMap(Self.validBox)
+        objectLabel = ((try? c.decode(String.self, forKey: .objectLabel)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// validBox2d: four numbers in 0–1000, top above bottom and left before right.

@@ -285,24 +285,36 @@ struct CandidatePickerView: View {
         }.map { list[$0] }
     }
 
-    /// The tag on a thing (owner 2026-10-15): the most general everyday name, in the reader's language — the meaning of
-    /// the thing's common name (`NameRegister.finalized` puts it first): boxer briefs → 內褲 → 「下着」, never
-    /// 「ボクサーパンツ」 (a more specific name's meaning) and never the learning-language word itself. With no meaning in
-    /// the reader's language, the thing's category in it (服), which is never merged with another tag.
+    /// The tag on a thing (owner 2026-10-15): the most general everyday name, in the reader's language — the server's
+    /// `object_label` (server #184, 下着 for boxer briefs), else the first gloss of the meaning of the thing's common
+    /// name (`NameRegister.finalized` puts it first: 內褲 → 「下着」); never 「ボクサーパンツ」 (a more specific name's
+    /// meaning) and never the learning-language word itself. With neither in the reader's language, the thing's
+    /// category in it (服), which is never merged with another tag.
     static func tagLabel(_ words: [Candidate]) -> (text: String, isName: Bool) {
         guard let main = words.first else { return ("", false) }
+        let label = ReaderLanguage.shown(main.objectLabel, words.lazy.map(\.objectLabel).first { !$0.isEmpty })
+        if !label.isEmpty { return (ReaderLanguage.gloss(label, limit: L10n.lang == "en" ? 24 : 12), true) }
         let name = readerName(main)
         if !name.isEmpty { return (name, true) }
         let category = main.categoryKey ?? words.lazy.compactMap(\.categoryKey).first
         return (Category.label(for: category), false)
     }
 
-    /// The thing's name in the reader's language: the short meaning the server wrote in it (empty when it came back
-    /// in another language — `ReaderLanguage.shown` drops it).
+    /// The thing's name in the reader's language: the first gloss of the meaning the server wrote in it (下着（パンツ類）
+    /// → 下着; empty when it came back in another language — `ReaderLanguage.shown` drops it).
     private static func readerName(_ c: Candidate) -> String {
         let meaning = ReaderLanguage.shown(c.meaningJa)
         guard !meaning.isEmpty else { return "" }
-        return ReaderLanguage.gloss(meaning, limit: L10n.lang == "en" ? 24 : 12)
+        return ReaderLanguage.gloss(firstGloss(meaning), limit: L10n.lang == "en" ? 24 : 12)
+    }
+
+    /// The first of the meanings listed in `meaning` (「下着、パンツ」 → 下着, "underwear; briefs" → underwear), never
+    /// cut inside a word (ボクサー・パンツ stays whole).
+    static func firstGloss(_ meaning: String) -> String {
+        let separators: Set<Character> = ["、", "，", ",", "；", ";", "／", "/", "（", "(", "。", "：", ":", "\n"]
+        let first = meaning.split(whereSeparator: { separators.contains($0) }).first
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
+        return first.isEmpty ? meaning.trimmingCharacters(in: .whitespacesAndNewlines) : first
     }
 
     /// Names that are the same thing to the reader (case and spaces aside); nil = never merged.

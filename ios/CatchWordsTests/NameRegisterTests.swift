@@ -100,4 +100,28 @@ final class NameRegisterTests: XCTestCase {
         XCTAssertFalse(tag.isName)
         XCTAssertNotEqual(tag.text, "內褲")
     }
+
+    /// The server's `object_label` (server #184) is the tag when it is there; empty (an older server), the first gloss
+    /// of the common name's meaning.
+    func testCameraTagUsesTheServersObjectLabel() throws {
+        let saved = L10n.lang
+        defer { L10n.lang = saved }
+        L10n.lang = "ja"
+        struct Res: Decodable { let suggestions: [Candidate] }
+        let withLabel = #"{"suggestions":["#
+            + #"{"headword":"內褲","meaning_ja":"下着（パンツ類）","register":"common","group":0,"object_label":"下着"},"#
+            + #"{"headword":"平口褲","meaning_ja":"ボクサーパンツ","register":"specific","group":0,"object_label":"下着"}]}"#
+        let labelled = try JSONDecoder().decode(Res.self, from: Data(withLabel.utf8)).suggestions
+        XCTAssertEqual(labelled.map(\.objectLabel), ["下着", "下着"])
+        XCTAssertEqual(CandidatePickerView.tagLabel(NameRegister.finalized(labelled)).text, "下着")
+
+        let older = #"{"suggestions":["#
+            + #"{"headword":"平口褲","meaning_ja":"ボクサーパンツ","register":"specific","group":0,"object_label":""},"#
+            + #"{"headword":"內褲","meaning_ja":"下着、パンツ","register":"common","group":0}]}"#
+        let plain = try JSONDecoder().decode(Res.self, from: Data(older.utf8)).suggestions
+        XCTAssertEqual(plain.map(\.objectLabel), ["", ""])
+        let tag = CandidatePickerView.tagLabel(NameRegister.finalized(plain))
+        XCTAssertEqual(tag.text, "下着")
+        XCTAssertTrue(tag.isName)
+    }
 }
