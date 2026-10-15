@@ -35,6 +35,8 @@ struct CatchChooseOverlay: View {
 
     @State private var typed: String = ""
     @FocusState private var typing: Bool
+    /// The field comes in with the card's rows.
+    @State private var fieldShown = false
 
     private let ink = Color(hex: 0x0B121A)
     private let muted = Color(hex: 0x5C646F)
@@ -104,6 +106,11 @@ struct CatchChooseOverlay: View {
                     typeField
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
+                        .opacity(fieldShown ? 1 : 0)
+                        .offset(y: fieldShown ? 0 : 16)
+                        .onAppear {
+                            withAnimation(calm ? .easeOut(duration: 0.2) : .easeOut(duration: 0.35).delay(0.9)) { fieldShown = true }
+                        }
                 }
                 .transition(.opacity)
             }
