@@ -41,8 +41,16 @@ final class AppRouter {
     var openPending: Bool = false
     /// True while the camera "machine" (live preview / selfie / analyzing) fills the screen.
     var cameraImmersive: Bool = true
-    /// Analyzing and the reward stage take the whole screen (no tab bar).
+    /// Analyzing and the reward stage take the whole screen (no tab bar). Set by the camera screen, and read only while
+    /// the camera tab shows (`cameraFullScreen`): what it last set never hides the tab bar of another tab.
     var tabBarHidden: Bool = false
+    /// The camera tab shows a catch full screen (analyzing, the words, the GET moment).
+    var cameraFullScreen: Bool { tabBarHidden && tab == .camera }
+    /// No tab bar while the camera shows a catch full screen or a catch lands in the dex (the page rises over everything;
+    /// the bar slides back in once the word has landed). Shown, it is always on top (MainTabView). 2026-10-15 (UI tour,
+    /// ja/en): after a typed word landed, the review and settings tabs could not be reached — the tab bar was still in
+    /// the screen's tree but out of sight, and taps on it went to the dex page under it.
+    var hidesTabBar: Bool { cameraFullScreen || landing != nil }
     /// First-run tour over the real screens (FirstCatchFlow's experience steps).
     var tour: TourStep = .off
     /// The word caught during the tour (used by the Dex / word / review steps).
@@ -127,14 +135,17 @@ struct MainTabView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if !router.tabBarHidden {
+            if !router.hidesTabBar {
                 CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
                               onSelect: beginShutterFlight)
                     .padding(.bottom, 4)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // Above every tab's page, the dex rising for a landing too (it takes zIndex 1 for that).
+                    .zIndex(2)
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.9), value: router.tabBarHidden)
+        .animation(.spring(response: 0.4, dampingFraction: 0.9), value: router.hidesTabBar)
+        .onChange(of: router.hidesTabBar) { _, hidden in UITestTrace.log("tabbar hidden=\(hidden) tab=\(router.tab)") }
         .overlay {
             if let landing = router.landing { CatchLandingOverlay(controller: landing) }
         }
@@ -160,7 +171,7 @@ struct MainTabView: View {
         .overlayPreferenceValue(TourAnchorKey.self) { anchors in
             // The catch hides the tab bar for its whole flow; its capture steps still need the guide.
             if router.tour != .off, router.tour != .word, router.tour != .complete,
-               !router.tabBarHidden || (router.tab == .camera && router.tour.isCapture) {
+               !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: endTour)
                     .transition(.opacity)
             }
@@ -219,6 +230,9 @@ struct MainTabView: View {
         .onChange(of: tourPending) { _, _ in beginTourIfPending() }
         .onChange(of: router.tab) { _, tab in
             if tab == .camera { router.advanceTour(from: .tapCamera, to: .shoot) }
+            // The camera screen's full-screen catch is over once another tab shows: coming back to the camera starts
+            // from its own setting (`CaptureView.syncChrome` on appear), never from one it left behind.
+            if tab != .camera { router.tabBarHidden = false }
         }
         .onChange(of: router.detailSticker) { old, s in
             if s != nil { router.advanceTour(from: .dexOpen, to: .word) }

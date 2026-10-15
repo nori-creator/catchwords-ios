@@ -96,6 +96,7 @@ struct CaptureView: View {
             syncChrome()
         }
         .onDisappear {
+            UITestTrace.log("capture.disappear step=\(vm.step)")
             selfieCountdown.cancel()
             camera.stop()
             router.cameraImmersive = true

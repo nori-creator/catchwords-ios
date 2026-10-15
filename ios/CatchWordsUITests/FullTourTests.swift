@@ -414,11 +414,23 @@ final class FullTourTests: XCTestCase {
 
     private func tap(_ id: String) {
         let e = app.buttons[id]
-        if e.waitForExistence(timeout: 10) {
-            e.tap()
-        } else {
+        guard e.waitForExistence(timeout: 10) else {
             XCTFail("[\(display)/\(learning)] \(id) not found")
+            return
         }
+        // A tab under something else is never tapped blind (2026-10-15, ja/en: the tab bar was in the tree but out of
+        // sight after a catch, the taps went to the dex page and the tour failed later at settings): wait for it to come
+        // up, and say so when it does not.
+        if id.hasPrefix("tab.") {
+            let deadline = Date().addingTimeInterval(10)
+            while !e.isHittable && Date() < deadline { settle(0.5) }
+            guard e.isHittable else {
+                snap("covered-" + id)
+                XCTFail("[\(display)/\(learning)] \(id) is there but cannot be tapped (something covers it)")
+                return
+            }
+        }
+        e.tap()
     }
 
     private func fill(_ id: String, _ text: String) {

@@ -449,12 +449,14 @@ enum CatchLanding {
         let c = CatchLandingController(stickerId: stickerId, alreadyCaught: alreadyCaught, star: star,
                                        motion: CCMotion(calm: calm), screen: screen, goal: alreadyCaught ? nil : goal)
         router.landing = c
+        UITestTrace.log("landing start \(stickerId) again=\(alreadyCaught)")
         Task {
             // One frame first, so the camera screen knows it stays under the rising dex page.
             try? await Task.sleep(for: .milliseconds(16))
             // Film v6: the 図鑑 page rises 140 px with a fade (.4 s, in-out cubic; MainTabView's transition) (calm: no slide)
             withAnimation(calm ? nil : .timingCurve(0.65, 0, 0.35, 1, duration: 0.4)) { router.tab = .dex }
             await c.run()
+            UITestTrace.log("landing end \(c.stickerId) current=\(router.landing === c)")
             if router.landing === c { router.landing = nil }
         }
     }
