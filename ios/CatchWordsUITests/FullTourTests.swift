@@ -164,11 +164,12 @@ final class FullTourTests: XCTestCase {
         first.tap()
         // A thing with several ways to say it lists them first (outside the first tour): take the everyday one once
         // the choose screen's card has come in (film v6: the rows land 0.6–1.0 s after the tap).
+        // A thing with one way to say it opens the card too (2026-10-15), with that one row.
         let everyday = app.buttons["variant.0"]
         if everyday.waitForExistence(timeout: 3) {
             settle(1.2)
             snap(p + "variants")
-            checkChooseScreen()
+            checkChooseScreen(several: app.buttons["variant.1"].exists)
             everyday.tap()
         }
         let catchButton = app.buttons["card.catch"]
@@ -298,7 +299,8 @@ final class FullTourTests: XCTestCase {
 
     /// The choose screen (owner 2026-10-15): every way to say it carries its register tag — the everyday word's
     /// 一般的な言い方 first, the demo's other name より詳しい言い方 — and a word can be typed under the card.
-    private func checkChooseScreen() {
+    /// `several`: the card lists more than one way to say it (the demo's scooter: 機車 and 速克達).
+    private func checkChooseScreen(several: Bool) {
         let labels: [String: (common: String, specific: String)] = [
             "ja": ("一般的な言い方", "より詳しい言い方"), "en": ("Common", "More specific"), "zh-TW": ("常用說法", "更精確的說法"),
         ]
@@ -307,7 +309,9 @@ final class FullTourTests: XCTestCase {
             app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).count > 0
         }
         XCTAssertTrue(shown(want.common), "[\(display)/\(learning)] the everyday name has no register tag (\(want.common))")
-        XCTAssertTrue(shown(want.specific), "[\(display)/\(learning)] the other name has no register tag (\(want.specific))")
+        if several {
+            XCTAssertTrue(shown(want.specific), "[\(display)/\(learning)] the other name has no register tag (\(want.specific))")
+        }
         XCTAssertTrue(app.textFields["variant.field"].exists, "[\(display)/\(learning)] no field to type a word on the choose screen")
     }
 
