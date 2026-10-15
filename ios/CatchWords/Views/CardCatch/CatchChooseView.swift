@@ -260,7 +260,8 @@ struct CatchChooseOverlay: View {
     }
 
     private func content(_ c: Candidate, first: Bool) -> some View {
-        let meaning = ReaderLanguage.gloss(ReaderLanguage.shown(c.meaningJa))
+        // A typed word's `gloss` when the server sent one (#184), else the meaning's first gloss.
+        let meaning = c.shownMeaning
         let note = ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
         // Every row says what kind of name it is (owner 2026-10-15: 「どの候補にも必ず印を付ける」 — the film's everyday row
         // had none, and a list whose registers were all common or unknown showed no label at all).

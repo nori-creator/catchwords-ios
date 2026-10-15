@@ -651,10 +651,13 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
     /// The thing's general everyday name in the reader's language (`object_label`, server #184: the same for every name
     /// of one `group`, e.g. 下着 for boxer briefs): the photo's tag. Empty on older answers.
     var objectLabel: String = ""
+    /// A typed word's short meaning in the reader's language (`gloss`, server #184: the first gloss of `meaning_ja`).
+    /// Empty on photo candidates and older answers.
+    var gloss: String = ""
 
     enum CodingKeys: String, CodingKey {
         case kind, headword, zhuyin, pinyin, pos, point, confidence, alternatives
-        case distinction, register, group
+        case distinction, register, group, gloss
         case box = "box_2d"
         case objectLabel = "object_label"
         case meaningJa = "meaning_ja"
@@ -697,6 +700,7 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         try c.encodeIfPresent(categoryKey, forKey: .categoryKey)
         try c.encodeIfPresent(box, forKey: .box)
         if !objectLabel.isEmpty { try c.encode(objectLabel, forKey: .objectLabel) }
+        if !gloss.isEmpty { try c.encode(gloss, forKey: .gloss) }
     }
 
     /// Lenient decode (scan-detect-parse.ts): nulls, percentages, strings all accepted.
@@ -727,7 +731,12 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         categoryKey = try? c.decode(String.self, forKey: .categoryKey)
         box = (try? c.decode([Double].self, forKey: .box)).flatMap(Self.validBox)
         objectLabel = ((try? c.decode(String.self, forKey: .objectLabel)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        gloss = ((try? c.decode(String.self, forKey: .gloss)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// The short meaning a list row shows, in the reader's language: the server's `gloss` (typed words), else the first
+    /// gloss of the meaning.
+    var shownMeaning: String { ReaderLanguage.gloss(ReaderLanguage.shown(gloss, meaningJa)) }
 
     /// validBox2d: four numbers in 0–1000, top above bottom and left before right.
     static func validBox(_ raw: [Double]) -> [Double]? {

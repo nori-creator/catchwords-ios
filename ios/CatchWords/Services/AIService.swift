@@ -11,7 +11,33 @@ final class AIService {
     // MARK: - Web server functions (the Lovable-decided behaviour)
 
     private struct Suggestions: Decodable { let suggestions: [Candidate] }
-    private struct WordCandidates: Decodable { let candidates: [Candidate] }
+    /// `suggestWordCandidates` (server #184 adds `query_lang` — learning / display — and the typed thing's `object_label`;
+    /// each candidate now carries `register`, `category_key`, `gloss` and `object_label` like a photo's).
+    private struct WordCandidates: Decodable {
+        let candidates: [Candidate]
+        let queryLang: String?
+        let objectLabel: String?
+
+        enum CodingKeys: String, CodingKey {
+            case candidates
+            case queryLang = "query_lang"
+            case objectLabel = "object_label"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            // One candidate that does not read is dropped, never the whole answer.
+            candidates = ((try? c.decode([LenientCandidate].self, forKey: .candidates)) ?? []).compactMap(\.value)
+            queryLang = try? c.decodeIfPresent(String.self, forKey: .queryLang)
+            objectLabel = try? c.decodeIfPresent(String.self, forKey: .objectLabel)
+        }
+    }
+
+    /// A candidate, or nil when it does not read (an empty headword).
+    private struct LenientCandidate: Decodable {
+        let value: Candidate?
+        init(from decoder: Decoder) throws { value = try? Candidate(from: decoder) }
+    }
 
     /// Photo → candidates, exactly like the web capture (`suggestWords`, capture.tsx runAi):
     /// 768px / q0.8, one entry per object (`group`) plus its other names (`register`),

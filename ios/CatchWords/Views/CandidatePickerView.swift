@@ -611,7 +611,7 @@ struct CandidatePickerView: View {
                             // What kind of name it is, on every row (owner 2026-10-15).
                             RegisterTag(register: NameRegister.of(c))
                             ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: 20, pinyin: c.pinyin)
-                            Text(ReaderLanguage.gloss(ReaderLanguage.shown(c.meaningJa)))
+                            Text(c.shownMeaning)
                                 .scaledFont(size: 12)
                                 .foregroundStyle(Theme.muted)
                                 .lineLimit(2)
