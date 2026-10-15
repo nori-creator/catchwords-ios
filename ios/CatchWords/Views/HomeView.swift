@@ -298,12 +298,9 @@ struct HomeAlbum: View {
         }
     }
 
-    /// Today before its first photo: a short line and the way to the camera.
+    /// Today before its first photo: only the way to the camera (owner 2026-10-15: the handwritten line is gone).
     private func emptyDay(isToday: Bool) -> some View {
         VStack(spacing: 14) {
-            Text(isToday ? L("今日のページはまだ白紙です。") : L("この日は写真がありません。"))
-                .font(AppFont.hand(19))
-                .foregroundStyle(Color(hex: 0x33291F).opacity(0.65))
             if isToday {
                 Button(action: onCamera) {
                     Label(L("今日の1枚を撮る"), systemImage: "camera.fill")
