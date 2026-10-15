@@ -51,7 +51,8 @@ final class ExampleSceneTests: XCTestCase {
         let one = try extras(#"{"example_pattern_count":1,"examples_extra":[]}"#)
         XCTAssertTrue(one.examplesExtraComplete)
         let three = try extras(#"{"example_pattern_count":3}"#)
-        for e in [one, three, try extras("{}"), nil] as [WordExtras?] {
+        let old = try extras("{}")
+        for e in [one, three, old, nil] as [WordExtras?] {
             XCTAssertFalse(WordDetailView.wantsAutoFill(.examplesExtra, extras: e))
         }
         XCTAssertTrue(DexStore.retiredSections.contains("examples_extra"))

@@ -4,7 +4,7 @@ import Foundation
 /// (`saveSticker`). The developer log names the step; a retry saves the row with the photos already in storage
 /// (`uploads`) instead of sending them again.
 nonisolated struct CatchSaveError: Error, LocalizedError {
-    enum Stage: String, Sendable {
+    nonisolated enum Stage: String, Sendable {
         /// Sending the photos to storage.
         case upload
         /// Writing the word and its sticker (`saveSticker`).
