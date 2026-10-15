@@ -186,7 +186,9 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Button { Haptics.selection(); showStats = true } label: { AvatarView(url: profile.avatarURL, size: 38) }
+            // The avatar and the calendar open a page, like a tab: the same bubble pon and tap as the tab bar
+            // (owner 2026-10-15).
+            Button { SoundService.shared.pon(open: true); showStats = true } label: { AvatarView(url: profile.avatarURL, size: 38) }
                 .buttonStyle(PressableStyle(scale: 0.92))
                 .accessibilityLabel(L("あなたの記録"))
             Text("CatchWords")
@@ -194,7 +196,7 @@ struct HomeView: View {
                 .foregroundStyle(Theme.muted)
             Spacer()
             Button {
-                Haptics.selection()
+                SoundService.shared.pon(open: true)
                 calendarOpen = true
             } label: {
                 Image(systemName: "calendar")

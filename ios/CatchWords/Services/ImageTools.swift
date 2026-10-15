@@ -448,6 +448,21 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         return (inBox, totals, max(0, x1 - x0) * max(0, y1 - y0))
     }
 
+    /// Every instance at least `minArea` of the photo, the largest first (counted on the label mask copy): the things
+    /// the AI gave no place take these, one each (`CatchObject.build`). Heavy the first time: call off the main thread.
+    func instancesBySize(minArea: Double = 0.012) -> [Int] {
+        maskLock.lock()
+        if maskCache == nil { maskCache = labelMask() }
+        let copy = maskCache
+        maskLock.unlock()
+        guard let m = copy, m.width > 0, m.height > 0 else { return [] }
+        var counts = [Int](repeating: 0, count: 256)
+        for v in m.mask where v != 0 { counts[Int(v)] += 1 }
+        let total = Double(m.width * m.height)
+        return (1..<256).filter { Double(counts[$0]) / total >= minArea }
+            .sorted { counts[$0] != counts[$1] ? counts[$0] > counts[$1] : $0 < $1 }
+    }
+
     /// Several instances cut out together (the person and the thing they hold). Heavy: call off the main thread.
     func cut(instances labels: IndexSet) -> Cut? {
         if labels.count == 1, let only = labels.first { return cut(instance: only) }

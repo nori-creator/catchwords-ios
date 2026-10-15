@@ -337,13 +337,11 @@ struct WordDetailView: View {
                 Spacer(minLength: 8)
                 PronounceCircle(text: headword, size: 50)
             }
+            // The part of speech only. The register chip (中立 / 書き言葉 / 話し言葉) is gone (owner 2026-10-15): the server
+            // no longer writes it; an old card's `register_scale` is still decoded and simply not shown.
             let pos = word?.partOfSpeech.map(posLabel) ?? ""
-            let register = extras?.resolvedRegister.map(registerLabel)
-            if !pos.isEmpty || register != nil {
-                FlowRow(spacing: 8) {
-                    if !pos.isEmpty { chip(pos) }
-                    if let register { chip(register) }
-                }
+            if !pos.isEmpty {
+                FlowRow(spacing: 8) { chip(pos) }
             }
             // The reading line only when the zhuyin ruby cannot be drawn (web hides it otherwise). With ピンイン chosen
             // the headword already carries it over each character.
@@ -922,16 +920,6 @@ struct WordDetailView: View {
             .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
     }
 
-    private func registerLabel(_ r: Int) -> String {
-        switch r {
-        case ...(-2): L("話し言葉")
-        case -1: L("やや話し言葉")
-        case 0: L("中立")
-        case 1: L("やや書き言葉")
-        default: L("書き言葉")
-        }
-    }
-
     // MARK: - Sections
 
     private var meaningCard: some View {
@@ -1226,12 +1214,18 @@ struct WordDetailView: View {
                         .padding(.vertical, 14)
                     Divider().overlay(Theme.border)
                 }
-                HStack(spacing: 14) {
+                // The legend wraps between its items, never inside one (owner 2026-10-15: under the English UI
+                // "Stative verb (adjective)" and "Particle / preposition" broke into cramped lines).
+                FlowRow(spacing: 12) {
                     ForEach(ChunkKind.allCases.filter { kinds.contains($0) }, id: \.self) { k in
                         HStack(spacing: 5) {
                             Circle().fill(k.ink).frame(width: 8, height: 8)
                             Text(k.label(for: learningLang)).scaledFont(size: 13).foregroundStyle(Theme.muted)
+                                .lineLimit(1)
                         }
+                        .fixedSize()
+                        .frame(minWidth: 56, alignment: .leading)
+                        .accessibilityElement(children: .combine)
                     }
                 }
                 .padding(.top, 12)
@@ -1500,8 +1494,9 @@ struct WordDetailView: View {
     }
 
     /// The prose sections: one sentence per row with a thin line under each, instead of one block of prose (owner
-    /// 2026-10-14: 「読みやすいように文の下に線に書いて」). `ruled` false: the same rows and spacing without the lines
-    /// (台湾メモ, owner 2026-10-15).
+    /// 2026-10-14: 「読みやすいように文の下に線に書いて」). `ruled` false: the rows without the lines and with the tight
+    /// spacing the prose had before the lines came (台湾メモ, owner 2026-10-15: without its lines the ruled rows' gaps
+    /// read as 「行間が広すぎる」).
     private func textCard(_ title: String, icon: String, _ body: String, ruled: Bool = true) -> some View {
         SectionCard(title: title, icon: icon) {
             SentenceRows(text: body, ruled: ruled)
@@ -1804,14 +1799,20 @@ extension EnvironmentValues {
 /// whole word down early. VoiceOver reads the sentence as written.
 /// The line under each row is two device pixels (`hairline`): a one-pixel line (½ pt on an iPad) that fell between two
 /// pixel rows was drawn as two faint half-pixels and vanished on the light card, so on the owner's iPad some sentences
-/// of 台湾メモ had no line (2026-10-15). The spacing between the sentences stays as it was.
+/// of 台湾メモ had no line (2026-10-15). The spacing between the ruled sentences stays as it was.
 struct SentenceRows: View {
     let text: String
     var size: CGFloat = 15
     var color: Color = Theme.foreground.opacity(0.9)
-    /// The line under each sentence (台湾メモ has none, owner 2026-10-15: the rows and their spacing stay the same).
+    /// The line under each sentence. 台湾メモ has none (owner 2026-10-15), and without the lines its rows sit as close
+    /// as the prose block did before the lines came (`tightPadding`; owner 2026-10-15 evening: 「行間が広すぎる」 — the
+    /// ruled rows' 10 pt above and below each sentence read as empty gaps once the lines were gone).
     var ruled: Bool = true
     @Environment(\.displayScale) private var displayScale
+
+    /// Above and below each sentence: room for the line between ruled rows; next to nothing without the lines.
+    static let ruledPadding: CGFloat = 10
+    static let tightPadding: CGFloat = 2
 
     var body: some View {
         let lines = Sentences.split(text)
@@ -1823,7 +1824,7 @@ struct SentenceRows: View {
                     .lineSpacing(5)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, ruled ? Self.ruledPadding : Self.tightPadding)
                     .overlay(alignment: .bottom) {
                         if ruled { Rectangle().fill(Theme.border).frame(height: Self.hairline(displayScale)) }
                     }

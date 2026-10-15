@@ -655,6 +655,9 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
     /// A typed word's short meaning in the reader's language (`gloss`, server #185: the first gloss of `meaning_ja`).
     /// Empty on photo candidates and older answers.
     var gloss: String = ""
+    /// The server said where the thing is (`point` or `box_2d`). False when it sent neither: `point` is then the
+    /// middle only as a stand-in, and the tag must not be put there (`CatchObject.build` finds the thing's own place).
+    var positioned: Bool = true
 
     enum CodingKeys: String, CodingKey {
         case kind, headword, zhuyin, pinyin, pos, point, confidence, alternatives
@@ -692,7 +695,8 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         try c.encode(pinyin, forKey: .pinyin)
         try c.encode(meaningJa, forKey: .meaningJa)
         try c.encode(pos, forKey: .pos)
-        try c.encode(point, forKey: .point)
+        // A stand-in middle is not written: a candidate kept in the queue and read back stays "no position".
+        if positioned || box != nil { try c.encode(point, forKey: .point) }
         try c.encode(confidence, forKey: .confidence)
         try c.encode(alternatives, forKey: .alternatives)
         try c.encode(distinction, forKey: .distinction)
@@ -718,10 +722,15 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         pinyin = (try? c.decode(String.self, forKey: .pinyin)) ?? ""
         meaningJa = (try? c.decode(String.self, forKey: .meaningJa)) ?? ""
         pos = (try? c.decode(String.self, forKey: .pos)) ?? ""
-        var p = (try? c.decode([Double].self, forKey: .point)) ?? [500, 500]
-        if p.count < 2 { p = [500, 500] }
+        let sent = (try? c.decode([Double].self, forKey: .point)).flatMap { raw -> [Double]? in
+            raw.count >= 2 && raw[0].isFinite && raw[1].isFinite ? raw : nil
+        }
+        box = (try? c.decode([Double].self, forKey: .box)).flatMap(Self.validBox)
+        // No point but a box: the middle of the box (the server sends both; an answer with the box alone is placed too).
+        var p = sent ?? box.map { [($0[1] + $0[3]) / 2, ($0[0] + $0[2]) / 2] } ?? [500, 500]
         if p[0] <= 1 && p[1] <= 1 { p = [p[0] * 1000, p[1] * 1000] }
         point = [max(0, min(1000, p[0])), max(0, min(1000, p[1]))]
+        positioned = sent != nil || box != nil
         var conf = (try? c.decode(Double.self, forKey: .confidence)) ?? 0.8
         if conf > 1 { conf /= 100 }
         confidence = max(0, min(1, conf))
@@ -730,7 +739,6 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         register = try? c.decode(String.self, forKey: .register)
         group = try? c.decode(Int.self, forKey: .group)
         categoryKey = try? c.decode(String.self, forKey: .categoryKey)
-        box = (try? c.decode([Double].self, forKey: .box)).flatMap(Self.validBox)
         objectLabel = ((try? c.decode(String.self, forKey: .objectLabel)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         gloss = ((try? c.decode(String.self, forKey: .gloss)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }

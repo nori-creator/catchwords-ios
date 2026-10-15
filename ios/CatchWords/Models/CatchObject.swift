@@ -22,6 +22,10 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
     /// Vision's instance under this object (nil = none, `fallbackBox`). The catch scan waits for that instance's
     /// outline (`CatchOutline.label`) before this object's tag comes up.
     var instance: Int? = nil
+    /// The AI said where this thing is (a `point` / `box_2d` of its own). False: it sent none, or the very same place
+    /// as an earlier thing — the tag was then put on a free Vision instance or on a spot of its own, never the middle
+    /// (owner 2026-10-15: 「正確にもののうえに名前のタグを置いて。適当に真ん中ではなく。」), and the developer log says so.
+    var positioned: Bool = true
 
     /// The prototype asks the AI for at most 4 objects (`askAI` → `.slice(0,4)`), 3 words each.
     static let maxObjects = 4
@@ -58,23 +62,60 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
             return CGPoint(x: min(1, max(0, (raw.first ?? 500) / 1000)),
                            y: min(1, max(0, (raw.count > 1 ? raw[1] : 500) / 1000)))
         }
-        let labels: [Int?]
+        // Which things the AI placed: a point or box on one of its names, and not the very place of an earlier thing
+        // (owner 2026-10-15: four tags in one pile in the middle of the tablet — the answer carried no position, so
+        // every thing was taken as "the middle", and the three without a Vision instance there stacked up).
+        let given = list.map { words in words.contains { $0.positioned } }
+        let own = TagPlacement.distinct(list.indices.map { given[$0] ? points[$0] : nil })
+        var labels: [Int?]
         if let masks {
-            labels = assignInstances(points.map { masks.instances(near: $0) })
+            labels = assignInstances(list.indices.map { own[$0] ? masks.instances(near: points[$0]) : [] })
+            // A thing without a place of its own takes a Vision instance nobody has (the largest first): its tag then
+            // sits on a real thing in the photo, inside its outline, and its sticker is that thing's cut-out.
+            var taken = Set(labels.compactMap { $0 })
+            let bySize = list.indices.contains(where: { !own[$0] && labels[$0] == nil }) ? masks.instancesBySize() : []
+            for i in list.indices where !own[i] && labels[i] == nil {
+                guard let free = bySize.first(where: { !taken.contains($0) }) else { break }
+                labels[i] = free
+                taken.insert(free)
+            }
         } else {
             labels = Array(repeating: nil, count: points.count)
         }
         let inside = masks?.anchors() ?? [:]
-        return list.enumerated().map { (i, words) -> CatchObject in
-            let p = points[i]
-            let deep = labels[i].flatMap { inside[$0] }
-            if let masks, let label = labels[i], let cut = cutContainingObject(masks: masks, label: label, box: words[0].objectBox) {
-                return CatchObject(id: i, words: words, point: p, box: cut.box,
-                                   anchor: deep ?? CGPoint(x: cut.box.midX, y: cut.box.midY), cut: cut.image, instance: label)
-            }
-            return CatchObject(id: i, words: words, point: p, box: fallbackBox(at: p, photoSize: photoSize),
-                               anchor: deep ?? p, cut: nil, instance: labels[i])
+        // Still nowhere (no position and no free instance): a spot of its own, spread clear of the placed things.
+        let placed: [CGPoint] = list.indices.compactMap { i in
+            own[i] ? points[i] : labels[i].flatMap { inside[$0] }
         }
+        let spare = list.indices.filter { !own[$0] && labels[$0] == nil }
+        let spots = TagPlacement.spreadSpots(count: spare.count, avoiding: placed)
+        var spotAt: [Int: CGPoint] = [:]
+        for (k, i) in spare.enumerated() { spotAt[i] = spots[k] }
+        return list.enumerated().map { (i, words) -> CatchObject in
+            let p = spotAt[i] ?? points[i]
+            let deep = labels[i].flatMap { inside[$0] }
+            // A thing placed by the AI is cut out so that its box is covered; one put on a free instance has no box
+            // of its own to check against (a duplicate box belongs to another thing).
+            if let masks, let label = labels[i],
+               let cut = cutContainingObject(masks: masks, label: label, box: own[i] ? words[0].objectBox : nil) {
+                let anchor = deep ?? CGPoint(x: cut.box.midX, y: cut.box.midY)
+                return CatchObject(id: i, words: words, point: own[i] ? p : anchor, box: cut.box,
+                                   anchor: anchor, cut: cut.image, instance: label, positioned: own[i])
+            }
+            return CatchObject(id: i, words: words, point: own[i] ? p : (deep ?? p), box: fallbackBox(at: deep ?? p, photoSize: photoSize),
+                               anchor: deep ?? p, cut: nil, instance: labels[i], positioned: own[i])
+        }
+    }
+
+    /// One line for the developer log when things were placed without a position from the server (nil: every thing
+    /// had its own place). Says which names, and where their tags went instead.
+    static func placementNote(_ objects: [CatchObject]) -> String? {
+        let unplaced = objects.filter { !$0.positioned }
+        guard !unplaced.isEmpty else { return nil }
+        let names = unplaced.map { $0.words.first?.headword ?? "?" }.joined(separator: ", ")
+        let onInstances = unplaced.filter { $0.instance != nil }.count
+        return "no position from the server for \(unplaced.count) of \(objects.count) things (\(names)): "
+            + "\(onInstances) put on free Vision instances, \(unplaced.count - onInstances) spread over the photo"
     }
 
     /// The cut-out for an object whose point found Vision instance `label`, made sure to contain the thing the AI

@@ -21,14 +21,32 @@ struct ChunkLineView: View {
     @State private var open: Int?
     /// Part index → chosen text.
     @State private var pick: [Int: String] = [:]
+    /// 設定 › 発音表記: zhuyin (default) or pinyin over each block (the same choice as the word's own reading).
+    @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
 
     private var shown: [ChunkPart] {
         chunk.parts.enumerated().map { i, p in
             guard let t = pick[i], t != p.text else { return p }
             var q = p
             q.text = t
+            // A word swapped in from the wheel has no reading of its own (the server's readings are per token).
+            q.pinyin = nil
+            q.zhuyin = nil
             return q
         }
+    }
+
+    /// The small reading over a block (server chunk tokens, 2026-10-15): the one the learner chose when the token has
+    /// it, else the other (pinyin spelled from the zhuyin when only that came); nothing for an older card's token, and
+    /// never for a Japanese or English chunk. Pure, so ChunkReadingTests checks it.
+    static func reading(for part: ChunkPart, target: String, pref: String) -> String? {
+        guard target.hasPrefix("zh") else { return nil }
+        let zhuyin = part.zhuyin?.trimmingCharacters(in: .whitespaces)
+        let pinyin = part.pinyin?.trimmingCharacters(in: .whitespaces)
+        let z = (zhuyin?.isEmpty ?? true) ? nil : zhuyin
+        let p = (pinyin?.isEmpty ?? true) ? nil : pinyin
+        if pref == "pinyin" { return p ?? PinyinZhuyin.pinyin(fromZhuyin: z) ?? z }
+        return z ?? p
     }
 
     private var translation: String {
@@ -85,19 +103,32 @@ struct ChunkLineView: View {
                 open = isOpen ? nil : i
             }
         } label: {
-            HStack(spacing: 3) {
-                Text(part.text)
-                    .scaledFont(size: big ? 20 : 15, weight: .bold)
-                    .contentTransition(.opacity)
-                if swappable {
-                    Image(systemName: "chevron.down")
-                        .scaledFont(size: big ? 11 : 9, weight: .bold)
-                        .rotationEffect(.degrees(isOpen ? 180 : 0))
+            let reading = Self.reading(for: part, target: target, pref: readingPref)
+            VStack(spacing: 1) {
+                // The token's reading, small, over its text (server chunk tokens, 2026-10-15); none on older cards.
+                if let reading {
+                    Text(reading)
+                        .scaledFont(size: big ? 10.5 : 9, weight: .medium)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .opacity(0.8)
+                        .accessibilityHidden(true)
+                }
+                HStack(spacing: 3) {
+                    Text(part.text)
+                        .scaledFont(size: big ? 20 : 15, weight: .bold)
+                        .contentTransition(.opacity)
+                    if swappable {
+                        Image(systemName: "chevron.down")
+                            .scaledFont(size: big ? 11 : 9, weight: .bold)
+                            .rotationEffect(.degrees(isOpen ? 180 : 0))
+                    }
                 }
             }
             // Darker ink on the light page, lighter on the dark one (mixing with black vanished in dark mode).
             .foregroundStyle(kind.ink.mix(with: colorScheme == .dark ? .white : .black, by: big ? 0.3 : 0.25))
             .padding(.horizontal, big ? 12 : 10)
+            .padding(.vertical, reading == nil ? 0 : 4)
             .frame(minHeight: big ? 48 : 34)
             .background(kind.ink.opacity(isHead ? 0.15 : swappable ? 0.04 : 0.08), in: .rect(cornerRadius: big ? 12 : 10, style: .continuous))
             .overlay {

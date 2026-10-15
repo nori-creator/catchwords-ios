@@ -5,18 +5,32 @@ import SwiftUI
 struct AdminUserDetailView: View {
     let userId: String
     let name: String
+    /// The account's picture as the list row had it (the detail's `profile.avatar_url` replaces it once read).
+    var avatar: String? = nil
 
     @State private var answer: AdminAnalytics.Answer?
     /// 「日ごとの動き」: 14 / 30 / 90 days.
     @State private var span = 30
 
+    /// The picture beside the name (owner 2026-10-15): the detail's own, else the list row's.
+    private var avatarURL: String? {
+        if case .success(let d)? = answer, let url = (d["profile"] ?? .null).text("avatar_url") ?? d.text("avatar_url") {
+            return url
+        }
+        return avatar
+    }
+
     var body: some View {
         List {
             Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(name.isEmpty ? L("（名前なし）") : name)  // lang-ok: a person's own name
-                        .scaledFont(size: 20, weight: .bold)
-                    Text(userId).scaledFont(size: 11, monospacedDigit: true).foregroundStyle(Theme.muted).textSelection(.enabled)
+                HStack(spacing: 12) {
+                    AvatarView(url: avatarURL, size: 48)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(name.isEmpty ? L("（名前なし）") : name)  // lang-ok: a person's own name
+                            .scaledFont(size: 20, weight: .bold)
+                        Text(userId).scaledFont(size: 11, monospacedDigit: true).foregroundStyle(Theme.muted).textSelection(.enabled)
+                    }
                 }
             }
             AdminLoadable(answer: answer, retry: { Task { await load() } }) { d in

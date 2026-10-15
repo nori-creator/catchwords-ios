@@ -68,8 +68,12 @@ struct SettingsView: View {
         .onDisappear { SaveStatus.shared.clear() }
         .overlay {
             if let wheel {
+                // No insertion / removal transition: the card fades itself in and out and is taken out of the tree
+                // only once it is invisible (owner 2026-10-15: a blurred blue ghost of its 「閉じる」 button stayed over
+                // the 「今のレベル」 row after the 母語 card closed — the removal transition was still drawing the card
+                // while the language switch redrew the page under it, and the half-faded button layer was left behind).
                 WheelCard(field: wheel, profile: profile) { closeWheel() }
-                    .transition(.opacity)
+                    .transition(.identity)
                     .zIndex(3)
             }
         }
@@ -303,8 +307,44 @@ struct SettingsView: View {
                 Divider().overlay(Theme.border)
                 devRow(icon: "iphone", title: L("アプリの情報"), id: "settings.appInfo") { adminScreen = .appInfo }
                 Divider().overlay(Theme.border)
+                devRow(icon: "exclamationmark.bubble", title: L("報告された誤り"), id: "settings.adminReports") { adminScreen = .reports }
+                Divider().overlay(Theme.border)
                 devRow(icon: "cpu", title: L("AI の設定（開発者）"), id: "settings.adminAi") { showAdminAi = true }
+                Divider().overlay(Theme.border).padding(.bottom, 8)
+                developerTrials
             }
+        }
+    }
+
+    @AppStorage(DevChoices.tabBarKey) private var tabBarVariant: String = DevChoices.tabBarDefault
+    @AppStorage(DevChoices.timelineTickKey) private var timelineTick: String = DevChoices.tickDefault
+    @AppStorage(DevChoices.pickerTickKey) private var pickerTick: String = DevChoices.tickDefault
+
+    /// 開発者の試し (owner 2026-10-15): the alternatives to compare on the device — the camera tab's look (A / B / C), and
+    /// the three ticks each of the map's timeline and of these pickers (choosing one plays it). The defaults are the
+    /// recommended ones (`DevChoices`).
+    private var developerTrials: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L("開発者の試し（端末で比べて選ぶ）")).scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
+            label(L("下のバーのカメラ"))
+            ChoicePills(options: [("a", L("A 青い丸")), ("b", L("B 浮いた丸")), ("c", L("C 青いアイコン"))], selection: $tabBarVariant)
+                .accessibilityIdentifier("settings.dev.tabbar")
+            label(L("マップの一覧をスクロールする音")).padding(.top, 6)
+            ChoicePills(options: [("off", L("なし")), ("1", "1"), ("2", "2"), ("3", "3")],
+                        selection: Binding(get: { timelineTick }, set: { v in
+                            timelineTick = v
+                            if let n = Int(v) { SoundService.shared.tick(.timeline, number: n) }
+                        }))
+                .accessibilityIdentifier("settings.dev.timelineTick")
+            label(L("設定の選択肢の音")).padding(.top, 6)
+            ChoicePills(options: [("off", L("なし")), ("1", "1"), ("2", "2"), ("3", "3")],
+                        selection: Binding(get: { pickerTick }, set: { v in
+                            pickerTick = v
+                            if let n = Int(v) { SoundService.shared.tick(.picker, number: n) }
+                        }))
+                .accessibilityIdentifier("settings.dev.pickerTick")
+            Text(L("1 が今のおすすめです。選ぶとその音が鳴ります。"))
+                .scaledFont(size: 12).foregroundStyle(Theme.muted)
         }
     }
 
@@ -532,11 +572,13 @@ struct SettingsView: View {
 
     private func openWheel(_ f: WheelField) {
         Haptics.selection()
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { wheel = f }
+        // Not animated here: the card springs in by itself (`WheelCard.appeared`) and fades out by itself before it
+        // asks to be removed, so nothing of it is ever drawn by a transition.
+        wheel = f
     }
 
     private func closeWheel() {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) { wheel = nil }
+        wheel = nil
     }
 
     private func saveName() {
@@ -652,6 +694,8 @@ struct ChoicePills: View {
                 Button {
                     guard !on else { return }
                     Haptics.selection()
+                    // The picker's tick (owner 2026-10-15; which one, or none: 設定 › 開発者).
+                    SoundService.shared.tick(.picker)
                     withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.72)) { selection = o.value }
                 } label: {
                     Text(o.label)
@@ -702,7 +746,7 @@ struct SettingsToggle: View {
 
 /// The developer screens opened from 設定 › 開発者 (each a sheet with its own navigation).
 enum AdminScreen: String, Identifiable {
-    case users, metrics, beta, appInfo
+    case users, metrics, beta, appInfo, reports
     var id: String { rawValue }
 
     @ViewBuilder
@@ -712,6 +756,7 @@ enum AdminScreen: String, Identifiable {
         case .metrics: AdminMetricsView()
         case .beta: AdminBetaView()
         case .appInfo: AppInfoView()
+        case .reports: AdminReportsView()
         }
     }
 }
@@ -730,6 +775,9 @@ enum WheelField: Identifiable {
 }
 
 /// WheelPicker: dimmed backdrop, centred white card with title, ×, wheel and 「閉じる」.
+/// It fades and springs in on its own and fades out on its own before `onClose` removes it (no transition: see
+/// SettingsView's overlay), and the choice is saved only once it is gone — a language switch redraws the whole page,
+/// which must never happen while the card is still half drawn.
 struct WheelCard: View {
     let field: WheelField
     let profile: ProfileStore
@@ -737,6 +785,8 @@ struct WheelCard: View {
     @Environment(DexStore.self) private var dex
     @State private var value: String = ""
     @State private var appeared: Bool = false
+    /// 「閉じる」 was tapped: the card is fading out and takes no more taps.
+    @State private var closing: Bool = false
 
     /// The native (display) language and the learning language are never the same (as in onboarding).
     private var options: [(value: String, label: String)] {
@@ -775,7 +825,11 @@ struct WheelCard: View {
                 }
                 .pickerStyle(.wheel)
                 .frame(height: 150)
-                .onChange(of: value) { _, _ in Haptics.selection() }
+                .onChange(of: value) { old, _ in
+                    Haptics.selection()
+                    // Not when the card first shows its current value (old is the empty start).
+                    if !old.isEmpty { SoundService.shared.tick(.picker) }
+                }
                 Button(action: close) {
                     Text(L("閉じる")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 52)
@@ -790,6 +844,8 @@ struct WheelCard: View {
             .padding(.horizontal, 20)
             .scaleEffect(appeared ? 1 : 0.94)
         }
+        .opacity(appeared ? 1 : 0)
+        .allowsHitTesting(!closing)
         .onAppear {
             value = initial
             withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { appeared = true }
@@ -797,10 +853,18 @@ struct WheelCard: View {
     }
 
     /// The choice is saved once, when the card closes — not on every tick of the wheel (each save
-    /// switches the app's language and reloads the dex).
+    /// switches the app's language and reloads the dex). The card fades out first (0.18 s), is removed once it is
+    /// invisible, and only then is the choice saved: the page under it redraws with nothing of the card left.
     private func close() {
-        commit(value)
-        onClose()
+        guard !closing else { return }
+        closing = true
+        let chosen = value
+        withAnimation(.easeOut(duration: 0.18)) { appeared = false }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(200))
+            onClose()
+            commit(chosen)
+        }
     }
 
     private func commit(_ v: String) {

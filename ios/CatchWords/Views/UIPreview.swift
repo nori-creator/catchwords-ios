@@ -15,7 +15,9 @@ enum UIPreview {
     /// The requested scene, parsed once (it sets the display language, so never during a redraw).
     static let parsed: (scene: String, dark: Bool)? = requested.map(parse)
 
-    /// "settings-en-dark" → scene "settings", English, dark. Sets the display language as a side effect.
+    /// "settings-en-dark" → scene "settings", English, dark. Sets the display language as a side effect, and puts the
+    /// per-device choices a scene may set (発音表記, the developer's trials) back to their defaults first, so one scene's
+    /// choice never leaks into the next launch on the same simulator.
     static func parse(_ raw: String) -> (scene: String, dark: Bool) {
         var parts = raw.split(separator: "-").map(String.init)
         var dark = false
@@ -25,6 +27,9 @@ enum UIPreview {
             parts.removeLast()
         }
         L10n.lang = lang
+        for key in ["reading.pref", DevChoices.tabBarKey, DevChoices.timelineTickKey, DevChoices.pickerTickKey] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
         return (parts.joined(separator: "-"), dark)
     }
 }
@@ -75,7 +80,18 @@ struct UIPreviewRoot: View {
             case "picker": PickerPreview()
             case "japicker": PickerPreview(learning: "ja")
             case "enpicker": PickerPreview(learning: "en")
+            // The owner's desk (2026-10-15): tablet, cup, stylus, tissue — each tag on its own thing; and the same
+            // answer without any position, the tags spread instead of piled in the middle.
+            case "picker4": PickerPreview(desk: .placed)
+            case "picker4-nopos": PickerPreview(desk: .unplaced)
             case "tabbar": TabBarPreview()
+            case "tabbar-a": TabBarPreview(variant: "a")
+            case "tabbar-b": TabBarPreview(variant: "b")
+            case "tabbar-c": TabBarPreview(variant: "c")
+            case "readings": ChunkReadingsPreview(pref: "zhuyin")
+            case "readings-pinyin": ChunkReadingsPreview(pref: "pinyin")
+            case "reports": AdminReportsPreview()
+            case "map": MapPreview()
             case "reward": CelebrationPreview()
             case "variants": PickerPreview(autoOpen: true)
             case "choose": PickerPreview(autoOpen: true, holdOpen: true)
@@ -287,6 +303,41 @@ enum PreviewFixtures {
         c.fillEllipse(in: CGRect(x: 420, y: 250, width: 110, height: 70))
     }
 
+    /// The owner's desk (2026-10-15): a tablet in the middle with a stylus lying on it, a cup top right and a box of
+    /// tissues bottom left, drawn as the AI's boxes describe them (`PickerPreview.deskRows`), portrait like a phone photo.
+    static let deskSize = CGSize(width: 900, height: 1200)
+
+    static let deskPhoto: UIImage = UIGraphicsImageRenderer(size: deskSize).image { ctx in
+        let c = ctx.cgContext
+        UIColor(red: 0.78, green: 0.66, blue: 0.5, alpha: 1).setFill()
+        c.fill(CGRect(origin: .zero, size: deskSize))
+        // The tablet: a dark slab with a lighter screen.
+        UIColor(red: 0.16, green: 0.17, blue: 0.2, alpha: 1).setFill()
+        c.addPath(UIBezierPath(roundedRect: CGRect(x: 150, y: 300, width: 600, height: 600), cornerRadius: 36).cgPath)
+        c.fillPath()
+        UIColor(red: 0.3, green: 0.36, blue: 0.46, alpha: 1).setFill()
+        c.fill(CGRect(x: 185, y: 335, width: 530, height: 530))
+        // The stylus lying across the screen.
+        c.saveGState()
+        c.translateBy(x: 450, y: 445)
+        c.rotate(by: -0.12)
+        UIColor(white: 0.93, alpha: 1).setFill()
+        c.addPath(UIBezierPath(roundedRect: CGRect(x: -150, y: -11, width: 300, height: 22), cornerRadius: 11).cgPath)
+        c.fillPath()
+        c.restoreGState()
+        // The cup, top right, with its handle.
+        UIColor(red: 0.95, green: 0.95, blue: 0.92, alpha: 1).setFill()
+        c.fillEllipse(in: CGRect(x: 700, y: 170, width: 160, height: 160))
+        UIColor(red: 0.45, green: 0.3, blue: 0.2, alpha: 1).setFill()
+        c.fillEllipse(in: CGRect(x: 725, y: 195, width: 110, height: 110))
+        // The tissue box, bottom left.
+        UIColor(red: 0.98, green: 0.98, blue: 0.97, alpha: 1).setFill()
+        c.addPath(UIBezierPath(roundedRect: CGRect(x: 60, y: 950, width: 270, height: 180), cornerRadius: 14).cgPath)
+        c.fillPath()
+        UIColor(red: 0.85, green: 0.6, blue: 0.65, alpha: 1).setFill()
+        c.fillEllipse(in: CGRect(x: 150, y: 990, width: 90, height: 40))
+    }
+
     /// The subject cropped to its bounds, like the saved sticker.
     static let subjectCropped: UIImage = {
         // cgImage is in pixels (the renderer draws at screen scale), so scale the point rect.
@@ -308,7 +359,21 @@ private struct PickerPreview: View {
     /// `-uiPreview typed`: ボクサーパンツ typed under the photo — the choose screen opens on the names found (never straight
     /// on to the catch), each with its register tag, the everyday 內褲 first.
     var typed: Bool = false
+    /// `-uiPreview picker4` / `picker4-nopos`: the owner's desk with four things (2026-10-15), with the AI's boxes
+    /// (`placed`: every tag on its own thing) or without any position (`unplaced`: the tags spread over the photo
+    /// instead of one pile in the middle, and the developer log notes it).
+    enum Desk { case placed, unplaced }
+    var desk: Desk? = nil
     @State private var vm = CaptureViewModel()
+
+    /// The desk's four things: headword, zhuyin, label in ja / en / zh-TW, `box_2d` ([ymin, xmin, ymax, xmax], 0–1000
+    /// of the photo) as the AI draws them round the shapes of `PreviewFixtures.deskPhoto`.
+    private var deskRows: [(String, String, [String], [Double])] {
+        [("平板", "ㄆㄧㄥˊ ㄅㄢˇ", ["タブレット", "tablet", "平板"], [250, 167, 750, 833]),
+         ("杯子", "ㄅㄟ ㄗ˙", ["コップ", "cup", "杯子"], [142, 778, 275, 956]),
+         ("觸控筆", "ㄔㄨˋ ㄎㄨㄥˋ ㄅㄧˇ", ["スタイラス", "stylus", "觸控筆"], [350, 333, 392, 667]),
+         ("衛生紙", "ㄨㄟˋ ㄕㄥ ㄓˇ", ["ティッシュ", "tissue", "衛生紙"], [792, 67, 942, 367])]
+    }
 
     /// headword, reading, meaning in ja / en / zh-TW, distinction in ja / en / zh-TW, register, group
     private typealias Row = (String, String, [String], [String], String?, Int)
@@ -336,6 +401,25 @@ private struct PickerPreview: View {
             .onAppear {
                 NativeAPI.targetLanguage = learning
                 let i = L10n.lang == "en" ? 1 : L10n.lang == "zh-TW" ? 2 : 0
+                if let desk {
+                    vm.photo = PreviewFixtures.deskPhoto
+                    vm.candidates = deskRows.enumerated().map { n, r in
+                        // As an answer without `point` / `box_2d` decodes: the middle as a stand-in, not a position.
+                        let placed = desk == .placed
+                        var c = Candidate(kind: "object", headword: r.0, zhuyin: r.1, pinyin: "", meaningJa: r.2[i],
+                                          pos: NativeAPI.defaultPos,
+                                          point: placed ? [(r.3[1] + r.3[3]) / 2, (r.3[0] + r.3[2]) / 2] : [500, 500],
+                                          confidence: 0.9, alternatives: [], register: "common", group: n)
+                        c.objectLabel = r.2[i]
+                        c.box = placed ? r.3 : nil
+                        c.positioned = placed
+                        return c
+                    }
+                    vm.objects = CatchObject.build(candidates: vm.candidates, masks: nil, photoSize: PreviewFixtures.deskSize)
+                    if let note = CatchObject.placementNote(vm.objects) { DevLog.shared.add("tags", note) }
+                    vm.step = .select
+                    return
+                }
                 vm.photo = PreviewFixtures.photo
                 vm.candidates = rows.map { r in
                     Candidate(kind: "object", headword: r.0, zhuyin: r.1, pinyin: "", meaningJa: r.2[i], pos: NativeAPI.defaultPos,
@@ -511,17 +595,32 @@ private struct LandingPreview: View {
 }
 
 /// The tab bar on a light page and on the dark camera.
+/// The tab bar as the owner compares it (`-uiPreview tabbar-a/b/c`, 2026-10-15): over the home album's paper, over a
+/// map-like ground, and over the camera's dark machine — the camera item in the chosen variant (`DevChoices.tabBar`).
 private struct TabBarPreview: View {
     @State private var home: AppTab = .home
+    @State private var dex: AppTab = .dex
     @State private var camera: AppTab = .camera
 
+    init(variant: String = DevChoices.tabBarDefault) {
+        UserDefaults.standard.set(variant, forKey: DevChoices.tabBarKey)
+    }
+
     var body: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: 28) {
             Spacer()
-            CapsuleTabBar(selection: $home, onCamera: false)
             ZStack {
-                Theme.navyDeep.frame(height: 140)
-                CapsuleTabBar(selection: $camera, onCamera: true)
+                HomeBackground().frame(height: 150)
+                CapsuleTabBar(selection: $home, onCamera: false).padding(.bottom, 8)
+            }
+            ZStack {
+                LinearGradient(colors: [Color(hex: 0xE9F1DE), Color(hex: 0xD5E6EE)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .frame(height: 150)
+                CapsuleTabBar(selection: $dex, onCamera: false).padding(.bottom, 8)
+            }
+            ZStack {
+                Theme.navyDeep.frame(height: 150)
+                CapsuleTabBar(selection: $camera, onCamera: true).padding(.bottom, 8)
             }
             Spacer()
         }
@@ -1364,5 +1463,76 @@ private struct ChunkWheelPreview: View {
             .padding(16)
         }
         .background(Theme.background)
+    }
+}
+
+/// Chunk blocks with the server's per-token readings (`-uiPreview readings` zhuyin / `readings-pinyin`, 2026-10-15):
+/// the first two chunks carry readings on every token, the third is an older card's chunk without any.
+private struct ChunkReadingsPreview: View {
+    init(pref: String) {
+        UserDefaults.standard.set(pref, forKey: "reading.pref")
+    }
+
+    private func gloss(_ ja: String, _ en: String, _ zh: String) -> String { L10n.lang == "en" ? en : L10n.lang == "zh-TW" ? zh : ja }
+
+    private var order: UsageChunk {
+        UsageChunk(parts: [ChunkPart(text: "點", pos: "V", pinyin: "diǎn", zhuyin: "ㄉㄧㄢˇ"),
+                           ChunkPart(text: "一份", pos: "M", pinyin: "yí fèn", zhuyin: "ㄧˊ ㄈㄣˋ"),
+                           ChunkPart(text: "鐵板麵", pos: "N", pinyin: "tiě bǎn miàn", zhuyin: "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ")],
+                   ja: gloss("鉄板焼きそばを一人前注文する", "order one teppan noodles", "點一份鐵板麵"))
+    }
+
+    private var quarrel: UsageChunk {
+        UsageChunk(parts: [ChunkPart(text: "跟", pos: "Prep", pinyin: "gēn", zhuyin: "ㄍㄣ"),
+                           ChunkPart(text: "男朋友", pos: "N", slot: true, ja: gloss("彼氏", "my boyfriend", "男朋友"),
+                                     alts: [ChunkAlt(text: "朋友", ja: gloss("友達", "a friend", "朋友"))],
+                                     pinyin: "nán péng yǒu", zhuyin: "ㄋㄢˊ ㄆㄥˊ ㄧㄡˇ"),
+                           ChunkPart(text: "吵架", pos: "V", pinyin: "chǎo jià", zhuyin: "ㄔㄠˇ ㄐㄧㄚˋ")],
+                   ja: gloss("彼氏と喧嘩する", "argue with my boyfriend", "跟男朋友吵架"))
+    }
+
+    private var old: UsageChunk {
+        UsageChunk(parts: [ChunkPart(text: "蘑菇", pos: "N"), ChunkPart(text: "鐵板麵", pos: "N")],
+                   ja: gloss("マッシュルームソースの鉄板焼きそば", "teppan noodles with mushroom sauce", "蘑菇鐵板麵"))
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach([order, quarrel, old], id: \.self) { c in
+                    ChunkLineView(chunk: c, headword: "鐵板麵", target: "zh-TW").padding(.vertical, 14)
+                    Divider().overlay(Theme.border)
+                }
+            }
+            .padding(20)
+            .background(Theme.card, in: .rect(cornerRadius: 24))
+            .padding(16)
+        }
+        .background(Theme.background)
+    }
+}
+
+/// 設定 › 開発者 › 報告された誤り with made-up reports (`-uiPreview reports`): the rows as the server's answer carries them.
+private struct AdminReportsPreview: View {
+    private static let rows = """
+    [{"id":"7a1c9e2d-0000-4000-8000-000000000001","headword":"鐵板麵","kind":"meaning","note":"意味が「鉄板焼き」だけで、麺のことが書かれていない","status":"open","reporter_lang":"ja","created_at":"2026-10-15T11:20:00Z"},
+     {"id":"7a1c9e2d-0000-4000-8000-000000000002","headword":"珍珠奶茶","kind":"example","note":"The example sentence uses 珍奶, not the headword.","status":"fixed","reporter_lang":"en","created_at":"2026-10-14T03:05:00Z"},
+     {"id":"7a1c9e2d-0000-4000-8000-000000000003","headword":"便當","kind":"reading","note":"注音的聲調不對","status":"reviewing","reporter_lang":"zh-TW","created_at":"2026-10-13T09:48:00Z"}]
+    """
+
+    var body: some View {
+        NavigationStack {
+            AdminReportsView(fixture: (try? JSONDecoder().decode(JSONValue.self, from: Data(Self.rows.utf8))) ?? .array([]))
+        }
+    }
+}
+
+/// The Collection map of the demo's day (`-uiPreview map`): the timeline panel at its low height over the map.
+private struct MapPreview: View {
+    @Environment(DexStore.self) private var dex
+
+    var body: some View {
+        DexMapView(stickers: dex.stickers) { _ in }
+            .task { await dex.load() }
     }
 }

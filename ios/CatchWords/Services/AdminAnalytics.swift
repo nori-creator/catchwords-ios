@@ -45,6 +45,12 @@ enum AdminAnalytics {
         await run { try await NativeAPI.call("adminGetBetaMetrics", [:], timeout: 120) }
     }
 
+    /// The learners' error reports, newest first (web `adminListReports`, 2026-10-15: rows of `{id, headword, kind,
+    /// note, status, reporter_lang, created_at}`). Until the web is published with it the answer is 404 → `notDeployed`.
+    static func reports() async -> Answer {
+        await run { try await NativeAPI.call("adminListReports", [:], timeout: 120) }
+    }
+
     private static func run(_ work: () async throws -> Data) async -> Answer {
         do {
             let data = try await work()

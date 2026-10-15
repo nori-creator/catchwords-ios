@@ -124,7 +124,8 @@ struct AdminUsersView: View {
         }
         ForEach(Array(shown.enumerated()), id: \.offset) { _, row in
             NavigationLink {
-                AdminUserDetailView(userId: row.text("id") ?? "", name: row.text("display_name") ?? "")
+                AdminUserDetailView(userId: row.text("id") ?? "", name: row.text("display_name") ?? "",
+                                    avatar: row.text("avatar_url"))
             } label: {
                 userRow(row)
             }
@@ -133,6 +134,10 @@ struct AdminUsersView: View {
 
     private func userRow(_ r: JSONValue) -> some View {
         HStack(alignment: .center, spacing: 10) {
+            // The account's own picture beside its name (owner 2026-10-15); the grey person when it has none or the
+            // server's row does not carry `avatar_url` yet.
+            AvatarView(url: r.text("avatar_url"), size: 36)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(r.text("display_name") ?? L("（名前なし）"))  // lang-ok: a person's own name
                     .scaledFont(size: 16, weight: .semibold).foregroundStyle(Theme.foreground).lineLimit(1)

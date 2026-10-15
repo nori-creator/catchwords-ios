@@ -44,6 +44,10 @@ PENDING_WEB_DEPLOY = {
     # (PR #176).
     # The developer's users and metrics (adminListUsers … adminGetBetaMetrics, Services/AdminAnalytics.swift) are on
     # the web's main now (PR #178). Until the web is published they answer 404 and the screens say so.
+    # The learners' error reports (設定 › 開発者 › 報告された誤り, Views/Admin/AdminReportsView.swift): the web adds
+    # `adminListReports` on its branch ccr-89cbeb71-xcif1z (2026-10-15). Until then the screen says the server does not
+    # have it yet (404 → notDeployed); every other failure is shown the same way.
+    "adminListReports": "Lovable-catch-words-app branch ccr-89cbeb71-xcif1z (developer reports endpoint, 2026-10-15)",
 }
 
 

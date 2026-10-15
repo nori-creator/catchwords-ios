@@ -1496,7 +1496,7 @@
   "zh-TW": "助數詞"
  },
  "助詞・前置詞": {
-  "en": "Particle / preposition",
+  "en": "Particle / prep.",
   "zh-TW": "助詞、介詞"
  },
  "効果音": {
@@ -2328,7 +2328,7 @@
   "zh-TW": "狀態動詞"
  },
  "状態動詞(形容詞)": {
-  "en": "Stative verb (adjective)",
+  "en": "Stative verb (adj.)",
   "zh-TW": "狀態動詞（形容詞）"
  },
  "理由: {1}": {
@@ -4782,5 +4782,81 @@
  "採点を保存できませんでした。\n{1}": {
   "en": "Couldn't save your answer.\n{1}",
   "zh-TW": "無法儲存作答。\n{1}"
+ },
+ "例: ティッシュ": {
+  "en": "e.g. tissue",
+  "zh-TW": "例如：衛生紙"
+ },
+ "一覧を広げる": {
+  "en": "Expand the list",
+  "zh-TW": "展開列表"
+ },
+ "一覧を低くする": {
+  "en": "Lower the list",
+  "zh-TW": "縮小列表"
+ },
+ "報告された誤り": {
+  "en": "Reported errors",
+  "zh-TW": "回報的錯誤"
+ },
+ "報告はまだありません": {
+  "en": "No reports yet",
+  "zh-TW": "還沒有回報"
+ },
+ "単語のページの「誤りを報告」から届いたものです。新しい順。": {
+  "en": "Sent from a word page’s “Report an error”, newest first.",
+  "zh-TW": "來自單字頁「回報錯誤」的回報，由新到舊。"
+ },
+ "未対応": {
+  "en": "Open",
+  "zh-TW": "未處理"
+ },
+ "対応済み": {
+  "en": "Fixed",
+  "zh-TW": "已處理"
+ },
+ "確認中": {
+  "en": "Reviewing",
+  "zh-TW": "確認中"
+ },
+ "読み方": {
+  "en": "Reading",
+  "zh-TW": "讀音"
+ },
+ "開発者の試し（端末で比べて選ぶ）": {
+  "en": "Developer trials (compare on the device)",
+  "zh-TW": "開發者試用（在裝置上比較）"
+ },
+ "下のバーのカメラ": {
+  "en": "Camera in the bottom bar",
+  "zh-TW": "底部列的相機"
+ },
+ "A 青い丸": {
+  "en": "A Blue disc",
+  "zh-TW": "A 藍色圓形"
+ },
+ "B 浮いた丸": {
+  "en": "B Raised disc",
+  "zh-TW": "B 浮起的圓形"
+ },
+ "C 青いアイコン": {
+  "en": "C Blue icon",
+  "zh-TW": "C 藍色圖示"
+ },
+ "マップの一覧をスクロールする音": {
+  "en": "Map list scroll sound",
+  "zh-TW": "地圖列表捲動的聲音"
+ },
+ "設定の選択肢の音": {
+  "en": "Settings picker sound",
+  "zh-TW": "設定選項的聲音"
+ },
+ "1 が今のおすすめです。選ぶとその音が鳴ります。": {
+  "en": "1 is the current recommendation. Choosing one plays it.",
+  "zh-TW": "目前推薦 1。選擇後會播放該聲音。"
+ },
+ "単語": {
+  "en": "Word",
+  "zh-TW": "單字"
  }
 }
