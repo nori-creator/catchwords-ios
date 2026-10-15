@@ -39,19 +39,24 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
     var isExternal: Bool { self == .realUsage || self == .webImages }
 
     /// The sections a card in `target` can have, in the web's order (target-profile.ts).
+    /// ネットの画像・追加の例文・発音のコツ・覚え方 are gone from the word page (owner 2026-10-15): the extra examples are
+    /// in 「例文」 with the main one, and the page never asks the server for the others. Their cases stay so a saved
+    /// order or a report naming them still reads.
     static func sections(for target: String) -> [CardSection] {
         switch target {
         case "en":
-            [.meaning, .webImages, .example, .examplesExtra, .usageChunks, .forms, .countability, .phrasalVerbs, .relatedWords,
-             .stress, .pronunciationTips, .etymology, .mnemonic, .cultureNote, .realUsage]
+            [.meaning, .example, .usageChunks, .forms, .countability, .phrasalVerbs, .relatedWords,
+             .stress, .etymology, .cultureNote, .realUsage]
         case "ja":
-            [.meaning, .webImages, .example, .examplesExtra, .usageChunks, .kanjiBreakdown, .conjugation, .politeness, .counters,
-             .relatedWords, .pitchAccent, .pronunciationTips, .wordOrigin, .etymology, .mnemonic, .japanNote, .realUsage]
+            [.meaning, .example, .usageChunks, .kanjiBreakdown, .conjugation, .politeness, .counters,
+             .relatedWords, .pitchAccent, .wordOrigin, .etymology, .japanNote, .realUsage]
         default:
-            [.meaning, .webImages, .example, .examplesExtra, .usageChunks, .measureWords, .relatedWords, .pronunciationTips,
-             .etymology, .mnemonic, .taiwanNote, .realUsage]
+            [.meaning, .example, .usageChunks, .measureWords, .relatedWords, .etymology, .taiwanNote, .realUsage]
         }
     }
+
+    /// No longer on the word page (`sections(for:)`).
+    var isRemoved: Bool { [.webImages, .examplesExtra, .pronunciationTips, .mnemonic].contains(self) }
 
     /// card-sections.ts sectionTitleKey: 「語源・部首」 only where the language has radicals.
     func title(for target: String) -> String {

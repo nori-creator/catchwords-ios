@@ -51,10 +51,43 @@ final class ExampleSceneTests: XCTestCase {
         XCTAssertTrue(one.examplesExtraComplete)
         XCTAssertFalse(WordDetailView.wantsAutoFill(.examplesExtra, extras: one))
         // Other sections are still filled, and more patterns (or an older card) still fill the examples.
-        XCTAssertTrue(WordDetailView.wantsAutoFill(.mnemonic, extras: one))
+        XCTAssertTrue(WordDetailView.wantsAutoFill(.usageChunks, extras: one))
+        // 発音のコツ and 覚え方 are off the page: never filled (owner 2026-10-15).
+        XCTAssertFalse(WordDetailView.wantsAutoFill(.mnemonic, extras: one))
+        XCTAssertFalse(WordDetailView.wantsAutoFill(.pronunciationTips, extras: nil))
+        XCTAssertFalse(WordDetailView.wantsAutoFill(.webImages, extras: nil))
         let three = try extras(#"{"example_pattern_count":3}"#)
         XCTAssertTrue(WordDetailView.wantsAutoFill(.examplesExtra, extras: three))
         XCTAssertTrue(WordDetailView.wantsAutoFill(.examplesExtra, extras: try extras("{}")))
         XCTAssertTrue(WordDetailView.wantsAutoFill(.examplesExtra, extras: nil))
+    }
+
+    /// 「例文」 lists every usage pattern's example (owner 2026-10-15): the main one, then examples_extra, each with
+    /// its own label only when that label was written for it.
+    func testAllPatternsInOneSection() throws {
+        let e = try extras(#"""
+        {"example_scene":"朝ごはんを頼むとき","example_scene_for":"我要一份鐵板麵。","example_pattern_count":3,
+         "examples_extra":[{"zh":"這家的鐵板麵很好吃。","ja":"この店の鉄板麺はおいしい。","scene":"友達にすすめるとき","scene_for":"這家的鐵板麵很好吃！"},
+                           {"zh":"鐵板麵要加蛋嗎？","ja":"卵をのせますか？","scene":"店員に聞かれたとき"},
+                           {"zh":"我要一份鐵板麵","ja":"同じ文"},
+                           {"zh":"Teppan noodles","ja":"英語"}]}
+        """#)
+        let all = ExampleItem.all(sentence: "我要一份鐵板麵。", translation: "鉄板麺をひとつください。", extras: e, target: "zh-TW")
+        XCTAssertEqual(all.map(\.sentence), ["我要一份鐵板麵。", "這家的鐵板麵很好吃。", "鐵板麵要加蛋嗎？"])
+        XCTAssertEqual(all.map(\.scene), ["朝ごはんを頼むとき", "友達にすすめるとき", nil])
+        XCTAssertEqual(all[1].translation, "この店の鉄板麺はおいしい。")
+    }
+
+    func testExtraLabelForAnotherSentenceIsHidden() throws {
+        let e = try extras(#"{"examples_extra":[{"zh":"鐵板麵要加蛋嗎？","scene":"友達にすすめるとき","scene_for":"這家的鐵板麵很好吃。"}]}"#)
+        let all = ExampleItem.all(sentence: nil, translation: nil, extras: e, target: "zh-TW")
+        XCTAssertEqual(all.map(\.sentence), ["鐵板麵要加蛋嗎？"])
+        XCTAssertNil(all[0].scene)
+    }
+
+    func testOnePatternShowsOneExample() throws {
+        let e = try extras(#"{"example_pattern_count":1,"examples_extra":[{"zh":"這家的鐵板麵很好吃。"}]}"#)
+        let all = ExampleItem.all(sentence: "我要一份鐵板麵。", translation: nil, extras: e, target: "zh-TW")
+        XCTAssertEqual(all.map(\.sentence), ["我要一份鐵板麵。"])
     }
 }

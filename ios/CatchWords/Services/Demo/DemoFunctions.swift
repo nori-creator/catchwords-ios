@@ -224,6 +224,12 @@ nonisolated extension DemoDatabase {
         if let owned = fixtureWords.first {
             out.append(candidate(owned, reader: r, group: 1, register: nil, distinction: "", point: [760, 300], confidence: 0.71))
         }
+        // `object_label` (server #184): each object's everyday name in the reader's language, the same on all its names.
+        for i in out.indices {
+            let group = out[i]["group"] as? Int
+            let first = out.first { ($0["group"] as? Int) == group }
+            out[i]["object_label"] = DJ.str(first?["meaning_ja"]) ?? ""
+        }
         return out
     }
 

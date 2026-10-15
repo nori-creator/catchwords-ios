@@ -78,6 +78,8 @@ struct UIPreviewRoot: View {
             case "tabbar": TabBarPreview()
             case "reward": CelebrationPreview()
             case "variants": PickerPreview(autoOpen: true)
+            case "choose": PickerPreview(autoOpen: true, holdOpen: true)
+            case "typed": PickerPreview(typed: true)
             case "get": CelebrationPreview(replay: 4.6)
             case "get-again": CelebrationPreview(replay: 4.6, again: true)
             case "landing": LandingPreview()
@@ -89,7 +91,12 @@ struct UIPreviewRoot: View {
             case "carousel": CarouselPreview()
             case "detail": DetailPreview()
             case "tips": TipsPreview()
-            case "webimg": WebImagesPreview()
+            case "examples": ExamplesPreview()
+            case "etym": EtymologyPreview(kind: .compound)
+            case "etymloan": EtymologyPreview(kind: .loanword)
+            case "selfie": SelfieDetailPreview(original: false)
+            case "selfie-original": SelfieDetailPreview(original: true)
+            case "slides": SlidesPreview()
             case "chunks": ChunkWheelPreview()
             case "jadetail": LanguageCardPreview(kind: .ja)
             case "quiz": ReviewPreview(learning: "zh-TW", answered: false)
@@ -123,8 +130,8 @@ struct UIPreviewRoot: View {
         .environment(router)
     }
 
-    private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer", "webimg",
-                                                       "variants", "landing", "landing-again"]
+    private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer",
+                                                       "variants", "choose", "landing", "landing-again"]
 }
 
 /// The catch scan's photo for the simulator (Vision's cut-out does not run there): a mango on a plate and a cup,
@@ -295,6 +302,10 @@ private struct PickerPreview: View {
     var learning: String = "zh-TW"
     /// Film v6 "D": the mango's three ways to say it open by themselves (`-uiPreview variants`), the mango as a cut-out.
     var autoOpen: Bool = false
+    /// `-uiPreview choose`: the choose screen stays open — every name's register tag and the field to type a word.
+    var holdOpen: Bool = false
+    /// `-uiPreview typed`: ボクサーパンツ typed under the photo — the names found, each with its register tag.
+    var typed: Bool = false
     @State private var vm = CaptureViewModel()
 
     /// headword, reading, meaning in ja / en / zh-TW, distinction in ja / en / zh-TW, register, group
@@ -319,7 +330,7 @@ private struct PickerPreview: View {
     }
 
     var body: some View {
-        CandidatePickerView(vm: vm, scanning: false, autoOpen: autoOpen)
+        CandidatePickerView(vm: vm, scanning: false, autoOpen: autoOpen, holdOpen: holdOpen)
             .onAppear {
                 NativeAPI.targetLanguage = learning
                 let i = L10n.lang == "en" ? 1 : L10n.lang == "zh-TW" ? 2 : 0
@@ -337,6 +348,18 @@ private struct PickerPreview: View {
                         return CatchObject(id: o.id, words: o.words, point: o.point, box: box,
                                            anchor: CGPoint(x: box.midX, y: box.midY), cut: PreviewFixtures.subjectCropped)
                     }
+                }
+                if typed {
+                    // ボクサーパンツ typed (owner 2026-10-15): 內褲 the everyday word at the top, then the narrower names.
+                    let found: [(String, String, [String], String?)] = [
+                        ("平口褲", "ㄆㄧㄥˊ ㄎㄡˇ ㄎㄨˋ", ["ボクサーパンツ", "boxer briefs", "平口褲"], "specific"),
+                        ("內褲", "ㄋㄟˋ ㄎㄨˋ", ["下着", "underwear", "內褲"], "common"),
+                        ("四角褲", "ㄙˋ ㄐㄧㄠˇ ㄎㄨˋ", ["トランクス", "boxer shorts", "四角褲"], "specific"),
+                    ]
+                    vm.typedCandidates = NameRegister.finalized(found.map { f in
+                        Candidate(kind: "object", headword: f.0, zhuyin: f.1, pinyin: "", meaningJa: f.2[i], pos: NativeAPI.defaultPos,
+                                  point: [500, 500], confidence: 0.9, alternatives: [], register: f.3)
+                    })
                 }
                 vm.step = .select
             }
@@ -600,24 +623,49 @@ private struct DetailPreview: View {
             return ["pronunciation_tips": "Say 鐵 in the third tone, low and dipping. However, in Taiwan, take care to keep each tone clear. The last syllable 麵 falls sharply!",
                     "etymology": "鐵 means iron (e.g. an iron plate). 板 is a board, and 麵 is noodles.",
                     "mnemonic": "Think of noodles sizzling on an iron board. The sound \"tiě\" is like a hot pan's hiss.",
-                    "taiwan_note": "A breakfast-shop classic in Taiwan. Ask for black-pepper or mushroom sauce, and an egg on top.",
+                    "taiwan_note": "A breakfast-shop classic in Taiwan. Ask for black-pepper or mushroom sauce, and an egg on top. It comes sizzling, so wait a moment before you eat!",
                     "synonym_diff": "炒麵 is fried in a wok. 鐵板麵 comes on a hot iron plate with sauce poured over."]
         case "zh-TW":
             return ["pronunciation_tips": "「鐵」是三聲，先降再升。不過，在台灣要特別注意把每個聲調唸清楚。最後的「麵」是四聲，要往下降！",
                     "etymology": "「鐵」是金屬（例如：鐵板）。「板」是平板，「麵」是麵條。",
                     "mnemonic": "想像麵在熱鐵板上滋滋作響。「鐵」的聲音像熱鍋的聲音。",
-                    "taiwan_note": "台灣早餐店的經典。可以選黑胡椒醬或蘑菇醬，再加一顆蛋。",
+                    "taiwan_note": "台灣早餐店的經典。可以選黑胡椒醬或蘑菇醬，再加一顆蛋。端上來時還在滋滋作響，小心燙！",
                     "synonym_diff": "炒麵是在鍋裡炒的。鐵板麵是放在熱鐵板上，再淋上醬汁。"]
         default:
             return ["pronunciation_tips": "「鐵」は3声で、低く下げてから上げます。ただし、台湾では声調をしっかりと意識しましょう。最後の「麵」は4声で、すとんと下げます！",
                     "etymology": "「鐵」は鉄（例：鉄板）のことです。「板」は板、「麵」は麺を表します。",
                     "mnemonic": "熱い鉄板の上で麺がジュウジュウ鳴る様子を思い浮かべましょう。「tiě」の音は鉄板の音に似ています。",
-                    "taiwan_note": "台湾の朝食店の定番です。黒胡椒ソースかマッシュルームソースを選び、目玉焼きをのせることもできます。",
+                    "taiwan_note": "台湾の朝食店の定番です。黒胡椒ソースかマッシュルームソースを選び、目玉焼きをのせることもできます。ジュウジュウと音を立てて出てくるので、やけどに気をつけましょう。朝の7時から行列ができる店もあります。",
                     "synonym_diff": "炒麵は中華鍋で炒めた麺です。鐵板麵は熱い鉄板にのせて、上からソースをかけます。"]
         }
     }
 
-    private static func sticker(withProse: Bool) -> Sticker {
+    /// The other usage patterns' examples, each with its label and the sentence it was written for (the third one's
+    /// label was written for another sentence).
+    private static var examples: (scene: String, extra: [[String: String]]) {
+        switch L10n.lang {
+        case "en":
+            return ("Ordering at a breakfast shop", [
+                ["zh": "這家的鐵板麵很好吃。", "ja": "The teppan noodles here are really good.", "scene": "Recommending a shop to a friend", "scene_for": "這家的鐵板麵很好吃！"],
+                ["zh": "鐵板麵要加蛋嗎？", "ja": "Would you like an egg on your teppan noodles?", "scene": "When the clerk asks", "scene_for": "鐵板麵要加蛋嗎？"],
+                ["zh": "我不要鐵板麵了。", "ja": "I don't want the teppan noodles anymore.", "scene": "Recommending a shop to a friend", "scene_for": "這家的鐵板麵很好吃。"],
+            ])
+        case "zh-TW":
+            return ("在早餐店點餐時", [
+                ["zh": "這家的鐵板麵很好吃。", "ja": "", "scene": "跟朋友推薦店家時", "scene_for": "這家的鐵板麵很好吃！"],
+                ["zh": "鐵板麵要加蛋嗎？", "ja": "", "scene": "店員問你的時候", "scene_for": "鐵板麵要加蛋嗎？"],
+                ["zh": "我不要鐵板麵了。", "ja": "", "scene": "跟朋友推薦店家時", "scene_for": "這家的鐵板麵很好吃。"],
+            ])
+        default:
+            return ("朝ごはんの店で注文するとき", [
+                ["zh": "這家的鐵板麵很好吃。", "ja": "この店の鉄板焼きそばはおいしい。", "scene": "友達に店をすすめるとき", "scene_for": "這家的鐵板麵很好吃！"],
+                ["zh": "鐵板麵要加蛋嗎？", "ja": "鉄板焼きそばに卵をのせますか？", "scene": "店員に聞かれたとき", "scene_for": "鐵板麵要加蛋嗎？"],
+                ["zh": "我不要鐵板麵了。", "ja": "もう鉄板焼きそばはいらない。", "scene": "友達に店をすすめるとき", "scene_for": "這家的鐵板麵很好吃。"],
+            ])
+        }
+    }
+
+    private static func sticker(withProse: Bool, withExamples: Bool = false) -> Sticker {
         let n = notes
         var extras: [String: Any] = [
                 "explain_lang": L10n.lang,
@@ -633,6 +681,13 @@ private struct DetailPreview: View {
                 ],
         ]
         if withProse { for (k, v) in prose { extras[k] = v } }
+        if withExamples {
+            let ex = examples
+            extras["example_scene"] = ex.scene
+            extras["example_scene_for"] = "早餐我想吃鐵板麵。"
+            extras["example_pattern_count"] = 4
+            extras["examples_extra"] = ex.extra
+        }
         let obj: [String: Any] = [
             "id": "w-teppan", "headword": "鐵板麵", "language": "zh-TW", "reading_zhuyin": "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ", "meaning_ja": n.meaning,
             "part_of_speech": "名詞", "example_sentence": "早餐我想吃鐵板麵。", "example_translation": n.translation,
@@ -648,60 +703,37 @@ private struct DetailPreview: View {
 
     var focus: CardSection = .usageChunks
     var withProse: Bool = false
+    var withExamples: Bool = false
 
     var body: some View {
-        WordDetailView(sticker: Self.sticker(withProse: withProse), previewFocus: focus)
+        WordDetailView(sticker: Self.sticker(withProse: withProse, withExamples: withExamples), previewFocus: focus)
     }
 
     static var previewSticker: Sticker { sticker(withProse: false) }
 }
 
-/// The word page's prose sections one sentence per row, a hairline under each (`-uiPreview tips`), scrolled to
-/// 発音のコツ. The sections are switched on for this word's language first (they are hidden on a new card).
+/// The word page's prose sections one sentence per row, a line under every one (`-uiPreview tips`), scrolled to
+/// 語源・部首 (prose only: this card has no boxes) and 台湾メモ. The sections are switched on for this word's language
+/// first (they are hidden on a new card).
 private struct TipsPreview: View {
     init() {
         CardPrefsStore.shared.use("zh-TW")
-        for s in [CardSection.pronunciationTips, .etymology, .mnemonic, .taiwanNote] { CardPrefsStore.shared.setVisible(s, true) }
+        for s in [CardSection.etymology, .taiwanNote] { CardPrefsStore.shared.setVisible(s, true) }
     }
 
     var body: some View {
-        DetailPreview(focus: .pronunciationTips, withProse: true)
+        DetailPreview(focus: .etymology, withProse: true)
     }
 }
 
-/// ネットの画像 with three stand-in pictures (no network in CI): the section shows once pictures arrive.
-private struct WebImagesPreview: View {
-    init() {
-        CardPrefsStore.shared.use("zh-TW")
-        CardPrefsStore.shared.setVisible(.webImages, true)
-        let word = DetailPreview.previewSticker.word
-        let looks: [(String, UInt32, UInt32, String)] = [
-            ("fork.knife", 0xF4A261, 0xE76F51, "Mei Lin"), ("flame.fill", 0x2A9D8F, 0x264653, "Kenji Ito"),
-            ("frying.pan.fill", 0xE9C46A, 0xF4A261, "Ana Ruiz"),
-        ]
-        let candidates: [WebImageCandidate] = looks.compactMap { symbol, top, bottom, name in
-            let size = CGSize(width: 360, height: 360)
-            let img = UIGraphicsImageRenderer(size: size).image { ctx in
-                let colors = [UIColor(Color(hex: top)).cgColor, UIColor(Color(hex: bottom)).cgColor] as CFArray
-                if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
-                    ctx.cgContext.drawLinearGradient(g, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
-                }
-                let cfg = UIImage.SymbolConfiguration(pointSize: 120, weight: .semibold)
-                if let sym = UIImage(systemName: symbol, withConfiguration: cfg)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
-                    sym.draw(at: CGPoint(x: (size.width - sym.size.width) / 2, y: (size.height - sym.size.height) / 2))
-                }
-            }
-            guard let jpeg = img.jpegData(compressionQuality: 0.8) else { return nil }
-            return WebImageCandidate(url: "data:image/jpeg;base64,\(jpeg.base64EncodedString())", thumb: nil, source: "unsplash",
-                                     credit: .init(name: name, link: nil))
-        }
-        WebImages.seed(headword: word?.headword ?? "", meaning: word?.meaningJa, candidates: candidates)
-    }
-
+/// 「例文」 with every usage pattern's example, each with its situation label (`-uiPreview examples`); the third
+/// pattern's label was written for another sentence and is not shown.
+private struct ExamplesPreview: View {
     var body: some View {
-        DetailPreview(focus: .webImages)
+        DetailPreview(focus: .example, withExamples: true)
     }
 }
+
 /// A Japanese word (傘) and an English word (umbrella) as an English / Chinese / Japanese reader sees them —
 /// to check each language's own sections and that every note is in the reader's language.
 private struct LanguageCardPreview: View {
@@ -814,6 +846,199 @@ private struct ReviewPreview: View {
                 AnswerPanel(sticker: c.sticker, correct: true, onDex: {}, onNext: {})
             }
         }
+    }
+}
+
+/// 語源・部首 as boxes (`-uiPreview etym`: 曖 + 昧 = 曖昧) and a word that cannot be taken apart (`-uiPreview etymloan`:
+/// 沙發, from the sound of English "sofa"), scrolled to the section (switched on first: it is hidden on a new card).
+private struct EtymologyPreview: View {
+    enum Kind { case compound, loanword }
+    let kind: Kind
+
+    init(kind: Kind) {
+        self.kind = kind
+        CardPrefsStore.shared.use("zh-TW")
+        CardPrefsStore.shared.setVisible(.etymology, true)
+    }
+
+    private func pick(_ ja: String, _ en: String, _ zh: String) -> String {
+        L10n.lang == "en" ? en : L10n.lang == "zh-TW" ? zh : ja
+    }
+
+    private var sticker: Sticker {
+        let obj: [String: Any]
+        switch kind {
+        case .compound:
+            obj = [
+                "id": "w-aimei", "headword": "曖昧", "language": "zh-TW", "reading_zhuyin": "ㄞˋ ㄇㄟˋ",
+                "meaning_ja": pick("あいまい", "ambiguous", "不明確"), "part_of_speech": "VS",
+                "example_sentence": "他們的關係很曖昧。",
+                "example_translation": pick("二人の関係はあいまいだ。", "Their relationship is ambiguous.", ""),
+                "extras": [
+                    "explain_lang": L10n.lang,
+                    "etymology": pick("どちらの字も「日」が付き、光が足りずはっきり見えない様子を表します。",
+                                      "Both characters carry 日 (sun): not enough light to see clearly.",
+                                      "兩個字都有「日」，表示光線不足、看不清楚。"),
+                    "etymology_diagram": [
+                        "kind": "compound",
+                        "parts": [
+                            ["text": "曖", "components": ["日", "愛"], "meaning": pick("日がかげる", "the sun dims", "日光昏暗")],
+                            ["text": "昧", "components": ["日", "未"], "meaning": pick("夜明け前", "before dawn", "天未亮")],
+                        ],
+                        "result_meaning": pick("はっきり見えない", "not clearly seen", "看不清楚"),
+                        "source": "", "note": "",
+                    ] as [String: Any],
+                ] as [String: Any],
+            ]
+        case .loanword:
+            obj = [
+                "id": "w-sofa", "headword": "沙發", "language": "zh-TW", "reading_zhuyin": "ㄕㄚ ㄈㄚ",
+                "meaning_ja": pick("ソファー", "sofa", "沙發"), "part_of_speech": "N",
+                "example_sentence": "我坐在沙發上看電視。",
+                "example_translation": pick("ソファーに座ってテレビを見る。", "I sit on the sofa and watch TV.", ""),
+                "extras": [
+                    "explain_lang": L10n.lang,
+                    "etymology_diagram": [
+                        "kind": "loanword_phonetic", "parts": [] as [Any], "result_meaning": "",
+                        "source": "sofa",
+                        "note": pick("英語 sofa の音に字を当てた言葉です。字の意味（沙＝砂、發＝出す）とは関係ありません。",
+                                     "The characters spell the sound of English \"sofa\"; their meanings (sand, send out) play no part.",
+                                     "用字來表示英文 sofa 的發音，和字義（沙、發）無關。"),
+                    ] as [String: Any],
+                ] as [String: Any],
+            ]
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        let word = (try? JSONDecoder().decode(Word.self, from: data))
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
+        return Sticker(id: "etym-\(kind)", wordId: kind == .compound ? "w-aimei" : "w-sofa", objectImageUrl: nil,
+                       cutoutImageUrl: nil, selfieImageUrl: nil, caption: nil, locationName: nil, takenAt: Date(),
+                       captureType: "photo", word: word)
+    }
+
+    var body: some View {
+        WordDetailView(sticker: sticker, previewFocus: .etymology)
+    }
+}
+
+/// The word page of a catch made in selfie mode (冰火菠蘿油 held up in the selfie), opened on the selfie side: its
+/// cut-out (the person and the bun) with 「元の写真」 (`-uiPreview selfie`), or the selfie as it was taken, whole and at
+/// its own shape (`-uiPreview selfie-original`). Vision does not run on the simulator, so the cut-out is drawn here.
+private struct SelfieDetailPreview: View {
+    let original: Bool
+
+    private static let selfieSize = CGSize(width: 900, height: 1200)
+
+    /// The person and the bun they hold (the selfie's foreground).
+    private static func drawPersonWithBun(_ c: CGContext) {
+        UIColor(red: 0.2, green: 0.36, blue: 0.62, alpha: 1).setFill()   // shirt
+        c.addPath(UIBezierPath(roundedRect: CGRect(x: 200, y: 700, width: 500, height: 520), cornerRadius: 160).cgPath)
+        c.fillPath()
+        UIColor(red: 0.96, green: 0.8, blue: 0.68, alpha: 1).setFill()   // face and hands
+        c.fillEllipse(in: CGRect(x: 320, y: 300, width: 260, height: 320))
+        c.fillEllipse(in: CGRect(x: 250, y: 720, width: 110, height: 90))
+        c.fillEllipse(in: CGRect(x: 540, y: 720, width: 110, height: 90))
+        UIColor(red: 0.2, green: 0.14, blue: 0.1, alpha: 1).setFill()    // hair
+        c.addPath(UIBezierPath(roundedRect: CGRect(x: 310, y: 270, width: 280, height: 130), cornerRadius: 60).cgPath)
+        c.fillPath()
+        drawBun(c, in: CGRect(x: 300, y: 640, width: 300, height: 190))
+    }
+
+    private static func drawBun(_ c: CGContext, in r: CGRect) {
+        UIColor(red: 0.93, green: 0.66, blue: 0.22, alpha: 1).setFill()
+        c.fillEllipse(in: r)
+        UIColor(red: 0.98, green: 0.82, blue: 0.42, alpha: 1).setFill()
+        c.fillEllipse(in: r.insetBy(dx: r.width * 0.12, dy: r.height * 0.16))
+        UIColor(red: 1, green: 0.95, blue: 0.7, alpha: 1).setFill()      // the cold butter
+        c.fill(CGRect(x: r.midX - r.width * 0.22, y: r.midY - r.height * 0.08, width: r.width * 0.44, height: r.height * 0.16))
+    }
+
+    private static let sticker: Sticker = {
+        let clear = UIGraphicsImageRendererFormat.default()
+        clear.opaque = false
+        let photo = UIGraphicsImageRenderer(size: CGSize(width: 900, height: 900)).image { ctx in
+            UIColor(red: 0.95, green: 0.9, blue: 0.82, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 900, height: 900))
+            drawBun(ctx.cgContext, in: CGRect(x: 180, y: 260, width: 540, height: 360))
+        }
+        let cut = UIGraphicsImageRenderer(size: CGSize(width: 560, height: 380), format: clear).image { ctx in
+            drawBun(ctx.cgContext, in: CGRect(x: 10, y: 10, width: 540, height: 360))
+        }
+        let selfie = UIGraphicsImageRenderer(size: selfieSize).image { ctx in
+            let colors = [UIColor(red: 0.82, green: 0.9, blue: 0.86, alpha: 1).cgColor,
+                          UIColor(red: 0.62, green: 0.74, blue: 0.7, alpha: 1).cgColor] as CFArray
+            if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
+                ctx.cgContext.drawLinearGradient(g, start: .zero, end: CGPoint(x: 0, y: selfieSize.height), options: [])
+            }
+            UIColor(white: 1, alpha: 0.5).setFill()   // a shop sign behind
+            ctx.fill(CGRect(x: 60, y: 90, width: 300, height: 120))
+            drawPersonWithBun(ctx.cgContext)
+        }
+        let selfieCut = UIGraphicsImageRenderer(size: CGSize(width: 500, height: 950), format: clear).image { ctx in
+            ctx.cgContext.translateBy(x: -200, y: -270)
+            drawPersonWithBun(ctx.cgContext)
+        }
+        ImageCache.shared.set(photo, for: "preview/bun-photo.jpg")
+        ImageCache.shared.set(cut, for: "preview/bun-cutout.png")
+        ImageCache.shared.set(selfie, for: "preview/bun-selfie.jpg")
+        SelfieCutouts.shared.seedForPreview("preview/bun-selfie.jpg", cutout: selfieCut)
+        let json = #"{"id":"w-bun","headword":"冰火菠蘿油","language":"zh-TW","reading_zhuyin":"ㄅㄧㄥ ㄏㄨㄛˇ ㄅㄛ ㄌㄨㄛˊ ㄧㄡˊ","meaning_ja":"冷たいバター入りのパイナップルパン"}"#
+        let word = try? JSONDecoder().decode(Word.self, from: Data(json.utf8))
+        var s = Sticker(id: "selfie-preview", wordId: "w-bun", objectImageUrl: "preview/bun-photo.jpg",
+                        cutoutImageUrl: "preview/bun-cutout.png", selfieImageUrl: "preview/bun-selfie.jpg",
+                        caption: nil, locationName: "香港", takenAt: Date(), captureType: "photo", word: word)  // l10n-ignore (place name)
+        s.heroRole = "selfie"
+        return s
+    }()
+
+    var body: some View {
+        WordDetailView(sticker: Self.sticker, previewSelfieOriginal: original)
+    }
+}
+
+/// A word met three times (`-uiPreview slides`): the first catch's cut-out, a re-encounter's cut-out and a
+/// re-encounter's photo with no cut-out slide by every 3 seconds, the last followed by the first.
+private struct SlidesPreview: View {
+    @Environment(DexStore.self) private var dex
+
+    private static func mango(_ hue: CGFloat, size: CGSize, background: Bool) -> UIImage {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = background
+        return UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+            let c = ctx.cgContext
+            if background {
+                UIColor(hue: 0.55, saturation: 0.25, brightness: 0.95, alpha: 1).setFill()
+                c.fill(CGRect(origin: .zero, size: size))
+            }
+            UIColor(hue: hue, saturation: 0.85, brightness: 0.98, alpha: 1).setFill()
+            c.fillEllipse(in: CGRect(x: size.width * 0.12, y: size.height * 0.2, width: size.width * 0.76, height: size.height * 0.62))
+            UIColor(red: 0.2, green: 0.55, blue: 0.25, alpha: 1).setFill()
+            c.fillEllipse(in: CGRect(x: size.width * 0.42, y: size.height * 0.08, width: size.width * 0.2, height: size.height * 0.16))
+        }
+    }
+
+    private static let sticker: Sticker = {
+        ImageCache.shared.set(mango(0.11, size: CGSize(width: 520, height: 460), background: false), for: "preview/slide-0.png")
+        ImageCache.shared.set(mango(0.08, size: CGSize(width: 900, height: 900), background: true), for: "preview/slide-1.jpg")
+        ImageCache.shared.set(mango(0.08, size: CGSize(width: 600, height: 420), background: false), for: "preview/slide-1.png")
+        ImageCache.shared.set(mango(0.14, size: CGSize(width: 900, height: 1100), background: true), for: "preview/slide-2.jpg")
+        let json = #"{"id":"w-slides","headword":"芒果","language":"zh-TW","reading_zhuyin":"ㄇㄤˊ ㄍㄨㄛˇ","meaning_ja":"マンゴー"}"#
+        let word = try? JSONDecoder().decode(Word.self, from: Data(json.utf8))
+        return Sticker(id: "slides", wordId: "w-slides", objectImageUrl: "preview/slide-1.jpg", cutoutImageUrl: "preview/slide-0.png",
+                       selfieImageUrl: nil, caption: nil, locationName: nil, takenAt: Date().addingTimeInterval(-9 * 86_400),
+                       captureType: "photo", word: word)
+    }()
+
+    var body: some View {
+        WordDetailView(sticker: Self.sticker)
+            .onAppear {
+                dex.seedEncountersForPreview([
+                    .init(id: "e1", stickerId: "slides", image: "preview/slide-1.jpg", cutout: "preview/slide-1.png",
+                          place: "台北", at: Date().addingTimeInterval(-4 * 86_400)),  // l10n-ignore (place name)
+                    .init(id: "e2", stickerId: "slides", image: "preview/slide-2.jpg", cutout: nil,
+                          place: "台南", at: Date().addingTimeInterval(-86_400)),  // l10n-ignore (place name)
+                ])
+            }
     }
 }
 

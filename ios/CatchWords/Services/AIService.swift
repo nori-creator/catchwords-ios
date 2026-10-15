@@ -26,8 +26,10 @@ final class AIService {
         ], as: Suggestions.self, timeout: 25)
         // A repeated name is dropped only within one object: two different objects with the same name (two cups
         // in one photo) stay two objects, each with its own point (card catch groups by `group`).
+        // A name not written in the learning language alone (kana or English in a Mandarin word) is never offered.
         var out: [Candidate] = []
-        for c in res.suggestions where !out.contains(where: { Self.sameSuggestion($0, c) }) { out.append(c) }
+        for c in res.suggestions where !out.contains(where: { Self.sameSuggestion($0, c) })
+            && LanguageRules.headwordSaveable(c.headword, target: NativeAPI.targetLanguage) { out.append(c) }
         guard !out.isEmpty else { throw APIError.message(L("AIから候補が返りませんでした。もう一度お試しください。")) }
         return out
     }

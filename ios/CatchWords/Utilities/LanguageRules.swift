@@ -225,6 +225,79 @@ nonisolated enum LanguageRules {
         }
     }
 
+    // MARK: R21 — a headword about to be saved
+
+    /// Whether `raw` may be SAVED as a headword of `target` (owner 2026-10-15: never the display language in a headword,
+    /// even when the word was typed in it — ボクサーパンツ typed by a Japanese reader came back as the headword of a
+    /// Mandarin word).
+    /// Stricter than `headwordOk`, which drops bracketed notes first: here nothing is dropped, so 「四角褲（ボクサー）」
+    /// is refused too.
+    /// - zh-TW: Han only (digits allowed), no kana and no Latin, Cyrillic or Hangul letters — except 1–3 capital
+    ///   letters stuck to a Han character, which Taiwan writes as part of the word (T恤, 卡拉OK; the server's
+    ///   target-profile.ts headwordOk does the same) — and no kanji only Japan writes that way (図鑑, 駅: Taiwan writes
+    ///   圖, 驛 — `japaneseOnlyKanji`, the server's kanji-forms.ts).
+    /// - en: Latin letters (digits, & and accents allowed), no CJK.
+    /// - ja: kana / kanji (1–2 capitals before katakana are fine: Tシャツ), no other Latin.
+    static func headwordSaveable(_ raw: String, target: String) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        switch target {
+        case "en":
+            let s = saveCore(trimmed)
+            guard !s.isEmpty, counts(s).cjk == 0 else { return false }
+            let ok = s.unicodeScalars.allSatisfy { isLatin($0.value) || ("0"..."9").contains(Character($0)) || $0 == "&" }
+            return ok && s.unicodeScalars.contains { isLatin($0.value) }
+        case "ja":
+            var s = saveCore(trimmed)
+            s = s.replacingOccurrences(of: "^[A-ZＡ-Ｚ]{1,2}(?=[ァ-ヺー])", with: "", options: .regularExpression)  // l10n-ignore (pattern)
+            guard !s.isEmpty else { return false }
+            let jaOnly = s.unicodeScalars.allSatisfy {
+                isKana($0.value) || isHan($0.value) || [0x30FC, 0x3005, 0x3006, 0x3007].contains($0.value) || ("0"..."9").contains(Character($0))
+            }
+            let real = s.unicodeScalars.contains { (isKana($0.value) && $0.value != 0x30FC) || isHan($0.value) }
+            return jaOnly && real
+        default:
+            let s = saveCore(droppingHanLatinAffixes(trimmed))
+            guard !s.isEmpty else { return false }
+            for u in s.unicodeScalars {
+                let v = u.value
+                if isKana(v) || isLatin(v) || isHangul(v) || (0x0400...0x04FF).contains(v) { return false }
+            }
+            if s.contains(where: { japaneseOnlyKanji.contains($0) }) { return false }
+            return s.unicodeScalars.contains { isHan($0.value) || $0.value == 0x3007 }
+        }
+    }
+
+    /// Kanji only Japan's new forms use (Taiwan writes 圖 for 図, 驛 for 駅, 貓 for 猫 — the server's kanji-forms.ts
+    /// JA_ONLY), less the ones Taiwan also uses as standard characters (並 餅 岳 芸).
+    static let japaneseOnlyKanji: Set<Character> = Set("万与両並乗乱亀争亜仏仮会伝体価倹児党円写処剣剤剰励労効勧勲区医単厳参双収号唖営嘱噛団囲図国圏圧堕塁塩増壊壌壮声壱売変奥奨嬢学宝実寛寝対寿専将尭尽届属岳峡巌巣巻帯帰庁広廃弐弥弾当径従徳徴応恋恒恵悩悪惨懐戦戯戻払抜択担拝拠拡挙挟挿捜掲掻揺摂撃撹数斉斎断旧昼晩暁暦曽条来枢栄桜桟桧検楼楽様権横欧歓歩歯歳歴残殴殻毎気沢浄浅浜涙渇済渉渋渓温湾湿満滝滞潜瀬灯炉点焼犠状独狭猟献獣画畳痩発盗県砕礼祷禄禅称稲穂穏穣窃竜粋粛糸経絵継続総緑縁縄縦繊繍聴胆脚脱脳臓艶芦芸茎荘蒋蔵薫薬虚虫蚕蛍蛮蝋装覇覚覧観触訳証誉説読謡譲豊賛践転軽辞辺逓遅遥郷酔醤醸釈鉄銭鋳錬録関閲闘陥険随隠雑霊静頼顔顕餅駅駆騒験髄髪鴎鶏鹸麦麹麺黄黒黙齢猫").subtracting("並餅岳芸")  // l10n-ignore (kanji table)
+
+    /// target-profile.ts headwordCore: the headword without spaces and punctuation (brackets go, what is inside stays).
+    static func saveCore(_ text: String) -> String {
+        let drop = Set("，、。．・…！？!?,.:;：；「」『』（）()【】〔〕[]{}\"'‘’“”—–-~〜·")
+        return String(text.filter { !$0.isWhitespace && !drop.contains($0) })
+    }
+
+    /// target-profile.ts dropHanLatinAffixes: 1–3 capital letters stuck straight onto a Han character (the T of T恤,
+    /// the OK of 卡拉OK) are part of a Mandarin word; any other Latin run stays (and is refused).
+    static func droppingHanLatinAffixes(_ raw: String) -> String {
+        let chars = Array(raw)
+        var out = ""
+        var i = 0
+        func han(_ c: Character?) -> Bool { c.map { $0.unicodeScalars.contains { isHan($0.value) || $0.value == 0x3007 } } ?? false }
+        while i < chars.count {
+            guard chars[i].isASCII, chars[i].isLetter else { out.append(chars[i]); i += 1; continue }
+            var j = i
+            while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
+            let run = chars[i..<j]
+            let capitals = run.count <= 3 && run.allSatisfy { $0.isUppercase }
+            let touchesHan = han(i > 0 ? chars[i - 1] : nil) || han(j < chars.count ? chars[j] : nil)
+            if !(capitals && touchesHan) { out.append(contentsOf: run) }
+            i = j
+        }
+        return out
+    }
+
     /// web resolveWordLanguage: keep the stored language when the headword fits it; otherwise move
     /// the word to the one other language it fits (never into Japanese — kana in a Mandarin row is a
     /// slip of the learner's own language, and Han-only words fit both). An empty language is Mandarin.

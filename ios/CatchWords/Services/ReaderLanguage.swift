@@ -99,7 +99,7 @@ nonisolated enum ReaderLanguage {
                                 e.phrasalVerbs?.count ?? 0, e.kanjiBreakdown?.count ?? 0, e.conjugation?.count ?? 0,
                                 e.counters?.count ?? 0]
             if lists.contains(where: { $0 > 0 }) { return true }
-            if e.forms != nil || e.countability != nil || e.stress != nil { return true }
+            if e.forms != nil || e.countability != nil || e.stress != nil || e.etymologyDiagram != nil { return true }
             let texts: [String?] = [e.mnemonic, e.taiwanNote, e.pronunciationTips, e.studyTips, e.etymology, e.radicals,
                                     e.trivia, e.usageNote, e.synonymDiff, e.usageContext, e.cultureNote, e.pitchAccent,
                                     e.politeness, e.wordOrigin, e.japanNote]
@@ -180,6 +180,7 @@ nonisolated enum ReaderLanguage {
             if looksWrong(w.note, reader: reader, hanOnlyOk: true) { w.note = "" }
             return w
         }
+        e.etymologyDiagram = e.etymologyDiagram?.scrubbed { looksWrong($0, reader: reader, hanOnlyOk: true) }
         e.kanjiBreakdown = e.kanjiBreakdown?.map { k in
             var k = k
             if looksWrong(k.meaning, reader: reader, hanOnlyOk: true) { k.meaning = "" }

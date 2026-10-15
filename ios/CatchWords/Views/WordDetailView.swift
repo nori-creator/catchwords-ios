@@ -11,6 +11,8 @@ struct WordDetailView: View {
     let sticker: Sticker
     /// DEBUG preview: open scrolled to this section so the simulator frame shows it.
     var previewFocus: CardSection? = nil
+    /// DEBUG preview: the selfie side opens on the selfie as it was taken (its 「元の写真」).
+    var previewSelfieOriginal: Bool = false
 
     @State private var isAddingSelfie: Bool = false
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
@@ -30,9 +32,13 @@ struct WordDetailView: View {
     /// The cut-out's width ÷ height once it is drawn: the hero takes the cut-out's own shape (no empty box above
     /// and below it, owner 2026-10-11: 「単語の詳細のページの上の余白なくして」).
     @State private var cutoutRatio: CGFloat?
-    /// The original photo (or, from the selfie side, the selfie), full screen: the 「元の写真」 button on the picture.
+    /// The original photo, full screen: the photo side's 「元の写真」 button, or a tap on a picture without a selfie.
     @State private var showingOriginal: Bool = false
-    @State private var viewingSelfie: Bool = false
+    /// The selfie side shows the selfie as it was taken instead of its cut-out (its 「元の写真」 button).
+    @State private var selfieOriginal: Bool = false
+    /// The selfie's and its cut-out's width ÷ height once drawn (the selfie is shown whole, at its own shape).
+    @State private var selfieRatio: CGFloat?
+    @State private var selfieCutRatio: CGFloat?
     @State private var pickingHero: Bool = false
     @State private var refreshing: Set<CardSection> = []
     @State private var editingCaption: Bool = false
@@ -47,15 +53,19 @@ struct WordDetailView: View {
     /// A report or 「作り直す」 without the AI consent: the consent sheet instead (nothing is sent).
     @State private var askAIConsent: Bool = false
     @State private var isReplacing: Bool = false
-    /// Photos of this word from later encounters, paged in the hero by swiping (page 0 = the main picture).
+    /// Photos of this word from later encounters (the server's list, used when the dex has none of its re-encounters),
+    /// paged in the hero by swiping and by the slideshow (page 0 = the main picture).
     @State private var laterPhotos: [StickerPhoto] = []
     @State private var heroPage: Int = 0
-    /// ネットの画像 (web WebImagesBody): the search result, the 「別の画像」 round, and the one being applied.
-    @State private var webCandidates: [WebImageCandidate] = []
-    @State private var webRound: Int = 0
-    @State private var webLoading: Bool = false
-    @State private var applyingWeb: String?
-    @State private var confirmWeb: WebImageCandidate?
+    /// Later pictures' cut-outs' width ÷ height once drawn, by id.
+    @State private var laterRatios: [String: CGFloat] = [:]
+    /// A finger is on the hero or swiping it (the slideshow waits; a swipe the scroll view takes over resets by
+    /// itself), the hero is on screen, and which way the last slide went.
+    @State private var touching: Bool = false
+    @GestureState private var swiping: Bool = false
+    @State private var heroVisible: Bool = true
+    @State private var slideForward: Bool = true
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appReduceMotion) private var reduceMotion
 
     /// The word as the dex has it now. A page opened on a catch still being saved (owner 2026-10-11: 「キャッチしたての
@@ -154,16 +164,12 @@ struct WordDetailView: View {
             try? await Task.sleep(for: .milliseconds(400))
             if !Task.isCancelled { SoundService.shared.speak(headword) }
         }
-        .task(id: "\(headword)|\(webRound)|\(visibleSections.contains(.webImages))") { await loadWebImages() }
-        .confirmationDialog(L("いまの写真を、この画像に差し替えますか？元には戻せません。"),
-                            isPresented: confirmingWeb,
-                            titleVisibility: .visible, presenting: confirmWeb) { c in
-            Button(L("この画像にする")) { applyWeb(c) }
-            Button(L("キャンセル"), role: .cancel) {}
-        }
         .onAppear { prefs.use(learningLang) }
         .onChange(of: learningLang) { _, l in prefs.use(l) }
-        .onAppear { applyHeroRole(animated: false) }
+        .onAppear {
+            applyHeroRole(animated: false)
+            if previewSelfieOriginal { selfieOriginal = true }
+        }
         .aiConsentSheet(isPresented: $askAIConsent)
         .sheet(isPresented: $pickingHero) {
             HeroPhotoPickerSheet(sticker: current, onPick: { role in
@@ -393,7 +399,7 @@ struct WordDetailView: View {
         return ReaderLanguage.looksWrong(pos, reader: L10n.lang) || japaneseOnOtherScreen ? "" : pos
     }
 
-    // MARK: - Photo hero (flips to the selfie like a card)
+    // MARK: - Photo hero (flips to the selfie like a card; slides through the word's photos)
 
     private var frontPath: String? {
         showCutout ? (current.cutoutImageUrl ?? current.objectImageUrl ?? current.placeholderImageUrl)
@@ -401,94 +407,187 @@ struct WordDetailView: View {
     }
     private var hasSelfie: Bool { current.selfieImageUrl != nil }
 
-    /// The hero, plus the photos from later encounters to swipe through.
-    private var photoHero: some View {
-        heroFace
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 24)
-                    .onEnded { v in
-                        guard !laterPhotos.isEmpty, !showSelfie,
-                              abs(v.translation.width) > abs(v.translation.height) * 1.4 else { return }
-                        let next = v.translation.width < -50 ? heroPage + 1 : v.translation.width > 50 ? heroPage - 1 : heroPage
-                        let clamped = min(max(next, 0), laterPhotos.count)
-                        guard clamped != heroPage else { return }
-                        Haptics.selection()
-                        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 0.86)) { heroPage = clamped }
-                    }
-            )
-            .overlay(alignment: .bottom) {
-                if !laterPhotos.isEmpty, !showSelfie {
-                    HStack(spacing: 6) {
-                        ForEach(0...laterPhotos.count, id: \.self) { i in
-                            Capsule().fill(.white.opacity(i == heroPage ? 1 : 0.5))
-                                .frame(width: i == heroPage ? 18 : 7, height: 7)
-                        }
-                    }
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(.black.opacity(0.35), in: Capsule())
-                    .padding(.bottom, 14)
-                    .animation(.snappy, value: heroPage)
-                    .accessibilityHidden(true)
-                }
-            }
-            .accessibilityAdjustableAction { dir in
-                guard !laterPhotos.isEmpty else { return }
-                switch dir {
-                case .increment: heroPage = min(heroPage + 1, laterPhotos.count)
-                case .decrement: heroPage = max(heroPage - 1, 0)
-                @unknown default: break
-                }
-            }
-            // Keyed on the photo too: a replaced photo reloads the list while the page is open. A catch still being
-            // saved has no photos on the server yet (the list is read once it is saved).
-            .task(id: "\(current.id)|\(current.objectImageUrl ?? "")") {
-                guard !isProvisional else { return }
-                let all = await StickerPhoto.load(stickerId: current.id)
-                laterPhotos = all.filter { !$0.first }
-                heroPage = 0
-            }
+    /// A later encounter's picture in the hero: the re-encounter's cut-out where it saved one, else its photo — shown
+    /// like the first one (owner 2026-10-15: the second and later photos were not cut-outs). Read from the dex's
+    /// re-encounters (with their cut-outs); a server without them falls back to the photo list (`listStickerPhotos`,
+    /// photos only).
+    private struct LaterPhoto: Identifiable, Equatable {
+        let id: String
+        /// The storage path (signed by the dex); nil = only a signed link from the photo list.
+        let path: String?
+        let link: String?
+        let isCutout: Bool
+        let takenAt: Date?
+        let place: String?
     }
 
-    /// A later encounter's photo in the hero, with when and where it was taken.
-    private func laterFace(_ p: StickerPhoto, number: Int) -> some View {
-        Theme.surface2  // photo placeholder (was a fixed light grey, glaring in dark mode)
-            .aspectRatio(0.8, contentMode: .fit)
-            .overlay {
-                AsyncImage(url: URL(string: p.url)) { phase in
-                    if let img = phase.image { img.resizable().scaledToFill() } else { ProgressView() }
-                }
-                .allowsHitTesting(false)
+    private var laterFaces: [LaterPhoto] {
+        let met = dex.encounterEntries.filter { $0.stickerId == current.id }.sorted { $0.at < $1.at }
+        if !met.isEmpty {
+            return met.map { e in
+                LaterPhoto(id: e.id, path: e.cutout ?? e.image, link: nil, isCutout: e.cutout != nil, takenAt: e.at, place: e.place)
             }
-            .overlay(alignment: .topLeading) {
+        }
+        return laterPhotos.map { p in
+            LaterPhoto(id: p.id, path: nil, link: p.url, isCutout: false, takenAt: SupabaseDate.parse(p.takenAt), place: p.place)
+        }
+    }
+
+    /// Seconds each photo stays before the next slides in (owner 2026-10-15: 1枚目→2枚目→…→最後→1枚目 automatically).
+    static let slideInterval: Double = 3
+
+    /// The slideshow waits while a finger is on the photo, while the selfie or an original photo is shown, while the
+    /// photo sheet is open, while the photo is off screen and while the app is in the background.
+    private var slidePaused: Bool {
+        touching || swiping || showSelfie || selfieOriginal || showingOriginal || pickingHero || !heroVisible || scenePhase != .active
+    }
+
+    /// The hero, plus the photos from later encounters: they slide by every few seconds and can be swiped through.
+    private var photoHero: some View {
+        let later = laterFaces
+        return ZStack {
+            heroFace(later)
+                .id(heroPage)
+                .transition(slideTransition)
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 24)
+                .updating($swiping) { _, state, _ in state = true }
+                .onEnded { v in
+                    guard !later.isEmpty, !showSelfie,
+                          abs(v.translation.width) > abs(v.translation.height) * 1.4 else { return }
+                    let next = v.translation.width < -50 ? heroPage + 1 : v.translation.width > 50 ? heroPage - 1 : heroPage
+                    let clamped = min(max(next, 0), later.count)
+                    guard clamped != heroPage else { return }
+                    Haptics.selection()
+                    slide(to: clamped, forward: clamped > heroPage)
+                }
+        )
+        .overlay(alignment: .bottom) {
+            if !later.isEmpty, !showSelfie {
                 HStack(spacing: 6) {
-                    Text(L("\(number)回目"))
-                        .scaledFont(size: 12, weight: .bold)
-                    if let d = SupabaseDate.parse(p.takenAt) {
-                        Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
-                    }
-                    if let place = p.place, !place.isEmpty {
-                        Text(place).scaledFont(size: 12).lineLimit(1)
+                    ForEach(0...later.count, id: \.self) { i in
+                        Capsule().fill(.white.opacity(i == heroPage ? 1 : 0.5))
+                            .frame(width: i == heroPage ? 18 : 7, height: 7)
                     }
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(.black.opacity(0.55), in: Capsule())
-                .padding(12)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(.black.opacity(0.35), in: Capsule())
+                .padding(.bottom, 14)
+                .animation(.snappy, value: heroPage)
+                .accessibilityHidden(true)
             }
-            .clipShape(.rect(cornerRadius: 28, style: .continuous))
-            .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(L("\(number)回目に撮った写真"))
-            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+        }
+        .accessibilityAdjustableAction { dir in
+            guard !later.isEmpty else { return }
+            switch dir {
+            case .increment: heroPage = min(heroPage + 1, later.count)
+            case .decrement: heroPage = max(heroPage - 1, 0)
+            @unknown default: break
+            }
+        }
+        .onScrollVisibilityChange(threshold: 0.3) { heroVisible = $0 }
+        // Keyed on the page shown too: each photo gets its full time, also after a swipe.
+        .task(id: "\(later.count)|\(heroPage)|\(slidePaused)") { await autoSlide(count: later.count) }
+        // The selfie's cut-out (its people and what they hold) is made on this phone before the card is turned.
+        .task(id: current.selfieImageUrl ?? "") {
+            if let p = current.selfieImageUrl, !isProvisional { SelfieCutouts.shared.request(p, dex: dex) }
+        }
+        // Keyed on the photo too: a replaced photo reloads the list while the page is open. A catch still being
+        // saved has no photos on the server yet (the list is read once it is saved).
+        .task(id: "\(current.id)|\(current.objectImageUrl ?? "")") {
+            guard !isProvisional else { return }
+            let all = await StickerPhoto.load(stickerId: current.id)
+            laterPhotos = all.filter { !$0.first }
+            heroPage = 0
+        }
+    }
+
+    /// The next photo slides in from the right (from the left going back); with Reduce Motion they cross-fade.
+    private var slideTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(insertion: .move(edge: slideForward ? .trailing : .leading).combined(with: .opacity),
+                           removal: .move(edge: slideForward ? .leading : .trailing).combined(with: .opacity))
+    }
+
+    private func slide(to page: Int, forward: Bool) {
+        slideForward = forward
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.4) : .spring(response: 0.55, dampingFraction: 0.9)) { heroPage = page }
+    }
+
+    /// After `slideInterval` the next photo, the last one followed by the first again. Only with more than one photo.
+    private func autoSlide(count: Int) async {
+        guard count > 0, !slidePaused else { return }
+        try? await Task.sleep(for: .seconds(Self.slideInterval))
+        guard !Task.isCancelled, !slidePaused else { return }
+        slide(to: (heroPage + 1) % (count + 1), forward: true)
     }
 
     @ViewBuilder
-    private var heroFace: some View {
-        if heroPage > 0, let p = laterPhotos[safe: heroPage - 1] {
-            laterFace(p, number: heroPage + 1).id(p.id)
+    private func heroFace(_ later: [LaterPhoto]) -> some View {
+        if heroPage > 0, let p = later[safe: heroPage - 1] {
+            laterFace(p, number: heroPage + 1)
         } else {
             mainFace
         }
+    }
+
+    /// A later encounter's picture, shown like the first one — its cut-out standing on the page, or its photo on the
+    /// card — with when and where it was taken.
+    private func laterFace(_ p: LaterPhoto, number: Int) -> some View {
+        let url = p.path.flatMap { dex.url(for: $0, preferThumb: false) } ?? p.link.flatMap { URL(string: $0) }
+        return Group {
+            if p.isCutout {
+                Color.clear
+                    .aspectRatio(min(1.8, max(0.8, laterRatios[p.id] ?? 1)), contentMode: .fit)
+                    .overlay {
+                        StickerImage(path: p.path, url: url, contentMode: .fit, onLoad: { size in
+                            guard size.height > 0 else { return }
+                            withAnimation(.easeOut(duration: 0.2)) { laterRatios[p.id] = size.width / size.height }
+                        })
+                        .padding(14)
+                        .shadow(color: .black.opacity(0.2), radius: 10, y: 7)
+                        .allowsHitTesting(false)
+                    }
+            } else {
+                Theme.surface2  // photo placeholder (was a fixed light grey, glaring in dark mode)
+                    .aspectRatio(0.8, contentMode: .fit)
+                    .overlay {
+                        if p.path != nil {
+                            StickerImage(path: p.path, url: url, contentMode: .fill)
+                                .allowsHitTesting(false)
+                        } else {
+                            AsyncImage(url: url) { phase in
+                                if let img = phase.image { img.resizable().scaledToFill() } else { ProgressView() }
+                            }
+                            .allowsHitTesting(false)
+                        }
+                    }
+                    .clipShape(.rect(cornerRadius: 28, style: .continuous))
+                    .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            HStack(spacing: 6) {
+                Text(L("\(number)回目"))
+                    .scaledFont(size: 12, weight: .bold)
+                if let d = p.takenAt {
+                    Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
+                }
+                if let place = p.place, !place.isEmpty {
+                    Text(place).scaledFont(size: 12).lineLimit(1)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(.black.opacity(0.55), in: Capsule())
+            .padding(12)
+        }
+        .contentShape(.rect(cornerRadius: 28))
+        // A finger on the photo holds the slideshow (the long press itself does nothing here).
+        .onLongPressGesture(minimumDuration: 60, perform: {}, onPressingChanged: { pressing in touching = pressing })
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("\(number)回目に撮った写真"))
     }
 
     /// The hero's shape: a cut-out's own width ÷ height (kept between a tall 0.8 and a wide 1.8, so neither a bottle
@@ -499,25 +598,70 @@ struct WordDetailView: View {
         return min(1.8, max(0.8, known ?? 1))
     }
 
+    /// The selfie side shows the selfie's cut-out — its people and the thing they hold (`SelfieCutouts`) — once this
+    /// phone has made it, with 「元の写真」 at the top to see the selfie as it was taken (owner 2026-10-15:
+    /// 「タップしたら自撮りになり、自撮りもデフォルトでは切り抜きを表示し、右上に元の写真ボタンを表示し、元の自撮り画像を
+    /// 見えるようにする」).
+    private var selfieCutReady: Bool {
+        current.selfieImageUrl.map { SelfieCutouts.shared.state(for: $0) == .ready } ?? false
+    }
+
+    @ViewBuilder
+    private func faceBody(back: Bool) -> some View {
+        if back, let selfie = current.selfieImageUrl {
+            if selfieCutReady && !selfieOriginal {
+                Color.clear
+                    .aspectRatio(min(1.8, max(0.6, selfieCutRatio ?? 0.8)), contentMode: .fit)
+                    .overlay {
+                        SelfieCutoutImage(path: selfie) { size in
+                            guard size.height > 0 else { return }
+                            withAnimation(.easeOut(duration: 0.2)) { selfieCutRatio = size.width / size.height }
+                        }
+                        .padding(14)
+                        .shadow(color: .black.opacity(0.2), radius: 10, y: 7)
+                        .allowsHitTesting(false)
+                    }
+                    .transition(.opacity)
+            } else {
+                // The selfie as it was taken: the whole picture at its own shape, as wide as the page — never cut to
+                // the word's cut-out's shape (it was, and showed small and cropped).
+                Theme.surface2
+                    .aspectRatio(selfieRatio ?? 0.75, contentMode: .fit)
+                    .overlay {
+                        StickerImage(path: selfie, url: dex.url(for: selfie, preferThumb: false), contentMode: .fit,
+                                     onLoad: { size in
+                                         guard size.height > 0 else { return }
+                                         withAnimation(.easeOut(duration: 0.2)) { selfieRatio = size.width / size.height }
+                                     })
+                            .allowsHitTesting(false)
+                            .id(selfie)
+                    }
+                    .transition(.opacity)
+            }
+        } else {
+            let path = frontPath
+            let isCut = showCutout && path == current.cutoutImageUrl
+            // A cut-out stands on the page by itself — no grey box around it (owner 2026-10-11); a photo keeps its card.
+            (isCut ? Color.clear : Theme.surface2)
+                .aspectRatio(heroRatio(isCut: isCut, path: current.cutoutImageUrl), contentMode: .fit)
+                .overlay {
+                    StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: isCut ? .fit : .fill,
+                                 onLoad: isCut ? { size in
+                                     guard size.height > 0 else { return }
+                                     withAnimation(.easeOut(duration: 0.2)) { cutoutRatio = size.width / size.height }
+                                 } : nil)
+                        .padding(isCut ? 14 : 0)
+                        .shadow(color: .black.opacity(isCut ? 0.2 : 0), radius: 10, y: 7)
+                        .allowsHitTesting(false)
+                        .id(path)
+                }
+        }
+    }
+
     private var mainFace: some View {
         let back = showSelfie
         let path = back ? current.selfieImageUrl : frontPath
-        let isCut = !back && showCutout && path == current.cutoutImageUrl
-        // A cut-out stands on the page by itself — no grey box around it (owner 2026-10-11); a photo keeps its card.
-        return (isCut ? Color.clear : Theme.surface2)
-            .aspectRatio(heroRatio(isCut: isCut || (back && current.cutoutImageUrl != nil && showCutout), path: current.cutoutImageUrl),
-                         contentMode: .fit)
-            .overlay {
-                StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: isCut ? .fit : .fill,
-                             onLoad: isCut ? { size in
-                                 guard size.height > 0 else { return }
-                                 withAnimation(.easeOut(duration: 0.2)) { cutoutRatio = size.width / size.height }
-                             } : nil)
-                    .padding(isCut ? 14 : 0)
-                    .shadow(color: .black.opacity(isCut ? 0.2 : 0), radius: 10, y: 7)
-                    .allowsHitTesting(false)
-                    .id(path)
-            }
+        return faceBody(back: back)
             .overlay(alignment: .bottomTrailing) {
                 // With a selfie, a tap anywhere on the picture turns the card (photo ⇄ selfie), as the hint says
                 // (owner 2026-10-14: 「タップすると自撮りへと書いてるのに元の画像が見える。2つを両立させて」); the
@@ -534,26 +678,21 @@ struct WordDetailView: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                // Full screen: the original photo from the photo side, the selfie from the selfie side.
-                if hasSelfie, back ? current.selfieImageUrl != nil : originalPath != nil {
-                    Button {
-                        Haptics.selection()
-                        viewingSelfie = back
-                        showingOriginal = true
-                    } label: {
-                        Label(back ? L("大きく見る") : L("元の写真"), systemImage: "arrow.up.left.and.arrow.down.right")
-                            .scaledFont(size: 12, weight: .semibold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(.black.opacity(0.55), in: Capsule())
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
+                if back {
+                    // The selfie's own 「元の写真」: the selfie as it was taken, in place; again (切り抜き) back to the
+                    // cut-out. Only when there is a cut-out to go back to (「大きく見る」 is gone).
+                    if selfieCutReady {
+                        heroButton(selfieOriginal ? L("切り抜き") : L("元の写真"),
+                                   icon: selfieOriginal ? "chevron.backward" : "arrow.up.left.and.arrow.down.right",
+                                   id: "detail.selfieOriginal") {
+                            withAnimation(.easeInOut(duration: 0.25)) { selfieOriginal.toggle() }
+                        }
                     }
-                    .buttonStyle(PressableStyle(scale: 0.94))
-                    .padding(.horizontal, 12)
-                    .padding(.top, 2)
-                    .accessibilityIdentifier("detail.viewOriginal")
+                } else if hasSelfie, originalPath != nil {
+                    // The photo side's original photo, full screen.
+                    heroButton(L("元の写真"), icon: "arrow.up.left.and.arrow.down.right", id: "detail.viewOriginal") {
+                        showingOriginal = true
+                    }
                 }
             }
             .overlay(alignment: .bottomLeading) {
@@ -583,26 +722,50 @@ struct WordDetailView: View {
                     flip()
                 } else if originalPath != nil {
                     Haptics.selection()
-                    viewingSelfie = false
                     showingOriginal = true
                 }
             }
             .fullScreenCover(isPresented: $showingOriginal) {
-                let shown = viewingSelfie ? current.selfieImageUrl : originalPath
-                OriginalPhotoViewer(path: shown, url: dex.url(for: shown, preferThumb: false))
+                OriginalPhotoViewer(path: originalPath, url: dex.url(for: originalPath, preferThumb: false))
             }
             // 長押し: この単語をどの絵で見せるか選ぶ（Web HeroPhotoPicker）。 Not while the catch is still being saved.
-            .onLongPressGesture(minimumDuration: 0.45) {
+            // A finger on the photo also holds the slideshow.
+            .onLongPressGesture(minimumDuration: 0.45, perform: {
                 guard !isProvisional else { return }
                 Haptics.impact(.medium)
                 pickingHero = true
-            }
+            }, onPressingChanged: { pressing in touching = pressing })
             .accessibilityAction(named: L("表示する写真を選ぶ")) { if !isProvisional { pickingHero = true } }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(back ? L("自撮り写真") : L("写真"))
             .accessibilityAction(named: L("元の写真を見る")) {
-                if originalPath != nil { viewingSelfie = false; showingOriginal = true }
+                if back, selfieCutReady {
+                    selfieOriginal = true
+                } else if originalPath != nil {
+                    showingOriginal = true
+                }
             }
+    }
+
+    /// A small dark capsule button on the picture (top right).
+    private func heroButton(_ title: String, icon: String, id: String, action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.selection()
+            action()
+        } label: {
+            Label(title, systemImage: icon)
+                .scaledFont(size: 12, weight: .semibold)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(.black.opacity(0.55), in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle(scale: 0.94))
+        .padding(.horizontal, 12)
+        .padding(.top, 2)
+        .accessibilityIdentifier(id)
     }
 
     /// The photo as it was taken (not the cut-out); a word with no photo of its own shows its stand-in.
@@ -630,17 +793,22 @@ struct WordDetailView: View {
         }
     }
 
-    /// Half-turn with the image swapped at 90° so the selfie reads as the card's back side.
+    /// Half-turn with the image swapped at 90° so the selfie reads as the card's back side. The selfie side always
+    /// opens on its cut-out.
     private func flip() {
         guard hasSelfie else { return }
         Haptics.impact(.light)
         if reduceMotion {
-            withAnimation(.easeInOut(duration: 0.2)) { showSelfie.toggle() }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showSelfie.toggle()
+                selfieOriginal = false
+            }
             return
         }
         let target: Double = showSelfie ? 0 : 180
         withAnimation(.easeIn(duration: 0.16)) { flipAngle = 90 } completion: {
             showSelfie.toggle()
+            selfieOriginal = false
             withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) { flipAngle = target }
         }
     }
@@ -671,7 +839,8 @@ struct WordDetailView: View {
                     editingCaption = true
                 } label: {
                     HStack(alignment: .center) {
-                        Text(cap).font(AppFont.hand(18)).foregroundStyle(Theme.foreground.opacity(0.9))
+                        // The app's own font, not the handwriting (owner 2026-10-15).
+                        Text(cap).scaledFont(size: 17).foregroundStyle(Theme.foreground.opacity(0.9))
                             .multilineTextAlignment(.leading)
                         Spacer()
                         Image(systemName: "pencil").font(.system(size: 16)).foregroundStyle(Theme.muted)
@@ -752,15 +921,24 @@ struct WordDetailView: View {
     /// The word's language, corrected from its headword when the stored one is wrong (I4: "lamp" saved
     /// as a Mandarin word showed measure words and a Taiwan note).
     private var learningLang: String { LanguageRules.resolveWordLanguage(stored: word?.language, headword: headword) }
-    private var exampleOK: Bool { let e = word?.exampleSentence ?? ""; return !e.isEmpty && e.isIn(target: learningLang) }
-    private var extraExamples: [ExampleExtra] { (extras?.examplesExtra ?? []).filter { !$0.zh.isEmpty && $0.zh.isIn(target: learningLang) } }
+    /// 「例文」: the main example and every other usage pattern's example (`ExampleItem.all`).
+    private var examples: [ExampleItem] {
+        ExampleItem.all(sentence: word?.exampleSentence, translation: word?.exampleTranslation, extras: extras, target: learningLang)
+    }
     private var chunks: [UsageChunk] { refinedChunks(extras?.usageChunks ?? []) }
     private var measures: [MeasureWord] { (extras?.measureWords ?? []).filter { !$0.word.isEmpty } }
-    private var pronunciationText: String { nonEmpty([extras?.pronunciationTips, extras?.studyTips]) }
     /// Radicals only for Mandarin; English adds the words built from the same parts.
-    private var etymologyText: String {
+    private var etymologyText: String { etymologyText(radicals: true) }
+
+    /// The boxes this word can draw (`EtymologyDiagram.drawable`); nil = the prose only.
+    private var etymologyDiagram: EtymologyDiagram? { extras?.etymologyDiagram?.drawable(for: headword) }
+
+    /// `radicals`: with the 「部首: …」 line (not under the boxes, which show the parts).
+    private func etymologyText(radicals: Bool) -> String {
         switch learningLang {
-        case "zh-TW": return nonEmpty([extras?.etymology, extras?.radicals.map { $0.isEmpty ? "" : L("部首: \($0)") }])
+        case "zh-TW":
+            let r = radicals ? extras?.radicals.map { $0.isEmpty ? "" : L("部首: \($0)") } : nil
+            return nonEmpty([extras?.etymology, r])
         case "en":
             let rel = (extras?.etymologyRelatives ?? []).filter { !$0.word.isEmpty }
                 .map { $0.note.isEmpty ? $0.word : "\($0.word) — \($0.note)" }.joined(separator: "\n")
@@ -786,17 +964,15 @@ struct WordDetailView: View {
     private func hasContent(_ s: CardSection) -> Bool {
         switch s {
         case .meaning: !(word?.meaningJa ?? "").isEmpty
-        case .example: exampleOK
-        case .examplesExtra: !extraExamples.isEmpty
+        case .example: !examples.isEmpty
+        // Gone from the word page (owner 2026-10-15, `CardSection.isRemoved`).
+        case .examplesExtra, .webImages, .pronunciationTips, .mnemonic: false
         case .usageChunks: !chunks.isEmpty
         case .measureWords: !measures.isEmpty
         case .relatedWords: !(extras?.allRelated.isEmpty ?? true) || !(extras?.synonymDiff ?? "").isEmpty
-        case .pronunciationTips: !pronunciationText.isEmpty
-        case .etymology: !etymologyText.isEmpty
-        case .mnemonic: !(extras?.mnemonic ?? "").isEmpty
+        case .etymology: !etymologyText.isEmpty || etymologyDiagram != nil
         case .taiwanNote: learningLang == "zh-TW" && !taiwanText.isEmpty
         case .realUsage: !headword.isEmpty
-        case .webImages: !webCandidates.isEmpty
         case .forms: !forms.isEmpty
         case .countability: extras?.countability != nil
         case .phrasalVerbs: !phrasals.isEmpty
@@ -843,17 +1019,14 @@ struct WordDetailView: View {
     private func sectionBody(_ s: CardSection) -> some View {
         switch s {
         case .meaning: meaningCard
-        case .example: exampleCard(word?.exampleSentence ?? "", word?.exampleTranslation)
-        case .examplesExtra: extraExamplesCard
+        case .example: WordExamplesCard(examples: examples, headword: headword)
+        case .examplesExtra, .webImages, .pronunciationTips, .mnemonic: EmptyView()
         case .usageChunks: chunkCard(chunks)
         case .measureWords: measureCard(measures)
         case .relatedWords: relatedCard(extras?.allRelated ?? [])
-        case .pronunciationTips: textCard(s.title, icon: s.icon, pronunciationText)
-        case .etymology: textCard(s.title(for: learningLang), icon: s.icon, etymologyText)
-        case .mnemonic: textCard(s.title, icon: s.icon, extras?.mnemonic ?? "")
+        case .etymology: etymologyCard
         case .taiwanNote: textCard(s.title, icon: s.icon, taiwanText)
         case .realUsage: realUsageCard
-        case .webImages: webImagesCard
         case .forms: formsCard
         case .countability: countabilityCard
         case .phrasalVerbs: phrasalCard
@@ -905,29 +1078,6 @@ struct WordDetailView: View {
         return out
     }
 
-    private var extraExamplesCard: some View {
-        SectionCard(title: CardSection.examplesExtra.title, icon: CardSection.examplesExtra.icon) {
-            VStack(spacing: 10) {
-                ForEach(extraExamples, id: \.zh) { ex in
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if !ex.scene.isEmpty { SceneTag(text: ex.scene) }
-                            Text(highlighted(ex.zh)).scaledFont(size: 18).lineSpacing(7)
-                            if !ex.ja.isEmpty {
-                                Text(ex.ja).scaledFont(size: 14).foregroundStyle(Theme.muted).lineSpacing(5)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                        PronounceCircle(text: ex.zh, size: 40)
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Theme.secondary, in: .rect(cornerRadius: 22, style: .continuous))
-                }
-            }
-        }
-    }
-
     // MARK: - Headword edit & report
 
     private func saveHeadword() {
@@ -961,7 +1111,13 @@ struct WordDetailView: View {
         guard !Task.isCancelled, !dex.generatingWords.contains(current.wordId) else { return }
         // Writing the missing sections uses the AI: not without the consent (they stay empty, never "filling").
         guard AIConsent.shared.isGranted else { return }
-        let missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
+        var missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
+        // 「例文」 shows every usage pattern's example: the other patterns' examples are written when they are missing,
+        // never for a word used in one situation only (`example_pattern_count` 1).
+        if visibleSections.contains(.example), hasContent(.example), (extras?.examplesExtra ?? []).isEmpty,
+           Self.wantsAutoFill(.examplesExtra, extras: extras) {
+            missing.append(.examplesExtra)
+        }
         guard !missing.isEmpty else { return }
         let wordId = current.wordId
         guard !Task.isCancelled else { return }
@@ -980,8 +1136,11 @@ struct WordDetailView: View {
 
     /// An empty section is filled in by the server unless it is complete while empty: 「追加の例文」 of a word used in one
     /// situation only (`example_pattern_count` 1, server PR #182) has no other examples to write.
+    /// 発音のコツ・覚え方・ネットの画像 are off the page (owner 2026-10-15; the server stops writing the first two): their
+    /// absence is never something to fill.
     static func wantsAutoFill(_ s: CardSection, extras: WordExtras?) -> Bool {
-        !(s == .examplesExtra && extras?.examplesExtraComplete == true)
+        if s == .pronunciationTips || s == .mnemonic || s == .webImages { return false }
+        return !(s == .examplesExtra && extras?.examplesExtraComplete == true)
     }
 
     /// Web reportAndFixSection (item = auto): the AI finds the wrong item among what is on screen.
@@ -1054,11 +1213,6 @@ struct WordDetailView: View {
             try? await Task.sleep(for: .seconds(2.4))
             withAnimation(.easeOut(duration: 0.25)) { if toast == text { toast = nil } }
         }
-    }
-
-    private func exampleCard(_ sentence: String, _ translation: String?) -> some View {
-        WordExampleCard(sentence: sentence, translation: translation,
-                        scene: ReaderLanguage.shown(extras?.shownExampleScene(for: sentence), source: sentence), headword: headword)
     }
 
     private func highlighted(_ sentence: String) -> AttributedString {
@@ -1348,7 +1502,22 @@ struct WordDetailView: View {
         }
     }
 
-    /// 発音のコツ・語源と部首・覚え方・台湾メモ and the other prose sections: one sentence per row with a thin line
+    /// 語源・部首: the boxes (character + character = the word, owner 2026-10-15) when the card has them, then the prose;
+    /// a word that cannot be taken apart shows what fits it (one character's box, or where a loanword's sound came
+    /// from). Without the boxes, the prose as before.
+    private var etymologyCard: some View {
+        let s = CardSection.etymology
+        let diagram = etymologyDiagram
+        let prose = etymologyText(radicals: diagram == nil)
+        return SectionCard(title: s.title(for: learningLang), icon: s.icon) {
+            VStack(alignment: .leading, spacing: 6) {
+                if let diagram { EtymologyDiagramView(diagram: diagram) }
+                if !prose.isEmpty { SentenceRows(text: prose) }
+            }
+        }
+    }
+
+    /// 語源と部首・台湾メモ and the other prose sections: one sentence per row with a thin line
     /// under each, instead of one block of prose (owner 2026-10-14: 「読みやすいように文の下に線に書いて」).
     private func textCard(_ title: String, icon: String, _ body: String) -> some View {
         SectionCard(title: title, icon: icon) {
@@ -1406,146 +1575,6 @@ struct WordDetailView: View {
                 ("📰", L("台湾のサイトで検索"), "https://www.google.com/search?q=\(q)&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW"),
                 ("📖", L("教育部國語辭典簡編本"), "https://dict.concised.moe.edu.tw/search.jsp?word=\(q)"),
             ]
-        }
-    }
-
-    // MARK: - ネットの画像 (web WebImagesBody)
-
-    private var confirmingWeb: Binding<Bool> {
-        Binding(get: { confirmWeb != nil }, set: { if !$0 { confirmWeb = nil } })
-    }
-
-    /// Three pictures at a time; 「別の画像」 searches again (the web shows a different three each round).
-    private var shownWeb: [WebImageCandidate] {
-        let pages = max(1, Int((Double(webCandidates.count) / 3).rounded(.up)))
-        let off = webRound % pages
-        let page = Array(webCandidates.dropFirst(off * 3).prefix(3))
-        return page.isEmpty ? Array(webCandidates.prefix(3)) : page
-    }
-
-    /// The section is drawn only once a picture has arrived (web: 画像が表示されない時はその項目を表示しない).
-    private func loadWebImages() async {
-        guard visibleSections.contains(.webImages), !headword.isEmpty else { return }
-        webLoading = true
-        defer { webLoading = false }
-        let search: () async throws -> [WebImageCandidate] = { [word, headword, webRound] in
-            if let word, word.headword == headword { return try await WebImages.search(word: word, round: webRound) }
-            return try await WebImages.search(headword: headword, meaning: word?.meaningJa, round: webRound)
-        }
-        guard let found = try? await search(),
-              !Task.isCancelled else { return }
-        withAnimation(.snappy) { webCandidates = found }
-    }
-
-    private var webImagesCard: some View {
-        SectionCard(title: CardSection.webImages.title, icon: CardSection.webImages.icon) {
-            VStack(alignment: .leading, spacing: 12) {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                    ForEach(shownWeb) { c in webTile(c) }
-                }
-                .uiReady("preview")  // CI's 「webimg」 picture waits for the pictures (DEBUG only)
-                HStack(spacing: 14) {
-                    Button {
-                        Haptics.selection()
-                        webRound += 1
-                    } label: {
-                        HStack(spacing: 5) {
-                            if webLoading { ProgressView().controlSize(.mini) } else { Image(systemName: "arrow.clockwise") }
-                            Text(L("別の画像"))
-                        }
-                        .scaledFont(size: 14, weight: .semibold)
-                        .foregroundStyle(Theme.foreground)
-                        .padding(.horizontal, 12)
-                        .frame(minHeight: 36)
-                        .background(Theme.secondary, in: Capsule())
-                        .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.95))
-                    .disabled(webLoading)
-                    if let url = URL(string: "https://www.google.com/search?tbm=isch&q=\(headword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") {
-                        Button { openURL(url) } label: {
-                            Label(L("Google画像検索で見る"), systemImage: "arrow.up.right")
-                                .scaledFont(size: 14, weight: .semibold)
-                                .foregroundStyle(Theme.primaryInk)
-                                .frame(minHeight: 36)
-                        }
-                    }
-                }
-                Text(L("画像をタップすると、この単語の写真にできます。"))
-                    .scaledFont(size: 13)
-                    .foregroundStyle(Theme.muted)
-            }
-        }
-    }
-
-    private func webTile(_ c: WebImageCandidate) -> some View {
-        Button { pickWeb(c) } label: {
-            Theme.surface2
-                .aspectRatio(1, contentMode: .fit)
-                .overlay {
-                    if let img = WebImages.inlineImage(c) {
-                        Image(uiImage: img).resizable().scaledToFill()
-                    } else {
-                        AsyncImage(url: c.previewURL) { phase in
-                            if let img = phase.image { img.resizable().scaledToFill() } else { ProgressView() }
-                        }
-                    }
-                }
-                .overlay(alignment: .bottom) {
-                    if let name = c.credit?.name, !name.isEmpty {
-                        Text(name)
-                            .scaledFont(size: 10, weight: .medium)
-                            .lineLimit(1)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .frame(maxWidth: .infinity)
-                            .background(.black.opacity(0.5))
-                    }
-                }
-                .overlay {
-                    if applyingWeb == c.url {
-                        ZStack {
-                            Color.black.opacity(0.35)
-                            ProgressView().tint(.white)
-                        }
-                    }
-                }
-                .clipShape(.rect(cornerRadius: 12, style: .continuous))
-                .contentShape(.rect(cornerRadius: 12))
-        }
-        .buttonStyle(PressableStyle(scale: 0.95))
-        .disabled(applyingWeb != nil || isProvisional)
-        .accessibilityLabel(L("この画像にする"))
-    }
-
-    /// A word with a photo of its own asks first: the photo is replaced and cannot come back
-    /// (web applyWebImage). A word without one takes the picture as its stand-in, with its credit.
-    private func pickWeb(_ c: WebImageCandidate) {
-        guard applyingWeb == nil else { return }
-        if current.objectImageUrl != nil || current.cutoutImageUrl != nil {
-            confirmWeb = c
-        } else {
-            applyWeb(c)
-        }
-    }
-
-    private func applyWeb(_ c: WebImageCandidate) {
-        applyingWeb = c.url
-        Task {
-            defer { applyingWeb = nil }
-            do {
-                if current.objectImageUrl != nil || current.cutoutImageUrl != nil {
-                    try await dex.replacePhoto(current, with: try await WebImages.image(for: c))
-                } else {
-                    try await dex.setPlaceholder(current, to: c)
-                }
-                Haptics.success()
-                showToast(L("画像を変更しました"))
-            } catch {
-                Haptics.warning()
-                showToast(L("写真を替えられませんでした"))
-            }
         }
     }
 
@@ -1630,7 +1659,42 @@ struct WordDetailView: View {
 
 }
 
-/// The section's 「作り直す」 button (set by the word page; the links card has none).
+/// A selfie's cut-out — its people and the thing they hold — made on this phone (`SelfieCutouts`, kept in the image
+/// cache only). A cut-out the system emptied from the cache is made again.
+struct SelfieCutoutImage: View {
+    let path: String
+    var onLoad: ((CGSize) -> Void)? = nil
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .transition(.opacity)
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: path) {
+            let key = SelfieCutouts.key(for: path)
+            if let hit = ImageCache.shared.image(for: key) {
+                image = hit
+                onLoad?(hit.size)
+                return
+            }
+            if let kept = await ImageCache.shared.cached(for: key) {
+                withAnimation(.easeOut(duration: 0.25)) { image = kept }
+                onLoad?(kept.size)
+            } else {
+                SelfieCutouts.shared.forget(path)
+            }
+        }
+    }
+}
+
 /// The original photo, full screen (a tap on the word page's picture). The ✕, a tap, or a swipe down closes it.
 struct OriginalPhotoViewer: View {
     let path: String?
@@ -1680,6 +1744,7 @@ struct OriginalPhotoViewer: View {
     }
 }
 
+/// The section's 「作り直す」 button (set by the word page; the links card has none).
 struct SectionRefresh {
     var running: Bool
     var action: () -> Void
@@ -1689,10 +1754,12 @@ extension EnvironmentValues {
     @Entry var sectionRefresh: SectionRefresh? = nil
 }
 
-/// White section card with a blue round icon and title (card-sections + section-icon.ts).
 /// Explanatory prose, one sentence per row with a hairline under each (`Sentences.split`). Each row may break between
 /// any two Japanese / Chinese characters (`Sentences.wrappable`), so a line fills the card's width instead of moving a
 /// whole word down early. VoiceOver reads the sentence as written.
+/// The line under each row is two device pixels (`hairline`): a one-pixel line (½ pt on an iPad) that fell between two
+/// pixel rows was drawn as two faint half-pixels and vanished on the light card, so on the owner's iPad some sentences
+/// of 台湾メモ had no line (2026-10-15). The spacing between the sentences stays as it was.
 struct SentenceRows: View {
     let text: String
     var size: CGFloat = 15
@@ -1711,15 +1778,20 @@ struct SentenceRows: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 10)
                     .overlay(alignment: .bottom) {
-                        Rectangle().fill(Theme.border).frame(height: max(1 / displayScale, 0.5))
+                        Rectangle().fill(Theme.border).frame(height: Self.hairline(displayScale))
                     }
                     .accessibilityLabel(line)
                     .accessibilityIdentifier("sentence.row")
             }
         }
     }
+
+    /// Two device pixels: at least one whole pixel is covered wherever the line lands (1 pt on an iPad, ⅔ pt on a
+    /// 3× iPhone).
+    static func hairline(_ scale: CGFloat) -> CGFloat { 2 / max(1, scale) }
 }
 
+/// White section card with a blue round icon and title (card-sections + section-icon.ts).
 struct SectionCard<Content: View>: View {
     let title: String
     let icon: String

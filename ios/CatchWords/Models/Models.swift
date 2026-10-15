@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 nonisolated struct AuthSession: Codable, Sendable {
     let accessToken: String
@@ -86,6 +87,8 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     var studyTips: String?
     var etymology: String?
     var radicals: String?
+    /// 語源・部首 as boxes (`extras.etymology_diagram`, server #183; nil on older cards — the prose is shown).
+    var etymologyDiagram: EtymologyDiagram?
     var trivia: String?
     var usageNote: String?
     var synonymDiff: String?
@@ -114,6 +117,7 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     enum CodingKeys: String, CodingKey {
         case mnemonic, synonyms, antonyms, etymology, radicals, trivia
         case explainLang = "explain_lang"
+        case etymologyDiagram = "etymology_diagram"
         case forms, countability, stress, conjugation, politeness, counters
         case phrasalVerbs = "phrasal_verbs"
         case cultureNote = "culture_note"
@@ -180,6 +184,8 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         studyTips = (try? c.decodeIfPresent(String.self, forKey: .studyTips)).flatMap { $0 }
         etymology = (try? c.decodeIfPresent(String.self, forKey: .etymology)).flatMap { $0 }
         radicals = (try? c.decodeIfPresent(String.self, forKey: .radicals)).flatMap { $0 }
+        // Under any of its names (`EtymologyDiagram.keys`); one that does not read is simply absent.
+        etymologyDiagram = EtymologyDiagram.find(in: decoder)
         trivia = (try? c.decodeIfPresent(String.self, forKey: .trivia)).flatMap { $0 }
         usageNote = (try? c.decodeIfPresent(String.self, forKey: .usageNote)).flatMap { $0 }
         synonymDiff = (try? c.decodeIfPresent(String.self, forKey: .synonymDiff)).flatMap { $0 }
@@ -275,17 +281,69 @@ nonisolated struct RelatedWord: Codable, Sendable, Hashable {
     }
 }
 
-/// `examples_extra` item: sentence + translation + when you'd say it.
+/// `examples_extra` item: sentence + translation + when you'd say it, and the sentence that label was written for
+/// (`scene_for`, server 2026-10-15; absent on older items — then no label is shown, `shownScene`).
 nonisolated struct ExampleExtra: Codable, Sendable, Hashable {
     var zh: String
     var ja: String
     var scene: String
+    var sceneFor: String = ""
+
+    enum CodingKeys: String, CodingKey {
+        case zh, ja, scene
+        case sceneFor = "scene_for"
+    }
+
+    init(zh: String, ja: String = "", scene: String = "", sceneFor: String = "") {
+        self.zh = zh
+        self.ja = ja
+        self.scene = scene
+        self.sceneFor = sceneFor
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         zh = (try? c.decode(String.self, forKey: .zh)) ?? ""
         ja = (try? c.decode(String.self, forKey: .ja)) ?? ""
         scene = (try? c.decode(String.self, forKey: .scene)) ?? ""
+        sceneFor = (try? c.decode(String.self, forKey: .sceneFor)) ?? ""
+    }
+
+    /// The label over this sentence: only when it was written for this very sentence (spaces and punctuation aside),
+    /// the rule of the main example (`WordExtras.shownExampleScene`).
+    var shownScene: String? {
+        let label = scene.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !label.isEmpty else { return nil }
+        let written = WordExtras.sceneMatchKey(sceneFor)
+        guard !written.isEmpty, written == WordExtras.sceneMatchKey(zh) else { return nil }
+        return label
+    }
+}
+
+/// One example in 「例文」: the main one or one of `examples_extra`, each its own usage pattern (owner 2026-10-15:
+/// 「追加の例文」 is gone, every pattern's example is in 「例文」 with its short situation label above it).
+nonisolated struct ExampleItem: Hashable, Sendable {
+    let sentence: String
+    let translation: String?
+    let scene: String?
+
+    /// Every example to show, the main one first. With one usage pattern (`example_pattern_count` 1) only the main
+    /// example; an extra one not in the learning language, or the main sentence again, is left out.
+    static func all(sentence: String?, translation: String?, extras: WordExtras?, target: String) -> [ExampleItem] {
+        var out: [ExampleItem] = []
+        var seen = Set<String>()
+        let main = (sentence ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !main.isEmpty, main.isIn(target: target) {
+            out.append(ExampleItem(sentence: main, translation: translation, scene: extras?.shownExampleScene(for: main)))
+            seen.insert(WordExtras.sceneMatchKey(main))
+        }
+        guard extras?.examplesExtraComplete != true else { return out }
+        for x in extras?.examplesExtra ?? [] {
+            let zh = x.zh.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !zh.isEmpty, zh.isIn(target: target), seen.insert(WordExtras.sceneMatchKey(zh)).inserted else { continue }
+            out.append(ExampleItem(sentence: zh, translation: x.ja.isEmpty ? nil : x.ja, scene: x.shownScene))
+        }
+        return out
     }
 }
 
@@ -545,16 +603,26 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
     let alternatives: [String]
     /// Web `suggestWords` / `suggestWordCandidates`: how this name differs from the others (≤15 chars).
     var distinction: String = ""
-    /// common / casual / specific / proper — "ほかの言い方" chips (candidate-order.ts).
+    /// What kind of name it is: common / colloquial / specific / academic / proper (server candidate-register.ts,
+    /// 2026-10-15). Older answers sent casual, or a typed word's style (spoken / written …): `NameRegister.normalize`.
+    /// (The style itself now comes as `style`, which the app does not show.)
     var register: String?
     /// Which object in the photo; other names of the same object share it.
     var group: Int?
     /// Category hint passed to `generateCard` as `hintCategory`.
     var categoryKey: String?
+    /// The box the AI drew round the thing (`box_2d`: [ymin, xmin, ymax, xmax], 0–1000 of the photo, web
+    /// suggestion-position.ts); nil when it sent none or a broken one. `objectBox` is the same box, 0–1.
+    var box: [Double]?
+    /// The thing's general everyday name in the reader's language (`object_label`, server #184: the same for every name
+    /// of one `group`, e.g. 下着 for boxer briefs): the photo's tag. Empty on older answers.
+    var objectLabel: String = ""
 
     enum CodingKeys: String, CodingKey {
         case kind, headword, zhuyin, pinyin, pos, point, confidence, alternatives
         case distinction, register, group
+        case box = "box_2d"
+        case objectLabel = "object_label"
         case meaningJa = "meaning_ja"
         case readingZhuyin = "reading_zhuyin"
         case categoryKey = "category_key"
@@ -593,6 +661,8 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         try c.encodeIfPresent(register, forKey: .register)
         try c.encodeIfPresent(group, forKey: .group)
         try c.encodeIfPresent(categoryKey, forKey: .categoryKey)
+        try c.encodeIfPresent(box, forKey: .box)
+        if !objectLabel.isEmpty { try c.encode(objectLabel, forKey: .objectLabel) }
     }
 
     /// Lenient decode (scan-detect-parse.ts): nulls, percentages, strings all accepted.
@@ -621,7 +691,82 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
         register = try? c.decode(String.self, forKey: .register)
         group = try? c.decode(Int.self, forKey: .group)
         categoryKey = try? c.decode(String.self, forKey: .categoryKey)
+        box = (try? c.decode([Double].self, forKey: .box)).flatMap(Self.validBox)
+        objectLabel = ((try? c.decode(String.self, forKey: .objectLabel)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// validBox2d: four numbers in 0–1000, top above bottom and left before right.
+    static func validBox(_ raw: [Double]) -> [Double]? {
+        guard raw.count == 4, raw.allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 1000 }), raw[2] > raw[0], raw[3] > raw[1] else { return nil }
+        return raw
+    }
+
+    /// The AI's box round the thing, 0–1 of the photo (top-left origin).
+    var objectBox: CGRect? {
+        guard let b = box, b.count == 4 else { return nil }
+        return CGRect(x: b[1] / 1000, y: b[0] / 1000, width: (b[3] - b[1]) / 1000, height: (b[2] - b[0]) / 1000)
+    }
+
+    /// The same name with another register (`NameRegister.finalized`).
+    func with(register r: NameRegister) -> Candidate {
+        var copy = self
+        copy.register = r.rawValue
+        return copy
+    }
+}
+
+/// What kind of name a candidate is (server candidate-register.ts, owner 2026-10-15: 「写真のタグは台湾の人がふだん
+/// いちばんよく使う言い方」「候補は一般的な言い方を上に、口語・より詳しい言い方・学術的な言い方・固有名詞の順で下へ」
+/// 「どの候補にも必ず印を付ける」). The cases are in list order: the everyday name at the top.
+nonisolated enum NameRegister: String, CaseIterable, Sendable {
+    case common, colloquial, specific, academic, proper
+
+    var rank: Int { NameRegister.allCases.firstIndex(of: self) ?? 0 }
+
+    /// The label on every candidate row (the owner's words).
+    var label: String {
+        switch self {
+        case .common: L("一般的な言い方")
+        case .colloquial: L("口語")
+        case .specific: L("より詳しい言い方")
+        case .academic: L("学術的な言い方")
+        case .proper: L("固有名詞")
+        }
+    }
+
+    /// The server's register (nori-creator/Lovable-catch-words-app#183: always one of the five). The photo's older
+    /// `casual` is colloquial. A typed word's style (spoken / written / both / technical / signage — older answers put
+    /// it in `register`, it is `style` now) is never read as a register: like a missing one it is nil, and `finalized`
+    /// fills it in, so the row still has its label.
+    static func normalize(_ raw: String?) -> NameRegister? {
+        let v = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if v == "casual" { return .colloquial }
+        return NameRegister(rawValue: v)
+    }
+
+    /// One thing's names (or a typed word's list) with a register on every one, in list order (finalizeNameRegisters):
+    /// a missing register is common for the first name and specific for the others (another name of the same thing is
+    /// usually a narrower one); then common → colloquial → specific → academic → proper, the server's order kept within
+    /// one register. The first name is always an everyday one: with no common name, the first that is not a proper noun
+    /// moves to the top as the common name (the photo's tag is never a detailed name or a brand). Only a list of proper
+    /// nouns stays as it is.
+    static func finalized(_ words: [Candidate]) -> [Candidate] {
+        let filled = words.enumerated().map { i, c in
+            c.with(register: normalize(c.register) ?? (i == 0 ? .common : .specific))
+        }
+        var sorted = filled.indices.sorted { a, b in
+            let ra = of(filled[a]).rank, rb = of(filled[b]).rank
+            return ra != rb ? ra < rb : a < b
+        }.map { filled[$0] }
+        if let first = sorted.first, of(first) != .common, let k = sorted.firstIndex(where: { of($0) != .proper }) {
+            let promoted = sorted.remove(at: k)
+            sorted.insert(promoted.with(register: .common), at: 0)
+        }
+        return sorted
+    }
+
+    /// A candidate's register, read leniently (common when unreadable).
+    static func of(_ c: Candidate) -> NameRegister { normalize(c.register) ?? .common }
 }
 
 /// AI-generated card content for a picked candidate. The card's `level` (the word's exam level) is not read:

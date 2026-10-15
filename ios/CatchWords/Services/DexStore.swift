@@ -454,6 +454,11 @@ final class DexStore {
     /// phone is added at once by `recordEncounter`).
     private(set) var encounterEntries: [EncounterEntry] = []
 
+    #if DEBUG
+    /// `-uiPreview`: re-encounters as the server would list them (the word page's slideshow).
+    func seedEncountersForPreview(_ entries: [EncounterEntry]) { encounterEntries = entries }
+    #endif
+
     /// Album entries for re-encounters carry this prefix before the encounter's id (they are not stickers).
     nonisolated static let encounterAlbumPrefix = "encounter-"
 
@@ -1107,15 +1112,24 @@ final class DexStore {
         let head = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !head.isEmpty, head.count <= 60 else { throw APIError.message(L("単語を入れてください。")) }
         if sticker.word?.headword == head { return }
+        // Never a headword in another language (kana or English in a Mandarin word): stopped here before the server.
+        guard LanguageRules.headwordSaveable(head, target: NativeAPI.targetLanguage) else {
+            throw APIError.message(Self.notTargetHeadword)
+        }
         do {
             // The server checks the language, reuses or creates the word row (its contents are
             // filled in afterwards by the detail page's auto-fill, as on the web).
             _ = try await NativeAPI.call("setStickerHeadword", ["sticker_id": sticker.id, "headword": head])
         } catch let APIError.server(_, message) where message.contains("NOT_TARGET_LANGUAGE") {
-            throw APIError.message(NativeAPI.targetLanguage == "en" ? L("英語の単語を入れてください。")
-                : NativeAPI.targetLanguage == "ja" ? L("日本語の単語を入れてください。") : L("繁体字（台湾華語）の単語を入れてください。"))
+            throw APIError.message(Self.notTargetHeadword)
         }
         await reload(stickerId: sticker.id)
+    }
+
+    /// The headword was not in the learning language: what to type instead.
+    static var notTargetHeadword: String {
+        NativeAPI.targetLanguage == "en" ? L("英語の単語を入れてください。")
+            : NativeAPI.targetLanguage == "ja" ? L("日本語の単語を入れてください。") : L("繁体字（台湾華語）の単語を入れてください。")
     }
 
     /// Dictionary error report → `entry_reports` (reports.functions.ts). Lands in the admin review queue.
@@ -1295,9 +1309,14 @@ final class DexStore {
         }
     }
 
+    /// Sections never asked for any more.
+    nonisolated static let retiredSections: Set<String> = ["pronunciation_tips", "mnemonic", "web_images"]
+
     /// Web `regenerateCardSection`. `onlyIfEmpty` = first fill of a missing section (free, like the web's
     /// AutoFillSections); otherwise a full rewrite of the section (Pro on the web).
     func fillSection(wordId: String, section: String, onlyIfEmpty: Bool) async -> Bool {
+        // 発音のコツ and 覚え方 are no longer on the word page, and the server stops writing them (owner 2026-10-15).
+        guard !Self.retiredSections.contains(section) else { return false }
         struct Res: Decodable { let ok: Bool?; let filled: Bool? }
         let r = try? await NativeAPI.call("regenerateCardSection", [
             "word_id": wordId, "section": section, "only_if_empty": onlyIfEmpty,

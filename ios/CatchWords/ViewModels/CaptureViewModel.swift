@@ -22,6 +22,9 @@ final class CaptureViewModel {
     var candidates: [Candidate] = []
     /// Words typed under the photo ("違う単語を入力") when the lookup found several: shown beside the photo's tags.
     var typedCandidates: [Candidate] = []
+    /// The thing the word was typed for (typed on its choose screen): its cut-out is the sticker. nil = typed under the
+    /// photo (the photo's main subject is lifted).
+    var searchObject: CatchObject?
     var picked: Candidate?
     var details: CardDetails?
     var cutout: UIImage?
@@ -75,6 +78,8 @@ final class CaptureViewModel {
     private var detailsTask: Task<CardDetails?, Never>?
     /// Cards already being generated for this photo, by headword.
     private var detailsCache: [String: Task<CardDetails?, Never>] = [:]
+    /// Words the server refused to make in the learning language (`NOT_TARGET_LANGUAGE`), by `detailsKey`.
+    @ObservationIgnored private var refusedWords: Set<String> = []
     /// "Is this word already in the dex?" — started for each object's first word as soon as the words are found, so
     /// a tap opens the celebration at once instead of waiting for the round trip (0.6–1.0 s measured 2026-10-10;
     /// owner: 「ただ待たされる時間は苦痛」). nil = that check failed (asked again at the tap).
@@ -106,6 +111,7 @@ final class CaptureViewModel {
         selfie = nil
         candidates = []
         typedCandidates = []
+        searchObject = nil
         picked = nil
         details = nil
         detailsTask = nil
@@ -236,24 +242,29 @@ final class CaptureViewModel {
         return (error as? LocalizedError)?.errorDescription ?? L("解析に失敗しました。")
     }
 
-    /// "違う単語を入力" under the photo (`suggestWordCandidates`, any language): the photo stays the sticker and
-    /// the screen stays put. One result goes straight on; several are listed beside the photo's words; a miss
-    /// is shown inline, never as a full-screen failure.
-    func search(text: String) {
+    /// "違う単語を入力" under the photo or on a thing's choose screen (`suggestWordCandidates`, any language — the
+    /// display language or the learning language): the photo stays the sticker (`object`: the thing it was typed for,
+    /// whose cut-out is used) and the screen stays put. One result goes straight on; several are listed beside the
+    /// photo's words, each with what kind of name it is, the everyday one first; a miss is shown inline, never as a
+    /// full-screen failure. A word whose headword is not written in the learning language alone (ボクサーパンツ typed in
+    /// Japanese must never become a Mandarin headword, `LanguageRules.headwordSaveable`) is never offered.
+    func search(text: String, object: CatchObject? = nil) {
         runToken += 1
         let token = runToken
         isCheckingOwned = false
         ownedChecks = [:]
         searchError = nil
+        searchObject = object
         isLookingUp = true
         Task {
             defer { if token == runToken { isLookingUp = false } }
             do {
-                let found = try await AIService.shared.candidates(for: text, scene: placeName)
+                let raw = try await AIService.shared.candidates(for: text, scene: placeName)
                 guard token == runToken else { return }
-                guard !found.isEmpty else { throw APIError.message(Self.notTargetLang) }
+                let found = NameRegister.finalized(Self.saveable(raw))
+                guard !found.isEmpty else { throw APIError.message(Self.notTargetWordFound) }
                 if found.count == 1 {
-                    choose(found[0], object: nil)
+                    choose(found[0], object: object, typed: true)
                 } else {
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { typedCandidates = found }
                 }
@@ -261,7 +272,8 @@ final class CaptureViewModel {
                 guard token == runToken else { return }
                 Haptics.warning()
                 let message: String = {
-                    if case .message? = error as? APIError { return Self.notTargetLang }
+                    if case .message(let m)? = error as? APIError { return m }
+                    if Self.isNotTargetLanguage(error) { return Self.notTargetWordFound }
                     return (error as? LocalizedError)?.errorDescription ?? Self.notTargetLang
                 }()
                 searchError = message
@@ -271,6 +283,28 @@ final class CaptureViewModel {
 
     /// input.notTargetLang (web i18n), with the learning language filled in.
     static var notTargetLang: String { L("学習している言語の単語が見つかりませんでした。別の言い方で調べてみてください。") }
+
+    /// No word of the learning language came out of what was typed (the app's own check, or the server's
+    /// `NOT_TARGET_LANGUAGE`: neither the AI's headword nor the typed word is in the learning language).
+    static var notTargetWordFound: String {
+        switch NativeAPI.targetLanguage {
+        case "en": L("英語の単語が見つかりませんでした。別の言葉で試してください")
+        case "ja": L("日本語の単語が見つかりませんでした。別の言葉で試してください")
+        default: L("台湾華語の単語が見つかりませんでした。別の言葉で試してください")
+        }
+    }
+
+    /// The server refused to make the word because it is not in the learning language (server #183).
+    nonisolated static func isNotTargetLanguage(_ error: Error) -> Bool {
+        if case .server(_, let m)? = error as? APIError { return m.contains("NOT_TARGET_LANGUAGE") }
+        return false
+    }
+
+    /// The candidates whose headword can be saved for the learning language (`LanguageRules.headwordSaveable`): a
+    /// headword with the reader's own language in it (kana or English in a Mandarin word) is dropped, never saved.
+    static func saveable(_ found: [Candidate], target: String = NativeAPI.targetLanguage) -> [Candidate] {
+        found.filter { LanguageRules.headwordSaveable($0.headword, target: target) }
+    }
 
     private struct OwnedCheck: Decodable { let owned: OwnedWord? }
 
@@ -303,15 +337,15 @@ final class CaptureViewModel {
     /// were — never the word. The developer settings count Top-1 / Top-3 per AI model from it. A word from the
     /// photo's tags is `photo`; a word found by typing after the photo is `native_search` (the photo's words
     /// missed it). Nothing waits for it and a failure is ignored.
-    private func logPick(_ word: Candidate, object: CatchObject?) {
+    private func logPick(_ word: Candidate, object: CatchObject?, typed: Bool) {
         let via: String
         let rank: Int
         let count: Int
-        if object != nil, let i = candidates.firstIndex(where: { AIService.sameSuggestion($0, word) }) {
+        if !typed, object != nil, let i = candidates.firstIndex(where: { AIService.sameSuggestion($0, word) }) {
             via = "photo"
             rank = i + 1
             count = candidates.count
-        } else if object == nil, photo != nil {
+        } else if typed || object == nil, photo != nil {
             via = "native_search"
             rank = (typedCandidates.firstIndex(where: { $0.headword == word.headword }) ?? 0) + 1
             count = max(typedCandidates.count, rank)
@@ -326,11 +360,18 @@ final class CaptureViewModel {
     /// `stage`: chosen on the choose screen (film v6): `origin` is the choice P and the GET screen opens no sooner than
     /// `handoffAt` (both `CCClock`), once the choose screen's card has folded away — the owned-word check usually
     /// answered long before.
-    func choose(_ word: Candidate, object: CatchObject?, stage: (origin: Double, handoffAt: Double)? = nil) {
+    /// `typed`: the word was typed (under the photo or on a thing's choose screen), not one of the photo's names.
+    func choose(_ word: Candidate, object: CatchObject?, typed: Bool = false, stage: (origin: Double, handoffAt: Double)? = nil) {
         UITestTrace.log("choose \(word.headword) checking=\(isCheckingOwned) step=\(step) token=\(runToken)")
         guard !isCheckingOwned else { return }
+        // Never a headword in another language (owner 2026-10-15): asked to look again instead of saving it.
+        guard LanguageRules.headwordSaveable(word.headword, target: NativeAPI.targetLanguage) else {
+            Haptics.warning()
+            searchError = Self.notTargetWordFound
+            return
+        }
         let token = runToken
-        logPick(word, object: object)
+        logPick(word, object: object, typed: typed)
         stageOrigin = stage?.origin
         stageHandoff = stage.map { $0.handoffAt - $0.origin }
         pickedBox = object?.box
@@ -453,7 +494,12 @@ final class CaptureViewModel {
         isLoadingDetails = true
         let key = Self.detailsKey(candidate)
         let task = detailsCache[key] ?? Task<CardDetails?, Never> {
-            try? await AIService.shared.cardDetails(for: candidate)
+            do {
+                return try await AIService.shared.cardDetails(for: candidate)
+            } catch {
+                if Self.isNotTargetLanguage(error) { self.refusedWords.insert(key) }
+                return nil
+            }
         }
         detailsCache[key] = task
         detailsTask = task
@@ -464,6 +510,12 @@ final class CaptureViewModel {
             isLoadingDetails = false
             if let d {
                 withAnimation(.easeOut(duration: 0.3)) { details = d }
+            } else if refusedWords.contains(key), step == .celebrate, owned == nil {
+                // The server cannot make it a word of the learning language (`NOT_TARGET_LANGUAGE`): never saved
+                // under a headword in another language — back to the words, with what to do.
+                backToCandidates()
+                Haptics.warning()
+                searchError = Self.notTargetWordFound
             }
         }
     }
@@ -583,6 +635,7 @@ final class CaptureViewModel {
         selfie = nil
         candidates = []
         typedCandidates = []
+        searchObject = nil
         picked = nil
         details = nil
         detailsTask = nil

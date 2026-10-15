@@ -6,9 +6,11 @@ import SwiftUI
 /// A tap on a tag goes straight to the celebration (owner 2026-10-09: shoot → words → tap → done).
 /// - One tag per THING, named in the reader's own language (owner 2026-10-14: 「表示するのは母語にして」「表示する
 ///   タグは言い方ではなく、異なるものにして」): 鮮乳 / 牛奶 / 全脂鮮乳 were three tags for one bottle, in Mandarin.
-///   A thing with several ways to say it (ふだん / 砕けた / くわしい・専門的 / 固有名詞 — the server's `group` and
-///   `register`) opens the list of them on a tap, to pick the one to learn (web CandidatePicker's ほかの言い方);
-///   a thing with one name goes straight on. Tags never cover each other (`CCPickLayout`), and stay inside the photo.
+///   A thing with several ways to say it (一般的な言い方 / 口語 / より詳しい言い方 / 学術的な言い方 / 固有名詞 — the
+///   server's `group` and `register`, `NameRegister`) opens the list of them on a tap, to pick the one to learn (web
+///   CandidatePicker's ほかの言い方); a thing with one name goes straight on. The tag is the thing's everyday name
+///   (owner 2026-10-15: never a detailed name or a proper noun). Tags never cover each other (`CCPickLayout`), and stay
+///   inside the photo.
 /// - Without a position (the AI gave none) and no Vision instance there, the words gather at the photo's centre,
 ///   still one per line.
 /// - From the shutter on (`.processing`) the same screen runs the catch scan over the photo (v10, owner 2026-10-11:
@@ -36,6 +38,8 @@ struct CandidatePickerView: View {
     @State private var stageFrame: CGRect = .zero
     /// DEBUG previews: open the first thing with several ways to say it once the tags are up.
     var autoOpen: Bool = false
+    /// DEBUG previews (`-uiPreview choose`): open it once and keep it open (nothing is chosen).
+    var holdOpen: Bool = false
 
     private let ink = Color(hex: 0x0B121A)
 
@@ -51,10 +55,13 @@ struct CandidatePickerView: View {
         let id: String
         /// Where the tag sits and what the scan waits for.
         let object: CatchObject
-        /// Its ways to say it: the everyday one first (ふだん → 砕けた → くわしい → 固有名詞).
+        /// Its ways to say it: the everyday one first (一般的 → 口語 → より詳しい → 学術的 → 固有名詞).
         let choices: [Choice]
-        /// The tag's text: the thing's name in the reader's language (the headword when there is none).
+        /// The tag's text: the everyday name's meaning in the reader's language (`tagLabel`; never a learning-language
+        /// word).
         let label: String
+        /// The key two tags with the same name are merged by (nil: the label is not a name, never merged).
+        var nameKey: String? = nil
         /// Order among the tags (`candidate.<n>`).
         let mainIndex: Int?
         var word: Candidate { choices[0].word }
@@ -112,7 +119,8 @@ struct CandidatePickerView: View {
                                    dexLabel: f.dexLabel, cut: f.cut ?? (f.chosenAt != nil ? vm.cutout : nil),
                                    fallback: f.fallback, palette: f.palette, start: f.start,
                                    tappedAt: f.tappedAt, chosenAt: f.chosenAt, chosen: f.chosen, closingAt: f.closingAt,
-                                   calm: reduceMotion, onChoose: pick, onClose: closeChoices)
+                                   calm: reduceMotion, searching: vm.isLookingUp, onChoose: pick, onClose: closeChoices,
+                                   onSearch: searchFromChoices)
                     .zIndex(5)
             }
             // The choose screen keeps its sticker floating while the word is checked (no dark wait over it).
@@ -250,24 +258,21 @@ struct CandidatePickerView: View {
     private func tags(_ objects: [CatchObject]) -> [Tag] {
         var out: [Tag] = []
         for o in objects {
-            // ふだん → 砕けた → くわしい → 固有名詞. Same rank keeps the AI's order (likelihood).
-            let order = o.words.indices.sorted { a, b in
-                let ra = Self.rank(o.words[a].register), rb = Self.rank(o.words[b].register)
-                return ra != rb ? ra < rb : a < b
-            }
-            let choices = order.map { Choice(word: o.words[$0], object: o) }
-            guard let main = choices.first else { continue }
-            let label = Self.readerName(main.word)
-            let key = Self.mergeKey(label)
-            if let key, let at = out.firstIndex(where: { Self.mergeKey($0.label) == key }) {
+            // 一般的 → 口語 → より詳しい → 学術的 → 固有名詞, a register on every name (the server orders them too; this
+            // keeps the list right with an older answer). Same register keeps the AI's order (likelihood).
+            let words = NameRegister.finalized(o.words)
+            let choices = words.map { Choice(word: $0, object: o) }
+            guard !choices.isEmpty else { continue }
+            let tag = Self.tagLabel(words)
+            let key = tag.isName ? Self.mergeKey(tag.text) : nil
+            if let key, let at = out.firstIndex(where: { $0.nameKey == key }) {
                 let had = out[at]
                 let added = choices.filter { c in !had.choices.contains { $0.word.headword == c.word.headword } }
                 out[at] = Tag(id: had.id, object: had.object, choices: Self.ordered(had.choices + added),
-                              label: had.label, mainIndex: had.mainIndex)
+                              label: had.label, nameKey: had.nameKey, mainIndex: had.mainIndex)
                 continue
             }
-            out.append(Tag(id: "\(o.id)", object: o, choices: choices,
-                           label: label.isEmpty ? main.word.headword : label, mainIndex: out.count))
+            out.append(Tag(id: "\(o.id)", object: o, choices: choices, label: tag.text, nameKey: key, mainIndex: out.count))
         }
         return out
     }
@@ -275,17 +280,41 @@ struct CandidatePickerView: View {
     /// Everyday names before the others; within a register the order they came in.
     private static func ordered(_ list: [Choice]) -> [Choice] {
         list.indices.sorted { a, b in
-            let ra = rank(list[a].word.register), rb = rank(list[b].word.register)
+            let ra = NameRegister.of(list[a].word).rank, rb = NameRegister.of(list[b].word).rank
             return ra != rb ? ra < rb : a < b
         }.map { list[$0] }
     }
 
-    /// The thing's name in the reader's language: the short meaning the server wrote in it (empty when it came back
-    /// in another language — `ReaderLanguage.shown` drops it, and the tag shows the headword).
+    /// The tag on a thing (owner 2026-10-15): the most general everyday name, in the reader's language — the server's
+    /// `object_label` (server #184, 下着 for boxer briefs), else the first gloss of the meaning of the thing's common
+    /// name (`NameRegister.finalized` puts it first: 內褲 → 「下着」); never 「ボクサーパンツ」 (a more specific name's
+    /// meaning) and never the learning-language word itself. With neither in the reader's language, the thing's
+    /// category in it (服), which is never merged with another tag.
+    static func tagLabel(_ words: [Candidate]) -> (text: String, isName: Bool) {
+        guard let main = words.first else { return ("", false) }
+        let label = ReaderLanguage.shown(main.objectLabel, words.lazy.map(\.objectLabel).first { !$0.isEmpty })
+        if !label.isEmpty { return (ReaderLanguage.gloss(label, limit: L10n.lang == "en" ? 24 : 12), true) }
+        let name = readerName(main)
+        if !name.isEmpty { return (name, true) }
+        let category = main.categoryKey ?? words.lazy.compactMap(\.categoryKey).first
+        return (Category.label(for: category), false)
+    }
+
+    /// The thing's name in the reader's language: the first gloss of the meaning the server wrote in it (下着（パンツ類）
+    /// → 下着; empty when it came back in another language — `ReaderLanguage.shown` drops it).
     private static func readerName(_ c: Candidate) -> String {
         let meaning = ReaderLanguage.shown(c.meaningJa)
         guard !meaning.isEmpty else { return "" }
-        return ReaderLanguage.gloss(meaning, limit: L10n.lang == "en" ? 24 : 12)
+        return ReaderLanguage.gloss(firstGloss(meaning), limit: L10n.lang == "en" ? 24 : 12)
+    }
+
+    /// The first of the meanings listed in `meaning` (「下着、パンツ」 → 下着, "underwear; briefs" → underwear), never
+    /// cut inside a word (ボクサー・パンツ stays whole).
+    static func firstGloss(_ meaning: String) -> String {
+        let separators: Set<Character> = ["、", "，", ",", "；", ";", "／", "/", "（", "(", "。", "：", ":", "\n"]
+        let first = meaning.split(whereSeparator: { separators.contains($0) }).first
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
+        return first.isEmpty ? meaning.trimmingCharacters(in: .whitespacesAndNewlines) : first
     }
 
     /// Names that are the same thing to the reader (case and spaces aside); nil = never merged.
@@ -443,6 +472,17 @@ struct CandidatePickerView: View {
         vm.choose(c.word, object: c.object, stage: (origin: now, handoffAt: now + Film6.handoff))
     }
 
+    /// A word typed at the bottom of the choose screen (owner 2026-10-15: in the display language or the learning
+    /// language): the same lookup as 「違う単語を入力」 (`suggestWordCandidates`). The choose screen goes back to the
+    /// photo; one word found goes straight on with the tapped thing's cut-out, several are listed under the photo.
+    private func searchFromChoices(_ text: String) {
+        let q = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty, !vm.isLookingUp, let f = flow, f.chosenAt == nil, f.closingAt == nil else { return }
+        let object = f.tag.choices.first?.object
+        closeChoices()
+        vm.search(text: q, object: object)
+    }
+
     /// × : back to the tags (the photo comes back, the sticker goes).
     private func closeChoices() {
         guard var f = flow, f.chosenAt == nil, f.closingAt == nil else { return }
@@ -463,6 +503,18 @@ struct CandidatePickerView: View {
     /// way is chosen (blue outline, the card folds away, the sticker glides on), then it starts again.
     private func openForPreview() async {
         guard autoOpen else { return }
+        if holdOpen {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard flow == nil, stageFrame.width > 0, let t = tags(objects).first(where: { $0.choices.count > 1 }) else { continue }
+                open(t)
+                // The card's rows and the field have come in (film: 0.6–1.1 s after the tap).
+                try? await Task.sleep(for: .seconds(1.6))
+                UIReady.mark("preview")
+                return
+            }
+            return
+        }
         var marked = false
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(100))
@@ -481,28 +533,6 @@ struct CandidatePickerView: View {
             melt = false
             vm.backToCandidates()
             try? await Task.sleep(for: .milliseconds(400))
-        }
-    }
-
-    /// What kind of word it is (candidate-order.ts registers). The first everyday name is the one people say most.
-    static func registerLabel(_ register: String?, first: Bool) -> String {
-        switch register {
-        // Short and telling apart at a glance (owner 2026-10-14: 「日本語を洗練させた言い方を考えて。分かりやすく
-        // ユーザーが区別できるようにして」): what kind of word it is, then in brackets when you would use it.
-        case "casual": L("口語（くだけた言い方）")
-        case "specific": L("正式名（くわしい・専門的）")
-        case "proper": L("固有名（商品名・店名）")
-        default: first ? L("定番（いちばんよく使う）") : L("よく使う別の言い方")
-        }
-    }
-
-    /// ふだん → 砕けた → くわしい → 固有名詞 (candidate-order.ts).
-    private static func rank(_ register: String?) -> Int {
-        switch register {
-        case "casual": 1
-        case "specific": 2
-        case "proper": 3
-        default: 0
         }
     }
 
@@ -530,9 +560,11 @@ struct CandidatePickerView: View {
     private var typedList: some View {
         VStack(spacing: 0) {
             ForEach(Array(vm.typedCandidates.enumerated()), id: \.offset) { idx, c in
-                Button { vm.choose(c, object: nil) } label: {
+                Button { vm.choose(c, object: vm.searchObject, typed: true) } label: {
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 2) {
+                            // What kind of name it is, on every row (owner 2026-10-15).
+                            RegisterTag(register: NameRegister.of(c))
                             ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: 20, pinyin: c.pinyin)
                             Text(ReaderLanguage.gloss(ReaderLanguage.shown(c.meaningJa)))
                                 .scaledFont(size: 12)
@@ -610,6 +642,23 @@ struct CandidatePickerView: View {
         inputFocused = false
         typed = ""
         vm.search(text: q)
+    }
+}
+
+/// What kind of name a candidate is (`NameRegister`), the small grey label over each way to say it in the lists.
+struct RegisterTag: View {
+    let register: NameRegister
+    var size: CGFloat = 10.5
+
+    var body: some View {
+        Text(register.label)
+            .scaledFont(size: size, weight: .semibold)
+            .foregroundStyle(register == .common ? Color(hex: 0x1F6FD1) : Color(hex: 0x5C646F))
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(register == .common ? Color(hex: 0x2A9BFF).opacity(0.12) : Color(hex: 0xEEF1F5), in: Capsule())
+            .accessibilityIdentifier("register.\(register.rawValue)")
     }
 }
 
