@@ -1115,6 +1115,7 @@ struct WordDetailView: View {
 
     private func relatedCard(_ items: [RelatedWord]) -> some View {
         let groups: [(String, String)] = [("syn", L("類義語")), ("ant", L("反義語")), ("rel", L("関連語"))]
+        let diff = (extras?.synonymDiff ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return SectionCard(title: L("類義語・反義語・関連語"), icon: "point.3.connected.trianglepath.dotted") {
             VStack(alignment: .leading, spacing: 16) {
                 ForEach(groups, id: \.0) { kind, label in
@@ -1136,6 +1137,10 @@ struct WordDetailView: View {
                             }
                         }
                     }
+                }
+                // How the near-synonyms differ: it made the section count as filled but was never drawn.
+                if !diff.isEmpty {
+                    SentenceRows(text: diff, color: Theme.muted)
                 }
             }
         }
@@ -1203,7 +1208,7 @@ struct WordDetailView: View {
                     }
                 }
                 if let n = c?.note, !n.isEmpty {
-                    Text(n).scaledFont(size: 15).foregroundStyle(Theme.muted).lineSpacing(4)
+                    SentenceRows(text: n, color: Theme.muted)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1252,7 +1257,7 @@ struct WordDetailView: View {
                     PronounceCircle(text: headword, size: 40)
                 }
                 if let n = st?.note, !n.isEmpty {
-                    Text(n).scaledFont(size: 15).foregroundStyle(Theme.muted).lineSpacing(4)
+                    SentenceRows(text: n, color: Theme.muted)
                 }
             }
         }
@@ -1337,51 +1342,16 @@ struct WordDetailView: View {
         }
     }
 
-    /// 発音のコツ・語源と部首・覚え方・台湾メモ: one sentence per line with a thin line under each, instead of one
-    /// block of prose (owner 2026-10-14: 「読みやすいように文の下に線に書いて」).
+    /// 発音のコツ・語源と部首・覚え方・台湾メモ and the other prose sections: one sentence per row with a thin line
+    /// under each, instead of one block of prose (owner 2026-10-14: 「読みやすいように文の下に線に書いて」).
     private func textCard(_ title: String, icon: String, _ body: String) -> some View {
-        let lines = Self.sentences(body)
-        return SectionCard(title: title, icon: icon) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                    Text(line)
-                        .scaledFont(size: 15)
-                        .foregroundStyle(Theme.foreground.opacity(0.9))
-                        .lineSpacing(5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                        .overlay(alignment: .bottom) {
-                            Rectangle().fill(Theme.border).frame(height: 1)
-                        }
-                }
-            }
+        SectionCard(title: title, icon: icon) {
+            SentenceRows(text: body)
         }
     }
 
-    /// Splits prose into sentences (after 。！？!? and line breaks; a period followed by a space for English),
-    /// keeping each sentence's own mark.
-    static func sentences(_ text: String) -> [String] {
-        var out: [String] = []
-        var current = ""
-        let chars = Array(text)
-        for (i, ch) in chars.enumerated() {
-            if ch == "\n" {
-                out.append(current)
-                current = ""
-                continue
-            }
-            current.append(ch)
-            let next = i + 1 < chars.count ? chars[i + 1] : " "
-            let ends = "。！？!?".contains(ch) || (ch == "." && next == " ")
-            // A closing quote or bracket stays with its sentence (「…。」).
-            if ends, !"」』）)\"'".contains(next) {
-                out.append(current)
-                current = ""
-            }
-        }
-        out.append(current)
-        return out.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-    }
+    /// Prose cut into sentences (`Sentences.split`, Utilities/Sentences.swift).
+    static func sentences(_ text: String) -> [String] { Sentences.split(text) }
 
     /// The language whose sites the links open. Old rows have no `language`: then the headword's script
     /// decides (kana → ja, Han → zh-TW, Latin → en), so a Mandarin word never opens English dictionaries
@@ -1714,6 +1684,36 @@ extension EnvironmentValues {
 }
 
 /// White section card with a blue round icon and title (card-sections + section-icon.ts).
+/// Explanatory prose, one sentence per row with a hairline under each (`Sentences.split`). Each row may break between
+/// any two Japanese / Chinese characters (`Sentences.wrappable`), so a line fills the card's width instead of moving a
+/// whole word down early. VoiceOver reads the sentence as written.
+struct SentenceRows: View {
+    let text: String
+    var size: CGFloat = 15
+    var color: Color = Theme.foreground.opacity(0.9)
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        let lines = Sentences.split(text)
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                Text(Sentences.wrappable(line))
+                    .scaledFont(size: size)
+                    .foregroundStyle(color)
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 10)
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(Theme.border).frame(height: max(1 / displayScale, 0.5))
+                    }
+                    .accessibilityLabel(line)
+                    .accessibilityIdentifier("sentence.row")
+            }
+        }
+    }
+}
+
 struct SectionCard<Content: View>: View {
     let title: String
     let icon: String

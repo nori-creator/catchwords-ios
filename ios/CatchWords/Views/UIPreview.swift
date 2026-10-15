@@ -86,6 +86,7 @@ struct UIPreviewRoot: View {
             case "memorial": MemorialPreview()
             case "carousel": CarouselPreview()
             case "detail": DetailPreview()
+            case "tips": TipsPreview()
             case "webimg": WebImagesPreview()
             case "chunks": ChunkWheelPreview()
             case "jadetail": LanguageCardPreview(kind: .ja)
@@ -558,12 +559,34 @@ private struct DetailPreview: View {
         }
     }
 
-    private static var sticker: Sticker {
+    /// The prose sections (発音のコツ・語源・覚え方・台湾メモ and the synonyms' difference), several sentences each — the
+    /// first is the owner's sentence that broke early on an iPad (2026-10-15), drawn one sentence per row.
+    private static var prose: [String: String] {
+        switch L10n.lang {
+        case "en":
+            return ["pronunciation_tips": "Say 鐵 in the third tone, low and dipping. However, in Taiwan, take care to keep each tone clear. The last syllable 麵 falls sharply!",
+                    "etymology": "鐵 means iron (e.g. an iron plate). 板 is a board, and 麵 is noodles.",
+                    "mnemonic": "Think of noodles sizzling on an iron board. The sound \"tiě\" is like a hot pan's hiss.",
+                    "taiwan_note": "A breakfast-shop classic in Taiwan. Ask for black-pepper or mushroom sauce, and an egg on top.",
+                    "synonym_diff": "炒麵 is fried in a wok. 鐵板麵 comes on a hot iron plate with sauce poured over."]
+        case "zh-TW":
+            return ["pronunciation_tips": "「鐵」是三聲，先降再升。不過，在台灣要特別注意把每個聲調唸清楚。最後的「麵」是四聲，要往下降！",
+                    "etymology": "「鐵」是金屬（例如：鐵板）。「板」是平板，「麵」是麵條。",
+                    "mnemonic": "想像麵在熱鐵板上滋滋作響。「鐵」的聲音像熱鍋的聲音。",
+                    "taiwan_note": "台灣早餐店的經典。可以選黑胡椒醬或蘑菇醬，再加一顆蛋。",
+                    "synonym_diff": "炒麵是在鍋裡炒的。鐵板麵是放在熱鐵板上，再淋上醬汁。"]
+        default:
+            return ["pronunciation_tips": "「鐵」は3声で、低く下げてから上げます。ただし、台湾では声調をしっかりと意識しましょう。最後の「麵」は4声で、すとんと下げます！",
+                    "etymology": "「鐵」は鉄（例：鉄板）のことです。「板」は板、「麵」は麺を表します。",
+                    "mnemonic": "熱い鉄板の上で麺がジュウジュウ鳴る様子を思い浮かべましょう。「tiě」の音は鉄板の音に似ています。",
+                    "taiwan_note": "台湾の朝食店の定番です。黒胡椒ソースかマッシュルームソースを選び、目玉焼きをのせることもできます。",
+                    "synonym_diff": "炒麵は中華鍋で炒めた麺です。鐵板麵は熱い鉄板にのせて、上からソースをかけます。"]
+        }
+    }
+
+    private static func sticker(withProse: Bool) -> Sticker {
         let n = notes
-        let obj: [String: Any] = [
-            "id": "w-teppan", "headword": "鐵板麵", "language": "zh-TW", "reading_zhuyin": "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ", "meaning_ja": n.meaning,
-            "part_of_speech": "名詞", "example_sentence": "早餐我想吃鐵板麵。", "example_translation": n.translation,
-            "extras": [
+        var extras: [String: Any] = [
                 "explain_lang": L10n.lang,
                 "usage_chunks": [
                     ["parts": [["text": "蘑菇", "pos": "N"], ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[0]],
@@ -575,7 +598,12 @@ private struct DetailPreview: View {
                     ["word": "炒麵", "kind": "syn", "reading": "ㄔㄠˇ ㄇㄧㄢˋ", "note": n.related[0]],
                     ["word": "義大利麵", "kind": "rel", "reading": "ㄧˋ ㄉㄚˋ ㄌㄧˋ ㄇㄧㄢˋ", "note": n.related[1]],
                 ],
-            ] as [String: Any],
+        ]
+        if withProse { for (k, v) in prose { extras[k] = v } }
+        let obj: [String: Any] = [
+            "id": "w-teppan", "headword": "鐵板麵", "language": "zh-TW", "reading_zhuyin": "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ", "meaning_ja": n.meaning,
+            "part_of_speech": "名詞", "example_sentence": "早餐我想吃鐵板麵。", "example_translation": n.translation,
+            "extras": extras,
         ]
         let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
         // Through the same reader-language filter as real cards.
@@ -586,12 +614,26 @@ private struct DetailPreview: View {
     }
 
     var focus: CardSection = .usageChunks
+    var withProse: Bool = false
 
     var body: some View {
-        WordDetailView(sticker: Self.sticker, previewFocus: focus)
+        WordDetailView(sticker: Self.sticker(withProse: withProse), previewFocus: focus)
     }
 
-    static var previewSticker: Sticker { sticker }
+    static var previewSticker: Sticker { sticker(withProse: false) }
+}
+
+/// The word page's prose sections one sentence per row, a hairline under each (`-uiPreview tips`), scrolled to
+/// 発音のコツ. The sections are switched on for this word's language first (they are hidden on a new card).
+private struct TipsPreview: View {
+    init() {
+        CardPrefsStore.shared.use("zh-TW")
+        for s in [CardSection.pronunciationTips, .etymology, .mnemonic, .taiwanNote] { CardPrefsStore.shared.setVisible(s, true) }
+    }
+
+    var body: some View {
+        DetailPreview(focus: .pronunciationTips, withProse: true)
+    }
 }
 
 /// ネットの画像 with three stand-in pictures (no network in CI): the section shows once pictures arrive.
