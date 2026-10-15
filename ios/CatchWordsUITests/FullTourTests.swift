@@ -47,6 +47,7 @@ final class FullTourTests: XCTestCase {
 
         dexAndDetail()
         photoAndCatch()
+        photoAndCatch(pick: 1, expectAgain: true)
         review()
         settings()
         signOutAndBackIn()
@@ -135,26 +136,29 @@ final class FullTourTests: XCTestCase {
     /// The camera only takes photos. Under `-uiDemo` the simulator has no camera: the viewfinder shows a
     /// sample photo, the shutter takes it and the demo backend names what is in it. Shutter → the words on
     /// the photo → tap the first → the celebration → 図鑑に追加 → the dex.
-    private func photoAndCatch() {
+    /// `pick`: which object's word to tap. `expectAgain`: that word is in the dex already (the demo's photo names one
+    /// word the learner owns, `candidate.1`): it must be a re-encounter — its GET moment, then its own square.
+    private func photoAndCatch(pick: Int = 0, expectAgain: Bool = false) {
+        let p = expectAgain ? "again-" : ""
         tap("tab.camera")
         settle(2)
-        snap("camera")
+        snap(p + "camera")
         let shutter = app.buttons["camera.shutter"]
         guard shutter.waitForExistence(timeout: 10), shutter.isEnabled else {
             XCTFail("[\(display)/\(learning)] the shutter is missing or disabled")
             return
         }
         shutter.tap()
-        let first = app.buttons["candidate.0"].firstMatch
+        let first = app.buttons["candidate.\(pick)"].firstMatch
         guard first.waitForExistence(timeout: 30) else {
             XCTFail("[\(display)/\(learning)] the words did not appear on the photo")
-            snap("analysis-failed")
+            snap(p + "analysis-failed")
             return
         }
         settle(1.5)
-        snap("candidates")
+        snap(p + "candidates")
         // What the tap aimed at, for the failure message below (CI keeps no other log of the screen).
-        let aimed = first.exists ? "candidate.0 hittable \(first.isHittable), frame \(first.frame)" : "candidate.0 gone"
+        let aimed = first.exists ? "candidate.\(pick) hittable \(first.isHittable), frame \(first.frame)" : "candidate.\(pick) gone"
         let tappedAt = Self.clock.string(from: Date())
         first.tap()
         // A thing with several ways to say it lists them first (outside the first tour): take the everyday one once
@@ -162,7 +166,7 @@ final class FullTourTests: XCTestCase {
         let everyday = app.buttons["variant.0"]
         if everyday.waitForExistence(timeout: 3) {
             settle(1.2)
-            snap("variants")
+            snap(p + "variants")
             everyday.tap()
         }
         let catchButton = app.buttons["card.catch"]
@@ -176,7 +180,7 @@ final class FullTourTests: XCTestCase {
             let buttons = app.buttons.allElementsBoundByIndex.prefix(12).map { b in
                 "\(b.identifier.isEmpty ? b.label : b.identifier)@\(Int(b.frame.midX)),\(Int(b.frame.midY))"
             }
-            snap("pick-failed")
+            snap(p + "pick-failed")
             // Diagnosis only — the tour has failed either way: does a second tap on the same word open it? That tells
             // a tap the words screen never took from a screen that stopped answering. The app's own trace of both taps
             // (where each touch landed, which gestures took it) is trace.txt next to the screenshots.
@@ -195,7 +199,7 @@ final class FullTourTests: XCTestCase {
             // already there: it gets the re-encounter's mark, never the NEW badge (the word was caught before).
             if again.exists {
                 settle(1)
-                snap("reencounter")
+                snap(p + "reencounter")
                 // It goes into the dex by itself ~3 s after the choice; only a held moment (the first tour) is tapped.
                 if !waitGone(again, timeout: 8), again.exists { again.tap() }
             }
@@ -203,26 +207,29 @@ final class FullTourTests: XCTestCase {
                           "[\(display)/\(learning)] the re-encounter did not land on its word's square in the dex")
             XCTAssertFalse(landed.exists, "[\(display)/\(learning)] a re-encounter showed the NEW badge")
             settle(2)
-            snap("dex-after-reencounter")
+            snap(p + "dex-after-reencounter")
             return
+        }
+        if expectAgain {
+            XCTFail("[\(display)/\(learning)] a word already in the dex was caught as a new word (no re-encounter)")
         }
         if landed.exists && !catchButton.exists && !again.exists {
             // The GET moment was over (it went into the dex by itself) before the test looked: the word is in the dex.
-            snap("after-catch")
+            snap(p + "after-catch")
             settle(3)
-            snap("dex-after-catch")
+            snap(p + "dex-after-catch")
             return
         }
         // The GET moment goes into the dex by itself 3 s after the choice (its full-screen card.catch, a skip, goes
         // with it): wait for that rather than racing it with a tap. In the first tour it holds and card.catch is its
         // 図鑑に追加 button, which stays: tap that.
         settle(1)
-        snap("celebration")
+        snap(p + "celebration")
         if !waitGone(catchButton, timeout: 8), catchButton.exists { catchButton.tap() }
         settle(4)
-        snap("after-catch")
+        snap(p + "after-catch")
         settle(4)
-        snap("dex-after-catch")
+        snap(p + "dex-after-catch")
     }
 
     private func review() {
