@@ -269,10 +269,10 @@ struct CandidatePickerView: View {
                 let had = out[at]
                 let added = choices.filter { c in !had.choices.contains { $0.word.headword == c.word.headword } }
                 out[at] = Tag(id: had.id, object: had.object, choices: Self.ordered(had.choices + added),
-                              label: had.label, mainIndex: had.mainIndex, nameKey: had.nameKey)
+                              label: had.label, nameKey: had.nameKey, mainIndex: had.mainIndex)
                 continue
             }
-            out.append(Tag(id: "\(o.id)", object: o, choices: choices, label: tag.text, mainIndex: out.count, nameKey: key))
+            out.append(Tag(id: "\(o.id)", object: o, choices: choices, label: tag.text, nameKey: key, mainIndex: out.count))
         }
         return out
     }
