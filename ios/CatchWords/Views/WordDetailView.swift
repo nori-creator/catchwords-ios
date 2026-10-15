@@ -30,9 +30,13 @@ struct WordDetailView: View {
     /// The cut-out's width ÷ height once it is drawn: the hero takes the cut-out's own shape (no empty box above
     /// and below it, owner 2026-10-11: 「単語の詳細のページの上の余白なくして」).
     @State private var cutoutRatio: CGFloat?
-    /// The original photo (or, from the selfie side, the selfie), full screen: the 「元の写真」 button on the picture.
+    /// The original photo, full screen: the photo side's 「元の写真」 button, or a tap on a picture without a selfie.
     @State private var showingOriginal: Bool = false
-    @State private var viewingSelfie: Bool = false
+    /// The selfie side shows the selfie as it was taken instead of its cut-out (its 「元の写真」 button).
+    @State private var selfieOriginal: Bool = false
+    /// The selfie's and its cut-out's width ÷ height once drawn (the selfie is shown whole, at its own shape).
+    @State private var selfieRatio: CGFloat?
+    @State private var selfieCutRatio: CGFloat?
     @State private var pickingHero: Bool = false
     @State private var refreshing: Set<CardSection> = []
     @State private var editingCaption: Bool = false
@@ -47,9 +51,19 @@ struct WordDetailView: View {
     /// A report or 「作り直す」 without the AI consent: the consent sheet instead (nothing is sent).
     @State private var askAIConsent: Bool = false
     @State private var isReplacing: Bool = false
-    /// Photos of this word from later encounters, paged in the hero by swiping (page 0 = the main picture).
+    /// Photos of this word from later encounters (the server's list, used when the dex has none of its re-encounters),
+    /// paged in the hero by swiping and by the slideshow (page 0 = the main picture).
     @State private var laterPhotos: [StickerPhoto] = []
     @State private var heroPage: Int = 0
+    /// Later pictures' cut-outs' width ÷ height once drawn, by id.
+    @State private var laterRatios: [String: CGFloat] = [:]
+    /// A finger is on the hero or swiping it (the slideshow waits; a swipe the scroll view takes over resets by
+    /// itself), the hero is on screen, and which way the last slide went.
+    @State private var touching: Bool = false
+    @GestureState private var swiping: Bool = false
+    @State private var heroVisible: Bool = true
+    @State private var slideForward: Bool = true
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appReduceMotion) private var reduceMotion
 
     /// The word as the dex has it now. A page opened on a catch still being saved (owner 2026-10-11: 「キャッチしたての
@@ -380,7 +394,7 @@ struct WordDetailView: View {
         return ReaderLanguage.looksWrong(pos, reader: L10n.lang) || japaneseOnOtherScreen ? "" : pos
     }
 
-    // MARK: - Photo hero (flips to the selfie like a card)
+    // MARK: - Photo hero (flips to the selfie like a card; slides through the word's photos)
 
     private var frontPath: String? {
         showCutout ? (current.cutoutImageUrl ?? current.objectImageUrl ?? current.placeholderImageUrl)
@@ -388,94 +402,187 @@ struct WordDetailView: View {
     }
     private var hasSelfie: Bool { current.selfieImageUrl != nil }
 
-    /// The hero, plus the photos from later encounters to swipe through.
-    private var photoHero: some View {
-        heroFace
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 24)
-                    .onEnded { v in
-                        guard !laterPhotos.isEmpty, !showSelfie,
-                              abs(v.translation.width) > abs(v.translation.height) * 1.4 else { return }
-                        let next = v.translation.width < -50 ? heroPage + 1 : v.translation.width > 50 ? heroPage - 1 : heroPage
-                        let clamped = min(max(next, 0), laterPhotos.count)
-                        guard clamped != heroPage else { return }
-                        Haptics.selection()
-                        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 0.86)) { heroPage = clamped }
-                    }
-            )
-            .overlay(alignment: .bottom) {
-                if !laterPhotos.isEmpty, !showSelfie {
-                    HStack(spacing: 6) {
-                        ForEach(0...laterPhotos.count, id: \.self) { i in
-                            Capsule().fill(.white.opacity(i == heroPage ? 1 : 0.5))
-                                .frame(width: i == heroPage ? 18 : 7, height: 7)
-                        }
-                    }
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(.black.opacity(0.35), in: Capsule())
-                    .padding(.bottom, 14)
-                    .animation(.snappy, value: heroPage)
-                    .accessibilityHidden(true)
-                }
-            }
-            .accessibilityAdjustableAction { dir in
-                guard !laterPhotos.isEmpty else { return }
-                switch dir {
-                case .increment: heroPage = min(heroPage + 1, laterPhotos.count)
-                case .decrement: heroPage = max(heroPage - 1, 0)
-                @unknown default: break
-                }
-            }
-            // Keyed on the photo too: a replaced photo reloads the list while the page is open. A catch still being
-            // saved has no photos on the server yet (the list is read once it is saved).
-            .task(id: "\(current.id)|\(current.objectImageUrl ?? "")") {
-                guard !isProvisional else { return }
-                let all = await StickerPhoto.load(stickerId: current.id)
-                laterPhotos = all.filter { !$0.first }
-                heroPage = 0
-            }
+    /// A later encounter's picture in the hero: the re-encounter's cut-out where it saved one, else its photo — shown
+    /// like the first one (owner 2026-10-15: the second and later photos were not cut-outs). Read from the dex's
+    /// re-encounters (with their cut-outs); a server without them falls back to the photo list (`listStickerPhotos`,
+    /// photos only).
+    private struct LaterPhoto: Identifiable, Equatable {
+        let id: String
+        /// The storage path (signed by the dex); nil = only a signed link from the photo list.
+        let path: String?
+        let link: String?
+        let isCutout: Bool
+        let takenAt: Date?
+        let place: String?
     }
 
-    /// A later encounter's photo in the hero, with when and where it was taken.
-    private func laterFace(_ p: StickerPhoto, number: Int) -> some View {
-        Theme.surface2  // photo placeholder (was a fixed light grey, glaring in dark mode)
-            .aspectRatio(0.8, contentMode: .fit)
-            .overlay {
-                AsyncImage(url: URL(string: p.url)) { phase in
-                    if let img = phase.image { img.resizable().scaledToFill() } else { ProgressView() }
-                }
-                .allowsHitTesting(false)
+    private var laterFaces: [LaterPhoto] {
+        let met = dex.encounterEntries.filter { $0.stickerId == current.id }.sorted { $0.at < $1.at }
+        if !met.isEmpty {
+            return met.map { e in
+                LaterPhoto(id: e.id, path: e.cutout ?? e.image, link: nil, isCutout: e.cutout != nil, takenAt: e.at, place: e.place)
             }
-            .overlay(alignment: .topLeading) {
+        }
+        return laterPhotos.map { p in
+            LaterPhoto(id: p.id, path: nil, link: p.url, isCutout: false, takenAt: SupabaseDate.parse(p.takenAt), place: p.place)
+        }
+    }
+
+    /// Seconds each photo stays before the next slides in (owner 2026-10-15: 1枚目→2枚目→…→最後→1枚目 automatically).
+    static let slideInterval: Double = 3
+
+    /// The slideshow waits while a finger is on the photo, while the selfie or an original photo is shown, while the
+    /// photo sheet is open, while the photo is off screen and while the app is in the background.
+    private var slidePaused: Bool {
+        touching || swiping || showSelfie || selfieOriginal || showingOriginal || pickingHero || !heroVisible || scenePhase != .active
+    }
+
+    /// The hero, plus the photos from later encounters: they slide by every few seconds and can be swiped through.
+    private var photoHero: some View {
+        let later = laterFaces
+        return ZStack {
+            heroFace(later)
+                .id(heroPage)
+                .transition(slideTransition)
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 24)
+                .updating($swiping) { _, state, _ in state = true }
+                .onEnded { v in
+                    guard !later.isEmpty, !showSelfie,
+                          abs(v.translation.width) > abs(v.translation.height) * 1.4 else { return }
+                    let next = v.translation.width < -50 ? heroPage + 1 : v.translation.width > 50 ? heroPage - 1 : heroPage
+                    let clamped = min(max(next, 0), later.count)
+                    guard clamped != heroPage else { return }
+                    Haptics.selection()
+                    slide(to: clamped, forward: clamped > heroPage)
+                }
+        )
+        .overlay(alignment: .bottom) {
+            if !later.isEmpty, !showSelfie {
                 HStack(spacing: 6) {
-                    Text(L("\(number)回目"))
-                        .scaledFont(size: 12, weight: .bold)
-                    if let d = SupabaseDate.parse(p.takenAt) {
-                        Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
-                    }
-                    if let place = p.place, !place.isEmpty {
-                        Text(place).scaledFont(size: 12).lineLimit(1)
+                    ForEach(0...later.count, id: \.self) { i in
+                        Capsule().fill(.white.opacity(i == heroPage ? 1 : 0.5))
+                            .frame(width: i == heroPage ? 18 : 7, height: 7)
                     }
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(.black.opacity(0.55), in: Capsule())
-                .padding(12)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(.black.opacity(0.35), in: Capsule())
+                .padding(.bottom, 14)
+                .animation(.snappy, value: heroPage)
+                .accessibilityHidden(true)
             }
-            .clipShape(.rect(cornerRadius: 28, style: .continuous))
-            .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(L("\(number)回目に撮った写真"))
-            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+        }
+        .accessibilityAdjustableAction { dir in
+            guard !later.isEmpty else { return }
+            switch dir {
+            case .increment: heroPage = min(heroPage + 1, later.count)
+            case .decrement: heroPage = max(heroPage - 1, 0)
+            @unknown default: break
+            }
+        }
+        .onScrollVisibilityChange(threshold: 0.3) { heroVisible = $0 }
+        // Keyed on the page shown too: each photo gets its full time, also after a swipe.
+        .task(id: "\(later.count)|\(heroPage)|\(slidePaused)") { await autoSlide(count: later.count) }
+        // The selfie's cut-out (its people and what they hold) is made on this phone before the card is turned.
+        .task(id: current.selfieImageUrl ?? "") {
+            if let p = current.selfieImageUrl, !isProvisional { SelfieCutouts.shared.request(p, dex: dex) }
+        }
+        // Keyed on the photo too: a replaced photo reloads the list while the page is open. A catch still being
+        // saved has no photos on the server yet (the list is read once it is saved).
+        .task(id: "\(current.id)|\(current.objectImageUrl ?? "")") {
+            guard !isProvisional else { return }
+            let all = await StickerPhoto.load(stickerId: current.id)
+            laterPhotos = all.filter { !$0.first }
+            heroPage = 0
+        }
+    }
+
+    /// The next photo slides in from the right (from the left going back); with Reduce Motion they cross-fade.
+    private var slideTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(insertion: .move(edge: slideForward ? .trailing : .leading).combined(with: .opacity),
+                           removal: .move(edge: slideForward ? .leading : .trailing).combined(with: .opacity))
+    }
+
+    private func slide(to page: Int, forward: Bool) {
+        slideForward = forward
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.4) : .spring(response: 0.55, dampingFraction: 0.9)) { heroPage = page }
+    }
+
+    /// After `slideInterval` the next photo, the last one followed by the first again. Only with more than one photo.
+    private func autoSlide(count: Int) async {
+        guard count > 0, !slidePaused else { return }
+        try? await Task.sleep(for: .seconds(Self.slideInterval))
+        guard !Task.isCancelled, !slidePaused else { return }
+        slide(to: (heroPage + 1) % (count + 1), forward: true)
     }
 
     @ViewBuilder
-    private var heroFace: some View {
-        if heroPage > 0, let p = laterPhotos[safe: heroPage - 1] {
-            laterFace(p, number: heroPage + 1).id(p.id)
+    private func heroFace(_ later: [LaterPhoto]) -> some View {
+        if heroPage > 0, let p = later[safe: heroPage - 1] {
+            laterFace(p, number: heroPage + 1)
         } else {
             mainFace
         }
+    }
+
+    /// A later encounter's picture, shown like the first one — its cut-out standing on the page, or its photo on the
+    /// card — with when and where it was taken.
+    private func laterFace(_ p: LaterPhoto, number: Int) -> some View {
+        let url = p.path.flatMap { dex.url(for: $0, preferThumb: false) } ?? p.link.flatMap { URL(string: $0) }
+        return Group {
+            if p.isCutout {
+                Color.clear
+                    .aspectRatio(min(1.8, max(0.8, laterRatios[p.id] ?? 1)), contentMode: .fit)
+                    .overlay {
+                        StickerImage(path: p.path, url: url, contentMode: .fit, onLoad: { size in
+                            guard size.height > 0 else { return }
+                            withAnimation(.easeOut(duration: 0.2)) { laterRatios[p.id] = size.width / size.height }
+                        })
+                        .padding(14)
+                        .shadow(color: .black.opacity(0.2), radius: 10, y: 7)
+                        .allowsHitTesting(false)
+                    }
+            } else {
+                Theme.surface2  // photo placeholder (was a fixed light grey, glaring in dark mode)
+                    .aspectRatio(0.8, contentMode: .fit)
+                    .overlay {
+                        if p.path != nil {
+                            StickerImage(path: p.path, url: url, contentMode: .fill)
+                                .allowsHitTesting(false)
+                        } else {
+                            AsyncImage(url: url) { phase in
+                                if let img = phase.image { img.resizable().scaledToFill() } else { ProgressView() }
+                            }
+                            .allowsHitTesting(false)
+                        }
+                    }
+                    .clipShape(.rect(cornerRadius: 28, style: .continuous))
+                    .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            HStack(spacing: 6) {
+                Text(L("\(number)回目"))
+                    .scaledFont(size: 12, weight: .bold)
+                if let d = p.takenAt {
+                    Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
+                }
+                if let place = p.place, !place.isEmpty {
+                    Text(place).scaledFont(size: 12).lineLimit(1)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(.black.opacity(0.55), in: Capsule())
+            .padding(12)
+        }
+        .contentShape(.rect(cornerRadius: 28))
+        // A finger on the photo holds the slideshow (the long press itself does nothing here).
+        .onLongPressGesture(minimumDuration: 60, perform: {}, onPressingChanged: { pressing in touching = pressing })
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("\(number)回目に撮った写真"))
     }
 
     /// The hero's shape: a cut-out's own width ÷ height (kept between a tall 0.8 and a wide 1.8, so neither a bottle
@@ -486,25 +593,70 @@ struct WordDetailView: View {
         return min(1.8, max(0.8, known ?? 1))
     }
 
+    /// The selfie side shows the selfie's cut-out — its people and the thing they hold (`SelfieCutouts`) — once this
+    /// phone has made it, with 「元の写真」 at the top to see the selfie as it was taken (owner 2026-10-15:
+    /// 「タップしたら自撮りになり、自撮りもデフォルトでは切り抜きを表示し、右上に元の写真ボタンを表示し、元の自撮り画像を
+    /// 見えるようにする」).
+    private var selfieCutReady: Bool {
+        current.selfieImageUrl.map { SelfieCutouts.shared.state(for: $0) == .ready } ?? false
+    }
+
+    @ViewBuilder
+    private func faceBody(back: Bool) -> some View {
+        if back, let selfie = current.selfieImageUrl {
+            if selfieCutReady && !selfieOriginal {
+                Color.clear
+                    .aspectRatio(min(1.8, max(0.6, selfieCutRatio ?? 0.8)), contentMode: .fit)
+                    .overlay {
+                        SelfieCutoutImage(path: selfie) { size in
+                            guard size.height > 0 else { return }
+                            withAnimation(.easeOut(duration: 0.2)) { selfieCutRatio = size.width / size.height }
+                        }
+                        .padding(14)
+                        .shadow(color: .black.opacity(0.2), radius: 10, y: 7)
+                        .allowsHitTesting(false)
+                    }
+                    .transition(.opacity)
+            } else {
+                // The selfie as it was taken: the whole picture at its own shape, as wide as the page — never cut to
+                // the word's cut-out's shape (it was, and showed small and cropped).
+                Theme.surface2
+                    .aspectRatio(selfieRatio ?? 0.75, contentMode: .fit)
+                    .overlay {
+                        StickerImage(path: selfie, url: dex.url(for: selfie, preferThumb: false), contentMode: .fit,
+                                     onLoad: { size in
+                                         guard size.height > 0 else { return }
+                                         withAnimation(.easeOut(duration: 0.2)) { selfieRatio = size.width / size.height }
+                                     })
+                            .allowsHitTesting(false)
+                            .id(selfie)
+                    }
+                    .transition(.opacity)
+            }
+        } else {
+            let path = frontPath
+            let isCut = showCutout && path == current.cutoutImageUrl
+            // A cut-out stands on the page by itself — no grey box around it (owner 2026-10-11); a photo keeps its card.
+            (isCut ? Color.clear : Theme.surface2)
+                .aspectRatio(heroRatio(isCut: isCut, path: current.cutoutImageUrl), contentMode: .fit)
+                .overlay {
+                    StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: isCut ? .fit : .fill,
+                                 onLoad: isCut ? { size in
+                                     guard size.height > 0 else { return }
+                                     withAnimation(.easeOut(duration: 0.2)) { cutoutRatio = size.width / size.height }
+                                 } : nil)
+                        .padding(isCut ? 14 : 0)
+                        .shadow(color: .black.opacity(isCut ? 0.2 : 0), radius: 10, y: 7)
+                        .allowsHitTesting(false)
+                        .id(path)
+                }
+        }
+    }
+
     private var mainFace: some View {
         let back = showSelfie
         let path = back ? current.selfieImageUrl : frontPath
-        let isCut = !back && showCutout && path == current.cutoutImageUrl
-        // A cut-out stands on the page by itself — no grey box around it (owner 2026-10-11); a photo keeps its card.
-        return (isCut ? Color.clear : Theme.surface2)
-            .aspectRatio(heroRatio(isCut: isCut || (back && current.cutoutImageUrl != nil && showCutout), path: current.cutoutImageUrl),
-                         contentMode: .fit)
-            .overlay {
-                StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: isCut ? .fit : .fill,
-                             onLoad: isCut ? { size in
-                                 guard size.height > 0 else { return }
-                                 withAnimation(.easeOut(duration: 0.2)) { cutoutRatio = size.width / size.height }
-                             } : nil)
-                    .padding(isCut ? 14 : 0)
-                    .shadow(color: .black.opacity(isCut ? 0.2 : 0), radius: 10, y: 7)
-                    .allowsHitTesting(false)
-                    .id(path)
-            }
+        return faceBody(back: back)
             .overlay(alignment: .bottomTrailing) {
                 // With a selfie, a tap anywhere on the picture turns the card (photo ⇄ selfie), as the hint says
                 // (owner 2026-10-14: 「タップすると自撮りへと書いてるのに元の画像が見える。2つを両立させて」); the
@@ -521,26 +673,21 @@ struct WordDetailView: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                // Full screen: the original photo from the photo side, the selfie from the selfie side.
-                if hasSelfie, back ? current.selfieImageUrl != nil : originalPath != nil {
-                    Button {
-                        Haptics.selection()
-                        viewingSelfie = back
-                        showingOriginal = true
-                    } label: {
-                        Label(back ? L("大きく見る") : L("元の写真"), systemImage: "arrow.up.left.and.arrow.down.right")
-                            .scaledFont(size: 12, weight: .semibold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(.black.opacity(0.55), in: Capsule())
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
+                if back {
+                    // The selfie's own 「元の写真」: the selfie as it was taken, in place; again (切り抜き) back to the
+                    // cut-out. Only when there is a cut-out to go back to (「大きく見る」 is gone).
+                    if selfieCutReady {
+                        heroButton(selfieOriginal ? L("切り抜き") : L("元の写真"),
+                                   icon: selfieOriginal ? "chevron.backward" : "arrow.up.left.and.arrow.down.right",
+                                   id: "detail.selfieOriginal") {
+                            withAnimation(.easeInOut(duration: 0.25)) { selfieOriginal.toggle() }
+                        }
                     }
-                    .buttonStyle(PressableStyle(scale: 0.94))
-                    .padding(.horizontal, 12)
-                    .padding(.top, 2)
-                    .accessibilityIdentifier("detail.viewOriginal")
+                } else if hasSelfie, originalPath != nil {
+                    // The photo side's original photo, full screen.
+                    heroButton(L("元の写真"), icon: "arrow.up.left.and.arrow.down.right", id: "detail.viewOriginal") {
+                        showingOriginal = true
+                    }
                 }
             }
             .overlay(alignment: .bottomLeading) {
@@ -570,26 +717,50 @@ struct WordDetailView: View {
                     flip()
                 } else if originalPath != nil {
                     Haptics.selection()
-                    viewingSelfie = false
                     showingOriginal = true
                 }
             }
             .fullScreenCover(isPresented: $showingOriginal) {
-                let shown = viewingSelfie ? current.selfieImageUrl : originalPath
-                OriginalPhotoViewer(path: shown, url: dex.url(for: shown, preferThumb: false))
+                OriginalPhotoViewer(path: originalPath, url: dex.url(for: originalPath, preferThumb: false))
             }
             // 長押し: この単語をどの絵で見せるか選ぶ（Web HeroPhotoPicker）。 Not while the catch is still being saved.
-            .onLongPressGesture(minimumDuration: 0.45) {
+            // A finger on the photo also holds the slideshow.
+            .onLongPressGesture(minimumDuration: 0.45, perform: {
                 guard !isProvisional else { return }
                 Haptics.impact(.medium)
                 pickingHero = true
-            }
+            }, onPressingChanged: { pressing in touching = pressing })
             .accessibilityAction(named: L("表示する写真を選ぶ")) { if !isProvisional { pickingHero = true } }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(back ? L("自撮り写真") : L("写真"))
             .accessibilityAction(named: L("元の写真を見る")) {
-                if originalPath != nil { viewingSelfie = false; showingOriginal = true }
+                if back, selfieCutReady {
+                    selfieOriginal = true
+                } else if originalPath != nil {
+                    showingOriginal = true
+                }
             }
+    }
+
+    /// A small dark capsule button on the picture (top right).
+    private func heroButton(_ title: String, icon: String, id: String, action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.selection()
+            action()
+        } label: {
+            Label(title, systemImage: icon)
+                .scaledFont(size: 12, weight: .semibold)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(.black.opacity(0.55), in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle(scale: 0.94))
+        .padding(.horizontal, 12)
+        .padding(.top, 2)
+        .accessibilityIdentifier(id)
     }
 
     /// The photo as it was taken (not the cut-out); a word with no photo of its own shows its stand-in.
@@ -617,17 +788,22 @@ struct WordDetailView: View {
         }
     }
 
-    /// Half-turn with the image swapped at 90° so the selfie reads as the card's back side.
+    /// Half-turn with the image swapped at 90° so the selfie reads as the card's back side. The selfie side always
+    /// opens on its cut-out.
     private func flip() {
         guard hasSelfie else { return }
         Haptics.impact(.light)
         if reduceMotion {
-            withAnimation(.easeInOut(duration: 0.2)) { showSelfie.toggle() }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showSelfie.toggle()
+                selfieOriginal = false
+            }
             return
         }
         let target: Double = showSelfie ? 0 : 180
         withAnimation(.easeIn(duration: 0.16)) { flipAngle = 90 } completion: {
             showSelfie.toggle()
+            selfieOriginal = false
             withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) { flipAngle = target }
         }
     }
@@ -1475,7 +1651,42 @@ struct WordDetailView: View {
 
 }
 
-/// The section's 「作り直す」 button (set by the word page; the links card has none).
+/// A selfie's cut-out — its people and the thing they hold — made on this phone (`SelfieCutouts`, kept in the image
+/// cache only). A cut-out the system emptied from the cache is made again.
+struct SelfieCutoutImage: View {
+    let path: String
+    var onLoad: ((CGSize) -> Void)? = nil
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .transition(.opacity)
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: path) {
+            let key = SelfieCutouts.key(for: path)
+            if let hit = ImageCache.shared.image(for: key) {
+                image = hit
+                onLoad?(hit.size)
+                return
+            }
+            if let kept = await ImageCache.shared.cached(for: key) {
+                withAnimation(.easeOut(duration: 0.25)) { image = kept }
+                onLoad?(kept.size)
+            } else {
+                SelfieCutouts.shared.forget(path)
+            }
+        }
+    }
+}
+
 /// The original photo, full screen (a tap on the word page's picture). The ✕, a tap, or a swipe down closes it.
 struct OriginalPhotoViewer: View {
     let path: String?
@@ -1525,6 +1736,7 @@ struct OriginalPhotoViewer: View {
     }
 }
 
+/// The section's 「作り直す」 button (set by the word page; the links card has none).
 struct SectionRefresh {
     var running: Bool
     var action: () -> Void

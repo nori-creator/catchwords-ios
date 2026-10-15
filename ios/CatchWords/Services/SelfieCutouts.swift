@@ -53,6 +53,15 @@ final class SelfieCutouts {
         ready.remove(path)
     }
 
+    #if DEBUG
+    /// `-uiPreview`: a selfie's cut-out as a phone would have made it (Vision does not run on the simulator).
+    func seedForPreview(_ path: String, cutout: UIImage) {
+        ImageCache.shared.set(cutout, for: Self.key(for: path))
+        none.remove(path)
+        ready.insert(path)
+    }
+    #endif
+
     /// Signing out or the account deleted.
     func reset(deleting uid: String? = nil) {
         queue = []
