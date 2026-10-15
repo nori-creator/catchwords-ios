@@ -553,8 +553,8 @@ final class CaptureViewModel {
     /// (`DexStore.fillCard`). Nothing here is a made-up value: the empty fields are filled only from the real card.
     func provisionalDetails() -> CardDetails? {
         guard let picked else { return nil }
-        // The headword's rule first (CategoryRules): a typed word comes with no category, and the photo's quick
-        // answer can be the wrong one.
+        // The category the picked word came with (`category_key`: a photo's, and a typed word's since server #185),
+        // after the headword's rule (CategoryRules, the same as the saved entry's shelf): the quick answer can be wrong.
         let category = CategoryRules.normalize(headword: picked.headword, key: picked.categoryKey)
         return CardDetails(categoryKey: category, exampleSentence: "", exampleTranslation: "", extras: WordExtras())
     }

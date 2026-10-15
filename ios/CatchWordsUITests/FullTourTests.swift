@@ -260,11 +260,8 @@ final class FullTourTests: XCTestCase {
             return
         }
         field.tap()
-        field.typeText("pineapple")
-        settle(0.5)
-        snap("typed-input")
         // Return on the keyboard (the field's search key) sends it, wherever the keyboard leaves the button.
-        field.typeText("\n")
+        field.typeText("pineapple\n")
         let everyday = app.buttons["variant.0"]
         let catchButton = app.buttons["card.catch"]
         let landed = app.descendants(matching: .any)["dex.new"]

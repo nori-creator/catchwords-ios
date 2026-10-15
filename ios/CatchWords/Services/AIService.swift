@@ -11,8 +11,9 @@ final class AIService {
     // MARK: - Web server functions (the Lovable-decided behaviour)
 
     private struct Suggestions: Decodable { let suggestions: [Candidate] }
-    /// `suggestWordCandidates` (server #184 adds `query_lang` — learning / display — and the typed thing's `object_label`;
-    /// each candidate now carries `register`, `category_key`, `gloss` and `object_label` like a photo's).
+    /// `suggestWordCandidates` (server #185 adds `query_lang` — learning / display — and the typed thing's `object_label`;
+    /// each candidate now carries `register`, `category_key`, `gloss` and `object_label` like a photo's). The phone always
+    /// lists them to choose from, whatever `query_is_target` says, and never rewrites their meanings.
     private struct WordCandidates: Decodable {
         let candidates: [Candidate]
         let queryLang: String?

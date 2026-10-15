@@ -649,9 +649,10 @@ nonisolated struct Candidate: Codable, Sendable, Identifiable, Hashable {
     /// suggestion-position.ts); nil when it sent none or a broken one. `objectBox` is the same box, 0–1.
     var box: [Double]?
     /// The thing's general everyday name in the reader's language (`object_label`, server #184: the same for every name
-    /// of one `group`, e.g. 下着 for boxer briefs): the photo's tag. Empty on older answers.
+    /// of one `group`, e.g. 下着 for boxer briefs): the photo's tag. A typed word's names carry it too (server #185, the
+    /// typed thing's name). Empty on older answers.
     var objectLabel: String = ""
-    /// A typed word's short meaning in the reader's language (`gloss`, server #184: the first gloss of `meaning_ja`).
+    /// A typed word's short meaning in the reader's language (`gloss`, server #185: the first gloss of `meaning_ja`).
     /// Empty on photo candidates and older answers.
     var gloss: String = ""
 
