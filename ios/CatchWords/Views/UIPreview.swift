@@ -1435,12 +1435,14 @@ private struct HomePreview: View {
                 let glasses = Self.sticker("again-glasses", "眼鏡", hue: 0.58, at: now.addingTimeInterval(-86_400))
                 let cup = Self.sticker("again-cup", "杯子", hue: 0.08, at: now.addingTimeInterval(-30))
                 dex.stickers = [cup, glasses]
+                #if DEBUG
                 dex.seedEncountersForPreview([
                     .init(id: "again-1", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
                           place: nil, at: now.addingTimeInterval(-180)),
                     .init(id: "again-2", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
                           place: nil, at: now.addingTimeInterval(-120)),
                 ])
+                #endif
                 dex.hasLoaded = true
                 try? await Task.sleep(for: .milliseconds(600))
                 UIReady.mark("preview")
