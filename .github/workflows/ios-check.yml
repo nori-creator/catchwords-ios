@@ -109,7 +109,7 @@ jobs:
             -only-testing:CatchWordsTests/AlbumDayTests \
             CODE_SIGNING_ALLOWED=NO \
             | tee "$RUNNER_TEMP/symbols.log" | grep -E "error:|Test Case|failed|passed|TEST (SUCCEEDED|FAILED)|BUILD FAILED" || true
-          grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/symbols.log" || { grep -E "error:|failed \(" "$RUNNER_TEMP/symbols.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; echo "::error::図鑑の影の SF Symbols の確認に失敗しました（上のログを見てください）"; exit 1; }
+          grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/symbols.log" || { grep -E "error:" "$RUNNER_TEMP/symbols.log" | awk -F'error: ' '{ split($2, t, " : "); if (!(t[1] in seen)) { seen[t[1]] = 1; print } }' | head -10 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; echo "::error::図鑑の影の SF Symbols の確認に失敗しました（上のログを見てください）"; exit 1; }
 
       - name: シミュレーターで起動して撮影する
         run: |
