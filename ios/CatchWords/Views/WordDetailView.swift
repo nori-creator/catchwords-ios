@@ -295,6 +295,7 @@ struct WordDetailView: View {
             .accessibilityIdentifier("detail.sections")
             .popover(isPresented: $showSections, arrowEdge: .top) {
                 SectionsPanel(prefs: prefs)
+                    .accessibilityIdentifier("detail.sections.panel")
                     .presentationCompactAdaptation(.popover)
             }
             Button { dismiss() } label: {
