@@ -58,7 +58,7 @@ final class HapticPatterns {
         Task.detached(priority: .utility) {
             guard CHHapticEngine.capabilitiesForHardware().supportsHaptics, let made = try? CHHapticEngine() else { return }
             made.isAutoShutdownEnabled = true
-            try? made.start()
+            try? await made.start()
             let box = EngineBox(engine: made)
             await MainActor.run { HapticPatterns.shared.adopt(box.engine) }
         }
@@ -71,8 +71,13 @@ final class HapticPatterns {
         guard engine == nil else { return }
         engine = made
         made.resetHandler = {
-            Task { @MainActor in try? HapticPatterns.shared.engine?.start() }
+            Task { @MainActor in HapticPatterns.shared.restart() }
         }
+    }
+
+    /// After the system reset the engine (another app took the hardware, the app came back).
+    private func restart() {
+        try? engine?.start()
     }
 
     /// The engine handed from the thread that made it (nothing uses it there afterwards).
