@@ -626,9 +626,9 @@ nonisolated enum DexCatalog {
     /// Each hiragana's vowel (small kana too); ん, っ and the iteration marks have none.
     private static let vowels: [Unicode.Scalar: Unicode.Scalar] = {
         let rows: [(String, Unicode.Scalar)] = [
-            ("あかさたなはまやらわがざだばぱぁゃゎゕ", "あ"), ("いきしちにひみりぎじぢびぴぃゐ", "い"),
-            ("うくすつぬふむゆるぐずづぶぷぅゅゔ", "う"), ("えけせてねへめれげぜでべぺぇゑゖ", "え"),
-            ("おこそとのほもよろをごぞどぼぽぉょ", "お"),
+            ("あかさたなはまやらわがざだばぱぁゃゎゕ", "あ"), ("いきしちにひみりぎじぢびぴぃゐ", "い"),  // l10n-ignore (kana table)
+            ("うくすつぬふむゆるぐずづぶぷぅゅゔ", "う"), ("えけせてねへめれげぜでべぺぇゑゖ", "え"),  // l10n-ignore (kana table)
+            ("おこそとのほもよろをごぞどぼぽぉょ", "お"),  // l10n-ignore (kana table)
         ]
         var m: [Unicode.Scalar: Unicode.Scalar] = [:]
         for (letters, v) in rows { for u in letters.unicodeScalars { m[u] = v } }
