@@ -175,27 +175,28 @@ func measure(_ a: [UInt8], ref: [UInt8], others: [[UInt8]], box: CGRect?, cut: I
             if others.contains(where: { $0[i] > 127 }) { leaked += 1 }
         }
     }
-    // A straight cut: along each side of the AI's box, where the side crosses the thing (the thing on both sides of
-    // it), the cut-out opaque just inside and empty just outside.
-    var eligible = 0, cutThere = 0
-    if let box {
-        let x0 = Int(box.minX * CGFloat(w)), x1 = Int(box.maxX * CGFloat(w)), y0 = Int(box.minY * CGFloat(h)), y1 = Int(box.maxY * CGFloat(h))
-        let d = max(3, w / 200)
-        func px(_ x: Int, _ y: Int) -> Int? { x >= 0 && y >= 0 && x < w && y < h ? y * w + x : nil }
-        func check(inside: Int?, outside: Int?) {
-            guard let i = inside, let o = outside, ref[i] > 127, ref[o] > 127 else { return }
-            eligible += 1
-            if a[i] > 127 && a[o] < 32 { cutThere += 1 }
-        }
-        for y in max(0, y0)..<min(h, y1) {
-            check(inside: px(x0 + d, y), outside: px(x0 - d, y))
-            check(inside: px(x1 - d, y), outside: px(x1 + d, y))
-        }
-        for x in max(0, x0)..<min(w, x1) {
-            check(inside: px(x, y0 + d), outside: px(x, y0 - d))
-            check(inside: px(x, y1 - d), outside: px(x, y1 + d))
+    // A straight cut: a vertical or horizontal line inside the thing (the thing on both sides of it) along which the
+    // cut-out is opaque on one side and empty on the other — the mark of a cut along a box (the AI's box, the old plan's
+    // box widened by 4%, or a region's edge). Measured on every column and row; the worst one counts, as the share of
+    // that line's length inside the thing.
+    var worst = 0.0
+    let d = max(2, min(w, h) / 150)
+    func line(count: Int, length: Int, at: (Int, Int) -> (Int, Int)) {
+        for c in d..<(count - d) {
+            var eligible = 0, cutThere = 0
+            for t in 0..<length {
+                let (x1, y1) = at(c - d, t), (x2, y2) = at(c + d, t)
+                let i1 = y1 * w + x1, i2 = y2 * w + x2
+                guard ref[i1] > 127, ref[i2] > 127 else { continue }
+                eligible += 1
+                if (a[i1] > 127 && a[i2] < 32) || (a[i2] > 127 && a[i1] < 32) { cutThere += 1 }
+            }
+            if eligible >= 20 { worst = max(worst, Double(cutThere) / Double(eligible)) }
         }
     }
+    _ = box
+    line(count: w, length: h) { c, t in (c, t) }
+    line(count: h, length: w) { c, t in (t, c) }
     // A rectangle: the cut-out's four corners all opaque.
     var rect = false
     if let cut {
@@ -205,7 +206,7 @@ func measure(_ a: [UInt8], ref: [UInt8], others: [[UInt8]], box: CGRect?, cut: I
         rect = cg.width > 4 && cg.height > 4 && corners.allSatisfy { full[$0.1 * cg.width + $0.0] > 200 }
     }
     return Measure(coverage: inRef == 0 ? 0 : Double(covered) / Double(inRef),
-                   straight: eligible < 12 ? 0 : Double(cutThere) / Double(eligible),
+                   straight: worst,
                    rectangle: rect, leak: opaque == 0 ? 0 : Double(leaked) / Double(opaque))
 }
 
@@ -328,7 +329,7 @@ for c in file.cases {
     }
     visionWorked = true
     let labelsFound = Set(grid.mask.filter { $0 != 0 }).sorted()
-    let plans = CatchPlan.plan(things: things, mask: grid.mask, width: grid.width, height: grid.height)
+    let plans = CatchPlan.plan(things: things, mask: grid.mask, width: grid.width, height: grid.height, colours: masks.colourGrid())
     let oldPlans = OldCatchPlan.plan(things: oldThings, mask: grid.mask, width: grid.width, height: grid.height)
     var befores: [InstanceMasks.Cut?] = [], afters: [InstanceMasks.Cut?] = []
     for (i, t) in c.things.enumerated() {
@@ -349,7 +350,7 @@ for c in file.cases {
             om = measure(onCanvas(old), ref: ref, others: others, box: boxes[i], cut: old, width: W, height: H)
             if t.check ?? true, let m {
                 if m.coverage < minCoverage { fails.append(String(format: "covers %.0f%% of the thing (< %.0f%%)", m.coverage * 100, minCoverage * 100)) }
-                if m.straight > maxStraight { fails.append(String(format: "straight cut along the box on %.0f%% of where it crosses the thing", m.straight * 100)) }
+                if m.straight > maxStraight { fails.append(String(format: "a straight cut through the thing along %.0f%% of a line", m.straight * 100)) }
                 if m.rectangle { fails.append("a rectangle") }
                 if m.leak > maxLeak { fails.append(String(format: "%.0f%% of it is another named thing", m.leak * 100)) }
             }

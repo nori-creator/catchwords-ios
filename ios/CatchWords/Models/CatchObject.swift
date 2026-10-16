@@ -68,7 +68,8 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
         let boxes = things.map(\.box)
         // Which piece of the mask is each thing, and where its tag goes (`CatchPlan`, on a copy of the label mask).
         let copy = masks?.labelMaskCopy()
-        let plans = CatchPlan.plan(things: things, mask: copy?.mask ?? [], width: copy?.width ?? 0, height: copy?.height ?? 0)
+        let plans = CatchPlan.plan(things: things, mask: copy?.mask ?? [], width: copy?.width ?? 0, height: copy?.height ?? 0,
+                                   colours: masks?.colourGrid())
         return list.enumerated().map { (i, words) -> CatchObject in
             let plan = plans[i]
             let made = masks?.render(plan, box: own[i] ? boxes[i] : nil)

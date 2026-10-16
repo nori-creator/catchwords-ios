@@ -99,6 +99,8 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
     /// The tags' places (`anchors`), measured once. A lock of their own, so they never wait for a cut-out to render.
     private let anchorLock = NSLock()
     private var anchorCache: [Int: CGPoint]?
+    private let colourLock = NSLock()
+    private var colourCache: [UInt8]?
 
     init(observation: VNInstanceMaskObservation, handler: VNImageRequestHandler, photo: CGImage? = nil) {
         self.observation = observation
@@ -140,7 +142,7 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         case .noMask:
             // Nothing Vision found is where the AI boxed the thing: Vision once more, on that region alone.
             guard let box else { return (nil, note) }
-            let c = regionCut(box, minCover: Self.noMaskCover)
+            let c = regionCut(box, minCover: Self.noMaskCover, fadeIfCut: true)
             add(c == nil ? "no cut-out (the region alone found nothing whole either)" : "cut from the region alone")
             return (c, note)
         }
@@ -241,13 +243,16 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
     /// the region reaches `regionWidening` of the box round it. Of the instances found there, the one that fills the
     /// most of the box is taken — only when it is whole (it does not run into the region's edge, other than the photo's
     /// own edge: such a cut-out would end in a straight line) and fills at least `minCover` of the box. A wider region
-    /// is tried while the instance in the box is cut by the region's edge. nil = nothing whole: never a rectangle.
-    /// Heavy: off the main thread.
-    func regionCut(_ box: CGRect, minCover: Double) -> Cut? {
+    /// is tried while the instance in the box is cut by the region's edge. `fadeIfCut` (a thing with no mask of its own
+    /// at all, where nothing else would show it): after the widest try, an instance that still runs into the region's
+    /// edge is taken with its alpha faded out towards that edge (`fadeWidth`), so it never ends in a hard line.
+    /// nil = nothing: never a rectangle. Heavy: off the main thread.
+    func regionCut(_ box: CGRect, minCover: Double, fadeIfCut: Bool = false) -> Cut? {
         guard let photo, box.width > 0, box.height > 0 else { return nil }
         let W = CGFloat(photo.width), H = CGFloat(photo.height)
         let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
-        for widen in Self.regionWidening {
+        for (k, widen) in Self.regionWidening.enumerated() {
+            let last = k == Self.regionWidening.count - 1
             let wide = box.insetBy(dx: -box.width * widen, dy: -box.height * widen).intersection(unit)
             guard !wide.isNull, wide.width > 0.02, wide.height > 0.02 else { return nil }
             let px = CGRect(x: wide.minX * W, y: wide.minY * H, width: wide.width * W, height: wide.height * H).integral
@@ -261,15 +266,17 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             // The box and the region's open edges (not the photo's edge) on the region's grid.
             let inner = CGRect(x: (box.minX * W - px.minX) / px.width, y: (box.minY * H - px.minY) / px.height,
                                width: box.width * W / px.width, height: box.height * H / px.height)
-            let pick = Self.wholeInstance(mask: m.mask, width: m.width, height: m.height, box: inner,
-                                          open: (left: px.minX > 0.5, top: px.minY > 0.5,
-                                                 right: px.maxX < W - 0.5, bottom: px.maxY < H - 0.5),
+            let open = (left: px.minX > 0.5, top: px.minY > 0.5, right: px.maxX < W - 0.5, bottom: px.maxY < H - 0.5)
+            let pick = Self.wholeInstance(mask: m.mask, width: m.width, height: m.height, box: inner, open: open,
                                           minCover: minCover)
-            if let label = pick.label,
+            let label = pick.label ?? (last && fadeIfCut ? pick.cutLabel : nil)
+            if let label,
                let masked = try? result.generateMaskedImage(ofInstances: IndexSet(integer: label), from: handler,
                                                             croppedToInstancesExtent: false) {
                 let ci = CIImage(cvPixelBuffer: masked)
-                guard let full = context.createCGImage(ci, from: ci.extent), let c = Self.trimmed(full) else { return nil }
+                guard var full = context.createCGImage(ci, from: ci.extent) else { return nil }
+                if pick.label == nil, let faded = Self.faded(full, open: open) { full = faded }
+                guard let c = Self.trimmed(full) else { return nil }
                 let sx = px.width / W, sy = px.height / H
                 return Cut(cg: c.cg, box: CGRect(x: px.minX / W + c.box.minX * sx, y: px.minY / H + c.box.minY * sy,
                                                 width: c.box.width * sx, height: c.box.height * sy))
@@ -279,14 +286,42 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         return nil
     }
 
+    /// How far in from a region's open edge a cut-off thing fades out (share of the region's shorter side).
+    static let fadeWidth: CGFloat = 0.08
+
+    /// `image` with its alpha (and colour, premultiplied) faded to nothing towards each `open` edge.
+    private static func faded(_ image: CGImage, open: (left: Bool, top: Bool, right: Bool, bottom: Bool)) -> CGImage? {
+        let w = image.width, h = image.height
+        guard w > 0, h > 0, let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                                space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let data = ctx.data else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let p = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        let fade = max(1, CGFloat(min(w, h)) * fadeWidth)
+        for y in 0..<h {
+            for x in 0..<w {
+                var f: CGFloat = 1
+                if open.left { f = min(f, CGFloat(x) / fade) }
+                if open.right { f = min(f, CGFloat(w - 1 - x) / fade) }
+                if open.top { f = min(f, CGFloat(y) / fade) }
+                if open.bottom { f = min(f, CGFloat(h - 1 - y) / fade) }
+                guard f < 1 else { continue }
+                let o = (y * w + x) * 4
+                for c in 0..<4 { p[o + c] = UInt8(CGFloat(p[o + c]) * max(0, f)) }
+            }
+        }
+        return ctx.makeImage()
+    }
+
     /// Of a region's instances, the one that fills the most of `box` (0–1 of the region) and is whole — fewer than 1%
     /// of the open edges' pixels are its — when it fills at least `minCover` of the box and at least 30% of it lies in
-    /// the box. `cutByEdge`: an instance that would have been taken ran into an open edge (a wider region may help).
-    /// Pure, so CardCatchPickTests checks it.
+    /// the box. `cutByEdge`: an instance that would have been taken ran into an open edge (a wider region may help);
+    /// `cutLabel`: the one of those that fills the most of the box. Pure, so CardCatchPickTests checks it.
     static func wholeInstance(mask: [UInt8], width w: Int, height h: Int, box: CGRect,
                               open: (left: Bool, top: Bool, right: Bool, bottom: Bool), minCover: Double)
-    -> (label: Int?, cutByEdge: Bool) {
-        guard w > 2, h > 2, mask.count >= w * h else { return (nil, false) }
+    -> (label: Int?, cutByEdge: Bool, cutLabel: Int?) {
+        guard w > 2, h > 2, mask.count >= w * h else { return (nil, false, nil) }
         let area = max(1, CatchPlan.gridArea(box, width: w, height: h))
         let inBox = CatchPlan.countsInside(box, mask: mask, width: w, height: h)
         var totals = [Int](repeating: 0, count: 256), edge = [Int](repeating: 0, count: 256)
@@ -302,18 +337,17 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         }
         let openLength = (open.left ? h : 0) + (open.right ? h : 0) + (open.top ? w : 0) + (open.bottom ? w : 0)
         let allowed = max(1, Int(Double(openLength) * 0.01))
-        var best: Int?
-        var cut = false
+        var best: Int?, bestCut: Int?
         for l in 1..<256 where totals[l] > 0 {
             guard Double(inBox[l]) >= minCover * Double(area), Double(inBox[l]) / Double(totals[l]) >= 0.3 else { continue }
             if edge[l] > allowed {
-                cut = true
+                if bestCut.map({ inBox[l] > inBox[$0] }) ?? true { bestCut = l }
                 continue
             }
             if let b = best, inBox[l] <= inBox[b] { continue }
             best = l
         }
-        return (best, best == nil && cut)
+        return (best, best == nil && bestCut != nil, best == nil ? bestCut : nil)
     }
 
     /// The opaque part of a full-size cut-out and its box (0–1 of the image).
@@ -324,6 +358,30 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
     }
 
     // MARK: The label mask
+
+    /// The photo at the label mask copy's grid (`labelMaskCopy`), 3 bytes (RGB) a pixel: `CatchPlan` splits a shared
+    /// instance along the photo's own colour edges. Made once.
+    func colourGrid() -> [UInt8]? {
+        colourLock.lock()
+        defer { colourLock.unlock() }
+        if let c = colourCache { return c }
+        guard let photo, let m = labelMaskCopy(), m.width > 0, m.height > 0,
+              let ctx = CGContext(data: nil, width: m.width, height: m.height, bitsPerComponent: 8, bytesPerRow: m.width * 4,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+              let data = ctx.data else { return nil }
+        ctx.interpolationQuality = .medium
+        ctx.draw(photo, in: CGRect(x: 0, y: 0, width: m.width, height: m.height))
+        let p = data.bindMemory(to: UInt8.self, capacity: m.width * m.height * 4)
+        var out = [UInt8](repeating: 0, count: m.width * m.height * 3)
+        for i in 0..<(m.width * m.height) {
+            out[i * 3] = p[i * 4]
+            out[i * 3 + 1] = p[i * 4 + 1]
+            out[i * 3 + 2] = p[i * 4 + 2]
+        }
+        colourCache = out
+        return out
+    }
 
     /// The copy of the label mask the things are planned on (`CatchPlan`), made once.
     func labelMaskCopy() -> (mask: [UInt8], width: Int, height: Int)? {

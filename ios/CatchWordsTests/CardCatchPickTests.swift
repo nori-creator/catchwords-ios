@@ -213,7 +213,9 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(things[0].point.x, 0.5, accuracy: 1e-9)
         XCTAssertEqual(things[0].point.y, 0.39, accuracy: 1e-9)
         let glassesBox = try XCTUnwrap(things[0].box), bottleBox = try XCTUnwrap(things[1].box)
-        let plans = CatchPlan.plan(things: things, mask: deskMask(glasses: 1), width: 100, height: 133)
+        // The photo's colours at the mask's grid: black frames, a green bottle, a white desk (the owner's photo).
+        let truthColours = deskMask(glasses: 2).flatMap { v -> [UInt8] in v == 2 ? [30, 30, 30] : v == 1 ? [40, 160, 90] : [250, 250, 250] }
+        let plans = CatchPlan.plan(things: things, mask: deskMask(glasses: 1), width: 100, height: 133, colours: truthColours)
         // Neither a whole instance (that would be both things) nor a rectangle: each its side of the one instance.
         guard case .part(let gl, let gk) = plans[0].cut, case .part(let bl, let bk) = plans[1].cut else {
             return XCTFail("both things should be split from the shared instance: \(plans.map(\.cut))")
@@ -239,9 +241,9 @@ final class CardCatchPickTests: XCTestCase {
                 }
             }
         }
-        XCTAssertGreaterThanOrEqual(Double(glassesKept) / Double(glassesAll), 0.9, "the glasses keep their frames")
+        XCTAssertGreaterThanOrEqual(Double(glassesKept) / Double(glassesAll), 0.97, "the glasses keep their frames")
         XCTAssertGreaterThanOrEqual(Double(bottleKept) / Double(bottleAll), 0.97, "the bottle keeps its body")
-        XCTAssertLessThanOrEqual(wrong, 6, "pixels given to the other thing")
+        XCTAssertLessThanOrEqual(wrong, 6, "pixels given to the other thing: the line runs along the colour edge")
         // Every pixel of the instance goes to exactly one of them.
         for i in 0..<(100 * 133) where truth[i] != 0 { XCTAssertNotEqual(gk.bits[i] != 0, bk.bits[i] != 0) }
         // The glasses' tag on the glasses (below the bottle, inside the glasses' box), the bottle's on the bottle.

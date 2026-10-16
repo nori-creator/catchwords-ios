@@ -13,14 +13,16 @@ import Foundation
 /// - One thing seen in several instances (the dorayaki's two pancakes and the ice cream between them): those that lie
 ///   in its box together (`CutCoverage.union`).
 /// - Two things claim one instance (glasses lying against a water bottle, which Vision saw as one): it is split where
-///   the two meet — each thing grows from the part of the instance only it has in its box, along the mask, and each
-///   pixel goes to the thing that reaches it first (`Cut.part`). The line between them follows the mask, never a box.
+///   the two meet — each thing grows over the mask from the part only it has in its box, and growing across a change of
+///   colour in the photo is dear, so the line between them runs along the photo's own edge between the two things
+///   (`split`, `Cut.part`), never along a box.
 /// - An instance mostly outside the thing's box that no other thing claims (the dorayaki merged with the carton behind
 ///   it, or a box off to one side): `refine` asks Vision once more on the region round the box, and that answer is used
 ///   only when it is a whole thing — not touching the region's edge — that covers the box; otherwise the whole instance
 ///   stays. Its tag goes on its part in the box.
-/// - No mask in the thing's box at all: `.noMask` — Vision once more on the region, else no cut-out (never a
-///   rectangle of the photo).
+/// - No mask in the thing's box at all: Vision once more on the region round the box; a thing that still runs into the
+///   region's edge after the widest try is taken with that edge faded out, never cut with a hard line.
+///   With nothing there either: no cut-out (never a rectangle of the photo).
 nonisolated enum CatchPlan {
     /// One thing as the AI placed it: its point and box, 0–1 of the photo (top-left origin), and whether the position is
     /// its own (`TagPlacement.distinct`).
@@ -83,7 +85,9 @@ nonisolated enum CatchPlan {
     /// A piece of an instance "reaches" the box when it touches the box grown by this share of its size on each side.
     static let reachMargin: CGFloat = 0.03
 
-    static func plan(things: [Thing], mask: [UInt8], width w: Int, height h: Int) -> [Placement] {
+    /// `colours`: the photo at the mask's grid, 3 bytes (RGB) a pixel, row after row (`InstanceMasks.colourGrid`); it
+    /// lets a shared instance be split along the photo's own edges (nil: along the mask alone, as in the unit tests).
+    static func plan(things: [Thing], mask: [UInt8], width w: Int, height h: Int, colours: [UInt8]? = nil) -> [Placement] {
         let hasMask = w > 0 && h > 0 && mask.count >= w * h && mask.contains { $0 != 0 }
         // Each thing with a place of its own takes its own instance, nearest pairs first (`assignInstances`).
         var labels: [Int?] = hasMask
@@ -185,7 +189,8 @@ nonisolated enum CatchPlan {
                                  refine: c.larger ? box : nil)
             }
             // Shared with other things: split where they meet (`split`), then only the pieces that reach its box.
-            let side = split(owner: i, labels: c.labels, claimants: claimants, boxes: boxes, mask: mask, width: w, height: h)
+            let side = split(owner: i, labels: c.labels, claimants: claimants, boxes: boxes, mask: mask, width: w, height: h,
+                             colours: colours)
             let keep = reaching(side, box: box, width: w, height: h)
             guard keep.count > 0 else {
                 return Placement(label: nil, cut: .noMask, anchor: t.point, note: "its share of a shared instance was empty")
@@ -217,24 +222,44 @@ nonisolated enum CatchPlan {
 
     // MARK: Splitting one instance between things
 
-    /// `owner`'s side of the instances in `labels` that other things claim too. Each claimant starts from the pixels of
-    /// those instances that lie in its own box and in no other claimant's box; from there every claimant grows along
-    /// the mask (8 neighbours, one step at a time, all together), and a pixel belongs to the first to reach it — so the
-    /// line between two things lies where their growths meet on the mask (round the narrow neck where glasses touch a
-    /// bottle), never along a box. Pixels no growth reaches (a piece apart from every seed) go to the claimant whose box
-    /// is nearest; inside two boxes, to the one it lies deeper in. A label only `owner` claims is all `owner`'s.
+    /// `owner`'s side of the instances in `labels` that other things claim too (two things Vision saw as one).
+    ///
+    /// Seeds: a pixel of such an instance in exactly one claimant's box, and clear of the others' boxes by
+    /// `seedMargin`, is that claimant's. A pixel in several boxes is the smallest box's when that box lies
+    /// (`nestedShare`) inside the others and the pixel is in its middle part (a cup's box inside its saucer's: the cup's
+    /// body is the cup's); otherwise nobody's yet. A claimant left without any seed (a spoon whose box lies all inside
+    /// the cup's and saucer's) gets nothing here, and Vision is asked again on its region alone (`.noMask`).
+    /// Growth: from the seeds, every claimant spreads over the instance at once, cheapest path first (Dijkstra, 8
+    /// neighbours), and a pixel belongs to the first to reach it. A step costs its length, many times more where the photo
+    /// changes colour (`colours`: the edge between a black temple and an orange bottle, a black helmet and an orange
+    /// suit), so the line between two things runs along the photo's own edge between them — never along a box.
+    /// Pixels no growth reaches go to the claimant whose box is nearest (inside two boxes, the one it lies deeper in).
+    /// A label only `owner` claims is all `owner`'s.
     static func split(owner: Int, labels: [Int], claimants: [[Int]], boxes: [CGRect?], mask: [UInt8],
-                      width w: Int, height h: Int) -> Keep {
+                      width w: Int, height h: Int, colours: [UInt8]? = nil) -> Keep {
         var mine = [Bool](repeating: false, count: 256)
         for l in labels where l > 0 && l < 256 { mine[l] = true }
         var result = [UInt8](repeating: 0, count: w * h)
-        // Who holds each pixel of the shared labels: -1 = nobody yet.
         var holder = [Int](repeating: -1, count: w * h)
-        var frontier: [Int] = []
+        var cost = [Float](repeating: .greatestFiniteMagnitude, count: w * h)
+        var heap = MinHeap()
         let grids: [(x0: Int, x1: Int, y0: Int, y1: Int)?] = boxes.map { $0.map { grid($0, width: w, height: h) } }
         func inside(_ j: Int, _ x: Int, _ y: Int) -> Bool {
             guard let g = grids[j] else { return false }
             return x >= g.x0 && x < g.x1 && y >= g.y0 && y < g.y1
+        }
+        let area: [CGFloat] = boxes.map { b in b.map { $0.width * $0.height } ?? .greatestFiniteMagnitude }
+        func nested(_ j: Int, in k: Int) -> Bool {
+            guard let a = boxes[j], let b = boxes[k], a.width > 0, a.height > 0 else { return false }
+            let o = a.intersection(b)
+            return !o.isNull && o.width * o.height >= Self.nestedShare * a.width * a.height
+        }
+        /// Clear of claimant `k`'s box by `seedMargin` of its size (a pixel just at another thing's box edge is not
+        /// sure: the AI's box is rough, and a seed there would put a straight line along that edge).
+        func clear(of k: Int, _ px: CGFloat, _ py: CGFloat) -> Bool {
+            guard let b = boxes[k] else { return true }
+            let m = Self.seedMargin * max(b.width, b.height)
+            return !(px >= b.minX - m && px <= b.maxX + m && py >= b.minY - m && py <= b.maxY + m)
         }
         for y in 0..<h {
             for x in 0..<w {
@@ -247,29 +272,49 @@ nonisolated enum CatchPlan {
                     continue
                 }
                 let within = who.filter { inside($0, x, y) }
+                let px = (CGFloat(x) + 0.5) / CGFloat(w), py = (CGFloat(y) + 0.5) / CGFloat(h)
+                var seed: Int?
                 if within.count == 1 {
-                    holder[i] = within[0]
-                    frontier.append(i)
+                    if who.allSatisfy({ $0 == within[0] || clear(of: $0, px, py) }) { seed = within[0] }
+                } else if within.count > 1, let small = within.min(by: { area[$0] < area[$1] }),
+                          within.allSatisfy({ $0 == small || nested(small, in: $0) }), let b = boxes[small] {
+                    let depth = max(abs(px - b.midX) / (b.width / 2), abs(py - b.midY) / (b.height / 2))
+                    if depth <= 0.6 { seed = small }
+                }
+                if let seed {
+                    holder[i] = seed
+                    cost[i] = 0
+                    heap.push(0, Int32(i))
                 }
             }
         }
-        // Grow all claimants together, one ring of neighbours at a time.
-        let around = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
-        while !frontier.isEmpty {
-            var next: [Int] = []
-            for i in frontier {
-                let x = i % w, y = i / w
-                for (dx, dy) in around {
-                    let nx = x + dx, ny = y + dy
-                    guard nx >= 0, ny >= 0, nx < w, ny < h else { continue }
-                    let n = ny * w + nx
-                    let l = Int(mask[n])
-                    guard l != 0, mine[l], holder[n] == -1, claimants[l].count > 1, claimants[l].contains(holder[i]) else { continue }
+        let steps: [(Int, Int, Float)] = [(-1, -1, 1.4142), (0, -1, 1), (1, -1, 1.4142), (-1, 0, 1), (1, 0, 1),
+                                          (-1, 1, 1.4142), (0, 1, 1), (1, 1, 1.4142)]
+        let hasColour = (colours?.count ?? 0) >= w * h * 3
+        while let top = heap.pop() {
+            let (c, idx) = top
+            let i = Int(idx)
+            guard c <= cost[i] else { continue }
+            let x = i % w, y = i / w
+            for (dx, dy, len) in steps {
+                let nx = x + dx, ny = y + dy
+                guard nx >= 0, ny >= 0, nx < w, ny < h else { continue }
+                let n = ny * w + nx
+                let l = Int(mask[n])
+                guard l != 0, mine[l], claimants[l].count > 1, claimants[l].contains(holder[i]) else { continue }
+                var step = len
+                if hasColour, let px = colours {
+                    let a = i * 3, b = n * 3
+                    let d = max(abs(Int(px[a]) - Int(px[b])), abs(Int(px[a + 1]) - Int(px[b + 1])), abs(Int(px[a + 2]) - Int(px[b + 2])))
+                    step *= 1 + Self.edgeCost * Float(d) / 255
+                }
+                let next = c + step
+                if next < cost[n] {
+                    cost[n] = next
                     holder[n] = holder[i]
-                    next.append(n)
+                    heap.push(next, Int32(n))
                 }
             }
-            frontier = next
         }
         for y in 0..<h {
             for x in 0..<w {
@@ -281,6 +326,48 @@ nonisolated enum CatchPlan {
             }
         }
         return Keep(width: w, height: h, bits: result)
+    }
+
+    /// How many times dearer a step across the strongest colour change is than one across none (`split`).
+    static let edgeCost: Float = 30
+    /// A box this much (or more) inside another's is "in front of" it (a cup's box in its saucer's): its middle is a seed.
+    static let nestedShare: CGFloat = 0.75
+    /// A seed keeps this share of another claimant's box size away from that box.
+    static let seedMargin: CGFloat = 0.06
+
+    /// A small binary min-heap of (cost, pixel) for `split`.
+    struct MinHeap {
+        private var items: [(Float, Int32)] = []
+
+        mutating func push(_ cost: Float, _ index: Int32) {
+            items.append((cost, index))
+            var i = items.count - 1
+            while i > 0 {
+                let parent = (i - 1) / 2
+                guard items[i].0 < items[parent].0 else { break }
+                items.swapAt(i, parent)
+                i = parent
+            }
+        }
+
+        mutating func pop() -> (Float, Int32)? {
+            guard let first = items.first else { return nil }
+            let last = items.removeLast()
+            if !items.isEmpty {
+                items[0] = last
+                var i = 0
+                while true {
+                    let l = 2 * i + 1, r = l + 1
+                    var m = i
+                    if l < items.count && items[l].0 < items[m].0 { m = l }
+                    if r < items.count && items[r].0 < items[m].0 { m = r }
+                    if m == i { break }
+                    items.swapAt(i, m)
+                    i = m
+                }
+            }
+            return first
+        }
     }
 
     /// Of `candidates`, the one whose box is nearest the pixel (grid units, 0 inside); inside several boxes, the one it
