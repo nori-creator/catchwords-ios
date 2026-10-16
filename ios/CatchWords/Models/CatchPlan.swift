@@ -234,13 +234,12 @@ nonisolated enum CatchPlan {
     /// (`nestedShare`) inside the others and the pixel is in its middle part (a cup's box inside its saucer's: the cup's
     /// body is the cup's); otherwise nobody's yet. A claimant left without any seed (a spoon whose box lies all inside
     /// the cup's and saucer's) gets nothing here, and Vision is asked again on its region alone (`.noMask`).
-    /// Growth (a seeded watershed on the photo's colour edges): from the seeds, every claimant spreads over the instance
-    /// at once, and a pixel belongs to the claimant that reaches it over the lowest "barrier" — the strongest change of
-    /// colour on the way (`colours`, in steps of `edgeStep`) — and, at the same barrier, by the shorter path (Dijkstra,
-    /// 8 neighbours). A claimant never crosses the edge between a black temple and an orange bottle, or a black helmet
-    /// and an orange suit, while the other can reach the pixel without crossing it, however far: the line between two
-    /// things runs along the photo's own edge between them — never along a box, and never a straight line halfway
-    /// between the seeds (what a cost that grows with distance drew through the uniform black of the helmet).
+    /// Growth, with the photo's colours (`barrierSplit`): a pixel is a claimant's when no other claimant reaches it
+    /// across a weaker colour edge — the line between two things runs along the photo's own edge between them, never along a box,
+    /// and where nothing in the photo separates them both keep the pixel (never a straight line through a uniform
+    /// colour, which is what a cost growing with distance drew through the helmet's black and across the cup's handle).
+    /// Without colours (the unit tests' plain masks): every claimant spreads at once, shortest path first (Dijkstra,
+    /// 8 neighbours), and a pixel belongs to the first to reach it.
     /// Pixels no growth reaches go to the claimant whose box is nearest (inside two boxes, the one it lies deeper in).
     /// A label only `owner` claims is all `owner`'s.
     static func split(owner: Int, labels: [Int], claimants: [[Int]], boxes: [CGRect?], mask: [UInt8],
@@ -299,6 +298,10 @@ nonisolated enum CatchPlan {
         let steps: [(Int, Int, Double)] = [(-1, -1, 1.4142), (0, -1, 1), (1, -1, 1.4142), (-1, 0, 1), (1, 0, 1),
                                           (-1, 1, 1.4142), (0, 1, 1), (1, 1, 1.4142)]
         let hasColour = (colours?.count ?? 0) >= w * h * 3
+        if hasColour, let px = colours {
+            return barrierSplit(owner: owner, mine: mine, seeds: holder, claimants: claimants, boxes: boxes, mask: mask,
+                                width: w, height: h, colours: px, result: result)
+        }
         while let top = heap.pop() {
             let (c, idx) = top
             let i = Int(idx)
@@ -333,6 +336,71 @@ nonisolated enum CatchPlan {
                 guard l != 0, mine[l], claimants[l].count > 1 else { continue }
                 let who = holder[i] >= 0 ? holder[i] : nearest(of: claimants[l], x: x, y: y, boxes: boxes, width: w, height: h)
                 if who == owner { result[i] = 1 }
+            }
+        }
+        return Keep(width: w, height: h, bits: result)
+    }
+
+    /// `split` with the photo's colours: for each claimant, the lowest "barrier" at which it reaches each pixel of the
+    /// shared instance from its seeds — the strongest colour change on the best path, in steps of `edgeStep` (a minimax
+    /// flood, by levels). A pixel is `owner`'s when no other claimant of it reaches it over a lower barrier: where a
+    /// colour edge lies between two things (a black temple against an orange bottle, a black helmet against an orange
+    /// suit), each keeps its own side and the line is that edge; where nothing in the photo tells them apart (a red cup
+    /// standing on a red saucer), both keep the pixel — two stickers that overlap, never one cut by a line drawn through
+    /// the middle of a uniform colour (the straight lines the owner saw). Pixels no claimant reaches go to the nearest
+    /// box.
+    private static func barrierSplit(owner: Int, mine: [Bool], seeds: [Int], claimants: [[Int]], boxes: [CGRect?],
+                                     mask: [UInt8], width w: Int, height h: Int, colours px: [UInt8],
+                                     result start: [UInt8]) -> Keep {
+        var result = start
+        let unreached: UInt8 = 255
+        let who = Set(seeds.filter { $0 >= 0 }).sorted()
+        var barriers: [Int: [UInt8]] = [:]
+        for k in who {
+            var level = [UInt8](repeating: unreached, count: w * h)
+            var buckets = [[Int32]](repeating: [], count: 32)
+            for i in seeds.indices where seeds[i] == k {
+                level[i] = 0
+                buckets[0].append(Int32(i))
+            }
+            for b in 0..<32 {
+                var at = 0
+                while at < buckets[b].count {
+                    let i = Int(buckets[b][at])
+                    at += 1
+                    guard Int(level[i]) == b else { continue }
+                    let x = i % w, y = i / w
+                    for dy in -1...1 {
+                        for dx in -1...1 where dx != 0 || dy != 0 {
+                            let nx = x + dx, ny = y + dy
+                            guard nx >= 0, ny >= 0, nx < w, ny < h else { continue }
+                            let n = ny * w + nx
+                            let l = Int(mask[n])
+                            guard l != 0, mine[l], claimants[l].count > 1, claimants[l].contains(k) else { continue }
+                            let a = i * 3, c = n * 3
+                            let d = max(abs(Int(px[a]) - Int(px[c])), abs(Int(px[a + 1]) - Int(px[c + 1])), abs(Int(px[a + 2]) - Int(px[c + 2])))
+                            let next = min(31, max(b, d / edgeStep))
+                            if next < Int(level[n]) {
+                                level[n] = UInt8(next)
+                                buckets[next].append(Int32(n))
+                            }
+                        }
+                    }
+                }
+            }
+            barriers[k] = level
+        }
+        for y in 0..<h {
+            for x in 0..<w {
+                let i = y * w + x
+                let l = Int(mask[i])
+                guard l != 0, mine[l], claimants[l].count > 1 else { continue }
+                let reach = claimants[l].compactMap { barriers[$0]?[i] }.filter { $0 != unreached }
+                if let low = reach.min() {
+                    if let m = barriers[owner]?[i], m != unreached, m <= low { result[i] = 1 }
+                } else if nearest(of: claimants[l], x: x, y: y, boxes: boxes, width: w, height: h) == owner {
+                    result[i] = 1
+                }
             }
         }
         return Keep(width: w, height: h, bits: result)

@@ -161,6 +161,7 @@ func describe(_ c: OldCatchPlan.Cut) -> String {
 struct Measure: Encodable {
     var coverage: Double
     var straight: Double
+    var straightAt: String
     var rectangle: Bool
     var leak: Double
 }
@@ -184,9 +185,11 @@ func measure(_ a: [UInt8], ref: [UInt8], others: [[UInt8]], box: CGRect?, cut: I
     // box widened by 4%, or a region's edge). Measured on every column and row; the worst one counts, as the share of
     // that line's length inside the thing.
     var worst = 0.0
+    var worstAt = ""
     let d = max(2, min(w, h) / 150)
-    func line(count: Int, length: Int, at: (Int, Int) -> (Int, Int)) {
-        for c in d..<(count - d) {
+    // Lines hugging the photo's own edge are left out: a thing that runs out of the photo ends there, which is no cut.
+    func line(_ name: String, count: Int, length: Int, at: (Int, Int) -> (Int, Int)) {
+        for c in (3 * d)..<max(3 * d, count - 3 * d) {
             var eligible = 0, cutThere = 0
             for t in 0..<length {
                 let (x1, y1) = at(c - d, t), (x2, y2) = at(c + d, t)
@@ -195,12 +198,15 @@ func measure(_ a: [UInt8], ref: [UInt8], others: [[UInt8]], box: CGRect?, cut: I
                 eligible += 1
                 if (a[i1] > 127 && a[i2] < 32) || (a[i2] > 127 && a[i1] < 32) { cutThere += 1 }
             }
-            if eligible >= 20 { worst = max(worst, Double(cutThere) / Double(eligible)) }
+            if eligible >= 20, Double(cutThere) / Double(eligible) > worst {
+                worst = Double(cutThere) / Double(eligible)
+                worstAt = "\(name) \(c) of \(count)"
+            }
         }
     }
     _ = box
-    line(count: w, length: h) { c, t in (c, t) }
-    line(count: h, length: w) { c, t in (t, c) }
+    line("column", count: w, length: h) { c, t in (c, t) }
+    line("row", count: h, length: w) { c, t in (t, c) }
     // A rectangle: the cut-out's four corners all opaque.
     var rect = false
     if let cut {
@@ -210,7 +216,7 @@ func measure(_ a: [UInt8], ref: [UInt8], others: [[UInt8]], box: CGRect?, cut: I
         rect = cg.width > 4 && cg.height > 4 && corners.allSatisfy { full[$0.1 * cg.width + $0.0] > 200 }
     }
     return Measure(coverage: inRef == 0 ? 0 : Double(covered) / Double(inRef),
-                   straight: worst,
+                   straight: worst, straightAt: worstAt,
                    rectangle: rect, leak: opaque == 0 ? 0 : Double(leaked) / Double(opaque))
 }
 
@@ -359,7 +365,7 @@ for c in file.cases {
                 // Expected: no cut-out (cases.json `why`).
             } else if t.check ?? true, let m {
                 if m.coverage < minCoverage { fails.append(String(format: "covers %.0f%% of the thing (< %.0f%%)", m.coverage * 100, minCoverage * 100)) }
-                if m.straight > maxStraight { fails.append(String(format: "a straight cut through the thing along %.0f%% of a line", m.straight * 100)) }
+                if m.straight > maxStraight { fails.append(String(format: "a straight cut through the thing along %.0f%% of a line (%@)", m.straight * 100, m.straightAt)) }
                 if m.rectangle { fails.append("a rectangle") }
                 if m.leak > maxLeak { fails.append(String(format: "%.0f%% of it is another named thing", m.leak * 100)) }
             }
