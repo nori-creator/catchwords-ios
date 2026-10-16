@@ -94,6 +94,34 @@ final class AppRouter {
     }
 }
 
+/// The tab bar, in a view of its own that watches the router itself (`AppRouter.hidesTabBar`). UI tour 2026-10-16
+/// (zh-TW/en, after a typed word landed): the trace has "landing end … current=true" and then nothing — not the
+/// "tabbar hidden=false" line the bar's owner wrote the moment the bar came back after every other landing — and the
+/// bar never came back (the review and settings tabs were missing from the screen for the rest of the run). By all signs
+/// the tab screen (MainTabView), which owned the bar, did not draw again when the landing ended. The bar no longer
+/// depends on that screen redrawing: this view watches the router and redraws on its own, and a landing is ended after
+/// at most `CatchLanding.longest` even if its animation never finishes.
+struct TabBarSlot: View {
+    let onSelect: (AppTab) -> Void
+    @Environment(AppRouter.self) private var router
+
+    var body: some View {
+        @Bindable var router = router
+        ZStack(alignment: .bottom) {
+            if !router.hidesTabBar {
+                CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
+                              onSelect: onSelect)
+                    .padding(.bottom, 4)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onAppear { UITestTrace.log("tabbar view in tab=\(router.tab)") }
+                    .onDisappear { UITestTrace.log("tabbar view out tab=\(router.tab)") }
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.9), value: router.hidesTabBar)
+        .onChange(of: router.hidesTabBar) { _, hidden in UITestTrace.log("tabbar hidden=\(hidden) tab=\(router.tab)") }
+    }
+}
+
 struct MainTabView: View {
     @State private var router = AppRouter()
     @Environment(DexStore.self) private var dex
@@ -135,17 +163,10 @@ struct MainTabView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if !router.hidesTabBar {
-                CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
-                              onSelect: beginShutterFlight)
-                    .padding(.bottom, 4)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    // Above every tab's page, the dex rising for a landing too (it takes zIndex 1 for that).
-                    .zIndex(2)
-            }
+            // Above every tab's page, the dex rising for a landing too (it takes zIndex 1 for that).
+            TabBarSlot(onSelect: beginShutterFlight)
+                .zIndex(2)
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.9), value: router.hidesTabBar)
-        .onChange(of: router.hidesTabBar) { _, hidden in UITestTrace.log("tabbar hidden=\(hidden) tab=\(router.tab)") }
         .overlay {
             if let landing = router.landing { CatchLandingOverlay(controller: landing) }
         }
