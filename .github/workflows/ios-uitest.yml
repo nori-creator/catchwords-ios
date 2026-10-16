@@ -63,6 +63,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | tee "$RUNNER_TEMP/test.log" | grep -E "error:|Test Case|failed|passed|TEST (SUCCEEDED|FAILED)|BUILD FAILED" || true
           grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/test.log" && echo "ok" > "$RUNNER_TEMP/verdict" || echo "failed" > "$RUNNER_TEMP/verdict"
+          # 組み立ての error: は注釈（Annotations）にも出す（ログを開けなくても、PR の画面と API で読める）
+          grep -E "error:" "$RUNNER_TEMP/test.log" | grep -v "XCTAssert\|Test Case" | sort -u | head -10 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done
 
       - name: 写真と結果を取り出す
         if: always()

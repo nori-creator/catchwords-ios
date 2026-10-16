@@ -328,13 +328,19 @@ final class DexStore {
             while next < min(4, requests.count) {
                 let r = requests[next]
                 next += 1
-                group.addTask { (r.chunk, try? await client.signedURLs(for: r.all)) }
+                group.addTask {
+                    let map = try? await client.signedURLs(for: r.all)
+                    return (r.chunk, map)
+                }
             }
             while let done = await group.next() {
                 if next < requests.count {
                     let r = requests[next]
                     next += 1
-                    group.addTask { (r.chunk, try? await client.signedURLs(for: r.all)) }
+                    group.addTask {
+                        let map = try? await client.signedURLs(for: r.all)
+                        return (r.chunk, map)
+                    }
                 }
                 guard let map = done.map, client.userId == uid else { continue }
                 applySigned(map, for: done.chunk)

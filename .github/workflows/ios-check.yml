@@ -76,7 +76,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             SYMROOT="$RUNNER_TEMP/build" \
             | tee "$RUNNER_TEMP/build.log" | grep -E "error:|warning: .*deprecated|BUILD (SUCCEEDED|FAILED)" || true
-          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { grep -E "error:" "$RUNNER_TEMP/build.log" | head -20; echo "::error::組み立てに失敗しました（上の error: を見てください）"; exit 1; }
+          # 失敗したら error: の行を注釈（Annotations）にも出す（ログを開けなくても、PR の画面と API で読める）
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; echo "::error::組み立てに失敗しました（上の error: を見てください）"; exit 1; }
 
       - name: 図鑑の影の SF Symbols と4択の補充語・保存の失敗の扱いを確かめる（DexCatalogSymbolTests・QuizPoolTests・CardCatchPickTests・SaveErrorTests などだけを走らせる）
         working-directory: ios
@@ -108,7 +109,7 @@ jobs:
             -only-testing:CatchWordsTests/AlbumDayTests \
             CODE_SIGNING_ALLOWED=NO \
             | tee "$RUNNER_TEMP/symbols.log" | grep -E "error:|Test Case|failed|passed|TEST (SUCCEEDED|FAILED)|BUILD FAILED" || true
-          grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/symbols.log" || { grep -E "error:" "$RUNNER_TEMP/symbols.log" | head -20; echo "::error::図鑑の影の SF Symbols の確認に失敗しました（上のログを見てください）"; exit 1; }
+          grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/symbols.log" || { grep -E "error:|failed \(" "$RUNNER_TEMP/symbols.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; echo "::error::図鑑の影の SF Symbols の確認に失敗しました（上のログを見てください）"; exit 1; }
 
       - name: シミュレーターで起動して撮影する
         run: |

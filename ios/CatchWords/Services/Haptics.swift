@@ -70,8 +70,8 @@ final class HapticPatterns {
     private func adopt(_ made: CHHapticEngine) {
         guard engine == nil else { return }
         engine = made
-        made.resetHandler = { [weak self] in
-            Task { @MainActor in try? self?.engine?.start() }
+        made.resetHandler = {
+            Task { @MainActor in try? HapticPatterns.shared.engine?.start() }
         }
     }
 
