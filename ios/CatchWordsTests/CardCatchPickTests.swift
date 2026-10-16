@@ -379,23 +379,38 @@ final class CardCatchPickTests: XCTestCase {
     }
 
     func testARegionCutTakesOnlyAWholeThing() {
-        // A region round a box (0.3–0.7 of a 40 × 40 grid): instance 1 runs off the region's left edge (cut by it),
-        // instance 2 lies whole in the box.
+        // A crop round a box (0.3–0.7 of a 40 × 40 grid): instance 1 runs off the crop's left edge (cut by it),
+        // instance 2 lies whole in the box under the thing's point.
         let m = mask(40, 40) { x, y in
             if x < 14 && (10..<30).contains(y) { return 1 }
             return (16..<26).contains(x) && (14..<26).contains(y) ? 2 : 0
         }
         let box = CGRect(x: 0.3, y: 0.3, width: 0.4, height: 0.4)
         let open = (left: true, top: true, right: true, bottom: true)
-        XCTAssertEqual(InstanceMasks.wholeInstance(mask: m, width: 40, height: 40, box: box, open: open, minCover: 0.3).label, 2)
-        // Only the cut one in the box: nothing, and a wider region is worth trying.
+        XCTAssertEqual(InstanceMasks.pickInstance(mask: m, width: 40, height: 40, box: box, point: CGPoint(x: 0.5, y: 0.5), open: open).label, 2)
+        // Only a cut one at the point: nothing, and a wider crop is worth trying.
         let cutOnly = mask(40, 40) { x, y in x < 26 && (12..<28).contains(y) ? 1 : 0 }
-        let r = InstanceMasks.wholeInstance(mask: cutOnly, width: 40, height: 40, box: box, open: open, minCover: 0.3)
+        let r = InstanceMasks.pickInstance(mask: cutOnly, width: 40, height: 40, box: box, open: open)
         XCTAssertNil(r.label)
         XCTAssertTrue(r.cutByEdge)
-        // The photo's own edge is no cut: the same instance is whole when the region's left is the photo's edge.
-        let atEdge = InstanceMasks.wholeInstance(mask: cutOnly, width: 40, height: 40, box: box,
-                                                 open: (left: false, top: true, right: true, bottom: true), minCover: 0.3)
+        XCTAssertEqual(r.cutLabel, 1)
+        // The photo's own edge is no cut: the same instance is whole when the crop's left is the photo's edge.
+        let atEdge = InstanceMasks.pickInstance(mask: cutOnly, width: 40, height: 40, box: box,
+                                                open: (left: false, top: true, right: true, bottom: true))
         XCTAssertEqual(atEdge.label, 1)
+    }
+
+    func testACropPicksTheThingAtItsPointNotTheBiggerNeighbour() {
+        // Thin glasses (2, a ring round the point) and a thick bottle part (3) both in the glasses' crop: the bottle
+        // covers more of the box, the glasses are at the point.
+        let m = mask(60, 40) { x, y in
+            let r2 = (x - 25) * (x - 25) + (y - 20) * (y - 20)
+            if (64...100).contains(r2) { return 2 }
+            return x >= 44 && (8..<34).contains(y) ? 3 : 0
+        }
+        let box = CGRect(x: 0.2, y: 0.2, width: 0.6, height: 0.6)
+        let pick = InstanceMasks.pickInstance(mask: m, width: 60, height: 40, box: box, point: CGPoint(x: 25.0 / 60, y: 0.5),
+                                              open: (left: true, top: true, right: true, bottom: true))
+        XCTAssertEqual(pick.label, 2)
     }
 }

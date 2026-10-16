@@ -87,7 +87,7 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
 
     private let observation: VNInstanceMaskObservation
     private let handler: VNImageRequestHandler
-    /// The photo the masks were made from (for `regionCut`).
+    /// The photo the masks were made from (for `regionHit` and `colourGrid`).
     private let photo: CGImage?
     private let context = CIContext()
     private let lock = NSLock()
@@ -120,41 +120,95 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
 
     // MARK: Carrying out the plan
 
-    /// The cut-out `CatchPlan` chose for a thing, and why, for the developer log. `box`: the thing's box (0–1 of the
-    /// photo) when the AI gave it one. Heavy: call off the main thread.
-    func render(_ placement: CatchPlan.Placement, box: CGRect?) -> (cut: Cut?, note: String?) {
-        var note = placement.note
-        func add(_ s: String) { note = (note.map { $0 + "; " } ?? "") + s }
-        if let region = placement.refine {
-            if let whole = regionCut(region, minCover: Self.refineCover) {
-                add("Vision on the region alone found the thing whole")
-                return (whole, note)
+    /// Every thing's cut-out as `CatchPlan` chose it, and why (for the developer log). `boxes` / `points`: each thing's
+    /// box (nil = none) and point, 0–1 of the photo. Heavy: call off the main thread.
+    ///
+    /// A thing that shares its Vision instance with another thing, or whose instance lies mostly outside its box,
+    /// first gets Vision once more on a crop round its own box (`regionHit`): on a tighter crop Vision usually makes the
+    /// touching things separate instances, and the one at the thing's point is used as it is — its own outline. The
+    /// other things of that shared instance then get the instance without it (so the line between them is that
+    /// outline too); only when no crop finds the thing whole does the plan's split (along the photo's colour edges)
+    /// stand.
+    func render(_ plans: [CatchPlan.Placement], boxes: [CGRect?], points: [CGPoint]) -> [(cut: Cut?, note: String?)] {
+        let n = plans.count
+        var hits: [Int: RegionHit] = [:]
+        for i in 0..<n {
+            guard let box = boxes[i], !plans[i].sharedWith.isEmpty || plans[i].refine != nil else { continue }
+            if let h = regionHit(box, point: points[i], fadeIfCut: false) { hits[i] = h }
+        }
+        let grid = labelMaskCopy()
+        var out: [(cut: Cut?, note: String?)] = []
+        for i in 0..<n {
+            let p = plans[i]
+            var note = p.note
+            func add(_ s: String) { note = (note.map { $0 + "; " } ?? "") + s }
+            if let h = hits[i] {
+                add("Vision on a crop round its box found it whole")
+                out.append((h.cut, note))
+                continue
             }
-            add("the region alone found nothing whole: the whole instance")
+            if p.refine != nil { add("no crop found it whole: the whole instance") }
+            switch p.cut {
+            case .instance(let l):
+                out.append((cut(instance: l), note))
+            case .union(let ls):
+                out.append((cut(instances: IndexSet(ls)) ?? ls.first.flatMap { cut(instance: $0) }, note))
+            case .part(let ls, let keep):
+                // The things of this shared instance that a crop found whole take their own outline out of it.
+                let rivals = p.sharedWith.filter { $0 < n && hits[$0] != nil }
+                guard !rivals.isEmpty, let g = grid, g.width == keep.width, g.height == keep.height, let box = boxes[i] else {
+                    out.append((cut(instances: IndexSet(ls), keep: keep), note))
+                    continue
+                }
+                let left = p.sharedWith.filter { $0 < n && hits[$0] == nil }
+                var bits = keep.bits
+                var taken = [Bool](repeating: false, count: g.width * g.height)
+                for j in rivals { if let hb = hits[j]?.grid { for k in hb.indices where hb[k] != 0 { taken[k] = true } } }
+                taken = Self.grown(taken, width: g.width, height: g.height)
+                var on = [Bool](repeating: false, count: 256)
+                for l in ls where l > 0 && l < 256 { on[l] = true }
+                for k in bits.indices where on[Int(g.mask[k])] {
+                    if taken[k] { bits[k] = 0; continue }
+                    // What a rival found whole does not take is this thing's when no other thing is left to share it.
+                    if bits[k] == 0 && left.isEmpty { bits[k] = 1 }
+                }
+                let mine = CatchPlan.reaching(CatchPlan.Keep(width: g.width, height: g.height, bits: bits), box: box,
+                                              width: g.width, height: g.height)
+                add("the instance without what a crop found for thing \(rivals.map { String($0 + 1) }.joined(separator: ", "))")
+                out.append((mine.count > 0 ? cut(instances: IndexSet(ls), keep: mine) : nil, note))
+            case .noMask:
+                // Nothing Vision found is where the AI boxed the thing: Vision once more, on a crop round it.
+                guard let box = boxes[i] else {
+                    out.append((nil, note))
+                    continue
+                }
+                let h = regionHit(box, point: points[i], fadeIfCut: true)
+                add(h == nil ? "no cut-out (no crop round its box found it either)" : "cut from a crop round its box")
+                out.append((h?.cut, note))
+            }
         }
-        switch placement.cut {
-        case .instance(let l):
-            return (cut(instance: l), note)
-        case .union(let ls):
-            return (cut(instances: IndexSet(ls)) ?? ls.first.flatMap { cut(instance: $0) }, note)
-        case .part(let ls, let keep):
-            return (cut(instances: IndexSet(ls), keep: keep), note)
-        case .noMask:
-            // Nothing Vision found is where the AI boxed the thing: Vision once more, on that region alone.
-            guard let box else { return (nil, note) }
-            let c = regionCut(box, minCover: Self.noMaskCover, fadeIfCut: true)
-            add(c == nil ? "no cut-out (the region alone found nothing whole either)" : "cut from the region alone")
-            return (c, note)
-        }
+        return out
     }
 
-    /// A region's instance must fill this share of the thing's box to be the thing (refining an instance far larger
-    /// than the box / a thing with no mask in its box at all — small and thin things fill little).
-    static let refineCover = 0.3
-    static let noMaskCover = 0.08
-    /// How far round the box the region reaches, each side, as a share of the box: tried in turn while the instance in
-    /// the box runs into the region's edge (a box smaller than the thing).
-    static let regionWidening: [CGFloat] = [0.35, 0.8]
+    /// `bits` grown by one pixel (8 neighbours).
+    private static func grown(_ bits: [Bool], width w: Int, height h: Int) -> [Bool] {
+        var out = bits
+        for y in 0..<h {
+            for x in 0..<w where bits[y * w + x] {
+                for dy in -1...1 {
+                    for dx in -1...1 {
+                        let nx = x + dx, ny = y + dy
+                        if nx >= 0, ny >= 0, nx < w, ny < h { out[ny * w + nx] = true }
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    /// How far round the box the crop reaches, each side, as a share of the box: tried in turn while the thing runs
+    /// into the crop's edge (a box smaller than the thing).
+    static let regionWidening: [CGFloat] = [0.25, 0.6]
 
     // MARK: Cut-outs
 
@@ -239,51 +293,88 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         return c
     }
 
-    /// Vision once more on the photo round `box` (0–1), for a thing the whole photo's request gave no mask of its own:
-    /// the region reaches `regionWidening` of the box round it. Of the instances found there, the one that fills the
-    /// most of the box is taken — only when it is whole (it does not run into the region's edge, other than the photo's
-    /// own edge: such a cut-out would end in a straight line) and fills at least `minCover` of the box. A wider region
-    /// is tried while the instance in the box is cut by the region's edge. `fadeIfCut` (a thing with no mask of its own
-    /// at all, where nothing else would show it): after the widest try, an instance that still runs into the region's
-    /// edge is taken with its alpha faded out towards that edge (`fadeWidth`), so it never ends in a hard line.
-    /// nil = nothing: never a rectangle. Heavy: off the main thread.
-    func regionCut(_ box: CGRect, minCover: Double, fadeIfCut: Bool = false) -> Cut? {
+    /// What Vision found on a crop round one thing's box.
+    struct RegionHit {
+        /// The thing on transparency, its own outline (`trimmed`), and where it is in the photo.
+        let cut: Cut
+        /// The same thing on the plan's grid (`labelMaskCopy`; 1 = the thing): a shared instance is split by it.
+        let grid: [UInt8]?
+    }
+
+    /// Vision once more on a crop of the photo round `box` (0–1), reaching `regionWidening` of the box round it. Of the
+    /// crop's instances, the one at the thing's `point` (else nearest it) among those lying mostly in the box is the
+    /// thing (`pickInstance`). It is used only when it is whole — it does not run into the crop's edge, other than the
+    /// photo's own edge (a cut-out cut by the crop would end in a straight line); while it does, a wider crop is tried.
+    /// `fadeIfCut` (a thing with no mask of its own at all, where nothing else would show it): if even the widest crop
+    /// cuts it, the narrowest crop's instance is taken with its alpha faded out towards the crop's edge (`fadeWidth`),
+    /// never a hard line. nil = nothing: never a rectangle. Heavy: off the main thread.
+    func regionHit(_ box: CGRect, point: CGPoint?, fadeIfCut: Bool) -> RegionHit? {
         guard let photo, box.width > 0, box.height > 0 else { return nil }
         let W = CGFloat(photo.width), H = CGFloat(photo.height)
         let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
-        for (k, widen) in Self.regionWidening.enumerated() {
-            let last = k == Self.regionWidening.count - 1
+        var cutOne: (result: VNInstanceMaskObservation, handler: VNImageRequestHandler, label: Int, px: CGRect,
+                     open: (left: Bool, top: Bool, right: Bool, bottom: Bool), m: (mask: [UInt8], width: Int, height: Int))?
+        for widen in Self.regionWidening {
             let wide = box.insetBy(dx: -box.width * widen, dy: -box.height * widen).intersection(unit)
-            guard !wide.isNull, wide.width > 0.02, wide.height > 0.02 else { return nil }
+            guard !wide.isNull, wide.width > 0.02, wide.height > 0.02 else { break }
             let px = CGRect(x: wide.minX * W, y: wide.minY * H, width: wide.width * W, height: wide.height * H).integral
                 .intersection(CGRect(x: 0, y: 0, width: W, height: H))
-            guard px.width >= 16, px.height >= 16, let part = photo.cropping(to: px) else { return nil }
+            guard px.width >= 16, px.height >= 16, let part = photo.cropping(to: px) else { break }
             let request = VNGenerateForegroundInstanceMaskRequest()
             let handler = VNImageRequestHandler(cgImage: part, orientation: .up)
             guard (try? handler.perform([request])) != nil, let result = request.results?.first,
                   !result.allInstances.isEmpty,
-                  let m = MaskPixels.copy(result.instanceMask, known: result.allInstances, maxSide: 256) else { return nil }
-            // The box and the region's open edges (not the photo's edge) on the region's grid.
+                  let m = MaskPixels.copy(result.instanceMask, known: result.allInstances, maxSide: 256) else { continue }
             let inner = CGRect(x: (box.minX * W - px.minX) / px.width, y: (box.minY * H - px.minY) / px.height,
                                width: box.width * W / px.width, height: box.height * H / px.height)
+            let at = point.map { CGPoint(x: ($0.x * W - px.minX) / px.width, y: ($0.y * H - px.minY) / px.height) }
             let open = (left: px.minX > 0.5, top: px.minY > 0.5, right: px.maxX < W - 0.5, bottom: px.maxY < H - 0.5)
-            let pick = Self.wholeInstance(mask: m.mask, width: m.width, height: m.height, box: inner, open: open,
-                                          minCover: minCover)
-            let label = pick.label ?? (last && fadeIfCut ? pick.cutLabel : nil)
-            if let label,
-               let masked = try? result.generateMaskedImage(ofInstances: IndexSet(integer: label), from: handler,
-                                                            croppedToInstancesExtent: false) {
-                let ci = CIImage(cvPixelBuffer: masked)
-                guard var full = context.createCGImage(ci, from: ci.extent) else { return nil }
-                if pick.label == nil, let faded = Self.faded(full, open: open) { full = faded }
-                guard let c = Self.trimmed(full) else { return nil }
-                let sx = px.width / W, sy = px.height / H
-                return Cut(cg: c.cg, box: CGRect(x: px.minX / W + c.box.minX * sx, y: px.minY / H + c.box.minY * sy,
-                                                width: c.box.width * sx, height: c.box.height * sy))
+            let pick = Self.pickInstance(mask: m.mask, width: m.width, height: m.height, box: inner, point: at, open: open)
+            if let label = pick.label {
+                return hit(result, handler, label: label, px: px, m: m, fade: nil)
             }
-            guard pick.cutByEdge else { return nil }
+            if let label = pick.cutLabel, cutOne == nil { cutOne = (result, handler, label, px, open, m) }
+            guard pick.cutByEdge else { break }
+        }
+        if fadeIfCut, let c = cutOne {
+            return hit(c.result, c.handler, label: c.label, px: c.px, m: c.m, fade: c.open)
         }
         return nil
+    }
+
+    /// A crop's instance as a `RegionHit` (faded towards `fade`'s open edges when given).
+    private func hit(_ result: VNInstanceMaskObservation, _ handler: VNImageRequestHandler, label: Int, px: CGRect,
+                     m: (mask: [UInt8], width: Int, height: Int),
+                     fade: (left: Bool, top: Bool, right: Bool, bottom: Bool)?) -> RegionHit? {
+        guard let photo,
+              let masked = try? result.generateMaskedImage(ofInstances: IndexSet(integer: label), from: handler,
+                                                           croppedToInstancesExtent: false) else { return nil }
+        let W = CGFloat(photo.width), H = CGFloat(photo.height)
+        let ci = CIImage(cvPixelBuffer: masked)
+        guard var full = context.createCGImage(ci, from: ci.extent) else { return nil }
+        if let fade, let faded = Self.faded(full, open: fade) { full = faded }
+        guard let c = Self.trimmed(full) else { return nil }
+        let sx = px.width / W, sy = px.height / H
+        let cut = Cut(cg: c.cg, box: CGRect(x: px.minX / W + c.box.minX * sx, y: px.minY / H + c.box.minY * sy,
+                                            width: c.box.width * sx, height: c.box.height * sy))
+        // The thing on the plan's grid: each grid pixel's place in the crop.
+        var bits: [UInt8]?
+        if let g = labelMaskCopy(), g.width > 0, g.height > 0 {
+            var b = [UInt8](repeating: 0, count: g.width * g.height)
+            for gy in 0..<g.height {
+                let y = (CGFloat(gy) + 0.5) / CGFloat(g.height) * H
+                guard y >= px.minY, y < px.maxY else { continue }
+                let ry = min(m.height - 1, Int((y - px.minY) / px.height * CGFloat(m.height)))
+                for gx in 0..<g.width {
+                    let x = (CGFloat(gx) + 0.5) / CGFloat(g.width) * W
+                    guard x >= px.minX, x < px.maxX else { continue }
+                    let rx = min(m.width - 1, Int((x - px.minX) / px.width * CGFloat(m.width)))
+                    if Int(m.mask[ry * m.width + rx]) == label { b[gy * g.width + gx] = 1 }
+                }
+            }
+            bits = b
+        }
+        return RegionHit(cut: cut, grid: bits)
     }
 
     /// How far in from a region's open edge a cut-off thing fades out (share of the region's shorter side).
@@ -314,17 +405,22 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         return ctx.makeImage()
     }
 
-    /// Of a region's instances, the one that fills the most of `box` (0–1 of the region) and is whole — fewer than 1%
-    /// of the open edges' pixels are its — when it fills at least `minCover` of the box and at least 30% of it lies in
-    /// the box. `cutByEdge`: an instance that would have been taken ran into an open edge (a wider region may help);
-    /// `cutLabel`: the one of those that fills the most of the box. Pure, so CardCatchPickTests checks it.
-    static func wholeInstance(mask: [UInt8], width w: Int, height h: Int, box: CGRect,
-                              open: (left: Bool, top: Bool, right: Bool, bottom: Bool), minCover: Double)
+    /// Which of a crop's instances is the thing: of those lying mostly (half or more) in `box` grown by 10% and covering
+    /// at least 2% of it, the one at `point` (0–1 of the crop; the box's middle when nil), else the nearest to it, else
+    /// the one covering the most of the box. `label`: it, when it is whole — fewer than 1% of the crop's open edges'
+    /// pixels are its; otherwise `cutByEdge` and `cutLabel` (a wider crop may help). Pure, so CardCatchPickTests
+    /// checks it.
+    static func pickInstance(mask: [UInt8], width w: Int, height h: Int, box: CGRect, point: CGPoint? = nil,
+                             open: (left: Bool, top: Bool, right: Bool, bottom: Bool))
     -> (label: Int?, cutByEdge: Bool, cutLabel: Int?) {
         guard w > 2, h > 2, mask.count >= w * h else { return (nil, false, nil) }
+        let grown = box.insetBy(dx: -box.width * 0.1, dy: -box.height * 0.1)
         let area = max(1, CatchPlan.gridArea(box, width: w, height: h))
-        let inBox = CatchPlan.countsInside(box, mask: mask, width: w, height: h)
+        let inGrown = CatchPlan.countsInside(grown, mask: mask, width: w, height: h)
+        let p = point ?? CGPoint(x: box.midX, y: box.midY)
+        let px = p.x * CGFloat(w), py = p.y * CGFloat(h)
         var totals = [Int](repeating: 0, count: 256), edge = [Int](repeating: 0, count: 256)
+        var near = [CGFloat](repeating: .greatestFiniteMagnitude, count: 256)
         for y in 0..<h {
             for x in 0..<w {
                 let l = Int(mask[y * w + x])
@@ -333,21 +429,19 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                 if (open.left && x == 0) || (open.right && x == w - 1) || (open.top && y == 0) || (open.bottom && y == h - 1) {
                     edge[l] += 1
                 }
+                let dx = CGFloat(x) + 0.5 - px, dy = CGFloat(y) + 0.5 - py
+                near[l] = min(near[l], dx * dx + dy * dy)
             }
         }
+        let candidates = (1..<256).filter { l in
+            totals[l] > 0 && Double(inGrown[l]) >= CatchPlan.presence * Double(area)
+                && Double(inGrown[l]) / Double(totals[l]) >= 0.5
+        }
+        guard let pick = candidates.min(by: { a, b in near[a] != near[b] ? near[a] < near[b] : inGrown[a] > inGrown[b] })
+        else { return (nil, false, nil) }
         let openLength = (open.left ? h : 0) + (open.right ? h : 0) + (open.top ? w : 0) + (open.bottom ? w : 0)
         let allowed = max(1, Int(Double(openLength) * 0.01))
-        var best: Int?, bestCut: Int?
-        for l in 1..<256 where totals[l] > 0 {
-            guard Double(inBox[l]) >= minCover * Double(area), Double(inBox[l]) / Double(totals[l]) >= 0.3 else { continue }
-            if edge[l] > allowed {
-                if bestCut.map({ inBox[l] > inBox[$0] }) ?? true { bestCut = l }
-                continue
-            }
-            if let b = best, inBox[l] <= inBox[b] { continue }
-            best = l
-        }
-        return (best, best == nil && bestCut != nil, best == nil ? bestCut : nil)
+        return edge[pick] > allowed ? (nil, true, pick) : (pick, false, nil)
     }
 
     /// The opaque part of a full-size cut-out and its box (0–1 of the image).

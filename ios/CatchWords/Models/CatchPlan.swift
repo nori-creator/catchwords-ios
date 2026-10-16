@@ -69,6 +69,9 @@ nonisolated enum CatchPlan {
         /// The instance is far larger than this box (0–1 of the photo) and no other thing claims it: Vision is asked
         /// once more on the region round the box (`InstanceMasks.render`), kept only when whole; else `cut` stays.
         var refine: CGRect? = nil
+        /// The other things (indices) this thing's instance is shared with (`Cut.part` from `split`): each of them also
+        /// gets Vision on a crop round its own box first (`InstanceMasks.render`).
+        var sharedWith: [Int] = []
     }
 
     /// One Vision instance near an object's point, and how far it is (squared mask pixels; 0 = under the point).
@@ -197,7 +200,8 @@ nonisolated enum CatchPlan {
             }
             let anchor = CatchAnchor.anchors(mask: keep.bits, width: w, height: h)[1] ?? t.point
             return Placement(label: c.chosen, cut: .part(c.labels, keep), anchor: anchor,
-                             note: "one Vision instance with thing \(rivals.map { String($0 + 1) }.joined(separator: ", ")): split where they meet")
+                             note: "one Vision instance with thing \(rivals.map { String($0 + 1) }.joined(separator: ", ")): split where they meet",
+                             sharedWith: rivals)
         }
 
         // Things still without a place of their own: a spot of their own, clear of the placed ones.

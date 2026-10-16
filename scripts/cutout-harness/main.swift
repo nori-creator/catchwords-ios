@@ -332,8 +332,9 @@ for c in file.cases {
     let plans = CatchPlan.plan(things: things, mask: grid.mask, width: grid.width, height: grid.height, colours: masks.colourGrid())
     let oldPlans = OldCatchPlan.plan(things: oldThings, mask: grid.mask, width: grid.width, height: grid.height)
     var befores: [InstanceMasks.Cut?] = [], afters: [InstanceMasks.Cut?] = []
+    let rendered = masks.render(plans, boxes: c.things.indices.map { own[$0] ? boxes[$0] : nil }, points: things.map(\.point))
     for (i, t) in c.things.enumerated() {
-        let made = masks.render(plans[i], box: own[i] ? boxes[i] : nil)
+        let made = rendered[i]
         let old = oldRender(oldPlans[i], masks: masks, photo: photo, box: own[i] ? boxes[i] : nil)
         befores.append(old)
         afters.append(made.cut)

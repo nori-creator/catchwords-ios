@@ -70,9 +70,10 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
         let copy = masks?.labelMaskCopy()
         let plans = CatchPlan.plan(things: things, mask: copy?.mask ?? [], width: copy?.width ?? 0, height: copy?.height ?? 0,
                                    colours: masks?.colourGrid())
+        let rendered = masks?.render(plans, boxes: things.indices.map { own[$0] ? boxes[$0] : nil }, points: points)
         return list.enumerated().map { (i, words) -> CatchObject in
             let plan = plans[i]
-            let made = masks?.render(plan, box: own[i] ? boxes[i] : nil)
+            let made = rendered?[i]
             let cut = made?.cut
             let box = cut?.box ?? (own[i] ? boxes[i] : nil) ?? fallbackBox(at: plan.anchor, photoSize: photoSize)
             return CatchObject(id: i, words: words, point: own[i] ? points[i] : plan.anchor, box: box,

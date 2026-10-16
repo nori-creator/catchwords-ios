@@ -153,9 +153,8 @@ static float3 hueRGB(float h) {
     float2 from = position - drift - swirl;
     // Fine grains, not blocks: a dot in each cell that shrinks a little as it flies; some grains fade on the way.
     float2 inCell = fract(position / grain) - 0.5;
-    float radius = 0.5 - 0.18 * flight;
+    float radius = 0.5 - 0.08 * flight;
     if (length(inCell) > radius) { return half4(0.0); }
-    if (r4 < flight * 0.55) { return half4(0.0); }
-    half4 c = layer.sample(from);
-    return c * half(1.0 - 0.25 * flight);
+    if (r4 < flight * 0.3) { return half4(0.0); }
+    return layer.sample(from);
 }

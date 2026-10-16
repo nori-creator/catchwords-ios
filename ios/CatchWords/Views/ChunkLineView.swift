@@ -72,11 +72,15 @@ struct ChunkLineView: View {
             VStack(alignment: .leading, spacing: size == .large ? 8 : 5) {
                 // One line when it fits: the blocks shrink together (text, zhuyin and pinyin alike) down to a readable
                 // smallest size, and only below that do they wrap (owner 2026-10-16: 「1行に収まるよう文字を小さく」).
+                // Each size is a candidate of its own, largest first (at most five: `fitScales`).
+                let scales = fitScales
                 ViewThatFits(in: .horizontal) {
-                    ForEach(fitScales, id: \.self) { scale in
-                        HStack(spacing: 4) { parts(scale: scale) }.fixedSize(horizontal: true, vertical: false)
-                    }
-                    FlowRow(spacing: 4) { parts(scale: fitScales.last ?? 1) }
+                    oneLine(scales, 0)
+                    oneLine(scales, 1)
+                    oneLine(scales, 2)
+                    oneLine(scales, 3)
+                    oneLine(scales, 4)
+                    FlowRow(spacing: 4) { parts(scale: scales.last ?? 1) }
                 }
                 if !translation.isEmpty {
                     Text(translation)
@@ -115,6 +119,12 @@ struct ChunkLineView: View {
         while s > smallest + 0.001 { scales.append(s); s -= 0.05 }
         if smallest < 1 { scales.append(smallest) }
         return scales
+    }
+
+    /// The chunk on one line at the `k`-th size of `scales` (the smallest when there are fewer).
+    private func oneLine(_ scales: [CGFloat], _ k: Int) -> some View {
+        HStack(spacing: 4) { parts(scale: scales[min(k, scales.count - 1)]) }
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
