@@ -247,7 +247,8 @@ struct DexView: View {
                 .layoutPriority(1)
                 Spacer(minLength: 0)
                 DexModeSegment(mode: $mode) { m in
-                    Haptics.selection()
+                    // Every kind of view opens like a tab: the same pon and tap as the tab bar (owner 2026-10-16).
+                    SoundService.shared.pon(open: true)
                     withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) { mode = m }
                     router.advanceTour(from: .dexTypes, to: .dexOpen)
                 }
@@ -361,12 +362,14 @@ struct DexView: View {
 
     private var categoryMenu: some View {
         DexDropdown {
+            // Every category (すべて and その他 too) opens like a tab: the same pon and tap as the tab bar (owner
+            // 2026-10-16).
             DexDropdownRow(title: L("すべて"), count: nil, isSelected: categoryFilter == nil) {
-                pick { categoryFilter = nil }
+                pick(pon: true) { categoryFilter = nil }
             }
             ForEach(categoryCounts, id: \.no) { item in
                 DexDropdownRow(title: categoryTitle(item.no), count: item.count, isSelected: categoryFilter == item.no) {
-                    pick { categoryFilter = item.no }
+                    pick(pon: true) { categoryFilter = item.no }
                 }
             }
         }
@@ -391,8 +394,9 @@ struct DexView: View {
         }
     }
 
-    private func pick(_ change: () -> Void) {
-        Haptics.selection()
+    /// `pon`: the tab bar's pon and tap instead of the selection tap.
+    private func pick(pon: Bool = false, _ change: () -> Void) {
+        if pon { SoundService.shared.pon(open: true) } else { Haptics.selection() }
         withAnimation(.snappy) {
             change()
             openMenu = nil

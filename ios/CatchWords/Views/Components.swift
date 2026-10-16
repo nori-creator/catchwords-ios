@@ -152,6 +152,10 @@ struct StickerImage: View {
     let path: String?
     let url: URL?
     var contentMode: ContentMode = .fit
+    /// The largest side the picture is drawn at, in points, when it is small (a square of the dex, a sticker on the
+    /// album): a copy decoded at that size is used instead of the whole picture (`ImageCache.kept(for:maxPixel:)`).
+    /// nil: the picture itself (the word page).
+    var maxPoints: CGFloat? = nil
     /// Told the picture's size once it is drawn (the word page shapes its hero after the cut-out).
     var onLoad: ((CGSize) -> Void)? = nil
 
@@ -162,21 +166,31 @@ struct StickerImage: View {
     /// A picture already in memory is drawn in the very first frame. It used to come one frame later (the `.task`), so
     /// a dex page drawn anew — the catch's landing opens it fresh — showed every square empty for a moment, and longer
     /// for the ones read from disk (owner 2026-10-15: the dex went blank during the add animation).
-    init(path: String?, url: URL?, contentMode: ContentMode = .fit, onLoad: ((CGSize) -> Void)? = nil) {
+    init(path: String?, url: URL?, contentMode: ContentMode = .fit, maxPoints: CGFloat? = nil, onLoad: ((CGSize) -> Void)? = nil) {
         self.path = path
         self.url = url
         self.contentMode = contentMode
+        self.maxPoints = maxPoints
         self.onLoad = onLoad
-        _image = State(initialValue: Self.inMemory(path: path, url: url))
+        _image = State(initialValue: Self.inMemory(path: path, url: url, maxPixel: Self.step(maxPoints, contentMode)))
+    }
+
+    /// The size step the picture is decoded at (nil: whole).
+    private var maxPixel: Int? { Self.step(maxPoints, contentMode) }
+
+    /// Filling a frame, the picture's longer side runs past it (a 4:3 photo in a square): half again as much.
+    private static func step(_ points: CGFloat?, _ mode: ContentMode) -> Int? {
+        guard let points else { return nil }
+        return ImageCache.pixelStep(forPoints: mode == .fill ? points * 1.5 : points)
     }
 
     /// The picture (or its stand-in size) already in memory, read without waiting.
-    private static func inMemory(path: String?, url: URL?) -> UIImage? {
+    private static func inMemory(path: String?, url: URL?, maxPixel: Int?) -> UIImage? {
         guard let path else { return nil }
         let thumb = url.map { $0.path.hasSuffix(DexStore.thumbSuffix) } ?? false
         let key = thumb ? path + DexStore.thumbSuffix : path
-        return ImageCache.shared.image(for: key)
-            ?? ImageCache.shared.image(for: thumb ? path : path + DexStore.thumbSuffix)
+        return ImageCache.shared.image(for: key, maxPixel: maxPixel)
+            ?? ImageCache.shared.image(for: thumb ? path : path + DexStore.thumbSuffix, maxPixel: maxPixel)
     }
 
     var body: some View {
@@ -191,8 +205,9 @@ struct StickerImage: View {
             }
         }
         // Keyed on the URL too: the signed URL usually arrives after the first draw, and a task keyed on the
-        // path alone never ran again, leaving the picture blank.
-        .task(id: "\(path ?? "")|\(url?.absoluteString ?? "")") { await fill() }
+        // path alone never ran again, leaving the picture blank. And on the size step: a sticker made bigger on the
+        // album gets a sharper copy.
+        .task(id: "\(path ?? "")|\(url?.absoluteString ?? "")|\(maxPixel ?? 0)") { await fill() }
         .onChange(of: image) { _, img in
             guard let img else { return }
             loaded(img)
@@ -200,38 +215,51 @@ struct StickerImage: View {
     }
 
     private func loaded(_ img: UIImage) {
+        UITestTrace.once("first photo on screen")
         onLoad?(img.size)
-        // A cut-out that came out (almost) empty: the dex shows the word's photo instead.
-        if let path, path.contains("-cutout"), ImageTools.isNearlyBlank(img) { dex?.markBlankCutout(path) }
+        // A cut-out that came out (almost) empty: the dex shows the word's photo instead. Looked at off the main thread
+        // (it draws the whole picture once), once per cut-out found not empty.
+        if let path, path.contains("-cutout"), !Self.notBlank.contains(path) {
+            let dex = self.dex
+            Task {
+                let blank = await Task.detached(priority: .utility) { ImageTools.isNearlyBlank(img) }.value
+                if blank { dex?.markBlankCutout(path) } else { Self.notBlank.insert(path) }
+            }
+        }
     }
+
+    /// Cut-outs already looked at and found not empty (a storage path never changes content).
+    private static var notBlank: Set<String> = []
 
     private func fill() async {
         guard let path else { return }
+        let cache = ImageCache.shared
+        let px = maxPixel
         // The link says which size this is: a thumbnail is kept under its own key, never as the full picture.
         let thumb = url.map { $0.path.hasSuffix(DexStore.thumbSuffix) } ?? false
         let key = thumb ? path + DexStore.thumbSuffix : path
         // Already here: the very picture, or the full one where a thumbnail was asked for (only better).
-        if let hit = ImageCache.shared.image(for: key) ?? (thumb ? ImageCache.shared.image(for: path) : nil) {
+        if let hit = cache.image(for: key, maxPixel: px) ?? (thumb ? cache.image(for: path, maxPixel: px) : nil) {
             // Drawn from the first frame already (`init`): told now, since no change of `image` will tell it.
             if image === hit { loaded(hit) } else { image = hit }
             return
         }
         // While the full picture comes, its thumbnail stands in.
-        if image == nil, !thumb, let small = ImageCache.shared.image(for: path + DexStore.thumbSuffix) { image = small }
-        var kept = await ImageCache.shared.cached(for: key)
-        if kept == nil, thumb { kept = await ImageCache.shared.cached(for: path) }
-        if kept == nil, !thumb, image == nil { kept = await ImageCache.shared.cached(for: path + DexStore.thumbSuffix) }
+        if image == nil, !thumb, let small = cache.image(for: path + DexStore.thumbSuffix, maxPixel: px) { image = small }
+        var kept = await cache.kept(for: key, maxPixel: px)
+        if kept == nil, thumb { kept = await cache.kept(for: path, maxPixel: px) }
+        if kept == nil, !thumb, image == nil { kept = await cache.kept(for: path + DexStore.thumbSuffix, maxPixel: px) }
         guard !Task.isCancelled else { return }
         if let kept {
             image = kept
             // A thumbnail kept on disk stood in for a full picture: go on and fetch the full one.
-            if thumb || ImageCache.shared.image(for: path) != nil { return }
+            if thumb || cache.image(for: path, maxPixel: px) != nil { return }
         }
         guard let url else {
             dex?.requestSigning(path)
             return
         }
-        if let loaded = await ImageCache.shared.load(url: url, key: key) {
+        if let loaded = await cache.load(url: url, key: key, maxPixel: px) {
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.25)) { image = loaded }
             return
@@ -239,7 +267,7 @@ struct StickerImage: View {
         // A thumbnail that does not load (a broken or unreadable companion file): the full picture instead, rather
         // than an empty square (owner 2026-10-14: 「図鑑に表示されてない単語がある」).
         if thumb, let full = dex?.url(for: path, preferThumb: false), full != url,
-           let loaded = await ImageCache.shared.load(url: full, key: path) {
+           let loaded = await cache.load(url: full, key: path, maxPixel: px) {
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.25)) { image = loaded }
             return

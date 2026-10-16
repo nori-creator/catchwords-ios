@@ -52,6 +52,20 @@ final class FullTourTests: XCTestCase {
         review()
         settings()
         signOutAndBackIn()
+        relaunch()
+    }
+
+    /// A cold start of an account that has used the app before (nothing reset): the home album must come up with its
+    /// photos. The app's trace times it (`UITestTrace.once`: the dex kept on the phone, the first photo on screen), so
+    /// the time from launch to the first photo can be compared run to run.
+    private func relaunch() {
+        app.terminate()
+        app.launchArguments = app.launchArguments.map { $0 == "-uiDemoReset" ? "-uiDemoKeep" : $0 }
+        app.launch()
+        XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 30), "[\(display)/\(learning)] the app did not come back after a relaunch")
+        XCTAssertFalse(app.buttons["aiConsent.accept"].exists, "[\(display)/\(learning)] the AI consent was asked again after a relaunch")
+        settle(3)
+        snap("home-relaunch")
     }
 
     /// The AI consent comes first, once per account (`-uiDemoReset` starts with no answer kept): photographed,
@@ -357,6 +371,7 @@ final class FullTourTests: XCTestCase {
             row.tap()
             settle(1)
             snap(wheel.replacingOccurrences(of: "settings.", with: ""))
+            if wheel == "settings.wheel.goal" { turnWheelAndBack() }
             // Close without changing anything (each wheel saves only when closed, and only a change).
             if app.buttons["wheel.close"].waitForExistence(timeout: 3) { app.buttons["wheel.close"].tap() }
             settle(0.8)
@@ -366,6 +381,22 @@ final class FullTourTests: XCTestCase {
             settle(0.6)
             snap("settings-\(i)")
         }
+    }
+
+    /// Turns the open wheel by about a row with a finger and back (the app's trace logs a click per row crossing the
+    /// centre line: `TickingWheel`), and leaves it on the value it had, so closing changes nothing.
+    private func turnWheelAndBack() {
+        let wheel = app.pickerWheels.firstMatch
+        guard wheel.waitForExistence(timeout: 3) else { return }
+        let original = wheel.value as? String
+        let centre = wheel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        for target in [0.2, 0.8] {
+            centre.press(forDuration: 0.1, thenDragTo: wheel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: target)),
+                         withVelocity: .slow, thenHoldForDuration: 0.3)
+            settle(0.8)
+        }
+        if let original, (wheel.value as? String) != original { wheel.adjust(toPickerWheelValue: original) }
+        settle(0.5)
     }
 
     private func signOutAndBackIn() {

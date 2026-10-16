@@ -151,7 +151,7 @@ struct HomeView: View {
         .sheet(isPresented: $calendarOpen) {
             NavigationStack {
                 ScrollView {
-                    DexCalendarView(stickers: dex.albumStickers, selectedDay: $calendarDay, onOpen: { s in
+                    DexCalendarView(stickers: AlbumDay.onePerWord(dex.albumStickers), selectedDay: $calendarDay, onOpen: { s in
                         calendarOpen = false
                         router.detailSticker = dex.albumOwner(s)
                     }) { picked in
@@ -236,14 +236,49 @@ struct AlbumDay: Identifiable, Equatable {
     let items: [Sticker]
     var id: Date { day }
 
-    /// Every day with photos, newest first. Today always leads, even before its first photo.
+    /// Every day with photos, newest first, one photo per word a day (`onePerWord`). Today always leads, even before
+    /// its first photo.
     static func days(from stickers: [Sticker], today: Date) -> [AlbumDay] {
         let cal = Calendar.current
-        var byDay = Dictionary(grouping: stickers) { cal.startOfDay(for: $0.takenAt) }
+        var byDay = Dictionary(grouping: onePerWord(stickers)) { cal.startOfDay(for: $0.takenAt) }
         if byDay[today] == nil { byDay[today] = [] }
         return byDay.keys.sorted(by: >).map { d in
             AlbumDay(day: d, items: (byDay[d] ?? []).sorted { $0.takenAt < $1.takenAt })
         }
+    }
+
+    /// One photo per word per day (owner 2026-10-16: the glasses shot twice in a row stood twice on the day, 「2語」 —
+    /// on the server they are one word met twice). The one kept: a cut-out before a photo, then the latest. The order
+    /// of first appearance is kept.
+    static func onePerWord(_ stickers: [Sticker], language: String = NativeAPI.targetLanguage) -> [Sticker] {
+        let cal = Calendar.current
+        var kept: [String: Sticker] = [:]
+        var order: [String] = []
+        for s in stickers {
+            let key = "\(cal.startOfDay(for: s.takenAt).timeIntervalSince1970)|\(wordKey(s, language: language))"
+            if let k = kept[key] {
+                if shows(s, before: k) { kept[key] = s }
+            } else {
+                kept[key] = s
+                order.append(key)
+            }
+        }
+        return order.compactMap { kept[$0] }
+    }
+
+    /// Which word a photo is of: its headword as the dex tells words apart, else its word row, else itself.
+    static func wordKey(_ s: Sticker, language: String) -> String {
+        let h = DexCatalog.norm(s.word?.headword ?? "", lang: language)
+        if !h.isEmpty { return "h:" + h }
+        if !s.wordId.isEmpty { return "w:" + s.wordId }
+        return "id:" + s.id
+    }
+
+    /// `a` is shown rather than `b` for the same word on the same day: a cut-out first, then the latest.
+    static func shows(_ a: Sticker, before b: Sticker) -> Bool {
+        let ac = a.cutoutImageUrl != nil, bc = b.cutoutImageUrl != nil
+        if ac != bc { return ac }
+        return a.takenAt > b.takenAt
     }
 }
 

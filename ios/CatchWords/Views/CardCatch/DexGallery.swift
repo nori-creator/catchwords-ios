@@ -333,12 +333,13 @@ struct DexCyclingPicture: View {
     @ViewBuilder
     private func one(_ p: DexPicture, width w: CGFloat) -> some View {
         if p.isCutout {
-            StickerImage(path: p.path, url: dex.url(for: p.path), contentMode: .fit)
+            // Decoded at the square's size (a dex of full-size cut-outs did not fit in memory: `StickerImage.maxPoints`).
+            StickerImage(path: p.path, url: dex.url(for: p.path), contentMode: .fit, maxPoints: w)
                 .frame(width: w * 0.9, height: w * 0.9)
                 .shadow(color: .rgba(0, 30, 70, 0.22), radius: 2.5, y: 2.5)
                 .frame(width: w, height: w)
         } else {
-            StickerImage(path: p.path, url: dex.url(for: p.path), contentMode: .fill)
+            StickerImage(path: p.path, url: dex.url(for: p.path), contentMode: .fill, maxPoints: w)
                 .frame(width: w * 0.86, height: w * 0.86)
                 .clipShape(.rect(cornerRadius: 12, style: .continuous))
                 .shadow(color: .rgba(0, 30, 70, 0.18), radius: 4, y: 3)

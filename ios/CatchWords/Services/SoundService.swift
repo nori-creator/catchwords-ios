@@ -105,14 +105,23 @@ final class SoundService {
     static let shared = SoundService()
 
     private var players: [SFX: AVAudioPlayer] = [:]
-    private let synthesizer = AVSpeechSynthesizer()
+    /// The device voice, made the first time it speaks (making one at launch held the main thread while the app opened).
+    private var synthesizer: AVSpeechSynthesizer?
     private var voiceCache: [String: AVSpeechSynthesisVoice?] = [:]
-    /// The device voice for a language (zh-TW / en / ja), picked once.
-    private func voice(for lang: String) -> AVSpeechSynthesisVoice? {
+    /// The device voice for a language (zh-TW / en / ja), picked once — off the main thread: the system's list of
+    /// voices can take seconds to come the first time (it held the main thread right as a word's page opened and read
+    /// its word with the device voice).
+    private func voice(for lang: String) async -> AVSpeechSynthesisVoice? {
         if let v = voiceCache[lang] { return v }
-        let v = Self.pickVoice(Self.bcp47(lang))
-        voiceCache[lang] = v
-        return v
+        let code = Self.bcp47(lang)
+        let picked = await Task.detached(priority: .userInitiated) { VoiceBox(voice: Self.pickVoice(code)) }.value
+        voiceCache[lang] = picked.voice
+        return picked.voice
+    }
+
+    /// A voice handed from the thread that picked it (the voice itself is only read afterwards).
+    nonisolated private struct VoiceBox: @unchecked Sendable {
+        let voice: AVSpeechSynthesisVoice?
     }
 
     /// The language a text is read in — from the text itself, so a word is never read in another
@@ -145,10 +154,37 @@ final class SoundService {
     /// 設定 › 効果音 is off (the sound level "off").
     var isMuted: Bool { levelMultiplier == 0 }
 
+    /// At launch: the audio session and every sound's player, made off the main thread (about forty players, each a
+    /// file read and an audio setup, used to run on the main thread before the first screen could be drawn). A sound
+    /// asked for before its player is ready makes it there and then, as before.
     func configure() {
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-        try? AVAudioSession.sharedInstance().setActive(true)
-        for sfx in SFX.allCases { _ = player(for: sfx) }
+        let files: [(sfx: SFX, url: URL)] = SFX.allCases.compactMap { sfx in
+            Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension).map { (sfx, $0) }
+        }
+        Task.detached(priority: .utility) {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try? session.setActive(true)
+            var made: [(sfx: SFX, player: AVAudioPlayer)] = []
+            for f in files {
+                guard let player = try? AVAudioPlayer(contentsOf: f.url) else { continue }
+                player.prepareToPlay()
+                made.append((f.sfx, player))
+            }
+            let batch = PlayerBatch(items: made)
+            await MainActor.run {
+                let service = SoundService.shared
+                for m in batch.items where service.players[m.sfx] == nil { service.players[m.sfx] = m.player }
+            }
+            // The system's list of voices answers slowly the first time: asked once now, behind the first screen, so
+            // a word read with the device voice later does not wait for it.
+            _ = AVSpeechSynthesisVoice.speechVoices()
+        }
+    }
+
+    /// The players made off the main thread, handed over once (nothing else touches them meanwhile).
+    nonisolated private struct PlayerBatch: @unchecked Sendable {
+        let items: [(sfx: SFX, player: AVAudioPlayer)]
     }
 
     func play(_ sfx: SFX, volume: Float = 1) {
@@ -188,7 +224,8 @@ final class SoundService {
     enum Tick {
         /// A word passing the reading line of the Collection map's timeline while scrolling.
         case timeline
-        /// A Settings pill chosen, or the wheel passing a value.
+        /// A Settings pill chosen (off unless chosen in 設定 › 開発者, owner 2026-10-16). The wheels click on their own
+        /// (`wheelTick`).
         case picker
     }
 
@@ -203,6 +240,14 @@ final class SoundService {
             ? [.c6ScrollTick1, .c6ScrollTick2, .c6ScrollTick3]
             : [.c6PickTick1, .c6PickTick2, .c6PickTick3]
         play(files[n - 1])
+    }
+
+    /// A Settings wheel passing a row while it turns (`TickingWheel`): the picker tick chosen in 設定 › 開発者, or the
+    /// first one when none is chosen there — the wheel always clicks (owner 2026-10-16: 「カチカチ音がスクロールに
+    /// 追従するように」). Same level rules as every SFX; a click restarts the one before it.
+    func wheelTick() {
+        let n = DevChoices.tick(DevChoices.pickerTickKey) ?? 1
+        play([SFX.c6PickTick1, .c6PickTick2, .c6PickTick3][n - 1])
     }
 
     func startAnalyzeLoop() {
@@ -337,7 +382,7 @@ final class SoundService {
         speakToken += 1
         let token = speakToken
         voicePlayer?.stop()
-        if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
+        if let synthesizer, synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
         let task = audio(for: text)
         Task {
             // Whichever comes first: the audio, or 2.5 s of waiting (then the device voice speaks,
@@ -378,7 +423,16 @@ final class SoundService {
 
     /// Device voice fallback: always the text's own language's voice (never a "close" language).
     private func speakOnDevice(_ text: String) {
-        guard let voice = voice(for: Self.language(of: text)) else { return }
+        let token = speakToken
+        Task {
+            guard let voice = await voice(for: Self.language(of: text)), token == speakToken else { return }
+            say(text, voice: voice)
+        }
+    }
+
+    private func say(_ text: String, voice: AVSpeechSynthesisVoice) {
+        let synthesizer = self.synthesizer ?? AVSpeechSynthesizer()
+        self.synthesizer = synthesizer
         if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = voice
@@ -396,7 +450,7 @@ final class SoundService {
         return player
     }
 
-    private static func pickVoice(_ lang: String) -> AVSpeechSynthesisVoice? {
+    nonisolated private static func pickVoice(_ lang: String) -> AVSpeechSynthesisVoice? {
         let voices = AVSpeechSynthesisVoice.speechVoices()
             .filter { $0.language == lang }
             .sorted { lhs, rhs in

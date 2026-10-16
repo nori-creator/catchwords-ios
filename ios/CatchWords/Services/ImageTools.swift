@@ -483,16 +483,67 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         return c
     }
 
-    /// The photo round `box` (0–1, widened by 6% each side): the sticker when no instance covers the thing.
-    func crop(_ box: CGRect) -> Cut? {
+    /// The copy of the label mask the things are planned on (`CatchPlan`), made once.
+    func labelMaskCopy() -> (mask: [UInt8], width: Int, height: Int)? {
+        maskLock.lock()
+        defer { maskLock.unlock() }
+        if maskCache == nil { maskCache = labelMask() }
+        return maskCache
+    }
+
+    /// These instances' pixels inside `rect` only (0–1 of the photo), on transparency, cropped to what is left: the
+    /// cut-out of one of two things Vision saw as one (glasses lying against a bottle), or of a thing that is part of
+    /// something larger (owner 2026-10-16: this used to be a rectangle of the photo). Heavy: call off the main thread.
+    func cut(instances labels: IndexSet, clippedTo rect: CGRect) -> Cut? {
+        let key = labels.map { String($0) }.joined(separator: ",")
+            + String(format: "@%.4f,%.4f,%.4f,%.4f", rect.minX, rect.minY, rect.width, rect.height)
+        lock.lock()
+        defer { lock.unlock() }
+        if let c = unionCache[key] { return c }
+        guard let masked = try? observation.generateMaskedImage(ofInstances: labels, from: handler,
+                                                               croppedToInstancesExtent: false) else { return nil }
+        let ci = CIImage(cvPixelBuffer: masked)
+        guard let full = CIContext().createCGImage(ci, from: ci.extent) else { return nil }
+        let w = CGFloat(full.width), h = CGFloat(full.height)
+        let clip = rect.intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+        guard !clip.isNull, clip.width > 0, clip.height > 0 else { return nil }
+        let px = CGRect(x: clip.minX * w, y: clip.minY * h, width: clip.width * w, height: clip.height * h).integral
+            .intersection(CGRect(x: 0, y: 0, width: w, height: h))
+        guard let part = full.cropping(to: px), let inner = Self.alphaBounds(part), let cropped = part.cropping(to: inner)
+        else { return nil }
+        let c = Cut(image: UIImage(cgImage: cropped),
+                    box: CGRect(x: (px.minX + inner.minX) / w, y: (px.minY + inner.minY) / h,
+                                width: inner.width / w, height: inner.height / h))
+        unionCache[key] = c
+        return c
+    }
+
+    /// Vision once more on the photo round `box` alone (0–1, widened by 12% each side), the instance under the box's
+    /// middle (or nearest it) cut out: for a thing the whole photo's request found no mask for. nil when it finds
+    /// nothing either — then the thing has no cut-out (never a rectangle of the photo). Heavy: off the main thread.
+    func regionCut(_ box: CGRect) -> Cut? {
         guard let photo else { return nil }
-        let w = CGFloat(photo.width), h = CGFloat(photo.height)
-        let wide = box.insetBy(dx: -box.width * 0.06, dy: -box.height * 0.06)
+        let W = CGFloat(photo.width), H = CGFloat(photo.height)
+        let wide = box.insetBy(dx: -box.width * 0.12, dy: -box.height * 0.12)
             .intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
-        guard !wide.isNull, wide.width > 0.01, wide.height > 0.01 else { return nil }
-        let px = CGRect(x: wide.minX * w, y: wide.minY * h, width: wide.width * w, height: wide.height * h).integral
-        guard let cropped = photo.cropping(to: px) else { return nil }
-        return Cut(image: UIImage(cgImage: cropped), box: wide)
+        guard !wide.isNull, wide.width > 0.02, wide.height > 0.02 else { return nil }
+        let px = CGRect(x: wide.minX * W, y: wide.minY * H, width: wide.width * W, height: wide.height * H).integral
+        guard px.width >= 16, px.height >= 16, let part = photo.cropping(to: px) else { return nil }
+        let request = VNGenerateForegroundInstanceMaskRequest()
+        let handler = VNImageRequestHandler(cgImage: part, orientation: .up)
+        guard (try? handler.perform([request])) != nil, let result = request.results?.first,
+              !result.allInstances.isEmpty else { return nil }
+        let centre = CGPoint(x: (box.midX * W - px.minX) / px.width, y: (box.midY * H - px.minY) / px.height)
+        guard let label = CutoutService.nearestInstance(in: result.instanceMask, to: centre) ?? result.allInstances.first,
+              let masked = try? result.generateMaskedImage(ofInstances: IndexSet(integer: label), from: handler,
+                                                           croppedToInstancesExtent: false) else { return nil }
+        let ci = CIImage(cvPixelBuffer: masked)
+        guard let full = CIContext().createCGImage(ci, from: ci.extent), let inner = Self.alphaBounds(full),
+              let cropped = full.cropping(to: inner) else { return nil }
+        let sx = px.width / CGFloat(full.width), sy = px.height / CGFloat(full.height)
+        return Cut(image: UIImage(cgImage: cropped),
+                   box: CGRect(x: (px.minX + inner.minX * sx) / W, y: (px.minY + inner.minY * sy) / H,
+                               width: inner.width * sx / W, height: inner.height * sy / H))
     }
 
     /// The foreground instances near `point`, nearest first (see `CutoutService.rankedInstances`).

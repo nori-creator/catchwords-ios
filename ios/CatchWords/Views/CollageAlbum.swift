@@ -255,11 +255,12 @@ private struct CollagePiece: View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !wiggles)) { ctx in
             let w = wiggles ? Self.wiggle(sticker.id, at: ctx.date) : (rot: 0.0, lift: 0.0)
             card(hasHero: hasHero, size: size, captionH: captionH, lifted: lifted)
-                // Drawn once into one layer (shadows included, with room for them): the shiver and the drag then
-                // only move that layer instead of drawing every shadow again each frame.
-                .padding(Self.shadowRoom)
-                .drawingGroup()
-                .padding(-Self.shadowRoom)
+                // While rearranging, drawn once into one layer (shadows included, with room for them): the shiver and
+                // the drag then only move that layer instead of drawing every shadow again each frame. Only then: the
+                // layer is drawn with Metal, and its first draw compiles Metal pipelines on the main thread — done for
+                // every photo of the album, it held the main thread as the home album first showed its photos (13 s on
+                // the UI tour's simulator, 2026-10-16).
+                .modifier(FlattenedWhileEditing(on: editing && canEdit, room: Self.shadowRoom))
                 .overlay(alignment: .topLeading) {
                     if editing && canEdit { removeButton }
                 }
@@ -501,6 +502,21 @@ private struct LongPressGrab: UIGestureRecognizerRepresentable {
     }
 }
 
+/// The album photo drawn into one layer while the page is being rearranged (`CollagePiece`), plainly otherwise.
+private struct FlattenedWhileEditing: ViewModifier {
+    let on: Bool
+    let room: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if on {
+            content.padding(room).drawingGroup().padding(-room)
+        } else {
+            content
+        }
+    }
+}
+
 /// A selfie on the album page cut down to its people and what they hold (`SelfieCutouts`): a soft blank while it is
 /// made, then the cut-out with the stickers' shadow.
 private struct SelfieAlbumCutout: View {
@@ -579,12 +595,13 @@ struct AlbumPhoto: View {
             // A selfie: its people and what they hold, cut out like the other stickers (made on this phone).
             SelfieAlbumCutout(path: path, width: width, height: height, lifted: lifted)
         } else if let path, path == sticker.cutoutImageUrl {
-            StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
+            // Decoded at the size it is drawn (a copy for the album, not the whole cut-out).
+            StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit, maxPoints: max(width, height))
                 .allowsHitTesting(false)
                 .frame(width: width, height: height)
                 .shadow(color: Color(hex: 0x5A4630).opacity(lifted ? 0.34 : 0.25), radius: lifted ? 11 : 3, y: lifted ? 11 : 2)
         } else if let path {
-            StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fill)
+            StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fill, maxPoints: max(width, height))
                 .allowsHitTesting(false)
                 .frame(width: width, height: height)
                 .clipShape(.rect(cornerRadius: min(width, height) * 0.18, style: .continuous))

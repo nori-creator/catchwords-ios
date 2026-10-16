@@ -51,12 +51,33 @@ final class HapticPatterns {
     private var engine: CHHapticEngine?
     var isAvailable: Bool { engine != nil }
 
+    /// The engine is made off the main thread (asking the hardware and starting the engine held the main thread for
+    /// seconds on the first tab tap of a cold start, 2026-10-16); until it is ready, `Haptics.pon` taps without it.
+    /// `warmUp()` at launch makes it before anyone needs it.
     private init() {
-        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
-        engine = try? CHHapticEngine()
-        engine?.isAutoShutdownEnabled = true
-        engine?.resetHandler = { [weak self] in try? self?.engine?.start() }
-        try? engine?.start()
+        Task.detached(priority: .utility) {
+            guard CHHapticEngine.capabilitiesForHardware().supportsHaptics, let made = try? CHHapticEngine() else { return }
+            made.isAutoShutdownEnabled = true
+            try? made.start()
+            let box = EngineBox(engine: made)
+            await MainActor.run { HapticPatterns.shared.adopt(box.engine) }
+        }
+    }
+
+    /// Makes the engine now, behind the first screen.
+    static func warmUp() { _ = shared }
+
+    private func adopt(_ made: CHHapticEngine) {
+        guard engine == nil else { return }
+        engine = made
+        made.resetHandler = { [weak self] in
+            Task { @MainActor in try? self?.engine?.start() }
+        }
+    }
+
+    /// The engine handed from the thread that made it (nothing uses it there afterwards).
+    nonisolated private struct EngineBox: @unchecked Sendable {
+        let engine: CHHapticEngine
     }
 
     private func play(_ events: [CHHapticEvent], curves: [CHHapticParameterCurve] = []) {

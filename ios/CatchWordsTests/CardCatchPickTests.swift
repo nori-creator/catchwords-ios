@@ -176,4 +176,90 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(CCPickLayout.object(at: CGPoint(x: 120, y: 100), rects: [a, b]), 0)
         XCTAssertEqual(CCPickLayout.object(at: CGPoint(x: 180, y: 100), rects: [a, b]), 1)
     }
+
+    // MARK: Two things Vision saw as one (owner 2026-10-16: glasses lying against a green water bottle)
+
+    /// A 100 × 133 label mask of the owner's photo (portrait, as drawn upright): the bottle at the top right
+    /// (x 58–89, y 0–40) and the glasses below it (two rings and a bridge), touching the bottle at x 70–73.
+    /// `glasses`: the glasses' label — 1 = Vision made one instance of the two things (the owner's first photo).
+    private func deskMask(glasses: UInt8) -> [UInt8] {
+        mask(100, 133) { x, y in
+            if (58..<90).contains(x) && (0..<41).contains(y) { return 1 }
+            for cx in [34.0, 66.0] {
+                let v = pow((Double(x) - cx) / 16, 2) + pow((Double(y) - 52) / 10, 2)
+                if abs(v - 1) <= 0.3 { return glasses }
+            }
+            if (48...52).contains(x) && (50...52).contains(y) { return glasses }
+            if (70...73).contains(x) && (39...44).contains(y) { return glasses }
+            return 0
+        }
+    }
+
+    /// The server's answer for that photo as it comes (`suggestWords`: two things, two names each, `box_2d` =
+    /// [ymin, xmin, ymax, xmax] and `point` = [x, y], 0–1000 of the upright upload, web suggestion-position.ts).
+    private func deskAnswer() throws -> [Candidate] {
+        let json = """
+        [{"kind":"object","headword":"眼鏡","group":0,"point":[500,390],"box_2d":[290,140,490,860]},
+         {"kind":"object","headword":"眼鏡框","group":0,"point":[500,390],"box_2d":[290,140,490,860]},
+         {"kind":"object","headword":"水筒","group":1,"point":[740,160],"box_2d":[0,560,320,920]},
+         {"kind":"object","headword":"保溫瓶","group":1,"point":[740,160],"box_2d":[0,560,320,920]}]
+        """
+        return try JSONDecoder().decode([Candidate].self, from: Data(json.utf8))
+    }
+
+    func testTwoThingsVisionSawAsOneEachGetTheirOwnPartAndTag() throws {
+        let things = CatchObject.plannedThings(CatchObject.groups(try deskAnswer()))
+        XCTAssertEqual(things.count, 2)
+        XCTAssertEqual(things[0].point.x, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(things[0].point.y, 0.39, accuracy: 1e-9)
+        let glassesBox = try XCTUnwrap(things[0].box), bottleBox = try XCTUnwrap(things[1].box)
+        let plans = CatchPlan.plan(things: things, mask: deskMask(glasses: 1), width: 100, height: 133)
+        // Neither a whole instance (that would be both things) nor a rectangle: each its part of the one instance.
+        guard case .clip(let gl, let gr) = plans[0].cut, case .clip(let bl, let br) = plans[1].cut else {
+            return XCTFail("both things should be clipped from the shared instance: \(plans.map(\.cut))")
+        }
+        XCTAssertEqual(gl, [1])
+        XCTAssertEqual(bl, [1])
+        XCTAssertTrue(gr.contains(CGPoint(x: glassesBox.midX, y: glassesBox.midY)))
+        XCTAssertTrue(br.contains(CGPoint(x: bottleBox.midX, y: bottleBox.midY)))
+        // The glasses' tag on the glasses (below the bottle, inside the glasses' box), the bottle's on the bottle.
+        let g = plans[0].anchor, b = plans[1].anchor
+        XCTAssertTrue(glassesBox.contains(g), "glasses tag \(g) outside \(glassesBox)")
+        XCTAssertGreaterThan(g.y, 41.0 / 133, "glasses tag \(g) is on the bottle")
+        XCTAssertTrue(CGRect(x: 0.58, y: 0, width: 0.32, height: 41.0 / 133).contains(b), "bottle tag \(b) off the bottle")
+        XCTAssertGreaterThan(hypot(g.x - b.x, g.y - b.y), 0.15, "the two tags stack")
+        XCTAssertNotNil(plans[0].note)
+    }
+
+    func testTwoSeparateInstancesKeepTheirWholeCutOuts() throws {
+        let things = CatchObject.plannedThings(CatchObject.groups(try deskAnswer()))
+        let plans = CatchPlan.plan(things: things, mask: deskMask(glasses: 2), width: 100, height: 133)
+        XCTAssertEqual(plans[0].cut, .instance(2))
+        XCTAssertEqual(plans[1].cut, .instance(1))
+        XCTAssertEqual(plans[0].label, 2)
+        XCTAssertEqual(plans[1].label, 1)
+        XCTAssertNil(plans[0].note)
+    }
+
+    func testAThingWithNoMaskInItsBoxGetsNoCutOutNotARectangle() throws {
+        let things = CatchObject.plannedThings(CatchObject.groups(try deskAnswer()))
+        // Only the bottle was found.
+        let bottleOnly = mask(100, 133) { x, y in (58..<90).contains(x) && (0..<41).contains(y) ? 1 : 0 }
+        let plans = CatchPlan.plan(things: things, mask: bottleOnly, width: 100, height: 133)
+        XCTAssertEqual(plans[1].cut, .instance(1))
+        XCTAssertEqual(plans[0].cut, .noMask, "no mask where the glasses are: Vision on the region, else nothing")
+        XCTAssertEqual(plans[0].anchor.x, things[0].point.x, accuracy: 1e-9)
+        XCTAssertEqual(plans[0].anchor.y, things[0].point.y, accuracy: 1e-9)
+    }
+
+    func testAPortraitCameraPhotoIsReadUpright() {
+        // The iPad's photo lies in the file on its side (4032 × 3024, EXIF `.right`); the app draws it upright before
+        // Vision and the upload, so the server's [x, y] and the masks are both of the 3024 × 4032 portrait picture.
+        XCTAssertEqual(TagPlacement.uprightSize(pixels: CGSize(width: 4032, height: 3024), orientation: .right),
+                       CGSize(width: 3024, height: 4032))
+        // The glasses' middle as stored in the file is the server's point once the picture is upright.
+        let upright = TagPlacement.uprightPoint(CGPoint(x: 0.39, y: 0.5), orientation: .right)
+        XCTAssertEqual(upright.x, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(upright.y, 0.39, accuracy: 1e-9)
+    }
 }

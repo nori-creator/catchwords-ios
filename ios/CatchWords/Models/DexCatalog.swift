@@ -596,9 +596,24 @@ nonisolated enum DexCatalog {
 
     /// Headwords are compared trimmed and case-folded; Japanese also with katakana folded to hiragana, and
     /// English without a leading article — so りんご / リンゴ and "an apple" / "Apple" find the same item.
+    /// Katakana written as hiragana (ァ–ヶ, ヽヾ → ぁ–ゖ, ゝゞ: the same letters 0x60 apart), as ICU's Katakana-Hiragana
+    /// transform does for them. That transform took tens of milliseconds a call (it builds an ICU transliterator each
+    /// time): the catalog's index called it for every Japanese item on the first open of the 図鑑 — 22 s on the UI tour's
+    /// cold simulator — and the dex called it for every word on every redraw for Japanese learners.
+    static func katakanaToHiragana(_ s: String) -> String {
+        guard s.unicodeScalars.contains(where: { isKatakana($0.value) }) else { return s }
+        var out = String.UnicodeScalarView()
+        for u in s.unicodeScalars {
+            if isKatakana(u.value), let h = Unicode.Scalar(u.value - 0x60) { out.append(h) } else { out.append(u) }
+        }
+        return String(out)
+    }
+
+    private static func isKatakana(_ v: UInt32) -> Bool { (0x30A1...0x30F6).contains(v) || v == 0x30FD || v == 0x30FE }
+
     static func norm(_ s: String, lang: String) -> String {
         var t = s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if lang == "ja" { t = t.applyingTransform(.hiraganaToKatakana, reverse: true) ?? t }
+        if lang == "ja" { t = katakanaToHiragana(t) }
         if lang == "en" {
             for a in ["a ", "an ", "the "] where t.hasPrefix(a) {
                 t = String(t.dropFirst(a.count))

@@ -57,8 +57,8 @@ nonisolated struct ChunkPart: Codable, Sendable, Hashable {
     /// Other words natives often put here, most frequent first.
     var alts: [ChunkAlt]?
     /// This block's reading, one syllable per character (server chunk tokens, 2026-10-15: `pinyin` with tone marks and
-    /// `zhuyin` on every token), shown small above the block in the reading the learner chose (設定 › 発音表記). nil on
-    /// older cards: the block shows its text alone, as before.
+    /// `zhuyin` on every token), shown in the reading the learner chose (設定 › 発音表記): zhuyin beside each character
+    /// like the headword's, pinyin small above the block. nil on older cards: the block shows its text alone, as before.
     var pinyin: String?
     var zhuyin: String?
 

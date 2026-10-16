@@ -1,5 +1,6 @@
 import UIKit
 import CryptoKit
+import ImageIO
 
 /// Pictures keyed by STORAGE PATH (signed URLs change, paths don't), in two layers:
 /// - memory: decoded images (NSCache) for the screens in front of you;
@@ -108,22 +109,85 @@ final class ImageCache {
         return img
     }
 
+    // MARK: Small copies (a square of the dex, a sticker on the album)
+
+    /// The largest side, in pixels, a small copy is decoded at for a picture drawn `points` wide or high: one of a few
+    /// steps (so a picture resized a little reuses its copy), or nil past 1024 px (then the picture itself is used).
+    nonisolated static func pixelStep(forPoints points: CGFloat) -> Int? {
+        // 3 px a point: the sharpest screens (an iPad's 2 decodes a little more than needed, never less).
+        let px = points * 3
+        return [256, 384, 512, 768, 1024].first { CGFloat($0) >= px }
+    }
+
+    /// The memory key of the small copy of `key` at `maxPixel`.
+    nonisolated static func smallKey(_ key: String, maxPixel: Int) -> String { "\(key)#\(maxPixel)" }
+
+    /// The picture in memory for a drawing at `maxPixel` (its small copy, or the picture itself), or for full size.
+    func image(for key: String, maxPixel: Int?) -> UIImage? {
+        if let maxPixel, let small = image(for: Self.smallKey(key, maxPixel: maxPixel)) { return small }
+        return image(for: key)
+    }
+
+    /// A kept picture for a drawing at `maxPixel`: decoded straight at that size from the file on disk (ImageIO's
+    /// thumbnail, off the main thread), never the whole picture first — a dex of 1024 px cut-outs decoded every square
+    /// at full size (4 MB each in memory, so the 160 MB cache could not even hold one screen of them, and they were
+    /// decoded again on every scroll). With no size, the picture itself (`cached(for:)`).
+    func kept(for key: String, maxPixel: Int?) async -> UIImage? {
+        guard let maxPixel else { return await cached(for: key) }
+        if let hit = image(for: key, maxPixel: maxPixel) { return hit }
+        let small = Self.smallKey(key, maxPixel: maxPixel)
+        if let running = reading[small] { return await running.value }
+        let file = Self.file(for: key)
+        let task = Task.detached(priority: .userInitiated) { () -> UIImage? in
+            guard FileManager.default.fileExists(atPath: file.path),
+                  let source = CGImageSourceCreateWithURL(file as CFURL, nil),
+                  let img = Self.downsample(source, maxPixel: maxPixel) else { return nil }
+            try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: file.path)
+            return img
+        }
+        reading[small] = task
+        let img = await task.value
+        reading[small] = nil
+        if let img { set(img, for: small) }
+        return img
+    }
+
+    /// The image source's first picture at most `maxPixel` on its longest side, decoded now (not at first draw).
+    nonisolated private static func downsample(_ source: CGImageSource, maxPixel: Int) -> UIImage? {
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg)
+    }
+
     /// Whether the file for this key is on disk (nothing is decoded).
     func hasFile(for key: String) -> Bool {
         FileManager.default.fileExists(atPath: Self.file(for: key).path)
     }
 
-    /// Memory, then disk, then the network. A downloaded picture is kept on disk for next time.
-    func load(url: URL, key: String) async -> UIImage? {
-        if let hit = await cached(for: key) { return hit }
+    /// Memory, then disk, then the network. A downloaded picture is kept on disk for next time. `maxPixel`: decoded
+    /// at that size for a small drawing (`kept(for:maxPixel:)`); the file kept is the whole picture either way.
+    func load(url: URL, key: String, maxPixel: Int? = nil) async -> UIImage? {
+        if let hit = await kept(for: key, maxPixel: maxPixel) { return hit }
         guard let data = await Self.download(url) else { return nil }
         let file = Self.file(for: key)
         guard let img = await Task.detached(priority: .utility, operation: { () -> UIImage? in
+            if let maxPixel {
+                // Only a real picture is kept (an error page saved as a photo would show nothing forever).
+                guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                      let small = Self.downsample(source, maxPixel: maxPixel) else { return nil }
+                try? data.write(to: file, options: .atomic)
+                return small
+            }
             guard let raw = UIImage(data: data) else { return nil }
             try? data.write(to: file, options: .atomic)
             return raw.preparingForDisplay() ?? raw
         }).value else { return nil }
-        set(img, for: key)
+        set(img, for: maxPixel.map { Self.smallKey(key, maxPixel: $0) } ?? key)
         noteWrite()
         return img
     }

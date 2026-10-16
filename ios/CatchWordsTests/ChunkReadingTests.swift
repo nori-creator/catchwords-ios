@@ -49,6 +49,40 @@ final class ChunkReadingTests: XCTestCase {
         XCTAssertNil(ChunkLineView.reading(for: part, target: "en", pref: "pinyin"))
     }
 
+    func testZhuyinSitsBesideEachCharacterLikeTheHeadword() {
+        let part = ChunkPart(text: "鐵板麵", pos: "N", pinyin: "tiě bǎn miàn", zhuyin: "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ")
+        XCTAssertEqual(ChunkLineView.sideZhuyin(for: part, target: "zh-TW", pref: "zhuyin"), "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ")
+        // The headword's own pairing: one column per character, the tone beside it.
+        let units = ZhuyinLayout.pair(part.text, ChunkLineView.sideZhuyin(for: part, target: "zh-TW", pref: "zhuyin"))
+        XCTAssertEqual(units?.map(\.char), ["鐵", "板", "麵"])
+        XCTAssertEqual(units?.map(\.tone), ["ˇ", "ˇ", "ˋ"])
+        // Pinyin stays one line over the block.
+        XCTAssertNil(ChunkLineView.sideZhuyin(for: part, target: "zh-TW", pref: "pinyin"))
+        XCTAssertEqual(ChunkLineView.reading(for: part, target: "zh-TW", pref: "pinyin"), "tiě bǎn miàn")
+        // Never on a Japanese or English chunk, nor without a zhuyin (pinyin only: its line over the block).
+        XCTAssertNil(ChunkLineView.sideZhuyin(for: part, target: "ja", pref: "zhuyin"))
+        XCTAssertNil(ChunkLineView.sideZhuyin(for: ChunkPart(text: "點", pos: "V", pinyin: "diǎn"), target: "zh-TW", pref: "zhuyin"))
+        // A zhuyin that does not give one syllable per character keeps the line over the block.
+        let odd = ChunkPart(text: "鐵板麵", pos: "N", zhuyin: "ㄊㄧㄝˇ ㄅㄢˇ")
+        XCTAssertNil(ChunkLineView.sideZhuyin(for: odd, target: "zh-TW", pref: "zhuyin"))
+        XCTAssertEqual(ChunkLineView.reading(for: odd, target: "zh-TW", pref: "zhuyin"), "ㄊㄧㄝˇ ㄅㄢˇ")
+    }
+
+    func testANeutralToneTheInserted很AndAMergedWordGetTheirZhuyinBeside() {
+        let neutral = ChunkPart(text: "刷子", pos: "N", pinyin: "shuā zi", zhuyin: "ㄕㄨㄚ ˙ㄗ")
+        let z = ChunkLineView.sideZhuyin(for: neutral, target: "zh-TW", pref: "zhuyin")
+        XCTAssertEqual(z, "ㄕㄨㄚ ˙ㄗ")
+        XCTAssertEqual(ZhuyinLayout.pair(neutral.text, z)?.map(\.neutral), [false, true])
+        // 滷味＋入味 gets 很 with its reading (C8), drawn like the others.
+        let withHen = ChunkRules.withDegree([ChunkPart(text: "滷味", pos: "N", zhuyin: "ㄌㄨˇ ㄨㄟˋ"),
+                                             ChunkPart(text: "入味", pos: "Vs", zhuyin: "ㄖㄨˋ ㄨㄟˋ")])
+        XCTAssertEqual(withHen.map(\.text), ["滷味", "很", "入味"])
+        XCTAssertEqual(ChunkLineView.sideZhuyin(for: withHen[1], target: "zh-TW", pref: "zhuyin"), "ㄏㄣˇ")
+        let merged = ChunkRules.mergeCompounds([ChunkPart(text: "芒果", pos: "N", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ"),
+                                                ChunkPart(text: "冰", pos: "N", zhuyin: "ㄅㄧㄥ")], headword: "芒果")
+        XCTAssertEqual(ChunkLineView.sideZhuyin(for: merged[0], target: "zh-TW", pref: "zhuyin"), "ㄇㄤˊ ㄍㄨㄛˇ ㄅㄧㄥ")
+    }
+
     func testAMergedCompoundKeepsBothReadings() {
         let parts = [ChunkPart(text: "芒果", pos: "N", pinyin: "máng guǒ", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ"),
                      ChunkPart(text: "冰", pos: "N", pinyin: "bīng", zhuyin: "ㄅㄧㄥ")]

@@ -85,9 +85,8 @@ struct UIPreviewRoot: View {
             case "picker4": PickerPreview(desk: .placed)
             case "picker4-nopos": PickerPreview(desk: .unplaced)
             case "tabbar": TabBarPreview()
-            case "tabbar-a": TabBarPreview(variant: "a")
-            case "tabbar-b": TabBarPreview(variant: "b")
-            case "tabbar-c": TabBarPreview(variant: "c")
+            // The raised camera disc kept for a later release (developer's trial only, docs/backlog.md).
+            case "tabbar-b": TabBarPreview(variant: DevChoices.tabBarRaised)
             case "readings": ChunkReadingsPreview(pref: "zhuyin")
             case "readings-pinyin": ChunkReadingsPreview(pref: "pinyin")
             case "reports": AdminReportsPreview()
@@ -133,6 +132,7 @@ struct UIPreviewRoot: View {
             case "dex": DexView()
             case "done": DonePreview()
             case "home": HomePreview()
+            case "home-again": HomePreview(metAgain: true)
             case "camblocked": CameraBlockedPreview()
             case "homeload": VStack(spacing: 20) {
                 AlbumSkeleton().frame(height: 440)
@@ -600,9 +600,9 @@ private struct LandingPreview: View {
     }
 }
 
-/// The tab bar on a light page and on the dark camera.
-/// The tab bar as the owner compares it (`-uiPreview tabbar-a/b/c`, 2026-10-15): over the home album's paper, over a
-/// map-like ground, and over the camera's dark machine — the camera item in the chosen variant (`DevChoices.tabBar`).
+/// The tab bar over the home album's paper, over a map-like ground and over the camera's dark machine: as shipped
+/// (`-uiPreview tabbar`, the original look — owner 2026-10-16), or with the raised camera disc kept for later
+/// (`-uiPreview tabbar-b`, `DevChoices.tabBar`).
 private struct TabBarPreview: View {
     @State private var home: AppTab = .home
     @State private var dex: AppTab = .dex
@@ -1421,11 +1421,51 @@ private struct DonePreview: View {
 /// Home (the album) as a guest sees it: the empty album, read once so the skeleton ends.
 private struct HomePreview: View {
     @Environment(DexStore.self) private var dex
+    /// `-uiPreview home-again` (owner 2026-10-16): the newest word met again twice today — the day still shows it once
+    /// and counts it once (`AlbumDay.onePerWord`).
+    var metAgain = false
 
     var body: some View {
         HomeView()
             .environment(\.colorScheme, .light)  // as in MainTabView: the paper album stays paper
-            .task { await dex.load() }
+            .task {
+                guard metAgain else { return await dex.load() }
+                // 眼鏡 caught yesterday and met again twice today, a cup caught today: today shows 眼鏡 once, 「2語」.
+                let now = Date()
+                let glasses = Self.sticker("again-glasses", "眼鏡", hue: 0.58, at: now.addingTimeInterval(-86_400))
+                let cup = Self.sticker("again-cup", "杯子", hue: 0.08, at: now.addingTimeInterval(-30))
+                dex.stickers = [cup, glasses]
+                dex.seedEncountersForPreview([
+                    .init(id: "again-1", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
+                          place: nil, at: now.addingTimeInterval(-180)),
+                    .init(id: "again-2", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
+                          place: nil, at: now.addingTimeInterval(-120)),
+                ])
+                dex.hasLoaded = true
+                try? await Task.sleep(for: .milliseconds(600))
+                UIReady.mark("preview")
+            }
+    }
+
+    /// A made-up word with a photo and a cut-out kept in memory (no network in the preview).
+    private static func sticker(_ id: String, _ head: String, hue: CGFloat, at: Date) -> Sticker {
+        let photo = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 450)).image { ctx in
+            UIColor(hue: hue, saturation: 0.25, brightness: 0.95, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 450))
+            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 150, y: 90, width: 300, height: 270))
+        }
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        let cutout = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 270), format: format).image { ctx in
+            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: 300, height: 270))
+        }
+        ImageCache.shared.set(photo, for: "preview/\(id).jpg")
+        ImageCache.shared.set(cutout, for: "preview/\(id)-cutout.png")
+        let word = try? JSONDecoder().decode(Word.self, from: Data(#"{"id":"w-\#(id)","headword":"\#(head)"}"#.utf8))
+        return Sticker(id: id, wordId: "w-\(id)", objectImageUrl: "preview/\(id).jpg", cutoutImageUrl: "preview/\(id)-cutout.png",
+                       selfieImageUrl: nil, caption: nil, locationName: nil, takenAt: at, captureType: "photo", word: word)
     }
 }
 
@@ -1503,6 +1543,21 @@ private struct ChunkReadingsPreview: View {
                    ja: gloss("彼氏と喧嘩する", "argue with my boyfriend", "跟男朋友吵架"))
     }
 
+    /// A neutral tone (˙ㄗ) and the degree word the app puts in (C8: 滷味＋很＋入味), drawn like the others.
+    private var tasty: UsageChunk {
+        UsageChunk(parts: [ChunkPart(text: "鐵板麵", pos: "N", pinyin: "tiě bǎn miàn", zhuyin: "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ"),
+                           ChunkPart(text: "很", pos: "Adv", pinyin: "hěn", zhuyin: "ㄏㄣˇ"),
+                           ChunkPart(text: "香", pos: "Vs", pinyin: "xiāng", zhuyin: "ㄒㄧㄤ")],
+                   ja: gloss("鉄板焼きそばがいい香り", "the teppan noodles smell great", "鐵板麵很香"))
+    }
+
+    private var brush: UsageChunk {
+        UsageChunk(parts: [ChunkPart(text: "用", pos: "V", pinyin: "yòng", zhuyin: "ㄩㄥˋ"),
+                           ChunkPart(text: "刷子", pos: "N", pinyin: "shuā zi", zhuyin: "ㄕㄨㄚ ˙ㄗ"),
+                           ChunkPart(text: "刷鐵板", pos: "VO", pinyin: "shuā tiě bǎn", zhuyin: "ㄕㄨㄚ ㄊㄧㄝˇ ㄅㄢˇ")],
+                   ja: gloss("ブラシで鉄板をこする", "scrub the griddle with a brush", "用刷子刷鐵板"))
+    }
+
     private var old: UsageChunk {
         UsageChunk(parts: [ChunkPart(text: "蘑菇", pos: "N"), ChunkPart(text: "鐵板麵", pos: "N")],
                    ja: gloss("マッシュルームソースの鉄板焼きそば", "teppan noodles with mushroom sauce", "蘑菇鐵板麵"))
@@ -1511,7 +1566,7 @@ private struct ChunkReadingsPreview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach([order, quarrel, old], id: \.self) { c in
+                ForEach([order, quarrel, tasty, brush, old], id: \.self) { c in
                     ChunkLineView(chunk: c, headword: "鐵板麵", target: "zh-TW").padding(.vertical, 14)
                     Divider().overlay(Theme.border)
                 }

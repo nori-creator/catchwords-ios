@@ -9,6 +9,7 @@ import SwiftUI
 /// - Any other block reads its own word.
 struct ChunkLineView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     enum Size { case large, compact }
 
     let chunk: UsageChunk
@@ -48,6 +49,18 @@ struct ChunkLineView: View {
         let p = (pinyin?.isEmpty ?? true) ? nil : pinyin
         if pref == "pinyin" { return p ?? PinyinZhuyin.pinyin(fromZhuyin: z) ?? z }
         return z ?? p
+    }
+
+    /// The zhuyin drawn beside each character of a block, exactly as the word page's headword draws it
+    /// (`ZhuyinWordView`: small and faint, to the right of each hanzi — owner 2026-10-16: 「チャンクの注音も見出しと同じに」):
+    /// a Mandarin chunk, 発音表記 = 注音, and a zhuyin that gives one syllable per character. nil otherwise — then the
+    /// block keeps its one reading line over it (pinyin, or a reading that does not pair). Pure, so ChunkReadingTests
+    /// checks it.
+    static func sideZhuyin(for part: ChunkPart, target: String, pref: String) -> String? {
+        guard target.hasPrefix("zh"), pref != "pinyin",
+              let z = part.zhuyin?.trimmingCharacters(in: .whitespaces), !z.isEmpty,
+              ZhuyinLayout.pair(part.text, z) != nil else { return nil }
+        return z
     }
 
     private var translation: String {
@@ -104,7 +117,10 @@ struct ChunkLineView: View {
                 open = isOpen ? nil : i
             }
         } label: {
-            let reading = Self.reading(for: part, target: target, pref: readingPref)
+            let side = Self.sideZhuyin(for: part, target: target, pref: readingPref)
+            // Pinyin (or a reading that does not pair one syllable per character) stays one line over the block.
+            let reading = side == nil ? Self.reading(for: part, target: target, pref: readingPref) : nil
+            let ink = kind.ink.mix(with: colorScheme == .dark ? .white : .black, by: big ? 0.3 : 0.25)
             VStack(spacing: 1) {
                 // The token's reading, small, over its text (server chunk tokens, 2026-10-15); none on older cards.
                 if let reading {
@@ -116,9 +132,17 @@ struct ChunkLineView: View {
                         .accessibilityHidden(true)
                 }
                 HStack(spacing: 3) {
-                    Text(part.text)
-                        .scaledFont(size: big ? 20 : 15, weight: .bold)
-                        .contentTransition(.opacity)
+                    if let side {
+                        // The headword's own view and settings: zhuyin to the right of each character.
+                        ZhuyinWordView(headword: part.text, zhuyin: side,
+                                       size: AppTypeScale.scaled(big ? 20 : 15, for: dynamicTypeSize),
+                                       weight: .bold, color: ink, language: "zh-TW")
+                            .contentTransition(.opacity)
+                    } else {
+                        Text(part.text)
+                            .scaledFont(size: big ? 20 : 15, weight: .bold)
+                            .contentTransition(.opacity)
+                    }
                     if swappable {
                         Image(systemName: "chevron.down")
                             .scaledFont(size: big ? 11 : 9, weight: .bold)
@@ -127,9 +151,9 @@ struct ChunkLineView: View {
                 }
             }
             // Darker ink on the light page, lighter on the dark one (mixing with black vanished in dark mode).
-            .foregroundStyle(kind.ink.mix(with: colorScheme == .dark ? .white : .black, by: big ? 0.3 : 0.25))
+            .foregroundStyle(ink)
             .padding(.horizontal, big ? 12 : 10)
-            .padding(.vertical, reading == nil ? 0 : 4)
+            .padding(.vertical, reading == nil && side == nil ? 0 : 4)
             .frame(minHeight: big ? 48 : 34)
             .background(kind.ink.opacity(isHead ? 0.15 : swappable ? 0.04 : 0.08), in: .rect(cornerRadius: big ? 12 : 10, style: .continuous))
             .overlay {
