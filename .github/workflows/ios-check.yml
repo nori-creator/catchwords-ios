@@ -31,7 +31,7 @@ permissions:
 jobs:
   build-and-shoot:
     runs-on: macos-26
-    # 撮影までで 50〜55 分、ci-previews に置くのに約 5 分かかる（10/16 の実行。60 分の上限で、置く途中に切られた）。
+    # 撮影までで 45〜55 分（10/16 の実行）。ci-previews に置くのは自分の場所だけを取り出して数秒で済ませる。
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
@@ -301,8 +301,11 @@ jobs:
           publish() {
             DEST="$RUNNER_TEMP/previews-branch-$1"
             rm -rf "$DEST"
-            git clone --quiet --depth 1 --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" 2>/dev/null || return 1
+            # この実行の場所だけを取り出す（ほかの実行の画像は取らない）。枝をまるごと浅く取ると 5〜30 分かかった（10/16）。
+            git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" || return 1
             cd "$DEST"
+            git sparse-checkout set --no-cone "/$DIR/" || return 1
+            git checkout --quiet ci-previews || return 1
             rm -rf "$DIR" && mkdir -p "$DIR"
             cp "$SRC"/*.png "$DIR"/ 2>/dev/null || true
             [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$DIR"/ 2>/dev/null || true
@@ -393,8 +396,11 @@ jobs:
           publish() {
             DEST="$RUNNER_TEMP/previews-branch-$1"
             rm -rf "$DEST"
-            git clone --quiet --depth 1 --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" || return 1
+            # この実行の場所だけを取り出す（ほかの実行の画像は取らない）。枝をまるごと浅く取ると 5〜30 分かかった（10/16）。
+            git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" || return 1
             cd "$DEST"
+            git sparse-checkout set --no-cone "/$DIR/" || return 1
+            git checkout --quiet ci-previews || return 1
             rm -rf "$DIR" && mkdir -p "$DIR"
             cp "$SRC"/* "$DIR"/ 2>/dev/null || true
             echo "${{ github.sha }}" > "$DIR/COMMIT"
