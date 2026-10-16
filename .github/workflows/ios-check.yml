@@ -31,7 +31,8 @@ permissions:
 jobs:
   build-and-shoot:
     runs-on: macos-26
-    timeout-minutes: 60
+    # 撮影までで 50〜55 分、ci-previews に置くのに約 5 分かかる（10/16 の実行。60 分の上限で、置く途中に切られた）。
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -295,25 +296,27 @@ jobs:
           set -uo pipefail
           SRC="$RUNNER_TEMP/report"
           [ -d "$SRC" ] || exit 0
-          DEST="$RUNNER_TEMP/previews-branch"
-          git clone --quiet --depth 1 --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" 2>/dev/null || {
-            mkdir -p "$DEST" && cd "$DEST" && git init --quiet && git checkout --quiet -b ci-previews && \
-            git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-          }
-          cd "$DEST"
           DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')"
-          rm -rf "$DIR" && mkdir -p "$DIR"
-          cp "$SRC"/*.png "$DIR"/ 2>/dev/null || true
-          [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$DIR"/ 2>/dev/null || true
-          [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.txt "$DIR"/ 2>/dev/null || true
-          # 「作り直す」の動き（-uiPreview regen の録画）
-          [ -f "$SRC/videos/scan-regen.mp4" ] && cp "$SRC/videos/scan-regen.mp4" "$DIR/regen.mp4" || true
-          echo "${{ github.sha }}" > "$DIR/COMMIT"
-          git add -A
-          git -c user.name="ios-check" -c user.email="ios-check@users.noreply.github.com" commit --quiet -m "previews for $HEAD_REF @ ${{ github.sha }}" || exit 0
-          for i in 1 2 3 4 5; do
-            git push --quiet origin ci-previews && exit 0
-            sleep $((i * 4)); git pull --quiet --rebase origin ci-previews || true
+          # 切り抜きの確認も同じ枝に置くので、押し出しがぶつかったら ci-previews を浅く取り直して置き直す。
+          publish() {
+            DEST="$RUNNER_TEMP/previews-branch-$1"
+            rm -rf "$DEST"
+            git clone --quiet --depth 1 --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" 2>/dev/null || return 1
+            cd "$DEST"
+            rm -rf "$DIR" && mkdir -p "$DIR"
+            cp "$SRC"/*.png "$DIR"/ 2>/dev/null || true
+            [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$DIR"/ 2>/dev/null || true
+            [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.txt "$DIR"/ 2>/dev/null || true
+            # 「作り直す」の動き（-uiPreview regen の録画）
+            [ -f "$SRC/videos/scan-regen.mp4" ] && cp "$SRC/videos/scan-regen.mp4" "$DIR/regen.mp4" || true
+            echo "${{ github.sha }}" > "$DIR/COMMIT"
+            git add -A
+            git -c user.name="ios-check" -c user.email="ios-check@users.noreply.github.com" commit --quiet -m "previews for $HEAD_REF @ ${{ github.sha }}" || return 0
+            git push --quiet origin ci-previews
+          }
+          for i in 1 2 3; do
+            ( publish "$i" ) && exit 0
+            sleep $((i * 5))
           done
           echo "::warning::ci-previews に置けませんでした"
 
@@ -386,18 +389,22 @@ jobs:
           SRC="$RUNNER_TEMP/cutout"
           [ -d "$SRC" ] || exit 0
           [ -f "$SRC/summary.md" ] && cat "$SRC/summary.md" >> "$GITHUB_STEP_SUMMARY"
-          DEST="$RUNNER_TEMP/previews-branch"
-          git clone --quiet --depth 1 --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" || exit 0
-          cd "$DEST"
           DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-cutout"
-          rm -rf "$DIR" && mkdir -p "$DIR"
-          cp "$SRC"/* "$DIR"/ 2>/dev/null || true
-          echo "${{ github.sha }}" > "$DIR/COMMIT"
-          git add -A
-          git -c user.name="ios-check" -c user.email="ios-check@users.noreply.github.com" commit --quiet -m "cut-out harness for $HEAD_REF @ ${{ github.sha }}" || exit 0
-          for i in 1 2 3 4 5; do
-            git push --quiet origin ci-previews && exit 0
-            sleep $((i * 4)); git pull --quiet --rebase origin ci-previews || true
+          publish() {
+            DEST="$RUNNER_TEMP/previews-branch-$1"
+            rm -rf "$DEST"
+            git clone --quiet --depth 1 --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" || return 1
+            cd "$DEST"
+            rm -rf "$DIR" && mkdir -p "$DIR"
+            cp "$SRC"/* "$DIR"/ 2>/dev/null || true
+            echo "${{ github.sha }}" > "$DIR/COMMIT"
+            git add -A
+            git -c user.name="ios-check" -c user.email="ios-check@users.noreply.github.com" commit --quiet -m "cut-out harness for $HEAD_REF @ ${{ github.sha }}" || return 0
+            git push --quiet origin ci-previews
+          }
+          for i in 1 2 3; do
+            ( publish "$i" ) && exit 0
+            sleep $((i * 5))
           done
           echo "::warning::ci-previews に置けませんでした"
 
