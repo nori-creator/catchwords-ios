@@ -142,12 +142,12 @@ final class CaptureViewModel {
         masksTask?.cancel()
         masksTask = Task<InstanceMasks?, Never> { await CutoutService.instanceMasks(from: image) }
         // Every instance's cut-out is rendered while the AI is still naming the things (they used to be rendered
-        // after the server answered, between the answer and the words on screen). The tags' places inside the
-        // instances (`InstanceMasks.anchors`, quick) are measured first.
+        // after the server answered, between the answer and the words on screen). The copy of the label mask the
+        // things are planned on (`CatchPlan`) is made first.
         let masksForCuts = masksTask
         Task.detached(priority: .utility) {
             guard let masks = await masksForCuts?.value else { return }
-            _ = masks.anchors()
+            _ = masks.labelMaskCopy()
             masks.prerenderCuts()
         }
         // The scan's outlines, traced from the same masks while the AI is naming the things.
@@ -189,6 +189,12 @@ final class CaptureViewModel {
                 // Things the server gave no place (or the same place twice) went to free Vision instances or spots of
                 // their own instead of the middle; the developer log says which (owner 2026-10-15).
                 if let note = CatchObject.placementNote(built) { DevLog.shared.add("tags", note) }
+                // Every thing's point and box as sent, its Vision instance, its cut and its tag's place (owner
+                // 2026-10-16: two tags stacked on one thing and a rectangle saved as the cut-out — now it can be read
+                // back from the developer log which it was).
+                for line in CatchObject.traceLines(built, photo: size, orientation: image.imageOrientation.rawValue) {
+                    DevLog.shared.add("tags", line)
+                }
                 scan?.setNames(built, at: Date())
                 detectOutcome = .success(found)
                 prefetchOwnedChecks(found)
@@ -401,7 +407,9 @@ final class CaptureViewModel {
             cutout = cut
         } else {
             // No cut-out for this object (or a typed word): lift the subject under its tag (`anchor`: inside its Vision
-            // instance when it has one, else the AI's point), so the sticker is the thing the tag was on.
+            // instance when it has one, else the AI's point), so the sticker is the thing the tag was on. A mask always —
+            // never a rectangle of the photo (owner 2026-10-16); nothing found leaves the catch without a cut-out.
+            if object != nil { DevLog.shared.add("cutout", "\(word.headword): no cut-out from the photo's masks, lifting near its tag") }
             startCutout(near: object?.anchor)
         }
         isCheckingOwned = true

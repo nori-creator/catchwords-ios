@@ -144,14 +144,21 @@ final class DexStore {
                 let data = try await selectStickers {
                     "stickers?select=\($0)&order=taken_at.desc,id.desc&limit=\(Self.pageSize)&offset=\(offset)"
                 }
-                let chunk = try SupabaseDate.decoder.decode([Sticker].self, from: data)
+                // Off the main thread: a page of 500 words with their cards is megabytes of JSON.
+                let chunk = try await Self.decodeOffMain([Sticker].self, from: data)
                 rows += chunk
                 if chunk.count < Self.pageSize { break }
             }
             // Signed out (or another account signed in) while this was loading: drop the result.
             guard client.userId == uid else { return }
-            await loadAlbumHidden()
-            await loadAlbumPlacements()
+            // The pictures' links are asked for now, the newest words first, while the album's hidden photos and
+            // places are read — they used to wait for those two reads and the reviews' (a photo not kept on this
+            // phone stayed blank for all of them).
+            let signing = Task { await self.signPaths(for: rows) }
+            async let hidden: Void = loadAlbumHidden()
+            async let places: Void = loadAlbumPlacements()
+            await hidden
+            await places
             guard client.userId == uid else { return }
             // Only the words of the language being learned (web listMyStickers → matchesTargetLanguage).
             // A catch still being saved in the background stays on screen (its save swaps it for the real row).
@@ -170,17 +177,22 @@ final class DexStore {
                 return r
             }
             stickers = provisional + savedMeanwhile + present(fresh.filter { $0.word?.matches(language) ?? true })
+            serverAnswered = true
             // 「保存待ち」 words of this language that are not on screen yet (launch without a snapshot, a language switch).
             restoreUnsaved()
             loadError = nil
             hasLoaded = true
-            await loadReviews()
-            await signPaths(for: rows)
-            guard client.userId == uid else { return }
-            // Behind the screen: the re-encounter photos the dex squares cycle through, the cut-outs still
-            // missing (every picture is cut out, owner 2026-10-11), and the newest pictures put on disk.
-            Task { await loadEncounterPhotos() }
+            UITestTrace.once("dex read from the server", "words=\(stickers.count)")
+            // The cut-outs still missing (every picture is cut out, owner 2026-10-11) start now: the home album waits
+            // for the ones about to be made, so they are not held back by the reviews' read.
             CutoutBackfill.shared.start(dex: self)
+            await loadReviews()
+            await signing.value
+            UITestTrace.once("picture links signed")
+            guard client.userId == uid else { return }
+            // Behind the screen: the re-encounter photos the dex squares cycle through, and the newest pictures put
+            // on disk.
+            Task { await loadEncounterPhotos() }
             prefetchNewest()
             scheduleSnapshot()
         } catch {
@@ -235,11 +247,22 @@ final class DexStore {
         return out
     }
 
+    /// Every review row, a page of 1000 at a time (as `readAll`), each page decoded off the main thread.
     private func loadReviews() async {
         let uid = client.userId
-        guard let rows = try? await readAll("reviews?select=id,sticker_id,ease,interval_days,repetitions,last_reviewed_at,due_at&order=id.asc",
-                                            as: ReviewState.self, decoder: SupabaseDate.decoder),
-              client.userId == uid else { return }
+        let path = "reviews?select=id,sticker_id,ease,interval_days,repetitions,last_reviewed_at,due_at&order=id.asc"
+        var rows: [ReviewState] = []
+        do {
+            for page in 0..<20 {
+                let data = try await client.rest("GET", "\(path)&limit=1000&offset=\(page * 1000)")
+                let chunk = try await Self.decodeOffMain([ReviewState].self, from: data)
+                rows += chunk
+                if chunk.count < 1000 { break }
+            }
+        } catch {
+            return
+        }
+        guard client.userId == uid else { return }
         reviews = Dictionary(rows.map { ($0.stickerId, $0) }, uniquingKeysWith: { a, _ in a })
     }
 
@@ -258,14 +281,22 @@ final class DexStore {
         return signed[path]
     }
 
+    /// `rows` newest first (as read): the pictures on screen first — the album's and the dex's own picture of each
+    /// word before its others.
     private func signPaths(for rows: [Sticker]) async {
         var paths: [String] = []
         for s in rows {
-            for p in [s.objectImageUrl, s.cutoutImageUrl, s.selfieImageUrl, s.placeholderImageUrl].compactMap({ $0 }) where signed[p] == nil {
+            let all = [s.homePath, s.dexImagePath, s.cutoutImageUrl, s.objectImageUrl, s.selfieImageUrl, s.placeholderImageUrl]
+            for p in all.compactMap({ $0 }) where signed[p] == nil {
                 paths.append(p)
             }
         }
         await sign(paths)
+    }
+
+    /// Server rows decoded off the main thread.
+    nonisolated private static func decodeOffMain<T: Decodable & Sendable>(_ type: T.Type, from data: Data) async throws -> T {
+        try await Task.detached(priority: .userInitiated) { try SupabaseDate.decoder.decode(T.self, from: data) }.value
     }
 
     // MARK: - Signed links on demand
@@ -278,23 +309,53 @@ final class DexStore {
     @ObservationIgnored private var forcedAt: [String: Date] = [:]
     private static let linkLifetime: TimeInterval = 5 * 3600
 
-    /// Signs the paths (and their thumbnails) in batches of 100 pairs; a failed batch is simply asked again later.
+    /// Signs the paths (and their thumbnails) in batches of 100 pairs, in the order given (the first batch holds the
+    /// pictures on screen), up to 4 batches at a time — one after another, a big dex's last pictures waited for every
+    /// batch before them (and a set's random order put the newest words anywhere among them). A failed batch is simply
+    /// asked again later.
     private func sign(_ paths: [String]) async {
-        let unique = Array(Set(paths))
+        var seen = Set<String>()
+        let unique = paths.filter { seen.insert($0).inserted }
         guard !unique.isEmpty, client.session != nil else { return }
         let uid = client.userId
-        for start in stride(from: 0, to: unique.count, by: 100) {
-            let chunk = Array(unique[start..<min(start + 100, unique.count)])
-            guard let map = try? await client.signedURLs(for: chunk.flatMap { [$0, $0 + Self.thumbSuffix] }),
-                  client.userId == uid else { continue }
-            let now = Date()
-            signed.merge(map) { _, new in new }
-            for p in chunk where map[p] != nil { signedAt[p] = now }
-            let gone = chunk.filter { map[$0] == nil && map[$0 + Self.thumbSuffix] == nil }
-            if !gone.isEmpty { missingPaths.formUnion(gone) }
-            let back = chunk.filter { map[$0] != nil && missingPaths.contains($0) }
-            if !back.isEmpty { missingPaths.subtract(back) }
+        let chunks = stride(from: 0, to: unique.count, by: 100).map { Array(unique[$0..<min($0 + 100, unique.count)]) }
+        let client = self.client
+        let suffix = Self.thumbSuffix
+        // Batch i's paths with their thumbnails' (4 at most in flight; the next starts as one comes back).
+        let requests = chunks.map { chunk in (chunk: chunk, all: chunk.flatMap { [$0, $0 + suffix] }) }
+        await withTaskGroup(of: (chunk: [String], map: [String: URL]?).self) { group in
+            var next = 0
+            while next < min(4, requests.count) {
+                let r = requests[next]
+                next += 1
+                group.addTask {
+                    let map = try? await client.signedURLs(for: r.all)
+                    return (r.chunk, map)
+                }
+            }
+            while let done = await group.next() {
+                if next < requests.count {
+                    let r = requests[next]
+                    next += 1
+                    group.addTask {
+                        let map = try? await client.signedURLs(for: r.all)
+                        return (r.chunk, map)
+                    }
+                }
+                guard let map = done.map, client.userId == uid else { continue }
+                applySigned(map, for: done.chunk)
+            }
         }
+    }
+
+    private func applySigned(_ map: [String: URL], for chunk: [String]) {
+        let now = Date()
+        signed.merge(map) { _, new in new }
+        for p in chunk where map[p] != nil { signedAt[p] = now }
+        let gone = chunk.filter { map[$0] == nil && map[$0 + Self.thumbSuffix] == nil }
+        if !gone.isEmpty { missingPaths.formUnion(gone) }
+        let back = chunk.filter { map[$0] != nil && missingPaths.contains($0) }
+        if !back.isEmpty { missingPaths.subtract(back) }
     }
 
     /// A picture on screen has no working link (`StickerImage`): sign it now, together with any others asked for in
@@ -330,12 +391,23 @@ final class DexStore {
     // MARK: - The dex kept on this phone (shown at once on launch)
 
     @ObservationIgnored private var snapshotTask: Task<Void, Never>?
+    /// The server's read has put its rows on screen (the snapshot, read at the same time, must not replace them).
+    @ObservationIgnored private var serverAnswered = false
 
     /// Before the server answers: the dex as it was last read on this phone for this account, learning language
     /// and display language (`DexSnapshot`). Only on an empty dex; `load` replaces it a moment later.
-    func restoreSnapshot() {
-        guard stickers.isEmpty, let uid = client.userId,
-              let saved = DexSnapshot.load(uid: uid, lang: language, reader: L10n.lang) else { return }
+    ///
+    /// The file is read and decoded off the main thread (a big dex's snapshot is megabytes of JSON: decoding it on the
+    /// main thread held the first screen), at the same time as the server's read; whichever comes second never
+    /// replaces the server's answer.
+    func restoreSnapshot() async {
+        guard stickers.isEmpty, let uid = client.userId else { return }
+        let lang = language
+        let reader = L10n.lang
+        let saved = await Task.detached(priority: .userInitiated) {
+            DexSnapshot.load(uid: uid, lang: lang, reader: reader)
+        }.value
+        guard let saved, !serverAnswered, stickers.isEmpty, client.userId == uid, language == lang else { return }
         stickers = saved.stickers
         albumHidden = Set(saved.albumHidden).union(localAlbumHidden())
         var places: [String: DayLayoutSticker] = [:]
@@ -346,6 +418,7 @@ final class DexStore {
         albumPlacements = places
         hasLoaded = true
         restoreUnsaved()
+        UITestTrace.once("dex snapshot restored", "words=\(stickers.count)")
     }
 
     /// Writes the snapshot a moment after the dex changed (many changes in a row are written once).
@@ -1287,7 +1360,8 @@ final class DexStore {
             throw APIError.message(L("写真を読み込めませんでした。"))
         }
         _ = try await NativeAPI.call("replaceStickerPhoto", ["sticker_id": sticker.id, "object_path": path])
-        ImageCache.shared.store(image, for: path)
+        // Kept at the size it was uploaded at (a full camera photo decoded slowly at every launch after).
+        ImageCache.shared.store(image, for: path, maxSide: 1600)
         StickerPhoto.invalidate(sticker.id)
         await reload(stickerId: sticker.id)
         if let fresh = self.sticker(id: sticker.id) { await signPaths(for: [fresh]) }
@@ -1351,7 +1425,7 @@ final class DexStore {
         _ = try await NativeAPI.call("setStickerPlaceholder", [
             "sticker_id": sticker.id, "placeholder_path": path, "placeholder_credit": candidate.creditPayload,
         ])
-        ImageCache.shared.store(image, for: path)
+        ImageCache.shared.store(image, for: path, maxSide: 1024)
         await reload(stickerId: sticker.id)
         if let fresh = self.sticker(id: sticker.id) { await signPaths(for: [fresh]) }
     }
@@ -1363,7 +1437,9 @@ final class DexStore {
             throw APIError.message(L("切り抜きの保存に失敗しました。"))
         }
         _ = try await NativeAPI.call("attachStickerCutout", ["sticker_id": sticker.id, "cutout_path": path])
-        ImageCache.shared.store(image, for: path)
+        // At the size it was uploaded at (`uploadPNG`): a cut-out lifted from a camera photo is far bigger, and the
+        // album decoded it at full size at every launch.
+        ImageCache.shared.store(image, for: path, maxSide: 1024)
         replace(sticker.id) { old in
             var s = old
             s.cutoutImageUrl = path
@@ -1379,7 +1455,7 @@ final class DexStore {
             throw APIError.message(L("写真の保存に失敗しました。"))
         }
         _ = try await NativeAPI.call("attachStickerSelfie", ["sticker_id": sticker.id, "selfie_path": path])
-        ImageCache.shared.store(image, for: path)
+        ImageCache.shared.store(image, for: path, maxSide: 1600)
         replace(sticker.id) { old in
             var s = old
             s.selfieImageUrl = path
@@ -1671,6 +1747,7 @@ final class DexStore {
     /// Signing out / switching accounts: nothing of this account stays in memory for the next one.
     func reset() {
         snapshotTask?.cancel()
+        serverAnswered = false
         prefetchTask?.cancel()
         stickers = []
         encounterPhotos = [:]

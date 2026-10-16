@@ -4831,17 +4831,13 @@
   "en": "Camera in the bottom bar",
   "zh-TW": "底部列的相機"
  },
- "A 青い丸": {
-  "en": "A Blue disc",
-  "zh-TW": "A 藍色圓形"
+ "元のデザイン": {
+  "en": "Original design",
+  "zh-TW": "原本的設計"
  },
- "B 浮いた丸": {
-  "en": "B Raised disc",
-  "zh-TW": "B 浮起的圓形"
- },
- "C 青いアイコン": {
-  "en": "C Blue icon",
-  "zh-TW": "C 藍色圖示"
+ "B 浮いた丸（将来）": {
+  "en": "B Raised disc (later)",
+  "zh-TW": "B 浮起的圓形（之後）"
  },
  "マップの一覧をスクロールする音": {
   "en": "Map list scroll sound",
@@ -4851,9 +4847,9 @@
   "en": "Settings picker sound",
   "zh-TW": "設定選項的聲音"
  },
- "1 が今のおすすめです。選ぶとその音が鳴ります。": {
-  "en": "1 is the current recommendation. Choosing one plays it.",
-  "zh-TW": "目前推薦 1。選擇後會播放該聲音。"
+ "標準はマップが 3、設定の選択肢がなしです。選ぶとその音が鳴ります。設定のホイールは回すたびに、ここで選んだ音（なしのときは 1）が鳴ります。": {
+  "en": "By default the map uses 3 and the Settings choices use none. Choosing one plays it. The Settings wheels click with the sound chosen here as they turn (1 when none is chosen).",
+  "zh-TW": "預設為地圖 3、設定選項無。選擇後會播放該聲音。設定的滾輪轉動時，會播放這裡選的聲音（選「無」時為 1）。"
  },
  "単語": {
   "en": "Word",

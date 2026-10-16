@@ -12,16 +12,39 @@ nonisolated enum UITestTrace {
         #endif
     }
 
+    #if DEBUG
+    /// When `start()` ran (the app's launch), for the timing lines (`once`).
+    nonisolated(unsafe) private static var launchedAt = Date()
+    nonisolated(unsafe) private static var timed: Set<String> = []
+    private static let timedLock = NSLock()
+    #endif
+
+    /// Logs "+2.41 s <event>" the first time `event` happens after launch (the first photo on screen, the dex read):
+    /// how long a launch takes to show what matters, compared run to run.
+    static func once(_ event: String, _ detail: @autoclosure () -> String = "") {
+        #if DEBUG
+        guard DemoBackend.isOn else { return }
+        timedLock.lock()
+        let first = timed.insert(event).inserted
+        timedLock.unlock()
+        guard first else { return }
+        let more = detail()
+        log(String(format: "+%.2f s ", Date().timeIntervalSince(launchedAt)) + event + (more.isEmpty ? "" : " " + more))
+        #endif
+    }
+
     /// At launch: a header naming the run, and the touch log.
     @MainActor
     static func start() {
         #if DEBUG
         guard DemoBackend.isOn else { return }
+        launchedAt = Date()
         let d = UserDefaults.standard
         // The pid: an XCUITest failure names the process it could not read (kAXErrorIPCTimeout "for <pid>", tour
         // 2026-10-15), so it can be told whether that was this app or a process of the simulator.
         log("launch uiDemo=\(d.string(forKey: "uiDemo") ?? "-") lang=\(d.string(forKey: "ui.lang") ?? "-") pid=\(getpid())")
         UIWindow.traceTouches()
+        MainStackSampler.captureMain()
         MainWatchdog.shared.start()
         #endif
     }
@@ -29,12 +52,14 @@ nonisolated enum UITestTrace {
     #if DEBUG
     /// Logs every time the main thread does not answer for more than a second, and when it answers again: an
     /// accessibility query that times out during the tour can then be laid against what the app's main thread did.
+    /// While it does not answer, its call stack is logged every 2 seconds (`MainStackSampler`): what held it.
     nonisolated private final class MainWatchdog: @unchecked Sendable {
         static let shared = MainWatchdog()
         private let queue = DispatchQueue(label: "app.catchwords.uitest-watchdog")
         private let lock = NSLock()
         private var beat = Date()
         private var stalledSince: Date?
+        private var sampledAt: Date?
         private var timer: DispatchSourceTimer?
 
         func start() {
@@ -54,6 +79,13 @@ nonisolated enum UITestTrace {
             if first { stalledSince = beat }
             lock.unlock()
             if first { UITestTrace.log("main thread not answering for \(String(format: "%.1f", gap)) s") }
+            // Only this queue reads and writes `sampledAt`.
+            if gap <= 1 { sampledAt = nil }
+            if gap > 1, sampledAt.map({ now.timeIntervalSince($0) >= 2 }) ?? true {
+                sampledAt = now
+                let lines = MainStackSampler.describe(MainStackSampler.sample())
+                UITestTrace.log("main stack after \(String(format: "%.1f", gap)) s:\n    " + lines.joined(separator: "\n    "))
+            }
             DispatchQueue.main.async { [self] in
                 let back = Date()
                 lock.lock()

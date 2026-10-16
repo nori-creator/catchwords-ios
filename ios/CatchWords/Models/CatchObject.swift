@@ -26,6 +26,9 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
     /// as an earlier thing — the tag was then put on a free Vision instance or on a spot of its own, never the middle
     /// (owner 2026-10-15: 「正確にもののうえに名前のタグを置いて。適当に真ん中ではなく。」), and the developer log says so.
     var positioned: Bool = true
+    /// How the cut-out was made when it was not simply the thing's own Vision instance (shared with another thing,
+    /// clipped to the thing's box, Vision run again on the region, or none at all) — for the developer log.
+    var cutNote: String? = nil
 
     /// The prototype asks the AI for at most 4 objects (`askAI` → `.slice(0,4)`), 3 words each.
     static let maxObjects = 4
@@ -49,14 +52,48 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
     /// Heavy (renders masks): call off the main thread.
     /// Each object gets its OWN Vision instance (`assignInstances`): two objects whose points fall nearest the
     /// same instance used to get the same cut-out and box, so their outlines, hitboxes and tags sat on top of
-    /// each other and only the top one could be tapped. The one left without an instance gets the box
-    /// around its own point.
+    /// each other and only the top one could be tapped. One instance that two things' boxes split (two things
+    /// touching, which Vision sees as one) is shared: each gets its own part (`CatchPlan`, owner 2026-10-16). A thing
+    /// with no mask where the AI boxed it gets Vision once more on that region, else no cut-out — never a rectangle.
     /// Its tag sits inside that same instance (`InstanceMasks.anchors`). Owner 2026-10-11: 「カメラ撮ったあとの単語の
     /// 名前のタグが、その該当のもののうえに配置されてない。しっかりもののうえに名前タグをおいて。」 — the tags sat on the
     /// AI's point, the middle of the AI's own rough box, which often lies beside the thing, between its parts or on
     /// what stands in front of it, while the outline drawn round the thing (the same instance) was right.
     static func build(candidates: [Candidate], masks: InstanceMasks?, photoSize: CGSize) -> [CatchObject] {
         let list = groups(candidates)
+        let things = plannedThings(list)
+        let points = things.map(\.point)
+        let own = things.map(\.own)
+        let boxes = things.map(\.box)
+        // Which piece of the mask is each thing, and where its tag goes (`CatchPlan`, on a copy of the label mask).
+        let copy = masks?.labelMaskCopy()
+        let plans = CatchPlan.plan(things: things, mask: copy?.mask ?? [], width: copy?.width ?? 0, height: copy?.height ?? 0)
+        return list.enumerated().map { (i, words) -> CatchObject in
+            let plan = plans[i]
+            var note = plan.note
+            var cut: InstanceMasks.Cut?
+            if let masks {
+                switch plan.cut {
+                case .instance(let l): cut = masks.cut(instance: l)
+                case .union(let ls): cut = masks.cut(instances: IndexSet(ls)) ?? masks.cut(instance: ls[0])
+                case .clip(let ls, let rect): cut = masks.cut(instances: IndexSet(ls), clippedTo: rect)
+                case .noMask:
+                    // Nothing Vision found is where the AI boxed the thing: Vision once more, on that region alone.
+                    if own[i], let box = boxes[i] {
+                        cut = masks.regionCut(box)
+                        note = (note.map { $0 + "; " } ?? "") + (cut == nil ? "no cut-out (the region alone found nothing either)" : "cut from the region alone")
+                    }
+                }
+            }
+            let box = cut?.box ?? (own[i] ? boxes[i] : nil) ?? fallbackBox(at: plan.anchor, photoSize: photoSize)
+            return CatchObject(id: i, words: words, point: own[i] ? points[i] : plan.anchor, box: box,
+                               anchor: plan.anchor, cut: cut?.image, instance: plan.label, positioned: own[i], cutNote: note)
+        }
+    }
+
+    /// Each object's place as the AI gave it (`groups` of the server's candidates): the first name's point and box
+    /// (0–1 of the photo; the box of any of its names when the first has none), and whether the place is its own.
+    static func plannedThings(_ list: [[Candidate]]) -> [CatchPlan.Thing] {
         let points = list.map { words -> CGPoint in
             let raw = words[0].point
             return CGPoint(x: min(1, max(0, (raw.first ?? 500) / 1000)),
@@ -67,44 +104,24 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
         // every thing was taken as "the middle", and the three without a Vision instance there stacked up).
         let given = list.map { words in words.contains { $0.positioned } }
         let own = TagPlacement.distinct(list.indices.map { given[$0] ? points[$0] : nil })
-        var labels: [Int?]
-        if let masks {
-            labels = assignInstances(list.indices.map { own[$0] ? masks.instances(near: points[$0]) : [] })
-            // A thing without a place of its own takes a Vision instance nobody has (the largest first): its tag then
-            // sits on a real thing in the photo, inside its outline, and its sticker is that thing's cut-out.
-            var taken = Set(labels.compactMap { $0 })
-            let bySize = list.indices.contains(where: { !own[$0] && labels[$0] == nil }) ? masks.instancesBySize() : []
-            for i in list.indices where !own[i] && labels[i] == nil {
-                guard let free = bySize.first(where: { !taken.contains($0) }) else { break }
-                labels[i] = free
-                taken.insert(free)
-            }
-        } else {
-            labels = Array(repeating: nil, count: points.count)
+        let boxes: [CGRect?] = list.map { words in words[0].objectBox ?? words.lazy.compactMap(\.objectBox).first }
+        return list.indices.map { CatchPlan.Thing(point: points[$0], box: boxes[$0], own: own[$0]) }
+    }
+
+    /// Developer-log lines for a photo's things (owner 2026-10-16: the tags stacked on one thing and a rectangle was
+    /// saved as the cut-out): the photo's size and orientation, and for each thing its name, the AI's point and box
+    /// (0–1000, as sent), its Vision instance, how it was cut and where its tag went.
+    static func traceLines(_ objects: [CatchObject], photo: CGSize, orientation: Int) -> [String] {
+        var lines = ["photo \(Int(photo.width))×\(Int(photo.height)) orientation \(orientation), \(objects.count) things"]
+        for o in objects {
+            let w = o.words.first
+            let box = w?.box.map { "[\($0.map { String(Int($0)) }.joined(separator: ","))]" } ?? "-"
+            let pt = w.map { "[\(Int($0.point.first ?? -1)),\(Int($0.point.count > 1 ? $0.point[1] : -1))]" } ?? "-"
+            lines.append("\(o.id + 1) \(w?.headword ?? "?"): point \(pt) box \(box) instance \(o.instance.map(String.init) ?? "-") "
+                         + "cut \(o.cut == nil ? "none" : "mask") tag (\(String(format: "%.2f", o.anchor.x)), \(String(format: "%.2f", o.anchor.y)))"
+                         + (o.cutNote.map { " — \($0)" } ?? ""))
         }
-        let inside = masks?.anchors() ?? [:]
-        // Still nowhere (no position and no free instance): a spot of its own, spread clear of the placed things.
-        let placed: [CGPoint] = list.indices.compactMap { i in
-            own[i] ? points[i] : labels[i].flatMap { inside[$0] }
-        }
-        let spare = list.indices.filter { !own[$0] && labels[$0] == nil }
-        let spots = TagPlacement.spreadSpots(count: spare.count, avoiding: placed)
-        var spotAt: [Int: CGPoint] = [:]
-        for (k, i) in spare.enumerated() { spotAt[i] = spots[k] }
-        return list.enumerated().map { (i, words) -> CatchObject in
-            let p = spotAt[i] ?? points[i]
-            let deep = labels[i].flatMap { inside[$0] }
-            // A thing placed by the AI is cut out so that its box is covered; one put on a free instance has no box
-            // of its own to check against (a duplicate box belongs to another thing).
-            if let masks, let label = labels[i],
-               let cut = cutContainingObject(masks: masks, label: label, box: own[i] ? words[0].objectBox : nil) {
-                let anchor = deep ?? CGPoint(x: cut.box.midX, y: cut.box.midY)
-                return CatchObject(id: i, words: words, point: own[i] ? p : anchor, box: cut.box,
-                                   anchor: anchor, cut: cut.image, instance: label, positioned: own[i])
-            }
-            return CatchObject(id: i, words: words, point: own[i] ? p : (deep ?? p), box: fallbackBox(at: deep ?? p, photoSize: photoSize),
-                               anchor: deep ?? p, cut: nil, instance: labels[i], positioned: own[i])
-        }
+        return lines
     }
 
     /// One line for the developer log when things were placed without a position from the server (nil: every thing
@@ -116,23 +133,6 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
         let onInstances = unplaced.filter { $0.instance != nil }.count
         return "no position from the server for \(unplaced.count) of \(objects.count) things (\(names)): "
             + "\(onInstances) put on free Vision instances, \(unplaced.count - onInstances) spread over the photo"
-    }
-
-    /// The cut-out for an object whose point found Vision instance `label`, made sure to contain the thing the AI
-    /// boxed (`CutCoverage`; owner 2026-10-15: 冰火菠蘿油 held up in a selfie came out as the person alone — the bun was
-    /// not an instance of its own, so the person under the AI's point was cut out). Without the AI's box, the instance
-    /// as before.
-    static func cutContainingObject(masks: InstanceMasks, label: Int, box: CGRect?) -> InstanceMasks.Cut? {
-        guard let box else { return masks.cut(instance: label) }
-        let c = masks.coverage(of: box)
-        switch CutCoverage.decide(chosen: label, inBox: c.inBox, totals: c.totals, boxArea: c.area) {
-        case .keep:
-            return masks.cut(instance: label)
-        case .union(let labels):
-            return masks.cut(instances: IndexSet(labels)) ?? masks.crop(box)
-        case .crop:
-            return masks.crop(box) ?? masks.cut(instance: label)
-        }
     }
 
     /// One Vision instance near an object's point, and how far it is (squared mask pixels; 0 = under the point).

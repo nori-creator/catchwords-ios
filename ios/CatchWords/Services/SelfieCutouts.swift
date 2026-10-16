@@ -88,7 +88,7 @@ final class SelfieCutouts {
             return
         }
         if let cut = await CutoutService.liftPeople(from: photo) {
-            ImageCache.shared.store(cut, for: key)
+            ImageCache.shared.store(cut, for: key, maxSide: 1024)
             ready.insert(path)
         } else {
             none.insert(path)

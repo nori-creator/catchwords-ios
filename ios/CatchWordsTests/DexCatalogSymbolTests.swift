@@ -38,6 +38,17 @@ final class DexCatalogSymbolTests: XCTestCase {
         XCTAssertEqual(Set(DexCatalog.allItems.map(\.id)).count, DexCatalog.allItems.count)
     }
 
+    /// The quick katakana → hiragana that replaced ICU's transform in `norm` (it held the main thread for seconds on the
+    /// first open of the 図鑑) writes every catalog word and the usual loanwords exactly as the transform did.
+    func testKatakanaToHiraganaMatchesTheSystemTransform() {
+        let samples = DexCatalog.allItems.map { $0.headword(for: "ja") }
+            + ["コーヒー", "ヴァイオリン", "カップ麺", "ティッシュ", "ペットボトル", "ミルクティー", "abc 123", "眼鏡", ""]
+        for s in samples {
+            let system = s.applyingTransform(.hiraganaToKatakana, reverse: true) ?? s
+            XCTAssertEqual(DexCatalog.katakanaToHiragana(s), system, "「\(s)」")
+        }
+    }
+
     func testEveryAppCategoryKeyIsMapped() {
         for key in Category.orderedKeys {
             XCTAssertNotNil(DexCatalog.keyToCategory[key], "category key \(key) has no dex category")

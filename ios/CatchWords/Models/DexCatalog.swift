@@ -596,9 +596,48 @@ nonisolated enum DexCatalog {
 
     /// Headwords are compared trimmed and case-folded; Japanese also with katakana folded to hiragana, and
     /// English without a leading article — so りんご / リンゴ and "an apple" / "Apple" find the same item.
+    /// Katakana written as hiragana exactly as ICU's Katakana-Hiragana transform writes it: ァ–ヶ, ヽヾ → ぁ–ゖ, ゝゞ (the same
+    /// letters 0x60 apart), and the long-vowel mark after a katakana written as that kana's vowel (コーヒー → こおひい,
+    /// チャーハン → ちゃあはん). The transform itself took tens of milliseconds a call (it builds an ICU transliterator each
+    /// time): the catalog's index called it for every Japanese item on the first open of the 図鑑 — 22 s on the UI tour's
+    /// cold simulator — and the dex called it for every word on every redraw for Japanese learners. DexCatalogSymbolTests
+    /// checks it gives the transform's result for every catalog word.
+    static func katakanaToHiragana(_ s: String) -> String {
+        guard s.unicodeScalars.contains(where: { isKatakana($0.value) }) else { return s }
+        var out = String.UnicodeScalarView()
+        /// The vowel of the last kana written from katakana (nil after anything else).
+        var vowel: Unicode.Scalar?
+        for u in s.unicodeScalars {
+            if isKatakana(u.value), let h = Unicode.Scalar(u.value - 0x60) {
+                out.append(h)
+                vowel = vowels[h]
+            } else if u.value == 0x30FC, let v = vowel {
+                out.append(v)   // ー after a katakana: its vowel (and again after a second ー)
+            } else {
+                out.append(u)
+                vowel = nil
+            }
+        }
+        return String(out)
+    }
+
+    private static func isKatakana(_ v: UInt32) -> Bool { (0x30A1...0x30F6).contains(v) || v == 0x30FD || v == 0x30FE }
+
+    /// Each hiragana's vowel (small kana too); ん, っ and the iteration marks have none.
+    private static let vowels: [Unicode.Scalar: Unicode.Scalar] = {
+        let rows: [(String, Unicode.Scalar)] = [
+            ("あかさたなはまやらわがざだばぱぁゃゎゕ", "あ"), ("いきしちにひみりぎじぢびぴぃゐ", "い"),  // l10n-ignore (kana table)
+            ("うくすつぬふむゆるぐずづぶぷぅゅゔ", "う"), ("えけせてねへめれげぜでべぺぇゑゖ", "え"),  // l10n-ignore (kana table)
+            ("おこそとのほもよろをごぞどぼぽぉょ", "お"),  // l10n-ignore (kana table)
+        ]
+        var m: [Unicode.Scalar: Unicode.Scalar] = [:]
+        for (letters, v) in rows { for u in letters.unicodeScalars { m[u] = v } }
+        return m
+    }()
+
     static func norm(_ s: String, lang: String) -> String {
         var t = s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if lang == "ja" { t = t.applyingTransform(.hiraganaToKatakana, reverse: true) ?? t }
+        if lang == "ja" { t = katakanaToHiragana(t) }
         if lang == "en" {
             for a in ["a ", "an ", "the "] where t.hasPrefix(a) {
                 t = String(t.dropFirst(a.count))

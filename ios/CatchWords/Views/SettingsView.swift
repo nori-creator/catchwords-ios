@@ -317,17 +317,19 @@ struct SettingsView: View {
     }
 
     @AppStorage(DevChoices.tabBarKey) private var tabBarVariant: String = DevChoices.tabBarDefault
-    @AppStorage(DevChoices.timelineTickKey) private var timelineTick: String = DevChoices.tickDefault
-    @AppStorage(DevChoices.pickerTickKey) private var pickerTick: String = DevChoices.tickDefault
+    @AppStorage(DevChoices.timelineTickKey) private var timelineTick: String = DevChoices.timelineTickDefault
+    @AppStorage(DevChoices.pickerTickKey) private var pickerTick: String = DevChoices.pickerTickDefault
 
-    /// 開発者の試し (owner 2026-10-15): the alternatives to compare on the device — the camera tab's look (A / B / C), and
-    /// the three ticks each of the map's timeline and of these pickers (choosing one plays it). The defaults are the
-    /// recommended ones (`DevChoices`).
+    /// 開発者の試し (owner 2026-10-15): the alternatives to compare on the device — the camera tab's look (the original
+    /// one, shipped, or B, kept for a later release: owner 2026-10-16), and the three ticks each of the map's timeline
+    /// and of these pickers (choosing one plays it). The defaults are the shipped ones (`DevChoices`).
     private var developerTrials: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(L("開発者の試し（端末で比べて選ぶ）")).scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
             label(L("下のバーのカメラ"))
-            ChoicePills(options: [("a", L("A 青い丸")), ("b", L("B 浮いた丸")), ("c", L("C 青いアイコン"))], selection: $tabBarVariant)
+            ChoicePills(options: [(DevChoices.tabBarDefault, L("元のデザイン")), (DevChoices.tabBarRaised, L("B 浮いた丸（将来）"))],
+                        selection: Binding(get: { tabBarVariant == DevChoices.tabBarRaised ? DevChoices.tabBarRaised : DevChoices.tabBarDefault },
+                                           set: { tabBarVariant = $0 }))
                 .accessibilityIdentifier("settings.dev.tabbar")
             label(L("マップの一覧をスクロールする音")).padding(.top, 6)
             ChoicePills(options: [("off", L("なし")), ("1", "1"), ("2", "2"), ("3", "3")],
@@ -343,7 +345,7 @@ struct SettingsView: View {
                             if let n = Int(v) { SoundService.shared.tick(.picker, number: n) }
                         }), ticks: false)
                 .accessibilityIdentifier("settings.dev.pickerTick")
-            Text(L("1 が今のおすすめです。選ぶとその音が鳴ります。"))
+            Text(L("標準はマップが 3、設定の選択肢がなしです。選ぶとその音が鳴ります。設定のホイールは回すたびに、ここで選んだ音（なしのときは 1）が鳴ります。"))
                 .scaledFont(size: 12).foregroundStyle(Theme.muted)
         }
     }
@@ -823,16 +825,12 @@ struct WheelCard: View {
                     }
                     .accessibilityLabel(L("閉じる"))
                 }
-                Picker(field.title, selection: $value) {
-                    ForEach(options, id: \.value) { o in Text(o.label).tag(o.value) }
-                }
-                .pickerStyle(.wheel)
-                .frame(height: 150)
-                .onChange(of: value) { old, _ in
+                // Clicks as each row crosses the centre line while it turns (owner 2026-10-16), with the selection tap.
+                TickingWheel(title: field.title, options: options, selection: $value) {
+                    SoundService.shared.wheelTick()
                     Haptics.selection()
-                    // Not when the card first shows its current value (old is the empty start).
-                    if !old.isEmpty { SoundService.shared.tick(.picker) }
                 }
+                .frame(height: 150)
                 Button(action: close) {
                     Text(L("閉じる")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 52)

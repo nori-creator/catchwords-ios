@@ -36,6 +36,7 @@ struct CatchWordsApp: App {
         }
         AppFont.registerAll()
         SoundService.shared.configure()
+        HapticPatterns.warmUp()   // the haptic engine, made off the main thread before the first tap
         NotificationRouter.shared.install()
     }
 

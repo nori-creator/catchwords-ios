@@ -55,6 +55,8 @@ struct RootView: View {
                 }
                     .transition(.opacity)
                     .task {
+                        // The 図鑑's shadows read once off the main thread (`DexSilhouette.warmUp`).
+                        Task.detached(priority: .utility) { DexSilhouette.warmUp() }
                         // Before the profile arrives (`needsOnboarding` waits for it): the account that just
                         // signed in, not the previous one.
                         onboardingDone = OnboardingState.isDone(userId: SupabaseClient.shared.userId)
@@ -62,10 +64,11 @@ struct RootView: View {
                         AIConsent.shared.load(userId: SupabaseClient.shared.userId)
                         let guessed = NativeAPI.targetLanguage
                         // The dex as it was last read on this phone, at once (its pictures are on disk too); the
-                        // server's read below replaces it.
-                        dex.restoreSnapshot()
+                        // server's read below replaces it. Read off the main thread, while the server is asked.
+                        async let snapshot: Void = dex.restoreSnapshot()
                         async let p: Void = profile.load()
                         await dex.load()
+                        await snapshot
                         await p
                         // Today's review is read and its first cards made ready now, not when the tab is opened.
                         Task { await review.preload(dex: dex, limit: profile.effectiveReviewLimit) }

@@ -98,19 +98,23 @@ enum WidgetBridge {
             image = await ImageCache.shared.load(url: url, key: "widget:" + path)
         }
         guard let image else { return nil }
-        let size = image.size
-        guard size.width > 0, size.height > 0 else { return nil }
-        let scale = min(1, thumbSide / max(size.width, size.height))
-        let target = CGSize(width: floor(size.width * scale), height: floor(size.height * scale))
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        format.opaque = true
-        let flat = UIGraphicsImageRenderer(size: target, format: format).image { ctx in
-            UIColor.white.setFill()
-            ctx.fill(CGRect(origin: .zero, size: target))
-            image.draw(in: CGRect(origin: .zero, size: target))
-        }
-        return flat.jpegData(compressionQuality: 0.8)
+        let side = thumbSide
+        // Drawn and encoded off the main thread (it ran there for every word of the next days at launch).
+        return await Task.detached(priority: .utility) { () -> Data? in
+            let size = image.size
+            guard size.width > 0, size.height > 0 else { return nil }
+            let scale = min(1, side / max(size.width, size.height))
+            let target = CGSize(width: floor(size.width * scale), height: floor(size.height * scale))
+            let format = UIGraphicsImageRendererFormat.default()
+            format.scale = 1
+            format.opaque = true
+            let flat = UIGraphicsImageRenderer(size: target, format: format).image { ctx in
+                UIColor.white.setFill()
+                ctx.fill(CGRect(origin: .zero, size: target))
+                image.draw(in: CGRect(origin: .zero, size: target))
+            }
+            return flat.jpegData(compressionQuality: 0.8)
+        }.value
     }
 
     private static func removeStaleThumbs(keeping keep: Set<String>) {

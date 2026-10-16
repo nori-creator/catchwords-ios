@@ -333,12 +333,13 @@ struct DexCyclingPicture: View {
     @ViewBuilder
     private func one(_ p: DexPicture, width w: CGFloat) -> some View {
         if p.isCutout {
-            StickerImage(path: p.path, url: dex.url(for: p.path), contentMode: .fit)
+            // Decoded at the square's size (a dex of full-size cut-outs did not fit in memory: `StickerImage.maxPoints`).
+            StickerImage(path: p.path, url: dex.url(for: p.path), contentMode: .fit, maxPoints: w)
                 .frame(width: w * 0.9, height: w * 0.9)
                 .shadow(color: .rgba(0, 30, 70, 0.22), radius: 2.5, y: 2.5)
                 .frame(width: w, height: w)
         } else {
-            StickerImage(path: p.path, url: dex.url(for: p.path), contentMode: .fill)
+            StickerImage(path: p.path, url: dex.url(for: p.path), contentMode: .fill, maxPoints: w)
                 .frame(width: w * 0.86, height: w * 0.86)
                 .clipShape(.rect(cornerRadius: 12, style: .continuous))
                 .shadow(color: .rgba(0, 30, 70, 0.18), radius: 4, y: 3)
@@ -398,6 +399,17 @@ struct DexSilhouette: View {
     let item: DexItem
     /// Another colour than the grey (the landing's blue tint).
     var color: Color? = nil
+
+    /// Reads every shadow's picture once, off the main thread, behind the first screen: the art from the asset catalog,
+    /// else the SF Symbol. The first open of the 図鑑 drew them all on the main thread while the system's symbol files
+    /// were still being read from the disk (50 s on the UI tour's cold simulator, 2026-10-16); read once here, they are
+    /// in the file cache by then.
+    nonisolated static func warmUp() {
+        for item in DexCatalog.allItems {
+            if UIImage(named: "dexsil-\(item.id)") != nil { continue }
+            if let sf = item.symbol { _ = UIImage(systemName: sf + ".fill") ?? UIImage(systemName: sf) }
+        }
+    }
 
     var body: some View {
         GeometryReader { g in
