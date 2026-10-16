@@ -156,6 +156,9 @@ struct WordDetailView: View {
         // Keyed on the word id and the sticker id: a catch saved while its page is open runs these once it is saved.
         .task(id: current.wordId + "|" + L10n.lang) { await autoFill() }
         .task(id: current.id) { if !isProvisional { await dex.autoHero(current) } }
+        // The developer's 「作り直す」 gate (`AdminAccess.isAdmin`) is asked here too, not only on 設定: asked once
+        // per account, so a word page opened before 設定 ever was still offers it to an admin.
+        .task { await AdminAccess.shared.refresh() }
         // An example shown without its scene label is still shown; why it has none goes to the developer log.
         .task(id: current.id + "|" + L10n.lang + "|labels") {
             for line in ExampleItem.missingLabels(sentence: word?.exampleSentence, extras: extras, target: learningLang) {

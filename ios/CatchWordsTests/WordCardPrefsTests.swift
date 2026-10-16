@@ -28,6 +28,27 @@ final class WordCardPrefsTests: XCTestCase {
         XCTAssertTrue(hidden.isEmpty)
     }
 
+    /// Someone with no saved Mandarin order (new install) who hides 台湾メモ keeps it hidden: the one-time move is
+    /// marked done on the default path too, so it does not run on the next launch and show it again.
+    @MainActor
+    func testHidingTaiwanNoteOnAFreshInstallIsKept() {
+        let d = UserDefaults.standard
+        let keys = ["wordcard-prefs-v6", "wordcard-prefs-v6-en", CardPrefsStore.taiwanNoteMovedKey]
+        let before = keys.map { d.object(forKey: $0) }
+        defer { for (k, v) in zip(keys, before) { if let v { d.set(v, forKey: k) } else { d.removeObject(forKey: k) } } }
+        keys.forEach { d.removeObject(forKey: $0) }
+
+        let first = CardPrefsStore()
+        first.use("en"); first.use("zh-TW")
+        XCTAssertTrue(first.isVisible(.taiwanNote))
+        XCTAssertTrue(d.bool(forKey: CardPrefsStore.taiwanNoteMovedKey), "the move counts as done with nothing saved")
+        first.setVisible(.taiwanNote, false)
+
+        let next = CardPrefsStore()  // the next launch
+        next.use("en"); next.use("zh-TW")
+        XCTAssertFalse(next.isVisible(.taiwanNote), "hiding it is kept")
+    }
+
     /// 「作り直す」's dust (`RegenDust`): the old content goes in half a second, the cloud waits for the new one, which
     /// gathers back only once the old one has gone, and the effect ends when it is back.
     @MainActor

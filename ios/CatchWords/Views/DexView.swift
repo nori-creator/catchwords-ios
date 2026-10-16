@@ -492,6 +492,7 @@ struct DexView: View {
                         marks = m
                     }
                 }
+                if let old, new == nil { releaseHold(of: old) }
                 takeLanding(proxy)
             }
             .onChange(of: router.landingStickerId) { _, _ in takeLanding(proxy) }
@@ -553,6 +554,9 @@ struct DexView: View {
     /// the star there once the room is made. A re-encounter's landing: centre the word's own square, no hold.
     /// Without a landing controller (`landingStickerId`): centre the word and pop its slot.
     private func takeLanding(_ proxy: ScrollViewProxy) {
+        // A landing that ended without its pon (cut short by `CatchLanding.longest`, e.g. the app was suspended
+        // mid-flight) while this page was away: its word is not held back any longer.
+        if router.landing == nil, let held = galleryHold?.stickerId { releaseHold(of: held) }
         if let l = router.landing, l.fillStart == nil {
             let id = landingSlot(l)
             if l.alreadyCaught {
@@ -596,6 +600,17 @@ struct DexView: View {
                 if focus?.fillStart == start { focus = nil }
             }
         }
+    }
+
+    /// The landing of `stickerId` ended. Normally its pon (`fillStart`) has already released the hold; when it was
+    /// cut short before that, the word would stay hidden in the gallery (its square held back, its room empty)
+    /// until the page was drawn anew — so the hold and the waiting focus go here.
+    private func releaseHold(of stickerId: String) {
+        if galleryHold?.stickerId == stickerId {
+            UITestTrace.log("dex hold released without pon \(stickerId)")
+            galleryHold = nil
+        }
+        if let f = focus, f.id == stickerId, f.fillStart == nil { focus = nil }
     }
 
     /// Owner 2026-10-11 (「事前にもとの古い番号が高い単語の位置を1つ右に移動し、新しい単語はその左に入るようにして」):

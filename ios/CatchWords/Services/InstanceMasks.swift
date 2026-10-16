@@ -447,14 +447,22 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         let p = point ?? CGPoint(x: box.midX, y: box.midY)
         let px = p.x * CGFloat(w), py = p.y * CGFloat(h)
         var totals = [Int](repeating: 0, count: 256), edge = [Int](repeating: 0, count: 256)
+        // Contact with each open edge (left, top, right, bottom) and each instance's extent, for the edge test below.
+        var contact = [[Int]](repeating: [0, 0, 0, 0], count: 256)
+        var minX = [Int](repeating: Int.max, count: 256), maxX = [Int](repeating: -1, count: 256)
+        var minY = [Int](repeating: Int.max, count: 256), maxY = [Int](repeating: -1, count: 256)
         var near = [CGFloat](repeating: .greatestFiniteMagnitude, count: 256)
         for y in 0..<h {
             for x in 0..<w {
                 let l = Int(mask[y * w + x])
                 guard l != 0 else { continue }
                 totals[l] += 1
-                if (open.left && x == 0) || (open.right && x == w - 1) || (open.top && y == 0) || (open.bottom && y == h - 1) {
-                    edge[l] += 1
+                minX[l] = min(minX[l], x); maxX[l] = max(maxX[l], x)
+                minY[l] = min(minY[l], y); maxY[l] = max(maxY[l], y)
+                if x == 0 || y == 0 || x == w - 1 || y == h - 1 {
+                    let touches = [open.left && x == 0, open.top && y == 0, open.right && x == w - 1, open.bottom && y == h - 1]
+                    if touches.contains(true) { edge[l] += 1 }
+                    for e in 0..<4 where touches[e] { contact[l][e] += 1 }
                 }
                 let dx = CGFloat(x) + 0.5 - px, dy = CGFloat(y) + 0.5 - py
                 near[l] = min(near[l], dx * dx + dy * dy)
@@ -466,10 +474,34 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         }
         guard let pick = candidates.min(by: { a, b in near[a] != near[b] ? near[a] < near[b] : inGrown[a] > inGrown[b] })
         else { return (nil, false, nil) }
-        let openLength = (open.left ? h : 0) + (open.right ? h : 0) + (open.top ? w : 0) + (open.bottom ? w : 0)
-        let allowed = max(1, Int(Double(openLength) * 0.01))
-        return edge[pick] > allowed ? (nil, true, pick) : (pick, false, nil)
+        return touchesOpenEdge(contact: contact[pick], total: edge[pick],
+                               extent: (width: maxX[pick] - minX[pick] + 1, height: maxY[pick] - minY[pick] + 1),
+                               crop: (width: w, height: h), open: open)
+            ? (nil, true, pick) : (pick, false, nil)
     }
+
+    /// Whether an instance runs into an open edge of a crop (so the crop cut it). A few pixels of a big thing grazing
+    /// the edge are not a cut, but the allowance is judged against the thing's OWN size along that edge (`edgeGraze`
+    /// of it), not the crop's: a 5 px spoon handle crossing the edge of a 256 px crop touches it with all its width,
+    /// which a share of the crop's perimeter (10 px) would have let through as whole — and then cut straight there.
+    /// Never more than the old allowance (1% of the open perimeter), whatever the thing's size.
+    static func touchesOpenEdge(contact: [Int], total: Int, extent: (width: Int, height: Int), crop: (width: Int, height: Int),
+                                open: (left: Bool, top: Bool, right: Bool, bottom: Bool)) -> Bool {
+        let openLength = (open.left ? crop.height : 0) + (open.right ? crop.height : 0)
+            + (open.top ? crop.width : 0) + (open.bottom ? crop.width : 0)
+        let cap = max(1, Int(Double(openLength) * 0.01))
+        if total > cap { return true }
+        // left and right edges: the thing's height crosses them; top and bottom: its width.
+        let along = [extent.height, extent.width, extent.height, extent.width]
+        for e in 0..<4 where contact[e] > 0 {
+            let allowed = max(1, min(cap, Int(Double(along[e]) * edgeGraze)))
+            if contact[e] > allowed { return true }
+        }
+        return false
+    }
+
+    /// The share of a thing's own extent along an edge it may touch that edge with and still count as whole.
+    static let edgeGraze = 0.03
 
     /// The opaque part of a full-size cut-out and its box (0–1 of the image).
     private static func trimmed(_ full: CGImage) -> Cut? {

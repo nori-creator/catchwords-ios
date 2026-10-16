@@ -400,6 +400,30 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(atEdge.label, 1)
     }
 
+    /// A thin thing (a 5 px spoon handle) running out of a 256 px crop is cut by the crop, even though its contact
+    /// with the edge (5 px) is less than 1% of the crop's perimeter; a big round thing grazing the edge is not.
+    func testAThinThingRunningOutOfTheCropIsCutByIt() {
+        let n = 256
+        let spoon = mask(n, n) { x, y in (126..<131).contains(x) && y >= 100 ? 1 : 0 }
+        let box = CGRect(x: 0.4, y: 0.35, width: 0.2, height: 0.5)
+        let open = (left: true, top: true, right: true, bottom: true)
+        let r = InstanceMasks.pickInstance(mask: spoon, width: n, height: n, box: box, point: CGPoint(x: 0.5, y: 0.6), open: open)
+        XCTAssertNil(r.label, "the handle runs on past the crop: no whole spoon here")
+        XCTAssertTrue(r.cutByEdge)
+        // The same handle stopping short of the edge is whole.
+        let whole = mask(n, n) { x, y in (126..<131).contains(x) && (100..<250).contains(y) ? 1 : 0 }
+        XCTAssertEqual(InstanceMasks.pickInstance(mask: whole, width: n, height: n, box: box, point: CGPoint(x: 0.5, y: 0.6),
+                                                  open: open).label, 1)
+        // A big round plate whose rim grazes the bottom edge with a few pixels is whole.
+        let plate = mask(n, n) { x, y in
+            let dx = x - 128, dy = y - 155
+            return dx * dx + dy * dy <= 100 * 100 ? 1 : 0
+        }
+        let plateBox = CGRect(x: 0.1, y: 0.2, width: 0.8, height: 0.8)
+        XCTAssertEqual(InstanceMasks.pickInstance(mask: plate, width: n, height: n, box: plateBox, point: CGPoint(x: 0.5, y: 0.6),
+                                                  open: open).label, 1)
+    }
+
     func testACropPicksTheThingAtItsPointNotTheBiggerNeighbour() {
         // Thin glasses (2, a ring round the point) and a thick bottle part (3) both in the glasses' crop: the bottle
         // covers more of the box, the glasses are at the point.

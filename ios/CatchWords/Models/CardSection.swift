@@ -172,7 +172,12 @@ final class CardPrefsStore {
         order = CardSection.defaultOrder(for: target)
         hidden = Set(all.filter { !CardSection.defaultVisible(for: target).contains($0) })
         guard let data = UserDefaults.standard.data(forKey: key),
-              let s = try? JSONDecoder().decode(Stored.self, from: data) else { return }
+              let s = try? JSONDecoder().decode(Stored.self, from: data) else {
+            // Nothing saved: the defaults already show 台湾メモ above 実際の使われ方, so the move is done — marked so
+            // that hiding it later is not undone by the move on the next launch.
+            if target == "zh-TW" { UserDefaults.standard.set(true, forKey: Self.taiwanNoteMovedKey) }
+            return
+        }
         let known = s.order.compactMap(CardSection.init(rawValue:)).filter { all.contains($0) }
         order = known + CardSection.defaultOrder(for: target).filter { !known.contains($0) }
         hidden = Set(s.hidden.compactMap(CardSection.init(rawValue:)).filter { all.contains($0) })
