@@ -40,6 +40,10 @@ struct CaseFile: Decodable {
         let reference: String?
         /// Measured and asserted (false: only drawn).
         let check: Bool?
+        /// "none": Vision has no instance that is this thing alone (see `why`), so the right result is no cut-out; a
+        /// cut-out, if one comes, must still pass every check.
+        let expect: String?
+        let why: String?
     }
     struct Case: Decodable {
         let id: String
@@ -279,6 +283,7 @@ let base = casesURL.deletingLastPathComponent()
 let out = URL(fileURLWithPath: args[2], isDirectory: true)
 try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 let file = try JSONDecoder().decode(CaseFile.self, from: Data(contentsOf: casesURL))
+InstanceMasks.trace = { print("    " + $0) }
 
 struct Row: Encodable {
     let id: String
@@ -320,6 +325,7 @@ for c in file.cases {
         return alpha(of: img, in: CGRect(x: 0, y: 0, width: W, height: H), width: W, height: H, grey: true)
     }
     let started = Date()
+    print("\(c.id):")
     guard let masks = InstanceMasks.make(from: photo), let grid = masks.labelMaskCopy() else {
         print("::warning::\(c.id): Vision found no foreground instance")
         rows.append(Row(id: c.id, thing: "-", before: "no Vision instance", after: "no Vision instance", note: nil,
@@ -349,7 +355,9 @@ for c in file.cases {
             }
             m = measure(onCanvas(made.cut), ref: ref, others: others, box: boxes[i], cut: made.cut, width: W, height: H)
             om = measure(onCanvas(old), ref: ref, others: others, box: boxes[i], cut: old, width: W, height: H)
-            if t.check ?? true, let m {
+            if t.expect == "none", made.cut == nil {
+                // Expected: no cut-out (cases.json `why`).
+            } else if t.check ?? true, let m {
                 if m.coverage < minCoverage { fails.append(String(format: "covers %.0f%% of the thing (< %.0f%%)", m.coverage * 100, minCoverage * 100)) }
                 if m.straight > maxStraight { fails.append(String(format: "a straight cut through the thing along %.0f%% of a line", m.straight * 100)) }
                 if m.rectangle { fails.append("a rectangle") }
@@ -357,7 +365,8 @@ for c in file.cases {
             }
         }
         failures += fails.isEmpty ? 0 : 1
-        rows.append(Row(id: c.id, thing: t.name, before: describe(oldPlans[i].cut), after: describe(plans[i].cut) + (plans[i].refine != nil ? " + region" : ""),
+        let expected = t.expect == "none" ? " (expected: none — \(t.why ?? ""))" : ""
+        rows.append(Row(id: c.id, thing: t.name, before: describe(oldPlans[i].cut), after: describe(plans[i].cut) + (plans[i].refine != nil ? " + region" : "") + (made.cut == nil ? ", no cut-out" : "") + expected,
                         note: made.note, measure: m, oldMeasure: om, failures: fails))
     }
     let img = sheet(photo: photo, boxes: boxes, refs: refs, before: befores, after: afters)

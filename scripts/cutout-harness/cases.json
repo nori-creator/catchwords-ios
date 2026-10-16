@@ -52,7 +52,8 @@
     {"id": "astronaut-helmet", "photo": "astronaut.jpg", "what": "A person holding a helmet (cut by the photo's edge) and a model shuttle behind.",
      "things": [
        {"name": "安全帽", "point": [770, 850], "box_2d": [670, 540, 1000, 985], "reference": "astronaut.helmet.png"},
-       {"name": "太空梭", "point": [810, 250], "box_2d": [0, 690, 560, 930], "reference": "astronaut.shuttle.png"},
+       {"name": "太空梭", "point": [810, 250], "box_2d": [0, 690, 560, 930], "reference": "astronaut.shuttle.png", "expect": "none",
+        "why": "Vision has no instance for the model shuttle in the whole photo, and on crops round it only one merged with its stand and the dark table running out of the crop (mostly outside its box): the old plan's cut-out of it ended in the crop's straight edge (straight cut 100%). No cut-out is the honest result."},
        {"name": "太空人", "point": [380, 500], "box_2d": [30, 30, 1000, 720], "check": false}]},
     {"id": "cafe-cup-vase", "photo": "cafe.jpg", "what": "A small cup on a saucer, a glass vase of flowers (see-through) — a portrait photo.",
      "things": [

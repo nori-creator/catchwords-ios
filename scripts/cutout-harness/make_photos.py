@@ -43,6 +43,10 @@ POLYGONS = {
 }
 
 
+# A reference never includes what stands in front of the thing.
+IN_FRONT = {"coffee.cup": ["coffee.spoon"]}
+
+
 def fit(im, side=1200):
     im = im.convert("RGB")
     im.thumbnail((side, side), Image.LANCZOS)
@@ -131,8 +135,10 @@ def composite_glasses_bottle():
     save(canvas, "glasses-bottle.jpg")
     bm = Image.new("L", size, 0)
     bm.paste(bottle.split()[3].point(lambda v: 255 if v > 128 else 0), (bx, by))
-    save(bm.filter(ImageFilter.MinFilter(9)), "glasses-bottle.bottle.png")
     gm = g.split()[3].point(lambda v: 255 if v > 128 else 0)
+    # the bottle's reference is what shows of it: the temples lie over it
+    bm = Image.composite(Image.new("L", size, 0), bm, gm.filter(ImageFilter.MaxFilter(5)))
+    save(bm.filter(ImageFilter.MinFilter(9)), "glasses-bottle.bottle.png")
     # the frames only (not the faint lenses), a little thinned
     save(gm.filter(ImageFilter.MinFilter(3)), "glasses-bottle.glasses.png")
 
@@ -175,7 +181,12 @@ def main():
         save(im, key + ".jpg")
         for ref, polys in POLYGONS.items():
             if ref.split(".")[0] == key:
-                save(polygon_mask(im.size, polys), ref + ".png")
+                m = polygon_mask(im.size, polys)
+                # What lies in front of the thing is not the thing: the spoon's handle passes in front of the cup.
+                for front in IN_FRONT.get(ref, []):
+                    m = Image.composite(Image.new("L", im.size, 0), m,
+                                        polygon_mask(im.size, POLYGONS[front]).filter(ImageFilter.MaxFilter(5)))
+                save(m, ref + ".png")
     # The dorayaki once more, stored on its side with EXIF orientation 6 ("turn 90° clockwise to show"), as an iPad
     # camera stores a photo: the harness must read it upright, like the app.
     up = Image.open(os.path.join(OUT, "dorayaki.jpg"))

@@ -136,12 +136,31 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             guard let box = boxes[i], !plans[i].sharedWith.isEmpty || plans[i].refine != nil else { continue }
             if let h = regionHit(box, point: points[i], fadeIfCut: false) { hits[i] = h }
         }
+        // A crop's instance that takes most of another thing it shares the instance with is the two things together
+        // again (a person and the helmet held against them, both whole in the widest crop): not this thing alone.
+        var merged: [Int: Int] = [:]
+        for (i, h) in hits {
+            guard let hb = h.grid else { continue }
+            for j in plans[i].sharedWith where j < n {
+                guard case .part(_, let theirs) = plans[j].cut, theirs.bits.count == hb.count else { continue }
+                let total = theirs.count
+                guard total > 0 else { continue }
+                var both = 0
+                for k in hb.indices where hb[k] != 0 && theirs.bits[k] != 0 { both += 1 }
+                if Double(both) >= Self.mergedShare * Double(total) { merged[i] = j }
+            }
+        }
+        for (i, j) in merged {
+            hits[i] = nil
+            Self.trace?("thing \(i + 1): the crop's instance holds most of thing \(j + 1) too — not used")
+        }
         let grid = labelMaskCopy()
         var out: [(cut: Cut?, note: String?)] = []
         for i in 0..<n {
             let p = plans[i]
             var note = p.note
             func add(_ s: String) { note = (note.map { $0 + "; " } ?? "") + s }
+            if let j = merged[i] { add("the crop's instance held thing \(j + 1) too") }
             if let h = hits[i] {
                 add("Vision on a crop round its box found it whole")
                 out.append((h.cut, note))
@@ -209,6 +228,10 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
     /// How far round the box the crop reaches, each side, as a share of the box: tried in turn while the thing runs
     /// into the crop's edge (a box smaller than the thing).
     static let regionWidening: [CGFloat] = [0.25, 0.6]
+    /// A crop's instance holding this share of another thing's part is both things (`render`).
+    static let mergedShare = 0.5
+    /// Where the crops' decisions are told (the cut-out harness prints them; the app sends them to the developer log).
+    nonisolated(unsafe) static var trace: ((String) -> Void)?
 
     // MARK: Cut-outs
 
@@ -330,6 +353,10 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             let at = point.map { CGPoint(x: ($0.x * W - px.minX) / px.width, y: ($0.y * H - px.minY) / px.height) }
             let open = (left: px.minX > 0.5, top: px.minY > 0.5, right: px.maxX < W - 0.5, bottom: px.maxY < H - 0.5)
             let pick = Self.pickInstance(mask: m.mask, width: m.width, height: m.height, box: inner, point: at, open: open)
+            Self.trace?(String(format: "crop %.0f%% round (%.2f,%.2f %.2f×%.2f): %d instances, ", widen * 100, box.minX, box.minY,
+                               box.width, box.height, result.allInstances.count)
+                        + (pick.label.map { "instance \($0) whole" } ?? pick.cutLabel.map { "instance \($0) cut by the crop's edge" }
+                           ?? "none mostly inside the box"))
             if let label = pick.label {
                 return hit(result, handler, label: label, px: px, m: m, fade: nil)
             }

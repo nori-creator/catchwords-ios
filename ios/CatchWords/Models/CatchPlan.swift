@@ -13,9 +13,10 @@ import Foundation
 /// - One thing seen in several instances (the dorayaki's two pancakes and the ice cream between them): those that lie
 ///   in its box together (`CutCoverage.union`).
 /// - Two things claim one instance (glasses lying against a water bottle, which Vision saw as one): it is split where
-///   the two meet — each thing grows over the mask from the part only it has in its box, and growing across a change of
-///   colour in the photo is dear, so the line between them runs along the photo's own edge between the two things
-///   (`split`, `Cut.part`), never along a box.
+///   the two meet — each thing grows over the mask from the part only it has in its box, and never across a change of
+///   colour in the photo where the other thing can get without crossing one, so the line between them runs along the
+///   photo's own edge between the two things (`split`, `Cut.part`), never along a box. (`InstanceMasks.render` first
+///   asks Vision on a crop round each such thing's box, which usually separates them by itself.)
 /// - An instance mostly outside the thing's box that no other thing claims (the dorayaki merged with the carton behind
 ///   it, or a box off to one side): `refine` asks Vision once more on the region round the box, and that answer is used
 ///   only when it is a whole thing — not touching the region's edge — that covers the box; otherwise the whole instance
@@ -233,10 +234,13 @@ nonisolated enum CatchPlan {
     /// (`nestedShare`) inside the others and the pixel is in its middle part (a cup's box inside its saucer's: the cup's
     /// body is the cup's); otherwise nobody's yet. A claimant left without any seed (a spoon whose box lies all inside
     /// the cup's and saucer's) gets nothing here, and Vision is asked again on its region alone (`.noMask`).
-    /// Growth: from the seeds, every claimant spreads over the instance at once, cheapest path first (Dijkstra, 8
-    /// neighbours), and a pixel belongs to the first to reach it. A step costs its length, many times more where the photo
-    /// changes colour (`colours`: the edge between a black temple and an orange bottle, a black helmet and an orange
-    /// suit), so the line between two things runs along the photo's own edge between them — never along a box.
+    /// Growth (a seeded watershed on the photo's colour edges): from the seeds, every claimant spreads over the instance
+    /// at once, and a pixel belongs to the claimant that reaches it over the lowest "barrier" — the strongest change of
+    /// colour on the way (`colours`, in steps of `edgeStep`) — and, at the same barrier, by the shorter path (Dijkstra,
+    /// 8 neighbours). A claimant never crosses the edge between a black temple and an orange bottle, or a black helmet
+    /// and an orange suit, while the other can reach the pixel without crossing it, however far: the line between two
+    /// things runs along the photo's own edge between them — never along a box, and never a straight line halfway
+    /// between the seeds (what a cost that grows with distance drew through the uniform black of the helmet).
     /// Pixels no growth reaches go to the claimant whose box is nearest (inside two boxes, the one it lies deeper in).
     /// A label only `owner` claims is all `owner`'s.
     static func split(owner: Int, labels: [Int], claimants: [[Int]], boxes: [CGRect?], mask: [UInt8],
@@ -245,7 +249,7 @@ nonisolated enum CatchPlan {
         for l in labels where l > 0 && l < 256 { mine[l] = true }
         var result = [UInt8](repeating: 0, count: w * h)
         var holder = [Int](repeating: -1, count: w * h)
-        var cost = [Float](repeating: .greatestFiniteMagnitude, count: w * h)
+        var cost = [Double](repeating: .greatestFiniteMagnitude, count: w * h)
         var heap = MinHeap()
         let grids: [(x0: Int, x1: Int, y0: Int, y1: Int)?] = boxes.map { $0.map { grid($0, width: w, height: h) } }
         func inside(_ j: Int, _ x: Int, _ y: Int) -> Bool {
@@ -292,7 +296,7 @@ nonisolated enum CatchPlan {
                 }
             }
         }
-        let steps: [(Int, Int, Float)] = [(-1, -1, 1.4142), (0, -1, 1), (1, -1, 1.4142), (-1, 0, 1), (1, 0, 1),
+        let steps: [(Int, Int, Double)] = [(-1, -1, 1.4142), (0, -1, 1), (1, -1, 1.4142), (-1, 0, 1), (1, 0, 1),
                                           (-1, 1, 1.4142), (0, 1, 1), (1, 1, 1.4142)]
         let hasColour = (colours?.count ?? 0) >= w * h * 3
         while let top = heap.pop() {
@@ -306,13 +310,15 @@ nonisolated enum CatchPlan {
                 let n = ny * w + nx
                 let l = Int(mask[n])
                 guard l != 0, mine[l], claimants[l].count > 1, claimants[l].contains(holder[i]) else { continue }
-                var step = len
+                // The cost: barrier × `barrierScale` + path length, so a lower barrier always wins.
+                var barrier = (c / Self.barrierScale).rounded(.down)
+                let length = c - barrier * Self.barrierScale + Double(len)
                 if hasColour, let px = colours {
                     let a = i * 3, b = n * 3
                     let d = max(abs(Int(px[a]) - Int(px[b])), abs(Int(px[a + 1]) - Int(px[b + 1])), abs(Int(px[a + 2]) - Int(px[b + 2])))
-                    step *= 1 + Self.edgeCost * Float(d) / 255
+                    barrier = max(barrier, Double(d / Self.edgeStep))
                 }
-                let next = c + step
+                let next = barrier * Self.barrierScale + length
                 if next < cost[n] {
                     cost[n] = next
                     holder[n] = holder[i]
@@ -332,8 +338,11 @@ nonisolated enum CatchPlan {
         return Keep(width: w, height: h, bits: result)
     }
 
-    /// How many times dearer a step across the strongest colour change is than one across none (`split`).
-    static let edgeCost: Float = 30
+    /// The colour change (0–255, the largest of R, G, B between two neighbouring grid pixels) that makes one step of
+    /// barrier (`split`): changes smaller than this (shading, noise) are no edge.
+    static let edgeStep = 12
+    /// Above any path length on the grid (at most 512 × 512 × √2).
+    static let barrierScale: Double = 1_000_000
     /// A box this much (or more) inside another's is "in front of" it (a cup's box in its saucer's): its middle is a seed.
     static let nestedShare: CGFloat = 0.75
     /// A seed keeps this share of another claimant's box size away from that box.
@@ -341,9 +350,9 @@ nonisolated enum CatchPlan {
 
     /// A small binary min-heap of (cost, pixel) for `split`.
     struct MinHeap {
-        private var items: [(Float, Int32)] = []
+        private var items: [(Double, Int32)] = []
 
-        mutating func push(_ cost: Float, _ index: Int32) {
+        mutating func push(_ cost: Double, _ index: Int32) {
             items.append((cost, index))
             var i = items.count - 1
             while i > 0 {
@@ -354,7 +363,7 @@ nonisolated enum CatchPlan {
             }
         }
 
-        mutating func pop() -> (Float, Int32)? {
+        mutating func pop() -> (Double, Int32)? {
             guard let first = items.first else { return nil }
             let last = items.removeLast()
             if !items.isEmpty {
