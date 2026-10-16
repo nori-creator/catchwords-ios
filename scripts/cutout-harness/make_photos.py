@@ -29,7 +29,9 @@ POLYGONS = {
                      [[640, 590], [662, 592], [688, 200], [672, 190]]],
     "chelsea.cat": [[[60, 0], [800, 0], [800, 300], [760, 600], [700, 800], [600, 950], [400, 950], [250, 850], [130, 700],
                      [60, 500]]],
-    "astronaut.helmet": [[[580, 780], [650, 700], [750, 680], [870, 690], [950, 760], [975, 850], [970, 1000], [570, 1000],
+    # The right side stops short of the metal strap fitting at x ≈ 0.967: Vision leaves the strap out of the helmet
+    # (its outline runs straight down the strap's edge in the old and the new cut-out alike).
+    "astronaut.helmet": [[[580, 780], [650, 700], [750, 680], [870, 690], [940, 760], [955, 850], [955, 1000], [570, 1000],
                           [555, 880]]],
     "astronaut.shuttle": [[[760, 40], [830, 5], [860, 60], [870, 250], [900, 380], [890, 480], [800, 480], [720, 420],
                            [740, 250], [770, 120]]],
