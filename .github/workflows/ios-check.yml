@@ -107,6 +107,7 @@ jobs:
             -only-testing:CatchWordsTests/ChunkReadingTests \
             -only-testing:CatchWordsTests/ReviewHeadwordTests \
             -only-testing:CatchWordsTests/AlbumDayTests \
+            -only-testing:CatchWordsTests/WordCardPrefsTests \
             CODE_SIGNING_ALLOWED=NO \
             | tee "$RUNNER_TEMP/symbols.log" | grep -E "error:|Test Case|failed|passed|TEST (SUCCEEDED|FAILED)|BUILD FAILED" || true
           grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/symbols.log" || { grep -E "error:" "$RUNNER_TEMP/symbols.log" | awk -F'error: ' '{ split($2, t, " : "); if (!(t[1] in seen)) { seen[t[1]] = 1; print } }' | head -10 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; echo "::error::図鑑の影の SF Symbols の確認に失敗しました（上のログを見てください）"; exit 1; }
@@ -162,7 +163,7 @@ jobs:
           UDID=$(cat "$RUNNER_TEMP/udid"); BUNDLE_ID=$(cat "$RUNNER_TEMP/bundle"); DATA=$(cat "$RUNNER_TEMP/datadir")
           READY="$DATA/Library/Caches/ui-ready/preview"
           # 名前 / 画面の決まった要素が出てから待つ秒 / コマ数（撮影の間隔はおよそ 0.4〜0.6 秒）
-          for spec in "tabbar 2 1" "picker 2 1" "cutout 0 12" "reward 0 14" "variants 0 10" "get 0 16" "get-again 0 16" "landing 0 16" "landing-again 0 16" "analyzing 0 16" "scanslow 0 24" "hero 2 1" "memorial 0 10" "hero-dark 2 1" "tabbar-dark 2 1" "carousel 2 1" "detail 3 1" "detail-dark 3 1" "settings 2 1" "settings-dark 2 1" "settings-en 2 1" "settings-zh 2 1" "aisettings 2 1" "aisettings-dark 2 1" "aisettings-en 2 1" "aisettings-zh 2 1" "aistats 2 1" "aistats-en 2 1" "aistats-zh 2 1" "aicosts 2 1" "aicosts-en 2 1" "aicosts-zh 2 1" "detail-en 3 1" "detail-zh 3 1" "hero-zh 2 1" "auth 3 1" "auth-dark 3 1" "auth-en 3 1" "auth-zh 3 1" "signin 2 1" "signin-en 2 1" "onboarding-en 3 1" "onboarding-zh 3 1" "aiconsent 2 1" "aiconsent-en 2 1" "aiconsent-zh 2 1" "paywall-en 2 1" "paywall-zh 2 1" "dex-en 2 1" "dex-zh 2 1" "jadetail-en 3 1" "jadetail-zh 3 1" "endetail-ja 3 1" "endetail-zh 3 1" "quiz-en 2 1" "answer-en 2 1" "answer-zh 2 1" "jaquiz-en 2 1" "jaquiz-zh 2 1" "enanswer-ja 2 1" "enanswer-zh 2 1" "picker-en 2 1" "japicker-en 2 1" "japicker-zh 2 1" "enpicker-ja 2 1" "enpicker-zh 2 1" "done 3 1" "done-en 3 1" "done-zh 3 1" "homeload 1 1" "homeload-en 1 1" "chunks 2 1" "chunks-en 2 1" "answer 2 1" "tips 3 1" "tips-zh 3 1" "examples 3 1" "examples-en 3 1" "sunscreen 3 1" "sunscreen-en 3 1" "sunscreen-zh 3 1" "unsaved 3 1" "unsaved-en 3 1" "devlog 2 1" "selfie 3 1" "selfie-original 3 1" "selfie-zh 3 1" "slides 1 14" "choose 1 1" "choose-en 1 1" "choose-zh 1 1" "typed 1 1" "typed-en 1 1" "tips-en 3 1" "picker4 6 1" "picker4-en 6 1" "picker4-nopos 6 1" "tabbar-en 2 1" "tabbar-b 2 1" "tabbar-b-en 2 1" "home-again 4 1" "readings 2 1" "readings-en 2 1" "readings-pinyin 2 1" "reports 2 1" "reports-en 2 1" "map 3 1" "map-en 3 1"; do
+          for spec in "tabbar 2 1" "picker 2 1" "cutout 0 12" "reward 0 14" "variants 0 10" "get 0 16" "get-again 0 16" "landing 0 16" "landing-again 0 16" "analyzing 0 16" "scanslow 0 24" "hero 2 1" "memorial 0 10" "hero-dark 2 1" "tabbar-dark 2 1" "carousel 2 1" "detail 3 1" "detail-dark 3 1" "settings 2 1" "settings-dark 2 1" "settings-en 2 1" "settings-zh 2 1" "aisettings 2 1" "aisettings-dark 2 1" "aisettings-en 2 1" "aisettings-zh 2 1" "aistats 2 1" "aistats-en 2 1" "aistats-zh 2 1" "aicosts 2 1" "aicosts-en 2 1" "aicosts-zh 2 1" "detail-en 3 1" "detail-zh 3 1" "hero-zh 2 1" "auth 3 1" "auth-dark 3 1" "auth-en 3 1" "auth-zh 3 1" "signin 2 1" "signin-en 2 1" "onboarding-en 3 1" "onboarding-zh 3 1" "aiconsent 2 1" "aiconsent-en 2 1" "aiconsent-zh 2 1" "paywall-en 2 1" "paywall-zh 2 1" "dex-en 2 1" "dex-zh 2 1" "jadetail-en 3 1" "jadetail-zh 3 1" "endetail-ja 3 1" "endetail-zh 3 1" "quiz-en 2 1" "answer-en 2 1" "answer-zh 2 1" "jaquiz-en 2 1" "jaquiz-zh 2 1" "enanswer-ja 2 1" "enanswer-zh 2 1" "picker-en 2 1" "japicker-en 2 1" "japicker-zh 2 1" "enpicker-ja 2 1" "enpicker-zh 2 1" "done 3 1" "done-en 3 1" "done-zh 3 1" "homeload 1 1" "homeload-en 1 1" "chunks 2 1" "chunks-en 2 1" "answer 2 1" "tips 3 1" "tips-zh 3 1" "examples 3 1" "examples-en 3 1" "sunscreen 3 1" "sunscreen-en 3 1" "sunscreen-zh 3 1" "unsaved 3 1" "unsaved-en 3 1" "devlog 2 1" "selfie 3 1" "selfie-original 3 1" "selfie-zh 3 1" "slides 1 14" "choose 1 1" "choose-en 1 1" "choose-zh 1 1" "typed 1 1" "typed-en 1 1" "tips-en 3 1" "picker4 6 1" "picker4-en 6 1" "picker4-nopos 6 1" "tabbar-en 2 1" "tabbar-b 2 1" "tabbar-b-en 2 1" "home-again 4 1" "readings 2 1" "readings-en 2 1" "readings-pinyin 2 1" "reports 2 1" "reports-en 2 1" "map 3 1" "map-en 3 1" "regen 2 1" "chunks-narrow 2 1"; do
             set -- $spec
             name=$1; wait_s=$2; frames=$3
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
@@ -190,7 +191,7 @@ jobs:
           OUT="$RUNNER_TEMP/report/videos"
           mkdir -p "$OUT"
           UDID=$(cat "$RUNNER_TEMP/udid"); BUNDLE_ID=$(cat "$RUNNER_TEMP/bundle")
-          for spec in "analyzing 9" "scanslow 13"; do
+          for spec in "analyzing 9" "scanslow 13" "regen 10"; do
             set -- $spec
             name=$1; secs=$2
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
@@ -305,10 +306,16 @@ jobs:
           cp "$SRC"/*.png "$DIR"/ 2>/dev/null || true
           [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$DIR"/ 2>/dev/null || true
           [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.txt "$DIR"/ 2>/dev/null || true
+          # 「作り直す」の動き（-uiPreview regen の録画）
+          [ -f "$SRC/videos/scan-regen.mp4" ] && cp "$SRC/videos/scan-regen.mp4" "$DIR/regen.mp4" || true
           echo "${{ github.sha }}" > "$DIR/COMMIT"
           git add -A
           git -c user.name="ios-check" -c user.email="ios-check@users.noreply.github.com" commit --quiet -m "previews for $HEAD_REF @ ${{ github.sha }}" || exit 0
-          git push --quiet origin ci-previews || echo "::warning::ci-previews に置けませんでした"
+          for i in 1 2 3 4 5; do
+            git push --quiet origin ci-previews && exit 0
+            sleep $((i * 4)); git pull --quiet --rebase origin ci-previews || true
+          done
+          echo "::warning::ci-previews に置けませんでした"
 
       - name: 結果を保存する
         if: always()
@@ -320,3 +327,77 @@ jobs:
             ${{ runner.temp }}/build.log
           if-no-files-found: warn
           retention-days: 14
+
+  # TestFlight は Release で組み立てる。Debug だけの名前（#if DEBUG の中のもの）を外で使うと Release だけ壊れる
+  # （1.0.1 (1036) の前に一度起きた）。シミュレーター向けに Release で組み立てて、それを先に見つける。署名はしない。
+  release-build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release で組み立てる（TestFlight と同じ設定。署名なし）
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project CatchWords.xcodeproj \
+            -target CatchWords \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            SYMROOT="$RUNNER_TEMP/build" \
+            | tee "$RUNNER_TEMP/release.log" | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/release.log" || { grep -E "error:" "$RUNNER_TEMP/release.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; echo "::error::Release で組み立てられませんでした（Debug だけの名前を #if DEBUG の外で使っていないか）"; exit 1; }
+
+  # 切り抜きの確認（docs/cutout-failure-modes.md）: アプリの切り抜きのコード（CatchPlan など）をそのまま Mac 用に
+  # 組み立て、本物の Vision で本物の写真を切り抜く。わざと小さい・ずれた箱も含む。前（1.0.1 より前の計画）と今を
+  # 並べた画像を ci-previews の runs/<ブランチ>-cutout/ に置く。物の 85% 未満しか入らない・箱の線でまっすぐ切れる・
+  # 四角い・ほかの物が混ざる、のどれかがあれば失敗。
+  cutout-harness:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: 切り抜きの確認を組み立てる（アプリと同じファイル）
+        run: |
+          set -o pipefail
+          swiftc -O \
+            ios/CatchWords/Models/CatchPlan.swift \
+            ios/CatchWords/Models/CatchGeometry.swift \
+            ios/CatchWords/Models/TagPlacement.swift \
+            ios/CatchWords/Services/InstanceMasks.swift \
+            scripts/cutout-harness/OldCatchPlan.swift \
+            scripts/cutout-harness/main.swift \
+            -o "$RUNNER_TEMP/cutout-harness" 2>&1 | tee "$RUNNER_TEMP/harness-build.log" || {
+              grep -E "error:" "$RUNNER_TEMP/harness-build.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; exit 1; }
+      - name: 本物の写真を本物の Vision で切り抜く
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/cutout"
+          sw_vers
+          "$RUNNER_TEMP/cutout-harness" scripts/cutout-harness/cases.json "$RUNNER_TEMP/cutout" | tee "$RUNNER_TEMP/cutout/log.txt"
+      - name: 結果を ci-previews に置く
+        if: always()
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -uo pipefail
+          SRC="$RUNNER_TEMP/cutout"
+          [ -d "$SRC" ] || exit 0
+          [ -f "$SRC/summary.md" ] && cat "$SRC/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          DEST="$RUNNER_TEMP/previews-branch"
+          git clone --quiet --depth 1 --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" || exit 0
+          cd "$DEST"
+          DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-cutout"
+          rm -rf "$DIR" && mkdir -p "$DIR"
+          cp "$SRC"/* "$DIR"/ 2>/dev/null || true
+          echo "${{ github.sha }}" > "$DIR/COMMIT"
+          git add -A
+          git -c user.name="ios-check" -c user.email="ios-check@users.noreply.github.com" commit --quiet -m "cut-out harness for $HEAD_REF @ ${{ github.sha }}" || exit 0
+          for i in 1 2 3 4 5; do
+            git push --quiet origin ci-previews && exit 0
+            sleep $((i * 4)); git pull --quiet --rebase origin ci-previews || true
+          done
+          echo "::warning::ci-previews に置けませんでした"
+

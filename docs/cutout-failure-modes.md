@@ -1,0 +1,123 @@
+# 切り抜きが失敗する場合の一覧（撮影 → サーバー → Vision → 割り当て → 切り方 → 保存 → 表示）
+
+2026-10-16、iPad で撮った「銅鑼燒冰淇淋」（どら焼きアイス。後ろに箱）が、「覚える単語を選ぶ」の大きな絵で
+**左側と下側がまっすぐな線で切れた形**になった。この文書は、その原因と、切り抜きが失敗しうるすべての場合を
+1つの表にまとめたもの。各行に「何がきっかけか」「利用者に何が見えるか」「今（1.0.1）どう動くか」「直し・守り」を書く。
+
+自動の確認:
+- 単体テスト: `ios/CatchWordsTests/CardCatchPickTests.swift`・`MaskCoverageTests.swift`（作った mask で計画を確かめる）
+- **切り抜きの確認（本物の写真 × 本物の Vision）**: `scripts/cutout-harness/`。アプリと**同じファイル**
+  （`CatchPlan.swift`・`CatchGeometry.swift`・`TagPlacement.swift`・`InstanceMasks.swift`）を Mac 用に組み立て、
+  `VNGenerateForegroundInstanceMaskRequest`（macOS 14 以降で動く、iPhone と同じ Vision）で写真を切り抜く。
+  写真ごとにサーバーと同じ形の箱（わざと小さい・ずれた・無い箱も）を `cases.json` に書き、物の「参照の形」と比べる。
+  CI（`ios-check` の `cutout-harness`）で毎回走り、前（1.0.1 より前の計画）と今を並べた画像を
+  ci-previews ブランチの `runs/<ブランチ>-cutout/` に置く。失敗の条件: 物の 85% 未満しか入っていない／
+  箱の線が物を横切る所でまっすぐ切れている（35% 超）／四角い／ほかの名前の物が 12% 超まざる。
+
+---
+
+## 1. 今回の原因（どら焼きアイス）
+
+**箱に合わせて mask をまっすぐ切る規則**（1.0.0 の `CatchPlan`, PR #36）が原因。
+
+PR #36 で、2つの物を Vision が1つの塊（instance）として返す場合（眼鏡と水筒がくっついていた）に対応するため、
+次の2つの規則を入れていた。
+
+1. 「共有」: その塊の 12% 以上が別の物の箱の中にもあり、自分の箱の中にも 12% 以上あるとき、
+   **塊を自分の箱（4% 広げた四角）で切り取る**（`Cut.clip`）。
+2. 「箱より大きい」: 塊の半分以上が箱の外にあり、しかも箱の 60% も埋めていないとき、**塊を箱で切り取る**
+   （`CutCoverage.crop` → `Cut.clip`）。
+
+どちらも、切り口は **箱の辺そのもの**（まっすぐな線）になる。AI（サーバー）の箱は 768px の写真で目分量で引かれる
+ので、物より小さい・ずれることがよくある。
+
+どら焼きアイスの写真で起きたこと（証拠）:
+- 選ぶ画面の大きな絵（オーナーの写真）は、どら焼きの**左 3 分の 1 ほどが縦の直線で、下の皮が横の直線で**切れていた。
+  切り口は物の輪郭ではなく、まっすぐ。Vision の mask の縁は物に沿って柔らかいので、直線は箱の辺からしか来ない。
+- 元の写真では、どら焼きの真後ろに同じ絵の**箱**が立っていて、どら焼きの上の端と重なっている。
+  前景の塊が「どら焼き＋箱」になるか、箱にも名前が付けば、上の 1. か 2. の条件に入る。
+  箱がどら焼きより右上にずれていれば、左と下が直線で切れる——見えた形と一致する。
+- 切り抜きの確認（`cases.json` の `dorayaki-box-off`）で、同じ写真・同じずれ方の箱を前の計画に通すと
+  `CLIP … to box` になり、切り口が箱の辺でまっすぐになる（前→今の比較画像と数字は CI の summary.md）。
+
+本番のデータ（利用者 21b1c42a… の 06:50Z ごろの 冰淇淋）は、このセッションからはデータベースに届かず読めなかった。
+そのため、オーナーの写真（画面を撮ったもの）から元の写真を切り出して上向きに直し、同じ状況を再現した。
+
+### 直したこと（1.0.1）
+
+**切り抜きは、箱の線では決して切らない。**箱は「mask のどの部分がその物か」を選ぶためだけに使い、
+切り抜きの縁はいつも Vision の mask の縁（2つの物が接する所だけは、その境目）になる。
+
+| 状況 | 1.0.0 | 1.0.1 |
+|---|---|---|
+| その塊を欲しがる物が1つだけ | 箱より大きければ箱で切る | **塊をまるごと**（箱の外にはみ出した部分も）。箱にまったく届かない離れたかけらだけ外す（`Cut.part`） |
+| 塊の大部分が箱の外（後ろの物とくっついた・箱がずれた） | 箱で切る | まるごと残したうえで、**箱のまわりだけでもう一度 Vision**（`refine`）。そこで見つかった物が「切れていない（範囲の端に触れていない）」かつ箱を 30% 以上埋めるときだけ、それを使う。範囲は箱の 35%、だめなら 80% 外まで広げる |
+| 1つの物が Vision で何個かに分かれた（どら焼きの上の皮・アイス・下の皮） | 1つ（点の下）だけ | 箱の中に大部分がある塊を**合わせて**1つに（`CutCoverage.union`） |
+| 2つの物が1つの塊（眼鏡と水筒） | それぞれの箱で四角く切る | **2つが接する所で分ける**: 各自が「自分の箱にだけある部分」から mask の上を同時に広がり、先に届いた方のものにする。境目は mask の上で2つが出会う所（くびれ）になり、箱の線にはならない |
+| 箱の中に mask が無い | もう一度 Vision（範囲 12%） | 同じく、ただし範囲の端で切れた物は使わない（35% → 80% と広げる）。何も無ければ切り抜きなし（四角は出さない） |
+
+名前の札（タグ）は、まるごと残した大きな塊では**箱の中にある部分**の奥に置く（後ろの箱ではなく、どら焼きの上）。
+
+---
+
+## 2. 失敗しうるすべての場合
+
+「今」は 1.0.1 の動き。「確認」は自動の確認がどこにあるか（unit = 単体テスト、harness = 切り抜きの確認）。
+
+### 撮影・写真の向き・大きさ
+
+| 場合 | きっかけ | 利用者に見えること | 今の動き | 直し・守り / 確認 |
+|---|---|---|---|---|
+| 横向き・縦向き | iPad を横にして撮る / 縦で撮る | （以前は向きの取り違えで札がずれることがあった） | カメラの写真は `normalizedOrientation()` で上向きに描き直してから、サーバーへの 768px と Vision 用 1600px を作る。サーバーの点・箱も Vision の mask も「上向きの同じ写真の 0〜1」 | 同じ写真から作るので一致。unit: `testAPortraitCameraPhotoIsReadUpright`・`testALandscapePhotoKeepsItsCoordinates`、harness: `boba-portrait`（縦長）、どら焼き各種 |
+| EXIF の向き（横に寝かせて保存された写真） | iPhone/iPad のカメラは画素を横に寝かせ、EXIF に「90° 回して見せる」と書く | 向きを読まないと、点と mask が 90° ずれる | カメラ: `normalizedOrientation()`。写真ライブラリ: `ImageTools.downsampled`（ImageIO の `CreateThumbnailWithTransform`）で上向き | harness: `dorayaki-exif-rotated`（EXIF 6 で保存した写真を、ライブラリと同じ ImageIO の読み方で読む） |
+| 写真ライブラリから選ぶ | `PhotosPicker` | 同上 | `downsampledInBackground`（ImageIO、向きを適用、最大 2400px） | harness の写真の読み込みはこれと同じ方法 |
+| 自撮り（インカメラ） | 自撮りの写真 | 人物以外が残る／持っている物が消える | 物の写真とは別。自撮りは `liftPeople`（人と、人に触れている物だけ残す） | unit: `testSelfieKeepsWhatThePersonHolds`（MaskCoverageTests）。シミュレーターでは Vision が動かず、絵の確認は TestFlight |
+| 送る写真の縮小とずれ | サーバーへは 768px、Vision は 1600px | 縦横比が変わると点と mask がずれる | どちらも縦横比を保って縮小するだけ（切り取りなし）。0〜1 の座標は共通 | 縦横比を変える処理は無い（`ImageTools.resized`） |
+| とても大きい写真・メモリ | 48MP の写真 | 固まる・落ちる | 先に縮小（ImageIO）、Vision は 1600px、mask の計画は最大 512px の写し | — |
+
+### サーバー（AI の点と箱）
+
+| 場合 | きっかけ | 見えること | 今の動き | 直し・守り / 確認 |
+|---|---|---|---|---|
+| **箱が物より小さい** | AI の目分量 | 1.0.0: 箱の辺でまっすぐ切れる | 塊をまるごと。箱は「どれがその物か」にだけ使う | unit: `testABoxThirtyPercentSmallerThanTheThingKeepsAllOfIt`、harness: `dorayaki-box-30-smaller`・`coffee-cup-box-small`・`chelsea-box-small` |
+| **箱がずれている** | 同上 | 1.0.0: 片側がまっすぐ切れる（今回） | まるごと＋範囲だけもう一度 Vision（切れていない時だけ採用）。札は箱の中の部分に | unit: `testABoxOffToOneSideNeverCutsTheThingWithAStraightLine`、harness: `dorayaki-box-off`・`boba-portrait` |
+| 箱が無い | 古い答え・AI が書かない | — | 点の近くの塊をまるごと | harness: `dorayaki-no-box` |
+| 点が物の外 | 点は箱の真ん中なので、ドーナツ型や箱がずれると外れる | 違う物が選ばれる | 点の 8% 以内の近い塊を候補にし、箱の中に本当にある塊を選ぶ（`present`） | harness: `dorayaki-point-outside` |
+| 点・箱が無い／2つの物が同じ点 | AI が位置を書かない | 札が真ん中に山積み | 空いている塊に1つずつ、無ければ写真に散らばる場所へ（`TagPlacement.spreadSpots`） | unit（TagPlacementTests）、見本の画面 `picker4-nopos` |
+
+### Vision
+
+| 場合 | きっかけ | 見えること | 今の動き | 直し・守り / 確認 |
+|---|---|---|---|---|
+| **触れている2つの物が1つの塊** | 眼鏡と水筒、鍵とリモコン | 1.0.0: 2つとも四角く切れる／札が重なる | 2つが接する所（mask の上で出会う所）で分ける | unit: `testTwoThingsVisionSawAsOneEachGetTheirOwnPartAndTag`（画素ごとに正解と比べる）、harness: `glasses-against-bottle`・`keys-on-remote` |
+| **1つの物が何個もの塊** | どら焼き（皮・アイス・皮）、重ねた服 | 一部だけの切り抜き | 箱の中に大部分がある塊を合わせる | unit: `testOneThingVisionSawInPiecesIsCutOutWhole`・`testOneThingInSeveralInstancesIsCutOutTogether` |
+| 物が後ろの物とくっつく | どら焼きと後ろの箱 | 後ろの物まで入る | まるごと残す（切らない）。範囲だけもう一度 Vision で、きれいに分かれればそれを使う | unit: `testAThingMergedWithWhatIsBehindItIsKeptWholeAndLookedAtAgain`、harness: `dorayaki-*` |
+| 細い物 | スプーン、眼鏡のつる、ペン | 細い部分が消える | 塊は箱の外へも広がってよい。小さすぎる切り抜きは捨てて写真から（`isNearlyBlank`） | harness: `coffee-cup-saucer-spoon`（スプーン、数字だけ）、`glasses-against-bottle` |
+| 透明・反射 | ガラスの花瓶、ビニール | 背景が透ける・欠ける | Vision 次第（アプリでは直せない）。四角にはしない | harness: `cafe-cup-vase`（花瓶、数字だけ） |
+| 背景と色が近い | 白い紙の上の白いアイス | 一部が欠ける | Vision 次第。まるごと残す規則で、少なくとも箱で欠けることは無い | harness: `dorayaki-*`（白い紙の上の白いアイス） |
+| 写真の端に触れる | 手前の物が切れている | 1.0.0 でも端は直線（これは正しい） | 写真の端は「切れ目」と見なさない（範囲のやり直しでも） | unit: `testARegionCutTakesOnlyAWholeThing`、harness: `astronaut-helmet`（下端で切れたヘルメット）、`chelsea-fills-frame` |
+| とても小さい物 | 遠くの物 | 切り抜きなし | 箱の 2% 未満しか無い塊は「そこに無い」。範囲のやり直し、それも無ければ切り抜きなし（四角は出さない） | unit: `testAThingWithNoMaskInItsBoxGetsNoCutOutNotARectangle` |
+| 画面いっぱいの物 | 顔のアップ | — | 箱がほぼ全体。まるごと | harness: `chelsea-fills-frame` |
+| 手で持っている物 | 人と物が1つの塊、または人の手だけが箱に入る | 人だけ・物だけ | 人の塊が箱を埋めていればまるごと、手だけなら物の塊と合わせる | unit: `testAPersonHoldingTheThingAsOneInstanceIsKept`・`testThePersonAloneTakesInTheThingBesideThem`、harness: `astronaut-helmet` |
+| 穴のある物 | カップの取っ手、輪 | 穴が埋まる | Vision の mask のまま（穴は穴）。札は穴ではなく本体の奥（`CatchAnchor`） | unit: `testACupsTagSitsOnItsBodyNotByItsHandle` |
+| Vision が何も見つけない／失敗 | 暗い写真、シミュレーター | — | 物は「mask なし」。範囲だけもう一度、それも無ければ切り抜きなしで写真を使う | unit: `testBuildWithoutMasksGivesSeparateBoxes`、harness は Vision が動かなければ失敗にする |
+| 遅い端末・メモリ | 古い iPad | 待たされる | Vision は撮った直後から、AI の答えを待つ間に走る。mask の計画は 512px の写しで、切り抜きは先に描いておく | — |
+
+### 割り当て・切り方・保存・表示
+
+| 場合 | きっかけ | 見えること | 今の動き | 直し・守り / 確認 |
+|---|---|---|---|---|
+| 2つの物が同じ塊を取り合う | 点が近い | 同じ切り抜き・札が重なる | 点に近い組から順に、1つの塊は1つの物へ（`assignInstances`）。残った物は箱の中の塊を取り、共有なら分ける | unit: `testTwoObjectsNeverShareAnInstance` |
+| 切り抜きが四角になる | 1.0.0 以前の「写真を箱で切る」 | 四角い写真のシール | どの道でも四角い写真を切り抜きとして使わない | harness が四角を失敗にする |
+| 保存待ち（解析待ち）から開く | 電波が弱く保存できなかった写真 | — | 再び開くと同じ `CatchObject.build` を通る（同じ規則） | — |
+| 保存待ちの切り抜き | 保存の途中で失敗 | — | 切り抜きは選んだ時点の画像のまま一緒に送り直す（作り直さない） | — |
+| 切り抜きが無いまま選んだ | Vision が何も返さなかった物 | 選んだ後に切り抜きを待つ | 札の場所（`anchor`）の下の物を Vision でもう一度切り抜く（`liftSubject`）。無ければ写真のまま | — |
+| 再会（もう持っている単語） | 同じ単語を再び撮る | — | 新しい単語と同じ切り抜きの道 | — |
+| 古い単語の切り抜きの作り直し | 切り抜きの無い古い単語 | 物の写真に写った前景がすべて入ることがある | `CutoutBackfill` は AI の点を持たないので、前景をまるごと切り抜く（1.0.1 では変えていない） | 残っている課題（下） |
+| 古い切り抜きが表示に残る | 画像の一時保存 | 直した後も古い絵 | 切り抜きは保存ごとに新しいファイル名で上がり、一時保存はファイル名ごと。作り直しも新しい名前 | — |
+
+### 残っている課題（1.0.1 では直していない）
+
+- `CutoutBackfill`（古い単語の切り抜きを後から作る）は AI の点を持たないので、写真の前景すべてを切り抜く。
+- 透明・反射する物、背景と同じ色の物は Vision の mask そのものが欠ける。アプリ側では「箱で切らない」ことしかできない。
+- 範囲でのもう一度の Vision は、物が範囲の端に触れていれば使わない（直線で切れるより、後ろの物まで入るほうを選ぶ）。

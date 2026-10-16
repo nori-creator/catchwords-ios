@@ -38,6 +38,11 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
     /// Sections that only look outside (links, internet pictures): nothing for the AI to write or fix.
     var isExternal: Bool { self == .realUsage || self == .webImages }
 
+    /// The server can write this section again (`regenerateCardSection`, web card-sections.ts REGEN_SECTIONS): not
+    /// 語形 (`forms`, read from the dictionary, not written by the AI), not the links and pictures from outside, and not
+    /// the sections the word page no longer shows (`isRemoved`: the server writes nothing for them any more).
+    var isRegenerable: Bool { !isExternal && !isRemoved && self != .forms }
+
     /// The sections a card in `target` can have, in the web's order (target-profile.ts).
     /// ネットの画像・追加の例文・発音のコツ・覚え方 are gone from the word page (owner 2026-10-15): the extra examples are
     /// in 「例文」 with the main one, and the page never asks the server for the others. 語源・部首 is gone too (owner
@@ -119,8 +124,9 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
         }
     }
 
-    /// card-prefs.ts DEFAULT_VISIBLE (2026-09-23), within the language's sections.
-    static let defaultVisibleAll: [CardSection] = [.meaning, .example, .usageChunks, .measureWords, .relatedWords, .realUsage]
+    /// card-prefs.ts DEFAULT_VISIBLE (2026-09-23), within the language's sections. 台湾メモ is shown, right above
+    /// 実際の使われ方 (owner 2026-10-16).
+    static let defaultVisibleAll: [CardSection] = [.meaning, .example, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
 
     /// Each language shows its own grammar section by default where Mandarin shows measure words:
     /// English word forms and articles, Japanese kanji, conjugation and counters.
@@ -174,6 +180,25 @@ final class CardPrefsStore {
         // it, not shown just because it was missing from the saved hidden list.
         let defaults = CardSection.defaultVisible(for: target)
         hidden.formUnion(all.filter { !known.contains($0) && !defaults.contains($0) })
+        if target == "zh-TW", !UserDefaults.standard.bool(forKey: Self.taiwanNoteMovedKey) {
+            UserDefaults.standard.set(true, forKey: Self.taiwanNoteMovedKey)
+            (order, hidden) = Self.taiwanNoteAboveRealUsage(order: order, hidden: hidden)
+            save()
+        }
+    }
+
+    /// Set once the saved Mandarin choices have had 台湾メモ moved (1.0.1).
+    static let taiwanNoteMovedKey = "wordcard-prefs-taiwan-note-moved"
+
+    /// 台湾メモ shown, right above 実際の使われ方 (owner 2026-10-16): done once to a card order saved before 1.0.1 —
+    /// the rest of the order and what else is hidden stay as chosen; hiding it again later is kept.
+    static func taiwanNoteAboveRealUsage(order: [CardSection], hidden: Set<CardSection>) -> ([CardSection], Set<CardSection>) {
+        var order = order.filter { $0 != .taiwanNote }
+        let at = order.firstIndex(of: .realUsage) ?? order.endIndex
+        order.insert(.taiwanNote, at: at)
+        var hidden = hidden
+        hidden.remove(.taiwanNote)
+        return (order, hidden)
     }
 
     var visible: [CardSection] { order.filter { !hidden.contains($0) } }

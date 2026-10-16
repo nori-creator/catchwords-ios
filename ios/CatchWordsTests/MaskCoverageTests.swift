@@ -27,11 +27,24 @@ final class MaskCoverageTests: XCTestCase {
                        .union([1, 2]))
     }
 
-    func testNothingCoversTheThingSoThePhotoRoundItIsUsed() {
-        // The bun is no instance at all: only the person's hand is in its box.
-        XCTAssertEqual(CutCoverage.decide(chosen: 1, inBox: [1: 60], totals: [1: 3000], boxArea: boxArea), .crop)
+    func testNothingCoversTheThingSoVisionLooksAgainNeverACrop() {
+        // The bun is no instance at all: only the person's hand is in its box. Never cut to the box (owner 2026-10-16):
+        // the instance is far larger than the box, so `CatchPlan` keeps it whole and has Vision look at the region.
+        XCTAssertEqual(CutCoverage.decide(chosen: 1, inBox: [1: 60], totals: [1: 3000], boxArea: boxArea), .larger)
         // A small piece of another instance is not enough either.
-        XCTAssertEqual(CutCoverage.decide(chosen: 1, inBox: [1: 60, 4: 70], totals: [1: 3000, 4: 900], boxArea: boxArea), .crop)
+        XCTAssertEqual(CutCoverage.decide(chosen: 1, inBox: [1: 60, 4: 70], totals: [1: 3000, 4: 900], boxArea: boxArea), .larger)
+    }
+
+    func testOneThingInSeveralInstancesIsCutOutTogether() {
+        // The dorayaki (owner 2026-10-16): the ice cream (2, under the AI's point) and the two pancakes (5, 6), each
+        // mostly inside the box, the ice cream alone filling a third of it.
+        XCTAssertEqual(CutCoverage.decide(chosen: 2, inBox: [2: 130, 5: 110, 6: 100], totals: [2: 140, 5: 125, 6: 120],
+                                          boxArea: boxArea), .union([2, 5, 6]))
+        // Another thing's own instance is never taken in.
+        XCTAssertEqual(CutCoverage.decide(chosen: 2, inBox: [2: 130, 5: 110, 6: 100], totals: [2: 140, 5: 125, 6: 120],
+                                          boxArea: boxArea, excluding: [6]), .union([2, 5]))
+        // A speck in the box is no piece: the instance stays as it is.
+        XCTAssertEqual(CutCoverage.decide(chosen: 2, inBox: [2: 130, 7: 10], totals: [2: 140, 7: 10], boxArea: boxArea), .keep)
     }
 
     func testNoBoxOrNoCountsKeepsTheInstance() {

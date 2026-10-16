@@ -77,7 +77,8 @@ struct DexView: View {
     @Environment(DexStore.self) private var dex
     @Environment(AppRouter.self) private var router
 
-    @State private var mode: DexMode = .grid
+    /// The slide dex first (owner 2026-10-16: 「図鑑を開いたらスライドの図鑑」); a landing still opens the gallery.
+    @State private var mode: DexMode = .cover
     /// One of the dex's 20 categories (DexCatalog), or nil for all.
     @State private var categoryFilter: Int?
     @State private var dayFilter: Date?

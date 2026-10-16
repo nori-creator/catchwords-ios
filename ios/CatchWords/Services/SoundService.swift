@@ -39,8 +39,8 @@ enum SFX: String, CaseIterable {
     case c6Tick3 = "cc6-count-tick-3"
     case c6Refill = "cc6-refill"
     case c6GoalOneMore = "cc6-goal-one-more"
-    // The small UI ticks (owner 2026-10-15, scripts/render_ui_ticks.py, −26 LUFS like the kit's `ui` role): three
-    // alternatives each, chosen in 設定 › 開発者 (`DevChoices`) — the map's timeline passing a word, a Settings picker.
+    // The small UI ticks (owner 2026-10-15, scripts/render_ui_ticks.py, −26 LUFS like the kit's `ui` role). Only
+    // cc6-pick-tick-3 is played now (the map's timeline, owner 2026-10-16); the others stay for a later choice.
     case c6ScrollTick1 = "cc6-scroll-tick-1"
     case c6ScrollTick2 = "cc6-scroll-tick-2"
     case c6ScrollTick3 = "cc6-scroll-tick-3"
@@ -220,34 +220,20 @@ final class SoundService {
         Haptics.pon(open: open)
     }
 
-    /// Where a small tick is heard (owner 2026-10-15).
+    /// Where a small tick is heard.
     enum Tick {
-        /// A word passing the reading line of the Collection map's timeline while scrolling.
+        /// A word passing the reading line of the Collection map's timeline while scrolling: the bubble tick (owner
+        /// 2026-10-16: the Settings pick tick 3, not the map-scroll one).
         case timeline
-        /// A Settings pill chosen (off unless chosen in 設定 › 開発者, owner 2026-10-16). The wheels click on their own
-        /// (`wheelTick`).
-        case picker
     }
 
-    /// The small tick for `kind`: the alternative chosen in 設定 › 開発者 (`DevChoices`, 1–3, or none), on the same
-    /// rules as every SFX — the sound level (控えめ / しっかり / オフ) scales it, and the device's own switches apply as
-    /// they do to the pon. A tick restarts the one before it (a fast scroll never piles them up). `number` plays that
-    /// alternative instead of the chosen one (the developer card's preview of each).
-    func tick(_ kind: Tick, number: Int? = nil) {
-        let key = kind == .timeline ? DevChoices.timelineTickKey : DevChoices.pickerTickKey
-        guard let n = number ?? DevChoices.tick(key), (1...3).contains(n) else { return }
-        let files: [SFX] = kind == .timeline
-            ? [.c6ScrollTick1, .c6ScrollTick2, .c6ScrollTick3]
-            : [.c6PickTick1, .c6PickTick2, .c6PickTick3]
-        play(files[n - 1])
-    }
-
-    /// A Settings wheel passing a row while it turns (`TickingWheel`): the picker tick chosen in 設定 › 開発者, or the
-    /// first one when none is chosen there — the wheel always clicks (owner 2026-10-16: 「カチカチ音がスクロールに
-    /// 追従するように」). Same level rules as every SFX; a click restarts the one before it.
-    func wheelTick() {
-        let n = DevChoices.tick(DevChoices.pickerTickKey) ?? 1
-        play([SFX.c6PickTick1, .c6PickTick2, .c6PickTick3][n - 1])
+    /// The small tick for `kind`, on the same rules as every SFX — the sound level (控えめ / しっかり / オフ) scales it.
+    /// A tick restarts the one before it (a fast scroll never piles them up). The Settings choices and wheels play no
+    /// sound of the app's own (owner 2026-10-16: the wheel's own click is the only one, never two at once).
+    func tick(_ kind: Tick) {
+        switch kind {
+        case .timeline: play(.c6PickTick3)
+        }
     }
 
     func startAnalyzeLoop() {

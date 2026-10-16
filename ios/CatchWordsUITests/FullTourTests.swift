@@ -86,6 +86,10 @@ final class FullTourTests: XCTestCase {
         tap("tab.dex")
         settle(2)
         snap("dex")
+        // The 図鑑 opens on the slide dex (owner 2026-10-16); the words' squares are in the gallery.
+        tap("dex.mode.grid")
+        settle(1.5)
+        snap("dex-gallery")
         let cell = app.buttons["dex.cell"].firstMatch
         guard cell.waitForExistence(timeout: 10) else {
             XCTFail("[\(display)/\(learning)] the dex shows no words")
@@ -383,8 +387,8 @@ final class FullTourTests: XCTestCase {
         }
     }
 
-    /// Turns the open wheel by about a row with a finger and back (the app's trace logs a click per row crossing the
-    /// centre line: `TickingWheel`), and leaves it on the value it had, so closing changes nothing.
+    /// Turns the open wheel by about a row with a finger and back (the system wheel clicks once per row: the only
+    /// sound), and leaves it on the value it had, so closing changes nothing.
     private func turnWheelAndBack() {
         let wheel = app.pickerWheels.firstMatch
         guard wheel.waitForExistence(timeout: 3) else { return }

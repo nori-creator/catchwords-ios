@@ -142,6 +142,10 @@ struct ReviewView: View {
                     .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))
                     .shadow(color: .black.opacity(0.2), radius: 30, y: 12)
                     .padding(.horizontal, 16)
+                    // Kept clear of the tab bar drawn over this screen (owner 2026-10-16: 「今が復習どき」 and its
+                    // button were under it): when the card is taller than the room left, it scrolls inside.
+                    .padding(.top, 8)
+                    .padding(.bottom, Self.tabBarClearance + 12)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.92).combined(with: .opacity))
                 }
                 .zIndex(2)
@@ -605,10 +609,10 @@ struct QuizCard: View {
         let ok = c.headword == correctHead
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { picked = c.headword }
         if ok {
-            Haptics.success()
+            Haptics.correct()
             SoundService.shared.speak(correctHead)
         } else {
-            Haptics.warning()
+            Haptics.wrong()
             Task {
                 for x in [10.0, -8, 6, -3, 0] {
                     withAnimation(.spring(response: 0.08, dampingFraction: 0.4)) { shake = x }

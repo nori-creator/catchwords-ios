@@ -214,19 +214,42 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(things[0].point.y, 0.39, accuracy: 1e-9)
         let glassesBox = try XCTUnwrap(things[0].box), bottleBox = try XCTUnwrap(things[1].box)
         let plans = CatchPlan.plan(things: things, mask: deskMask(glasses: 1), width: 100, height: 133)
-        // Neither a whole instance (that would be both things) nor a rectangle: each its part of the one instance.
-        guard case .clip(let gl, let gr) = plans[0].cut, case .clip(let bl, let br) = plans[1].cut else {
-            return XCTFail("both things should be clipped from the shared instance: \(plans.map(\.cut))")
+        // Neither a whole instance (that would be both things) nor a rectangle: each its side of the one instance.
+        guard case .part(let gl, let gk) = plans[0].cut, case .part(let bl, let bk) = plans[1].cut else {
+            return XCTFail("both things should be split from the shared instance: \(plans.map(\.cut))")
         }
         XCTAssertEqual(gl, [1])
         XCTAssertEqual(bl, [1])
-        XCTAssertTrue(gr.contains(CGPoint(x: glassesBox.midX, y: glassesBox.midY)))
-        XCTAssertTrue(br.contains(CGPoint(x: bottleBox.midX, y: bottleBox.midY)))
+        // The same photo with the two things as separate instances says which pixel is which.
+        let truth = deskMask(glasses: 2)
+        var glassesKept = 0, glassesAll = 0, bottleKept = 0, bottleAll = 0, wrong = 0
+        for y in 0..<133 {
+            for x in 0..<100 {
+                switch truth[y * 100 + x] {
+                case 2:
+                    glassesAll += 1
+                    if gk.contains(x, y) { glassesKept += 1 }
+                    if bk.contains(x, y) { wrong += 1 }
+                case 1:
+                    bottleAll += 1
+                    if bk.contains(x, y) { bottleKept += 1 }
+                    if gk.contains(x, y) { wrong += 1 }
+                default:
+                    XCTAssertFalse(gk.contains(x, y) || bk.contains(x, y), "background kept at \(x), \(y)")
+                }
+            }
+        }
+        XCTAssertGreaterThanOrEqual(Double(glassesKept) / Double(glassesAll), 0.9, "the glasses keep their frames")
+        XCTAssertGreaterThanOrEqual(Double(bottleKept) / Double(bottleAll), 0.97, "the bottle keeps its body")
+        XCTAssertLessThanOrEqual(wrong, 6, "pixels given to the other thing")
+        // Every pixel of the instance goes to exactly one of them.
+        for i in 0..<(100 * 133) where truth[i] != 0 { XCTAssertNotEqual(gk.bits[i] != 0, bk.bits[i] != 0) }
         // The glasses' tag on the glasses (below the bottle, inside the glasses' box), the bottle's on the bottle.
         let g = plans[0].anchor, b = plans[1].anchor
         XCTAssertTrue(glassesBox.contains(g), "glasses tag \(g) outside \(glassesBox)")
         XCTAssertGreaterThan(g.y, 41.0 / 133, "glasses tag \(g) is on the bottle")
         XCTAssertTrue(CGRect(x: 0.58, y: 0, width: 0.32, height: 41.0 / 133).contains(b), "bottle tag \(b) off the bottle")
+        XCTAssertTrue(bottleBox.contains(b))
         XCTAssertGreaterThan(hypot(g.x - b.x, g.y - b.y), 0.15, "the two tags stack")
         XCTAssertNotNil(plans[0].note)
     }
@@ -261,5 +284,116 @@ final class CardCatchPickTests: XCTestCase {
         let upright = TagPlacement.uprightPoint(CGPoint(x: 0.39, y: 0.5), orientation: .right)
         XCTAssertEqual(upright.x, 0.5, accuracy: 1e-9)
         XCTAssertEqual(upright.y, 0.39, accuracy: 1e-9)
+    }
+
+    // MARK: Never cut along the AI's box (owner 2026-10-16: a dorayaki ice cream with a straight side and bottom)
+
+    /// One round thing (an ellipse, label 3) on a 120 × 90 grid — a landscape photo, as the iPad took the dorayaki.
+    private func dorayaki(_ w: Int = 120, _ h: Int = 90) -> [UInt8] {
+        mask(w, h) { x, y in pow((Double(x) - 60) / 30, 2) + pow((Double(y) - 45) / 22, 2) <= 1 ? 3 : 0 }
+    }
+
+    private func thing(_ box: CGRect) -> CatchPlan.Thing {
+        CatchPlan.Thing(point: CGPoint(x: box.midX, y: box.midY), box: box, own: true)
+    }
+
+    func testABoxThirtyPercentSmallerThanTheThingKeepsAllOfIt() {
+        // The thing spans x 30–90, y 23–67 of 120 × 90; the AI's box is 30% smaller, round its middle.
+        let full = CGRect(x: 30.0 / 120, y: 23.0 / 90, width: 60.0 / 120, height: 44.0 / 90)
+        let small = full.insetBy(dx: full.width * 0.15, dy: full.height * 0.15)
+        let plans = CatchPlan.plan(things: [thing(small)], mask: dorayaki(), width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .instance(3), "the whole thing, past its box")
+        XCTAssertNil(plans[0].refine)
+    }
+
+    func testABoxOffToOneSideNeverCutsTheThingWithAStraightLine() {
+        // The dorayaki's box: its right two thirds and top, much of it background (what cut it on 2026-10-16).
+        let off = CGRect(x: 52.0 / 120, y: 10.0 / 90, width: 50.0 / 120, height: 40.0 / 90)
+        let plans = CatchPlan.plan(things: [thing(off)], mask: dorayaki(), width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .instance(3), "whole: \(plans[0].cut)")
+        XCTAssertEqual(plans[0].label, 3)
+    }
+
+    func testAThingMergedWithWhatIsBehindItIsKeptWholeAndLookedAtAgain() throws {
+        // The carton behind the dorayaki is the same instance (label 3): a big block at the top left.
+        let merged = mask(120, 90) { x, y in
+            if pow((Double(x) - 70) / 22, 2) + pow((Double(y) - 60) / 18, 2) <= 1 { return 3 }
+            return (2..<64).contains(x) && (2..<50).contains(y) ? 3 : 0
+        }
+        let box = CGRect(x: 52.0 / 120, y: 46.0 / 90, width: 34.0 / 120, height: 30.0 / 90)
+        let plans = CatchPlan.plan(things: [thing(box)], mask: merged, width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .instance(3), "never cut to the box")
+        XCTAssertEqual(plans[0].refine, box, "Vision looks again at the region round the box")
+        // Its tag is on the dorayaki, not on the carton.
+        let a = plans[0].anchor
+        XCTAssertTrue(box.contains(a), "tag \(a)")
+    }
+
+    func testOneThingVisionSawInPiecesIsCutOutWhole() {
+        // Top pancake (4), ice cream (3, under the point), bottom pancake (5), stacked; one box round them.
+        let stack = mask(120, 90) { x, y in
+            guard (30..<90).contains(x) else { return 0 }
+            if (20..<34).contains(y) { return 4 }
+            if (34..<56).contains(y) { return 3 }
+            if (56..<70).contains(y) { return 5 }
+            return 0
+        }
+        let box = CGRect(x: 0.2, y: 15.0 / 90, width: 0.6, height: 60.0 / 90)
+        let plans = CatchPlan.plan(things: [thing(box)], mask: stack, width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .union([3, 4, 5]))
+    }
+
+    func testAPieceOfTheInstanceFarFromTheBoxIsLeftOut() throws {
+        // Label 3: the thing, and a far speck of the same instance in the corner (another thing Vision lumped in).
+        let m = mask(120, 90) { x, y in
+            if pow((Double(x) - 60) / 30, 2) + pow((Double(y) - 45) / 22, 2) <= 1 { return 3 }
+            return x >= 110 && y >= 82 ? 3 : 0
+        }
+        let box = CGRect(x: 30.0 / 120, y: 23.0 / 90, width: 60.0 / 120, height: 44.0 / 90)
+        let plans = CatchPlan.plan(things: [thing(box)], mask: m, width: 120, height: 90)
+        guard case .part(let ls, let keep) = plans[0].cut else { return XCTFail("\(plans[0].cut)") }
+        XCTAssertEqual(ls, [3])
+        XCTAssertFalse(keep.contains(115, 86), "the far piece is left out")
+        // The thing itself is whole, also its rows and columns outside the box grown by its margin.
+        XCTAssertTrue(keep.contains(60, 45) && keep.contains(31, 45) && keep.contains(60, 24))
+    }
+
+    func testALandscapePhotoKeepsItsCoordinates() throws {
+        // A landscape picture (the iPad held sideways): the server's [x, y] and box are of the upright 4:3 picture, the
+        // mask is 120 × 90 of the same picture; the thing at the right is found and its tag is on it.
+        let answer = #"[{"kind":"object","headword":"冰淇淋","group":0,"point":[500,500],"box_2d":[300,320,700,680]}]"#
+        let things = CatchObject.plannedThings(CatchObject.groups(try JSONDecoder().decode([Candidate].self, from: Data(answer.utf8))))
+        let plans = CatchPlan.plan(things: things, mask: dorayaki(), width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .instance(3))
+        let a = plans[0].anchor
+        XCTAssertEqual(a.x, 0.5, accuracy: 0.05)
+        XCTAssertEqual(a.y, 0.5, accuracy: 0.05)
+        // A camera photo stored on its side (EXIF `.up` for a landscape shot, `.down` upside down) reads upright.
+        XCTAssertEqual(TagPlacement.uprightSize(pixels: CGSize(width: 4032, height: 3024), orientation: .up),
+                       CGSize(width: 4032, height: 3024))
+        let flipped = TagPlacement.uprightPoint(CGPoint(x: 0.25, y: 0.4), orientation: .down)
+        XCTAssertEqual(flipped.x, 0.75, accuracy: 1e-9)
+        XCTAssertEqual(flipped.y, 0.6, accuracy: 1e-9)
+    }
+
+    func testARegionCutTakesOnlyAWholeThing() {
+        // A region round a box (0.3–0.7 of a 40 × 40 grid): instance 1 runs off the region's left edge (cut by it),
+        // instance 2 lies whole in the box.
+        let m = mask(40, 40) { x, y in
+            if x < 14 && (10..<30).contains(y) { return 1 }
+            return (16..<26).contains(x) && (14..<26).contains(y) ? 2 : 0
+        }
+        let box = CGRect(x: 0.3, y: 0.3, width: 0.4, height: 0.4)
+        let open = (left: true, top: true, right: true, bottom: true)
+        XCTAssertEqual(InstanceMasks.wholeInstance(mask: m, width: 40, height: 40, box: box, open: open, minCover: 0.3).label, 2)
+        // Only the cut one in the box: nothing, and a wider region is worth trying.
+        let cutOnly = mask(40, 40) { x, y in x < 26 && (12..<28).contains(y) ? 1 : 0 }
+        let r = InstanceMasks.wholeInstance(mask: cutOnly, width: 40, height: 40, box: box, open: open, minCover: 0.3)
+        XCTAssertNil(r.label)
+        XCTAssertTrue(r.cutByEdge)
+        // The photo's own edge is no cut: the same instance is whole when the region's left is the photo's edge.
+        let atEdge = InstanceMasks.wholeInstance(mask: cutOnly, width: 40, height: 40, box: box,
+                                                 open: (left: false, top: true, right: true, bottom: true), minCover: 0.3)
+        XCTAssertEqual(atEdge.label, 1)
     }
 }

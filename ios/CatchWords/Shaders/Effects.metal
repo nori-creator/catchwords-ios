@@ -125,3 +125,37 @@ static float3 hueRGB(float h) {
     half3 rgb = min(color.rgb * half(amount), half3(color.a));
     return half4(rgb, color.a);
 }
+
+/// 「作り直す」 (owner 2026-10-16, after a reference video): the section's old content breaks into fine grains from left
+/// to right, which drift right and a little up into a cloud while the right side is still whole; the cloud swirls
+/// gently while the new content is being written, then the new content gathers back out of it from left to right.
+/// The grains carry the content's own colours (each shows the bit of the content it flew from).
+/// - size: the content's size in points. - out: 0…1 how far the old content has gone. - back: 0…1 how far the new
+///   content has come back. - time: seconds, for the swirl.
+/// Used with `.layerEffect(…, maxSampleOffset: RegenDust.reach)`.
+[[ stitchable ]] half4 regenDust(float2 position, SwiftUI::Layer layer, float2 size, float out, float back, float time) {
+    const float grain = 2.0;            // points: one grain
+    const float spread = 0.35;          // how ragged the front is (share of the width)
+    const float soft = 0.5;             // how long one grain takes to fly (share of the sweep)
+    float2 cell = floor(position / grain);
+    float r1 = hash21(cell), r2 = hash21(cell + 17.31), r3 = hash21(cell + 41.77), r4 = hash21(cell + 73.13);
+    float x = position.x / max(size.x, 1.0);
+    float start = x + r1 * spread;
+    float gone = saturate((out * (1.0 + spread + soft) - start) / soft);
+    float returned = saturate((back * (1.0 + spread + soft) - start) / soft);
+    float flight = gone * (1.0 - returned);
+    if (flight <= 0.0) { return layer.sample(position); }
+    // Where this grain's bit of content came from: to its left and a little below (it drifts right and up), and a
+    // slow swirl once it is in the cloud.
+    float f = pow(flight, 1.4);
+    float2 drift = float2(28.0 + 64.0 * r2, -(6.0 + 34.0 * r3)) * f;
+    float2 swirl = float2(sin(time * 1.3 + r4 * 6.2832), cos(time * 1.1 + r2 * 6.2832)) * 5.0 * flight;
+    float2 from = position - drift - swirl;
+    // Fine grains, not blocks: a dot in each cell that shrinks a little as it flies; some grains fade on the way.
+    float2 inCell = fract(position / grain) - 0.5;
+    float radius = 0.5 - 0.18 * flight;
+    if (length(inCell) > radius) { return half4(0.0); }
+    if (r4 < flight * 0.55) { return half4(0.0); }
+    half4 c = layer.sample(from);
+    return c * half(1.0 - 0.25 * flight);
+}

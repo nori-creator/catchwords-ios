@@ -116,4 +116,17 @@ final class ChunkReadingTests: XCTestCase {
         XCTAssertEqual(alts[0].pinyin, "dì bǎn")
         XCTAssertNil(alts[1].zhuyin, "an old alt has no reading")
     }
+
+    /// A chunk shrinks to stay on one line (owner 2026-10-16), never under 80% and never a hanzi under 15 pt.
+    func testChunkShrinksToALimitBeforeWrapping() {
+        let large = ChunkLineView.fitScales(base: 20)
+        XCTAssertEqual(large.first, 1)
+        XCTAssertEqual(large.last ?? 0, 0.8, accuracy: 0.001)
+        XCTAssertEqual(large, large.sorted(by: >), "largest first")
+        XCTAssertGreaterThanOrEqual(20 * (large.last ?? 0), 15)
+        let mid = ChunkLineView.fitScales(base: 17)
+        XCTAssertEqual(17 * (mid.last ?? 0), 15, accuracy: 0.01)
+        XCTAssertEqual(ChunkLineView.fitScales(base: 15), [1], "a compact chunk is at 15 pt already: it only wraps")
+        XCTAssertEqual(ChunkLineView.fitScales(base: 40).last ?? 0, 0.8, accuracy: 0.001)
+    }
 }

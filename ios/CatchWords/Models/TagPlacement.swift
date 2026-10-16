@@ -1,4 +1,8 @@
+import CoreGraphics
+import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Where a thing's name tag goes on the screen (owner 2026-10-15: 「正確にもののうえに名前のタグを置いて。適当に真ん中では
 /// なく。」 — four tags, stylus / tablet / cup / tissue, sat in one pile in the middle of the tablet). Pure maths, so
@@ -52,6 +56,8 @@ nonisolated enum TagPlacement {
 
     // MARK: EXIF orientation
 
+    #if canImport(UIKit)
+
     /// The size the picture has once it is drawn upright (a camera photo is stored on its side, `.right`).
     static func uprightSize(pixels: CGSize, orientation: UIImage.Orientation) -> CGSize {
         switch orientation {
@@ -84,6 +90,8 @@ nonisolated enum TagPlacement {
         let b = uprightPoint(CGPoint(x: r.maxX, y: r.maxY), orientation: orientation)
         return CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y))
     }
+
+    #endif
 
     // MARK: Positions that are missing or shared
 
