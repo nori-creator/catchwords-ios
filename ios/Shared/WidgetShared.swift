@@ -13,10 +13,10 @@ nonisolated enum WidgetShared {
 
     static var defaults: UserDefaults? { UserDefaults(suiteName: appGroup) }
 
-    /// nil when the App Group is not provisioned for this build (then the widgets show their empty state).
-    static var containerURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
-    }
+    /// nil when the App Group is not provisioned for this build (then the widgets show their empty state). Asked once:
+    /// each ask goes to the system's container service (the app's widget update asked several times per word on the
+    /// main thread — seconds on the UI tour's simulator, 2026-10-16), and the answer never changes while running.
+    static let containerURL: URL? = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
 
     static var thumbsURL: URL? { containerURL?.appendingPathComponent(thumbsFolder, isDirectory: true) }
 

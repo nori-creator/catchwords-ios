@@ -7,10 +7,10 @@ import UIKit
 /// a fast flick clicks at most every `minGap` seconds, so the clicks never pile up into a buzz.
 ///
 /// SwiftUI's wheel `Picker` only reports its value once the wheel has stopped, so its click came late and only once
-/// for a flick across several rows. Here the row under the centre line is read from the wheel's own scrolling list
-/// (`UITableView.indexPathForRow(at:)` at the centre, on every change of its offset) from the first touch on; before
-/// any touch nothing clicks, so showing the current value never does. Where the list cannot be found (a future system
-/// with another inside), it clicks once per change of the chosen row instead, as before.
+/// for a flick across several rows. Here the row under the centre line is read from the wheel's own scrolling lists
+/// (`UITableView.indexPathForRow(at:)` at the centre, every frame while the wheel moves) from a touch until it has
+/// settled; before any touch nothing clicks, so showing the current value never does. Where the lists cannot be found
+/// (a future system with another inside), it clicks once per change of the chosen row instead, as before.
 struct TickingWheel: UIViewRepresentable {
     /// What VoiceOver calls the wheel (目標レベル…).
     let title: String
@@ -69,9 +69,14 @@ struct TickingWheel: UIViewRepresentable {
 
     final class Coordinator: NSObject, UIPickerViewDataSource, UIPickerViewDelegate, UIPickerViewAccessibilityDelegate {
         var parent: TickingWheel
-        private var observation: NSKeyValueObservation?
-        private weak var list: UITableView?
+        /// The wheel's scrolling lists (it stacks a few, scrolled together), found at the first touch.
+        private var lists: [UITableView] = []
         private weak var picker: UIPickerView?
+        /// Reads the row under the centre line every frame while the wheel moves (a list's offset is not always
+        /// reported: the stacked lists follow the touched one without telling, the UI tour's first try clicked never).
+        private var link: CADisplayLink?
+        /// Since when nothing has moved (the reading stops a moment after the wheel has settled).
+        private var stillSince: CFTimeInterval?
         /// The row under the centre line as last read (nil until the first touch).
         private var centreRow: Int?
         private var lastStep: TimeInterval = 0
@@ -81,7 +86,7 @@ struct TickingWheel: UIViewRepresentable {
         init(_ parent: TickingWheel) { self.parent = parent }
 
         /// A finger is on the wheel, or it is still coasting.
-        var isTurning: Bool { list.map { $0.isTracking || $0.isDragging || $0.isDecelerating } ?? false }
+        var isTurning: Bool { lists.contains { $0.isTracking || $0.isDragging || $0.isDecelerating } }
 
         func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
 
@@ -95,9 +100,12 @@ struct TickingWheel: UIViewRepresentable {
 
         func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
             guard parent.options.indices.contains(row) else { return }
-            // Without the live reading, the chosen row's change is the click (as before).
-            if list == nil, !quiet, parent.options[row].value != parent.selection { step(force: true) }
-            if list != nil { centreRow = row }
+            // Without the live reading, the chosen row's change is the click (as before). With it, a last change the
+            // frames did not see (the wheel settled between two of them) is clicked now.
+            if !quiet, row != centreRow, lists.isEmpty || centreRow != nil {
+                centreRow = row
+                step(force: true)
+            }
             let value = parent.options[row].value
             if value != parent.selection { parent.selection = value }
         }
@@ -105,46 +113,65 @@ struct TickingWheel: UIViewRepresentable {
         func selectQuietly(_ row: Int, in picker: UIPickerView) {
             quiet = true
             picker.selectRow(row, inComponent: 0, animated: false)
-            if list != nil { centreRow = row }
+            if !lists.isEmpty { centreRow = row }
             quiet = false
         }
 
-        /// Finds the wheel's scrolling list once (the first touch) and follows its offset from then on.
+        /// A finger touched the wheel: find its lists (once) and read the centre row every frame until it settles.
         func attach(to picker: UIPickerView) {
-            guard observation == nil else { return }
             self.picker = picker
-            let lists = Self.tables(in: picker)
-            let centre = CGPoint(x: picker.bounds.midX, y: picker.bounds.midY)
-            // The list drawn under the centre line (the wheel stacks a few, scrolled together); else the first one.
-            guard let table = lists.first(where: { $0.convert($0.bounds, to: picker).contains(centre) }) ?? lists.first else {
-                UITestTrace.log("wheel live reading off (no list inside the wheel)")
-                return
+            if lists.isEmpty {
+                lists = Self.tables(in: picker)
+                guard !lists.isEmpty else {
+                    UITestTrace.log("wheel live reading off (no list inside the wheel)")
+                    return
+                }
+                centreRow = readRow()
+                UITestTrace.log("wheel live reading on lists=\(lists.count) row=\(centreRow.map(String.init) ?? "-")")
             }
-            list = table
-            centreRow = row(in: table)
-            UITestTrace.log("wheel live reading on lists=\(lists.count) row=\(centreRow.map(String.init) ?? "-")")
-            observation = table.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
-                // KVO comes on the thread that moved the list: the main thread (UIKit).
-                MainActor.assumeIsolated { self?.offsetChanged() }
-            }
+            stillSince = nil
+            guard link == nil else { return }
+            let l = CADisplayLink(target: self, selector: #selector(frame(_:)))
+            l.add(to: .main, forMode: .common)
+            link = l
         }
 
         func detach() {
-            observation?.invalidate()
-            observation = nil
+            link?.invalidate()
+            link = nil
+            lists = []
         }
 
-        private func offsetChanged() {
-            guard !quiet, let table = list, let now = row(in: table), now != centreRow else { return }
-            centreRow = now
-            step(force: false)
+        @objc private func frame(_ l: CADisplayLink) {
+            guard !quiet else { return }
+            if let now = readRow(), now != centreRow {
+                centreRow = now
+                step(force: false)
+                stillSince = nil
+            }
+            if isTurning {
+                stillSince = nil
+            } else if let since = stillSince {
+                // Settled (the snap after the finger lifts included): stop reading until the next touch.
+                if l.timestamp - since > 0.6 {
+                    link?.invalidate()
+                    link = nil
+                }
+            } else {
+                stillSince = l.timestamp
+            }
         }
 
-        /// The row whose cell is under the wheel's centre line right now.
-        private func row(in table: UITableView) -> Int? {
+        /// The row under the wheel's centre line right now: read from the list the finger moves (or that coasts),
+        /// else from the one drawn under the centre line.
+        private func readRow() -> Int? {
             guard let picker else { return nil }
-            let centre = picker.convert(CGPoint(x: picker.bounds.midX, y: picker.bounds.midY), to: table)
-            guard let path = table.indexPathForRow(at: centre), parent.options.indices.contains(path.row) else { return nil }
+            let centre = CGPoint(x: picker.bounds.midX, y: picker.bounds.midY)
+            let moving = lists.first { $0.isTracking || $0.isDragging || $0.isDecelerating }
+            let under = lists.first { $0.convert($0.bounds, to: picker).contains(centre) }
+            guard let table = moving ?? under ?? lists.first else { return nil }
+            guard let path = table.indexPathForRow(at: picker.convert(centre, to: table)),
+                  parent.options.indices.contains(path.row) else { return nil }
             return path.row
         }
 

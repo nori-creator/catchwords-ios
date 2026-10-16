@@ -400,6 +400,17 @@ struct DexSilhouette: View {
     /// Another colour than the grey (the landing's blue tint).
     var color: Color? = nil
 
+    /// Reads every shadow's picture once, off the main thread, behind the first screen: the art from the asset catalog,
+    /// else the SF Symbol. The first open of the 図鑑 drew them all on the main thread while the system's symbol files
+    /// were still being read from the disk (50 s on the UI tour's cold simulator, 2026-10-16); read once here, they are
+    /// in the file cache by then.
+    nonisolated static func warmUp() {
+        for item in DexCatalog.allItems {
+            if UIImage(named: "dexsil-\(item.id)") != nil { continue }
+            if let sf = item.symbol { _ = UIImage(systemName: sf + ".fill") ?? UIImage(systemName: sf) }
+        }
+    }
+
     var body: some View {
         GeometryReader { g in
             let s = min(g.size.width, g.size.height) * 0.72

@@ -55,6 +55,8 @@ struct RootView: View {
                 }
                     .transition(.opacity)
                     .task {
+                        // The 図鑑's shadows read once off the main thread (`DexSilhouette.warmUp`).
+                        Task.detached(priority: .utility) { DexSilhouette.warmUp() }
                         // Before the profile arrives (`needsOnboarding` waits for it): the account that just
                         // signed in, not the previous one.
                         onboardingDone = OnboardingState.isDone(userId: SupabaseClient.shared.userId)
