@@ -156,6 +156,9 @@ struct WordDetailView: View {
         // Keyed on the word id and the sticker id: a catch saved while its page is open runs these once it is saved.
         .task(id: current.wordId + "|" + L10n.lang) { await autoFill() }
         .task(id: current.id) { if !isProvisional { await dex.autoHero(current) } }
+        // The developer's 「作り直す」 gate (`AdminAccess.isAdmin`) is asked here too, not only on 設定: asked once
+        // per account, so a word page opened before 設定 ever was still offers it to an admin.
+        .task { await AdminAccess.shared.refresh() }
         // An example shown without its scene label is still shown; why it has none goes to the developer log.
         .task(id: current.id + "|" + L10n.lang + "|labels") {
             for line in ExampleItem.missingLabels(sentence: word?.exampleSentence, extras: extras, target: learningLang) {
@@ -295,6 +298,7 @@ struct WordDetailView: View {
             .accessibilityIdentifier("detail.sections")
             .popover(isPresented: $showSections, arrowEdge: .top) {
                 SectionsPanel(prefs: prefs)
+                    .accessibilityIdentifier("detail.sections.panel")
                     .presentationCompactAdaptation(.popover)
             }
             Button { dismiss() } label: {
@@ -988,7 +992,11 @@ struct WordDetailView: View {
             // account as Pro. A StoreKit-only Pro is not enough until the server checks Apple purchases, and
             // while in-app purchase is unavailable web Pro does not unlock it either (`PlanStore.inAppPurchaseAvailable`).
             // Not for a catch still being saved (no word on the server yet).
-            .environment(\.sectionRefresh, s.isExternal || !plan.serverGrantsPro || current.wordId.isEmpty
+            // Also for the developer (an admin account: the server lets admins write sections again too), and only for
+            // the sections the server can write again (`CardSection.isRegenerable`; owner 2026-10-16: 「全部の項目を
+            // 作り直せるように」).
+            .environment(\.sectionRefresh, !s.isRegenerable || !(plan.serverGrantsPro || AdminAccess.shared.isAdmin)
+                         || current.wordId.isEmpty
                          ? nil : SectionRefresh(running: refreshing.contains(s)) { regenerate(s) })
     }
 
@@ -1238,12 +1246,7 @@ struct WordDetailView: View {
                     }
                 }
                 .padding(.top, 12)
-                if shown.contains(where: { $0.parts.contains { ChunkRules.isSwappable($0, headword: headword, target: learningLang) } }) {
-                    Text(L("点線の語を押すと、ネイティブがよく入れるほかの語に入れ替えられます。"))
-                        .scaledFont(size: 13)
-                        .foregroundStyle(Theme.muted)
-                        .padding(.top, 8)
-                }
+                // No hint under the legend about the dotted words (owner 2026-10-16): the dotted line says it.
             }
         }
     }
@@ -1867,19 +1870,23 @@ struct SectionCard<Content: View>: View {
                 Spacer()
                 if let refresh {
                     Button(action: refresh.action) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
+                        // The button's mark crossfades while the section is being written (the reference video's
+                        // label change).
+                        Image(systemName: refresh.running ? "sparkles" : "arrow.triangle.2.circlepath")
                             .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(Theme.muted.opacity(0.75))
-                            .rotationEffect(.degrees(refresh.running ? 360 : 0))
-                            .animation(refresh.running ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: refresh.running)
+                            .foregroundStyle(refresh.running ? Theme.primary : Theme.muted.opacity(0.75))
+                            .contentTransition(.symbolEffect(.replace))
+                            .animation(.easeInOut(duration: 0.3), value: refresh.running)
                             .frame(width: 44, height: 44)
                     }
                     .disabled(refresh.running)
                     .accessibilityLabel(L("\(title)を作り直す"))
+                    .accessibilityIdentifier("section.regenerate")
                 }
             }
+            // The old content breaks into dust, the new gathers back (`RegenDust`, owner 2026-10-16).
             content
-                .opacity(refresh?.running == true ? 0.45 : 1)
+                .regenDust(refresh?.running == true)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -29,6 +29,24 @@ enum Haptics {
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
     }
 
+    /// A right answer in 復習 (owner 2026-10-16: right and wrong must feel different): a crisp light tap as the choice
+    /// is picked, a fuller tap as its check mark pops in (0.1 s) and a tiny bright tick as the pop settles. Core Haptics
+    /// when there is an engine, the system's success otherwise. Off with 設定 › 振動 (`isEnabled`).
+    static func correct() {
+        guard isEnabled else { return }
+        let patterns = HapticPatterns.shared
+        if patterns.isAvailable { patterns.correct() } else { success() }
+    }
+
+    /// A wrong answer in 復習: a dull, heavy double thud on the card's shake — the first as it swings out, the second
+    /// as it swings back (0.12 s) — over a low rumble that fades with the wobble. The system's warning without an
+    /// engine.
+    static func wrong() {
+        guard isEnabled else { return }
+        let patterns = HapticPatterns.shared
+        if patterns.isAvailable { patterns.wrong() } else { warning() }
+    }
+
     /// The tap under a bubble "pon" (page open / back): one soft, round transient — a little
     /// rounder and lighter going back. Core Haptics when there is an engine, a soft impact otherwise.
     static func pon(open: Bool) {
@@ -102,6 +120,46 @@ final class HapticPatterns {
                             parameters: [Self.p(.hapticIntensity, intensity), Self.p(.hapticSharpness, sharpness)],
                             relativeTime: 0)])
     }
+
+    /// `Haptics.correct()`: light and sharp, then medium and rounder, then a faint bright tick — rising, quick, clean.
+    func correct() {
+        play([
+            CHHapticEvent(eventType: .hapticTransient,
+                          parameters: [Self.p(.hapticIntensity, 0.5), Self.p(.hapticSharpness, 0.9)],
+                          relativeTime: 0),
+            CHHapticEvent(eventType: .hapticTransient,
+                          parameters: [Self.p(.hapticIntensity, 0.85), Self.p(.hapticSharpness, 0.6)],
+                          relativeTime: Self.correctPopAt),
+            CHHapticEvent(eventType: .hapticTransient,
+                          parameters: [Self.p(.hapticIntensity, 0.35), Self.p(.hapticSharpness, 1)],
+                          relativeTime: Self.correctPopAt + 0.09),
+        ])
+    }
+
+    /// `Haptics.wrong()`: two dull thuds (low sharpness) a swing apart, over a soft rumble that dies out — heavy and
+    /// blunt where the right answer is light and bright.
+    func wrong() {
+        play([
+            CHHapticEvent(eventType: .hapticTransient,
+                          parameters: [Self.p(.hapticIntensity, 0.9), Self.p(.hapticSharpness, 0.1)],
+                          relativeTime: 0),
+            CHHapticEvent(eventType: .hapticTransient,
+                          parameters: [Self.p(.hapticIntensity, 0.6), Self.p(.hapticSharpness, 0.05)],
+                          relativeTime: Self.wrongSecondThudAt),
+            CHHapticEvent(eventType: .hapticContinuous,
+                          parameters: [Self.p(.hapticIntensity, 0.35), Self.p(.hapticSharpness, 0.05)],
+                          relativeTime: 0, duration: Self.wrongRumble),
+        ], curves: [CHHapticParameterCurve(parameterID: .hapticIntensityControl, controlPoints: [
+            .init(relativeTime: 0, value: 1), .init(relativeTime: Self.wrongRumble, value: 0),
+        ], relativeTime: 0)])
+    }
+
+    /// When the right answer's check mark pops in (ReviewView's choice row: its scale-in after the pick's spring).
+    nonisolated static let correctPopAt: TimeInterval = 0.1
+    /// The card's shake swings back (ReviewView: 10 → −8 → 6 → −3 → 0 pt, one step every 60 ms).
+    nonisolated static let wrongSecondThudAt: TimeInterval = 0.12
+    /// The wobble's length (four 60 ms steps).
+    nonisolated static let wrongRumble: TimeInterval = 0.24
 
     /// A word lands in the dex: a firm round thud, then two smaller bounces (matches el-land-bounce).
     /// Without an engine it is the old single heavy impact.

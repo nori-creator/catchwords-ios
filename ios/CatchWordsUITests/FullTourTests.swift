@@ -86,6 +86,10 @@ final class FullTourTests: XCTestCase {
         tap("tab.dex")
         settle(2)
         snap("dex")
+        // The 図鑑 opens on the slide dex (owner 2026-10-16); the words' squares are in the gallery.
+        tap("dex.mode.grid")
+        settle(1.5)
+        snap("dex-gallery")
         let cell = app.buttons["dex.cell"].firstMatch
         guard cell.waitForExistence(timeout: 10) else {
             XCTFail("[\(display)/\(learning)] the dex shows no words")
@@ -111,18 +115,21 @@ final class FullTourTests: XCTestCase {
 
     /// Closes the word sheet and makes sure it is gone: the sheet stayed open over the tab bar in one run
     /// (ja/en, 2026-10-10) when × was tapped while the sections popover was still going away, and every later
-    /// tab (camera, settings) failed behind it. × again once, then a swipe as the last resort.
+    /// tab (camera, settings) failed behind it — so × waits until the popover's panel is gone. × is tapped once: a
+    /// second tap raced the sheet's own going away (en/zh, 2026-10-16: the first tap closed it, slower than the 3 s
+    /// wait, and the second found no button — "No matches found"). A swipe, which needs no button, is the last resort.
     private func closeDetail() {
+        let panel = app.descendants(matching: .any)["detail.sections.panel"]
+        if panel.exists { _ = waitGone(panel, timeout: 5) }
         let close = app.buttons["detail.close"]
-        guard close.exists else {
+        guard close.waitForExistence(timeout: 2) else {
             app.swipeDown(velocity: .fast)
             return
         }
-        for _ in 0..<2 where close.exists {
-            close.tap()
-            if waitGone(close, timeout: 3) { return }
-        }
-        if close.exists { app.swipeDown(velocity: .fast) }
+        close.tap()
+        if waitGone(close, timeout: 10) { return }
+        app.swipeDown(velocity: .fast)
+        _ = waitGone(close, timeout: 5)
     }
 
     /// The GET moment (its card.catch), the same moment for a word already in the dex (its reencounter.get), or — the
@@ -383,8 +390,8 @@ final class FullTourTests: XCTestCase {
         }
     }
 
-    /// Turns the open wheel by about a row with a finger and back (the app's trace logs a click per row crossing the
-    /// centre line: `TickingWheel`), and leaves it on the value it had, so closing changes nothing.
+    /// Turns the open wheel by about a row with a finger and back (the system wheel clicks once per row: the only
+    /// sound), and leaves it on the value it had, so closing changes nothing.
     private func turnWheelAndBack() {
         let wheel = app.pickerWheels.firstMatch
         guard wheel.waitForExistence(timeout: 3) else { return }

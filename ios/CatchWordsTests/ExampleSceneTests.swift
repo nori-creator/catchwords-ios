@@ -163,4 +163,17 @@ final class ExampleSceneTests: XCTestCase {
         let all = ExampleItem.all(sentence: "我要一份鐵板麵。", translation: nil, extras: e, target: "zh-TW")
         XCTAssertEqual(all.map(\.sentence), ["我要一份鐵板麵。"])
     }
+
+    /// 冰淇淋 (owner 2026-10-16): the main example 「夏天吃冰淇淋。」 had no label because the card carried no
+    /// `example_scene` for it. Once the server writes the label with `example_scene_for` = that sentence, it shows; until
+    /// then the example shows without one (no empty label).
+    func testMainExampleShowsTheLabelOnceTheServerWritesIt() throws {
+        let before = try extras(#"{"example_pattern_count":1}"#)
+        let shown = ExampleItem.all(sentence: "夏天吃冰淇淋。", translation: "夏にアイスを食べる。", extras: before, target: "zh-TW")
+        XCTAssertEqual(shown.map(\.sentence), ["夏天吃冰淇淋。"])
+        XCTAssertNil(shown[0].scene)
+        let after = try extras(#"{"example_pattern_count":1,"example_scene":"暑い日にアイスを食べるとき","example_scene_for":"夏天吃冰淇淋。"}"#)
+        let labelled = ExampleItem.all(sentence: "夏天吃冰淇淋。", translation: "夏にアイスを食べる。", extras: after, target: "zh-TW")
+        XCTAssertEqual(labelled.map(\.scene), ["暑い日にアイスを食べるとき"])
+    }
 }

@@ -438,6 +438,9 @@ struct CatchLandingOverlay: View {
 }
 
 enum CatchLanding {
+    /// The longest a landing may take (its longest path, a new word with the goal toast, takes about 6 s).
+    static let longest: Double = 12
+
     /// The catch is saved: open the dex gallery and fly the waiting star into the word's slot. `alreadyCaught`: a
     /// re-encounter's photo going into a word the dex already shows (no room to make, its own square lands).
     @MainActor
@@ -450,6 +453,14 @@ enum CatchLanding {
                                        motion: CCMotion(calm: calm), screen: screen, goal: alreadyCaught ? nil : goal)
         router.landing = c
         UITestTrace.log("landing start \(stickerId) again=\(alreadyCaught)")
+        // However the landing goes, it ends: the tab bar is hidden while a landing is on (`AppRouter.hidesTabBar`).
+        Task {
+            try? await Task.sleep(for: .seconds(longest))
+            if router.landing === c {
+                UITestTrace.log("landing cut short after \(longest) s \(c.stickerId)")
+                router.landing = nil
+            }
+        }
         Task {
             // One frame first, so the camera screen knows it stays under the rising dex page.
             try? await Task.sleep(for: .milliseconds(16))

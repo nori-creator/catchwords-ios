@@ -34,6 +34,9 @@ struct CatchWordsApp: App {
         if UserDefaults.standard.string(forKey: "sound.level") == "soft" {
             UserDefaults.standard.set("subtle", forKey: "sound.level")
         }
+        // The developer choices retired in 1.0.1 (the old tab-bar choice, the tick choices): gone, once, before
+        // anything is drawn — the camera bar is the original one until B is picked again (owner 2026-10-16).
+        DevChoices.migrate()
         AppFont.registerAll()
         SoundService.shared.configure()
         HapticPatterns.warmUp()   // the haptic engine, made off the main thread before the first tap

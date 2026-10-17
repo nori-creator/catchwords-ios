@@ -27,7 +27,7 @@ enum UIPreview {
             parts.removeLast()
         }
         L10n.lang = lang
-        for key in ["reading.pref", DevChoices.tabBarKey, DevChoices.timelineTickKey, DevChoices.pickerTickKey] {
+        for key in ["reading.pref", DevChoices.tabBarKey] + DevChoices.retiredKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
         return (parts.joined(separator: "-"), dark)
@@ -89,6 +89,8 @@ struct UIPreviewRoot: View {
             case "tabbar-b": TabBarPreview(variant: DevChoices.tabBarRaised)
             case "readings": ChunkReadingsPreview(pref: "zhuyin")
             case "readings-pinyin": ChunkReadingsPreview(pref: "pinyin")
+            // A narrow card: the chunks shrink to stay on one line, down to 80% (owner 2026-10-16), and only then wrap.
+            case "chunks-narrow": ChunkReadingsPreview(pref: "zhuyin", width: 290)
             case "reports": AdminReportsPreview()
             case "map": MapPreview()
             case "reward": CelebrationPreview()
@@ -106,6 +108,8 @@ struct UIPreviewRoot: View {
             case "carousel": CarouselPreview()
             case "detail": DetailPreview()
             case "tips": TipsPreview()
+            // 「作り直す」: the section breaks into dust and the new text gathers back (owner 2026-10-16), on a loop.
+            case "regen": RegenPreview()
             case "examples": ExamplesPreview()
             case "sunscreen": SunscreenExamplesPreview()
             case "unsaved": UnsavedWordPreview()
@@ -837,7 +841,7 @@ private struct DetailPreview: View {
 
 /// The word page's prose sections (`-uiPreview tips`), scrolled to 台湾メモ: one sentence per row with the same spacing,
 /// and no line under its sentences (owner 2026-10-15); 類義語 keeps its look. The card's old 語源 text is in its payload
-/// and never shown (the section is gone). 台湾メモ is switched on first (it is hidden on a new card).
+/// and never shown (the section is gone). 台湾メモ is switched on first (shown on a new card since 1.0.1; a saved choice may hide it).
 private struct TipsPreview: View {
     init() {
         CardPrefsStore.shared.use("zh-TW")
@@ -1405,6 +1409,44 @@ private struct AdminAiSettingsPreview: View {
         }
     }
 }
+
+/// 「作り直す」 on 台湾メモ (`-uiPreview regen`, `RegenDust`): every 4.5 s the button is pressed; the old text breaks
+/// into dust from left to right, the cloud swirls while the "server" writes (1.6 s), then the new text gathers back.
+/// CI records it as a video (ios-check.yml).
+private struct RegenPreview: View {
+    @State private var running = false
+    @State private var second = false
+
+    private var text: String {
+        let zh = L10n.lang == "zh-TW", en = L10n.lang == "en"
+        if second {
+            return zh ? "夏天的台灣到處都買得到冰淇淋。便利商店的冰品也很多。" : en ? "In summer, ice cream is sold everywhere in Taiwan. Convenience stores have many frozen treats too." : "台湾の夏は、どこでもアイスが買えます。コンビニのアイスも種類が豊富です。"
+        }
+        return zh ? "台灣的冰淇淋口味很多，芋頭和花生最受歡迎。夜市也常常看到。" : en ? "Ice cream in Taiwan comes in many flavours; taro and peanut are favourites. You often see it at night markets." : "台湾のアイスは味が豊富で、タロイモやピーナッツが人気です。夜市でもよく見かけます。"
+    }
+
+    var body: some View {
+        ScrollView {
+            SectionCard(title: L("台湾メモ"), icon: "mappin") {
+                SentenceRows(text: text, ruled: false)
+            }
+            .environment(\.sectionRefresh, SectionRefresh(running: running) {})
+            .padding(16)
+            .uiReady("preview")
+        }
+        .background(Theme.background)
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.2))
+                running = true
+                try? await Task.sleep(for: .seconds(1.6))
+                second.toggle()
+                running = false
+                try? await Task.sleep(for: .seconds(1.7))
+            }
+        }
+    }
+}
 #endif
 
 /// The end of a review round: score ring, missed words to try again, and "review more".
@@ -1435,12 +1477,14 @@ private struct HomePreview: View {
                 let glasses = Self.sticker("again-glasses", "眼鏡", hue: 0.58, at: now.addingTimeInterval(-86_400))
                 let cup = Self.sticker("again-cup", "杯子", hue: 0.08, at: now.addingTimeInterval(-30))
                 dex.stickers = [cup, glasses]
+                #if DEBUG
                 dex.seedEncountersForPreview([
                     .init(id: "again-1", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
                           place: nil, at: now.addingTimeInterval(-180)),
                     .init(id: "again-2", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
                           place: nil, at: now.addingTimeInterval(-120)),
                 ])
+                #endif
                 dex.hasLoaded = true
                 try? await Task.sleep(for: .milliseconds(600))
                 UIReady.mark("preview")
@@ -1521,8 +1565,12 @@ private struct ChunkWheelPreview: View {
 /// Chunk blocks with the server's per-token readings (`-uiPreview readings` zhuyin / `readings-pinyin`, 2026-10-15):
 /// the first two chunks carry readings on every token, the third is an older card's chunk without any.
 private struct ChunkReadingsPreview: View {
-    init(pref: String) {
+    /// The card's inner width (nil: the screen's).
+    var width: CGFloat?
+
+    init(pref: String, width: CGFloat? = nil) {
         UserDefaults.standard.set(pref, forKey: "reading.pref")
+        self.width = width
     }
 
     private func gloss(_ ja: String, _ en: String, _ zh: String) -> String { L10n.lang == "en" ? en : L10n.lang == "zh-TW" ? zh : ja }
@@ -1571,9 +1619,11 @@ private struct ChunkReadingsPreview: View {
                     Divider().overlay(Theme.border)
                 }
             }
+            .frame(width: width)
             .padding(20)
             .background(Theme.card, in: .rect(cornerRadius: 24))
             .padding(16)
+            .uiReady("preview")
         }
         .background(Theme.background)
     }

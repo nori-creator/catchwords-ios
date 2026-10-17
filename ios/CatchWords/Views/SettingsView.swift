@@ -317,12 +317,9 @@ struct SettingsView: View {
     }
 
     @AppStorage(DevChoices.tabBarKey) private var tabBarVariant: String = DevChoices.tabBarDefault
-    @AppStorage(DevChoices.timelineTickKey) private var timelineTick: String = DevChoices.timelineTickDefault
-    @AppStorage(DevChoices.pickerTickKey) private var pickerTick: String = DevChoices.pickerTickDefault
 
-    /// 開発者の試し (owner 2026-10-15): the alternatives to compare on the device — the camera tab's look (the original
-    /// one, shipped, or B, kept for a later release: owner 2026-10-16), and the three ticks each of the map's timeline
-    /// and of these pickers (choosing one plays it). The defaults are the shipped ones (`DevChoices`).
+    /// 開発者の試し (owner 2026-10-15): the camera tab's look to compare on the device — the original one, shipped, or
+    /// B, kept for a later release (owner 2026-10-16). The sounds are decided (owner 2026-10-16): no choice here.
     private var developerTrials: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(L("開発者の試し（端末で比べて選ぶ）")).scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
@@ -331,22 +328,6 @@ struct SettingsView: View {
                         selection: Binding(get: { tabBarVariant == DevChoices.tabBarRaised ? DevChoices.tabBarRaised : DevChoices.tabBarDefault },
                                            set: { tabBarVariant = $0 }))
                 .accessibilityIdentifier("settings.dev.tabbar")
-            label(L("マップの一覧をスクロールする音")).padding(.top, 6)
-            ChoicePills(options: [("off", L("なし")), ("1", "1"), ("2", "2"), ("3", "3")],
-                        selection: Binding(get: { timelineTick }, set: { v in
-                            timelineTick = v
-                            if let n = Int(v) { SoundService.shared.tick(.timeline, number: n) }
-                        }), ticks: false)
-                .accessibilityIdentifier("settings.dev.timelineTick")
-            label(L("設定の選択肢の音")).padding(.top, 6)
-            ChoicePills(options: [("off", L("なし")), ("1", "1"), ("2", "2"), ("3", "3")],
-                        selection: Binding(get: { pickerTick }, set: { v in
-                            pickerTick = v
-                            if let n = Int(v) { SoundService.shared.tick(.picker, number: n) }
-                        }), ticks: false)
-                .accessibilityIdentifier("settings.dev.pickerTick")
-            Text(L("標準はマップが 3、設定の選択肢がなしです。選ぶとその音が鳴ります。設定のホイールは回すたびに、ここで選んだ音（なしのときは 1）が鳴ります。"))
-                .scaledFont(size: 12).foregroundStyle(Theme.muted)
         }
     }
 
@@ -686,9 +667,6 @@ struct SettingsCard<Content: View>: View {
 struct ChoicePills: View {
     let options: [(value: String, label: String)]
     @Binding var selection: String
-    /// The picker's tick on a choice. Off for the developer's sound pickers: they play the chosen sound themselves,
-    /// once, after the choice is saved (and nothing for なし) — the stored tick before it doubled them.
-    var ticks: Bool = true
     @Namespace private var ns
     @Environment(\.appReduceMotion) private var reduceMotion
 
@@ -699,8 +677,6 @@ struct ChoicePills: View {
                 Button {
                     guard !on else { return }
                     Haptics.selection()
-                    // The picker's tick (owner 2026-10-15; which one, or none: 設定 › 開発者).
-                    if ticks { SoundService.shared.tick(.picker) }
                     withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.72)) { selection = o.value }
                 } label: {
                     Text(o.label)
@@ -825,11 +801,12 @@ struct WheelCard: View {
                     }
                     .accessibilityLabel(L("閉じる"))
                 }
-                // Clicks as each row crosses the centre line while it turns (owner 2026-10-16), with the selection tap.
-                TickingWheel(title: field.title, options: options, selection: $value) {
-                    SoundService.shared.wheelTick()
-                    Haptics.selection()
+                // The system wheel: its own click as each row crosses the centre line is the only sound (owner
+                // 2026-10-16: one カチカチ per row, never two layered — the app's own tick on top of it is gone).
+                Picker(field.title, selection: $value) {
+                    ForEach(options, id: \.value) { o in Text(o.label).tag(o.value) }
                 }
+                .pickerStyle(.wheel)
                 .frame(height: 150)
                 Button(action: close) {
                     Text(L("閉じる")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)

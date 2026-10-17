@@ -1,0 +1,79 @@
+{
+  "photos": [
+    {"file": "dorayaki.jpg", "licence": "The owner's own photo (2026-10-16, the 銅鑼燒冰淇淋 that was cut out wrong), re-photographed from the iPad's screen; contributed by the owner for this test.", "source": "owner upload 64e467ff, cropped and turned upright"},
+    {"file": "dorayaki-exif6.jpg", "licence": "As dorayaki.jpg.", "source": "dorayaki.jpg stored on its side with EXIF orientation 6 (make_photos.py)"},
+    {"file": "coffee.jpg", "licence": "CC0 — photographer Rachel Michetti (scikit-image sample data, skimage.data.coffee)", "source": "https://github.com/scikit-image/scikit-image/blob/v0.19.3/skimage/data/coffee.png"},
+    {"file": "chelsea.jpg", "licence": "CC0 — photographer Stefan van der Walt (scikit-image sample data, skimage.data.chelsea)", "source": "https://github.com/scikit-image/scikit-image/blob/v0.19.3/skimage/data/chelsea.png"},
+    {"file": "astronaut.jpg", "licence": "Public domain — NASA (Eileen Collins; scikit-image sample data, skimage.data.astronaut)", "source": "https://github.com/scikit-image/scikit-image/blob/v0.19.3/skimage/data/astronaut.png"},
+    {"file": "cafe.jpg", "licence": "CatchWords' own picture (onboarding art, ios/CatchWords/Resources/Onboarding/first_catch_cafe.webp); CC0 for this test", "source": "this repository"},
+    {"file": "cat.jpg", "licence": "CatchWords' own picture (onboarding art, first_catch_cat.webp); CC0 for this test", "source": "this repository"},
+    {"file": "boba.jpg", "licence": "CatchWords' own picture (docs/design/catch-concepts/film/assets/photo_1080.jpg); CC0 for this test", "source": "this repository"},
+    {"file": "glasses-bottle.jpg", "licence": "Made for this test (make_photos.py: drawn glasses and the dex's own bottle photo on a drawn table); CC0", "source": "this repository"},
+    {"file": "keys-remote.jpg", "licence": "Made for this test (make_photos.py: the dex's own keys and remote photos on a drawn table); CC0", "source": "this repository"}
+  ],
+  "cases": [
+    {"id": "dorayaki-box-right", "photo": "dorayaki.jpg", "what": "The dorayaki and the carton behind it, both named, boxes right.",
+     "things": [
+       {"name": "冰淇淋", "point": [497, 512], "box_2d": [355, 200, 670, 795], "reference": "dorayaki.dorayaki.png"},
+       {"name": "盒子", "point": [497, 200], "box_2d": [45, 195, 360, 800], "reference": "dorayaki.carton.png"}]},
+    {"id": "dorayaki-box-off", "photo": "dorayaki.jpg", "what": "As on 2026-10-16: the dorayaki's box off to the right and too short (the picker showed a straight left side and bottom).",
+     "things": [
+       {"name": "冰淇淋", "point": [626, 484], "box_2d": [340, 432, 629, 820], "reference": "dorayaki.dorayaki.png"}]},
+    {"id": "dorayaki-box-off-carton", "photo": "dorayaki.jpg", "what": "The box off to one side, and the carton named too (the shared-instance path).",
+     "things": [
+       {"name": "冰淇淋", "point": [626, 484], "box_2d": [340, 432, 629, 820], "reference": "dorayaki.dorayaki.png"},
+       {"name": "盒子", "point": [497, 200], "box_2d": [45, 195, 360, 800], "reference": "dorayaki.carton.png"}]},
+    {"id": "dorayaki-box-30-smaller", "photo": "dorayaki.jpg", "what": "The dorayaki's box 30% smaller than the dorayaki, round its middle.",
+     "things": [
+       {"name": "冰淇淋", "point": [512, 512], "box_2d": [402, 304, 622, 720], "reference": "dorayaki.dorayaki.png"}]},
+    {"id": "dorayaki-no-box", "photo": "dorayaki.jpg", "what": "Only a point, no box.",
+     "things": [
+       {"name": "冰淇淋", "point": [497, 512], "reference": "dorayaki.dorayaki.png"}]},
+    {"id": "dorayaki-point-outside", "photo": "dorayaki.jpg", "what": "The point on the paper below the dorayaki, the box right.",
+     "things": [
+       {"name": "冰淇淋", "point": [500, 760], "box_2d": [355, 200, 670, 795], "reference": "dorayaki.dorayaki.png"}]},
+    {"id": "dorayaki-exif-rotated", "photo": "dorayaki-exif6.jpg", "what": "The same photo stored on its side (EXIF 6), the box off to one side.",
+     "things": [
+       {"name": "冰淇淋", "point": [626, 484], "box_2d": [340, 432, 629, 820], "reference": "dorayaki.dorayaki.png"}]},
+    {"id": "coffee-cup-saucer-spoon", "photo": "coffee.jpg", "what": "A cup on its saucer with a spoon: three touching things, a thin one.",
+     "things": [
+       {"name": "杯子", "point": [470, 300], "box_2d": [40, 285, 780, 660], "reference": "coffee.cup.png"},
+       {"name": "盤子", "point": [300, 800], "box_2d": [190, 125, 965, 805], "check": false},
+       {"name": "湯匙", "point": [610, 700], "box_2d": [165, 540, 815, 700], "reference": "coffee.spoon.png", "check": false}]},
+    {"id": "coffee-cup-box-small", "photo": "coffee.jpg", "what": "The cup alone, its box 30% smaller.",
+     "things": [
+       {"name": "杯子", "point": [472, 410], "box_2d": [151, 341, 669, 604], "reference": "coffee.cup.png"}]},
+    {"id": "chelsea-fills-frame", "photo": "chelsea.jpg", "what": "A cat's face filling the photo and touching its edges.",
+     "things": [
+       {"name": "貓", "point": [430, 500], "box_2d": [0, 0, 1000, 830], "reference": "chelsea.cat.png"}]},
+    {"id": "chelsea-box-small", "photo": "chelsea.jpg", "what": "The same, its box 30% smaller.",
+     "things": [
+       {"name": "貓", "point": [415, 500], "box_2d": [150, 124, 850, 705], "reference": "chelsea.cat.png"}]},
+    {"id": "astronaut-helmet", "photo": "astronaut.jpg", "what": "A person holding a helmet (cut by the photo's edge) and a model shuttle behind.",
+     "things": [
+       {"name": "安全帽", "point": [770, 850], "box_2d": [670, 540, 1000, 985], "reference": "astronaut.helmet.png"},
+       {"name": "太空梭", "point": [810, 250], "box_2d": [0, 690, 560, 930], "reference": "astronaut.shuttle.png", "expect": "none",
+        "why": "Vision has no instance for the model shuttle in the whole photo, and the crop round its box has only one instance, lying mostly outside the box; the old plan cut that crop instance at the crop's edge (a straight cut along 100% of a line). No cut-out is the honest result."},
+       {"name": "太空人", "point": [380, 500], "box_2d": [30, 30, 1000, 720], "check": false}]},
+    {"id": "cafe-cup-vase", "photo": "cafe.jpg", "what": "A small cup on a saucer, a glass vase of flowers (see-through) — a portrait photo.",
+     "things": [
+       {"name": "咖啡", "point": [560, 740], "box_2d": [665, 400, 815, 780], "reference": "cafe.cup.png"},
+       {"name": "花瓶", "point": [870, 700], "box_2d": [610, 775, 775, 965], "reference": "cafe.vase.png", "check": false},
+       {"name": "花", "point": [740, 500], "box_2d": [410, 500, 640, 965], "check": false}]},
+    {"id": "cat-and-plant", "photo": "cat.jpg", "what": "A cat on a sill and a potted plant.",
+     "things": [
+       {"name": "貓", "point": [530, 500], "box_2d": [75, 340, 960, 780], "reference": "cat.cat.png"},
+       {"name": "植物", "point": [100, 600], "box_2d": [370, 0, 1000, 345], "check": false}]},
+    {"id": "boba-portrait", "photo": "boba.jpg", "what": "A bubble tea, tall portrait photo; the box off to the left.",
+     "things": [
+       {"name": "珍珠奶茶", "point": [430, 640], "box_2d": [430, 150, 760, 640], "reference": "boba.cup.png"}]},
+    {"id": "glasses-against-bottle", "photo": "glasses-bottle.jpg", "what": "Glasses lying against a bottle (owner 2026-10-16): must still be split.",
+     "things": [
+       {"name": "眼鏡", "point": [480, 700], "box_2d": [540, 180, 820, 760], "reference": "glasses-bottle.glasses.png"},
+       {"name": "水壺", "point": [770, 480], "box_2d": [120, 630, 840, 900], "reference": "glasses-bottle.bottle.png"}]},
+    {"id": "keys-on-remote", "photo": "keys-remote.jpg", "what": "Keys lying on a remote (touching, overlapping things).",
+     "things": [
+       {"name": "遙控器", "point": [400, 450], "box_2d": [140, 210, 860, 640], "reference": "keys-remote.remote.png"},
+       {"name": "鑰匙", "point": [600, 640], "box_2d": [420, 430, 840, 760], "reference": "keys-remote.keys.png"}]}
+  ]
+}

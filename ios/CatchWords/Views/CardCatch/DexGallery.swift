@@ -458,6 +458,7 @@ struct DexModeSegment: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(m.label)
                 .accessibilityAddTraits(on ? .isSelected : [])
+                .accessibilityIdentifier("dex.mode.\(m.rawValue)")
             }
         }
         .padding(4)

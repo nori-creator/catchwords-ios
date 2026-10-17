@@ -70,18 +70,17 @@ struct ChunkLineView: View {
     var body: some View {
         HStack(alignment: .center, spacing: size == .large ? 10 : 8) {
             VStack(alignment: .leading, spacing: size == .large ? 8 : 5) {
-                FlowRow(spacing: 4) {
-                    ForEach(Array(shown.enumerated()), id: \.offset) { i, part in
-                        HStack(spacing: 4) {
-                            if i > 0 {
-                                Text("+")
-                                    .scaledFont(size: size == .large ? 15 : 12, weight: .bold)
-                                    .foregroundStyle(Theme.muted.opacity(0.45))
-                                    .accessibilityHidden(true)
-                            }
-                            block(i, part)
-                        }
-                    }
+                // One line when it fits: the blocks shrink together (text, zhuyin and pinyin alike) down to a readable
+                // smallest size, and only below that do they wrap (owner 2026-10-16: 「1行に収まるよう文字を小さく」).
+                // Each size is a candidate of its own, largest first (at most five: `fitScales`).
+                let scales = fitScales
+                ViewThatFits(in: .horizontal) {
+                    oneLine(scales, 0)
+                    oneLine(scales, 1)
+                    oneLine(scales, 2)
+                    oneLine(scales, 3)
+                    oneLine(scales, 4)
+                    FlowRow(spacing: 4) { parts(scale: scales.last ?? 1) }
                 }
                 if !translation.isEmpty {
                     Text(translation)
@@ -103,7 +102,47 @@ struct ChunkLineView: View {
         .onAppear { if let startOpen { open = startOpen } }
     }
 
-    private func block(_ i: Int, _ part: ChunkPart) -> some View {
+    /// The block text's own size at scale 1.
+    private var baseSize: CGFloat { size == .large ? 20 : 15 }
+
+    /// The sizes tried for one line, largest first: never under 80% of the normal size, and a hanzi never under 15 pt
+    /// (at the reader's text size). A compact chunk is already at 15 pt, so it only wraps.
+    private var fitScales: [CGFloat] {
+        Self.fitScales(base: AppTypeScale.scaled(baseSize, for: dynamicTypeSize))
+    }
+
+    /// Pure, so ChunkReadingTests checks it.
+    nonisolated static func fitScales(base: CGFloat) -> [CGFloat] {
+        let smallest = max(0.8, min(1, 15 / max(base, 1)))
+        var scales: [CGFloat] = [1]
+        var s: CGFloat = 0.95
+        while s > smallest + 0.001 { scales.append(s); s -= 0.05 }
+        if smallest < 1 { scales.append(smallest) }
+        return scales
+    }
+
+    /// The chunk on one line at the `k`-th size of `scales` (the smallest when there are fewer).
+    private func oneLine(_ scales: [CGFloat], _ k: Int) -> some View {
+        HStack(spacing: 4) { parts(scale: scales[min(k, scales.count - 1)]) }
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private func parts(scale: CGFloat) -> some View {
+        ForEach(Array(shown.enumerated()), id: \.offset) { i, part in
+            HStack(spacing: 4) {
+                if i > 0 {
+                    Text("+")
+                        .scaledFont(size: (size == .large ? 15 : 12) * scale, weight: .bold)
+                        .foregroundStyle(Theme.muted.opacity(0.45))
+                        .accessibilityHidden(true)
+                }
+                block(i, part, scale: scale)
+            }
+        }
+    }
+
+    private func block(_ i: Int, _ part: ChunkPart, scale: CGFloat) -> some View {
         let kind = ChunkKind(pos: part.pos)
         let original = chunk.parts[safe: i] ?? part
         let isHead = !headword.isEmpty && LanguageRules.mentionsHeadword(original.text, headword: headword, target: target)
@@ -125,7 +164,7 @@ struct ChunkLineView: View {
                 // The token's reading, small, over its text (server chunk tokens, 2026-10-15); none on older cards.
                 if let reading {
                     Text(reading)
-                        .scaledFont(size: big ? 10.5 : 9, weight: .medium)
+                        .scaledFont(size: (big ? 10.5 : 9) * scale, weight: .medium)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .opacity(0.8)
@@ -135,24 +174,25 @@ struct ChunkLineView: View {
                     if let side {
                         // The headword's own view and settings: zhuyin to the right of each character.
                         ZhuyinWordView(headword: part.text, zhuyin: side,
-                                       size: AppTypeScale.scaled(big ? 20 : 15, for: dynamicTypeSize),
+                                       size: AppTypeScale.scaled(baseSize * scale, for: dynamicTypeSize),
                                        weight: .bold, color: ink, language: "zh-TW")
                             .contentTransition(.opacity)
                     } else {
                         Text(part.text)
-                            .scaledFont(size: big ? 20 : 15, weight: .bold)
+                            .scaledFont(size: baseSize * scale, weight: .bold)
+                            .lineLimit(1)
                             .contentTransition(.opacity)
                     }
                     if swappable {
                         Image(systemName: "chevron.down")
-                            .scaledFont(size: big ? 11 : 9, weight: .bold)
+                            .scaledFont(size: (big ? 11 : 9) * scale, weight: .bold)
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                     }
                 }
             }
             // Darker ink on the light page, lighter on the dark one (mixing with black vanished in dark mode).
             .foregroundStyle(ink)
-            .padding(.horizontal, big ? 12 : 10)
+            .padding(.horizontal, (big ? 12 : 10) * scale)
             .padding(.vertical, reading == nil && side == nil ? 0 : 4)
             .frame(minHeight: big ? 48 : 34)
             .background(kind.ink.opacity(isHead ? 0.15 : swappable ? 0.04 : 0.08), in: .rect(cornerRadius: big ? 12 : 10, style: .continuous))

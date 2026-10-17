@@ -180,11 +180,12 @@ struct ForgettingCurveSheet: View {
                     .foregroundStyle(Theme.primary)
                     .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 5]))
             }
-            // The rise at each review, drawn from where the line was (never under the axis) to 100%.
+            // The rise at each review, drawn from where the line was (never under the axis) to 100%, in the line's
+            // own blue (owner 2026-10-16).
             ForEach(d.jumps) { j in
                 RuleMark(x: .value("date", j.date), yStart: .value("%", max(yMin, j.value)), yEnd: .value("%", 100))
-                    .foregroundStyle(Theme.muted.opacity(0.5))
-                    .lineStyle(StrokeStyle(lineWidth: 1.5))
+                    .foregroundStyle(Theme.primary)
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
             }
             ForEach(d.past) { p in
                 LineMark(x: .value("date", p.date), y: .value("%", max(yMin, p.value)), series: .value("s", p.series))
@@ -277,7 +278,6 @@ struct ForgettingCurveSheet: View {
                 Text(L("復習しないと \(JPDate.slash(dropDate))（\(daysLeft)日後）に「うろ覚え」になります"))
                     .scaledFont(size: 16, weight: .medium).foregroundStyle(Theme.foreground)
             }
-            Text(L("いま思い出すと、次に忘れるまでの期間が伸びます。")).scaledFont(size: 14).foregroundStyle(Theme.muted)
             if isTime {
                 Button {
                     close()
