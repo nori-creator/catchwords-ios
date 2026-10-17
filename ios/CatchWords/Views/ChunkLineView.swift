@@ -225,13 +225,9 @@ struct ChunkLineView: View {
         return HStack(spacing: 8) {
             Picker(L("ほかの語"), selection: selection) {
                 ForEach(choices, id: \.text) { c in
-                    HStack(spacing: 10) {
-                        Text(c.text).scaledFont(size: 18, weight: .semibold).foregroundStyle(Theme.foreground)
-                        if !c.ja.isEmpty {
-                            Text(c.ja).scaledFont(size: 14).foregroundStyle(Theme.muted)  // lang-ok: filtered in ReaderLanguage.resolve (alts) or ChunkRules.degreeGloss (reader's own)
-                        }
-                    }
-                    .tag(c.text)
+                    // Keep a native Text row: a stack with custom view modifiers can become unsupported content.
+                    // Its attributed text preserves the word and the smaller, muted gloss beside it.
+                    wheelLabel(c).tag(c.text)
                 }
             }
             .pickerStyle(.wheel)
@@ -249,5 +245,18 @@ struct ChunkLineView: View {
         }
         .padding(.horizontal, 6)
         .background(Theme.secondary.opacity(0.8), in: .rect(cornerRadius: 14, style: .continuous))
+    }
+
+    private func wheelLabel(_ choice: ChunkAlt) -> Text {
+        var word = AttributedString(choice.text)
+        word.font = .system(size: AppTypeScale.scaled(18, for: dynamicTypeSize), weight: .semibold)
+        word.foregroundColor = Theme.foreground
+        if !choice.ja.isEmpty {
+            var gloss = AttributedString("  \(choice.ja)")  // lang-ok: reader's gloss from alts or degreeGloss
+            gloss.font = .system(size: AppTypeScale.scaled(14, for: dynamicTypeSize))
+            gloss.foregroundColor = Theme.muted
+            word.append(gloss)
+        }
+        return Text(word)
     }
 }
