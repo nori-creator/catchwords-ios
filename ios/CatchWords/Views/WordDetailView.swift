@@ -1224,7 +1224,7 @@ struct WordDetailView: View {
     private func chunkCard(_ chunks: [UsageChunk]) -> some View {
         let shown = Array(chunks.prefix(5))
         let kinds = Set(shown.flatMap { $0.parts.map { ChunkKind(pos: $0.pos) } })
-        return SectionCard(title: L("使い方チャンク"), icon: "square.grid.2x2") {
+        return SectionCard(title: L("使い方チャンク"), icon: "square.grid.2x2", supportsLayerEffects: false) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(shown.enumerated()), id: \.offset) { _, chunk in
                     ChunkLineView(chunk: chunk, headword: headword, target: learningLang)
@@ -1855,6 +1855,7 @@ struct SentenceRows: View {
 struct SectionCard<Content: View>: View {
     let title: String
     let icon: String
+    var supportsLayerEffects: Bool = true
     @ViewBuilder let content: Content
     @Environment(\.sectionRefresh) private var refresh
 
@@ -1885,8 +1886,16 @@ struct SectionCard<Content: View>: View {
                 }
             }
             // The old content breaks into dust, the new gathers back (`RegenDust`, owner 2026-10-16).
-            content
-                .regenDust(refresh?.running == true)
+            // UIKit-backed controls (including the chunk wheel) cannot render into a Metal
+            // layerEffect, even when its isEnabled argument is false. Keep them in the live
+            // view hierarchy during both idle and regeneration; fade instead of rasterizing.
+            if supportsLayerEffects {
+                content.regenDust(refresh?.running == true)
+            } else {
+                content
+                    .opacity(refresh?.running == true ? 0.45 : 1)
+                    .animation(.easeOut(duration: 0.25), value: refresh?.running == true)
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
