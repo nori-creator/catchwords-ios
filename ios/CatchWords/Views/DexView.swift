@@ -447,7 +447,10 @@ struct DexView: View {
                 .padding(.top, headerHeight + 12)
         } else {
             switch mode {
-            case .cover: DexCoverFlow(stickers: filtered) { router.detailSticker = $0 }.padding(.top, headerHeight)
+            // The cards get their words without the extras (`forCards`); the word page opens on the full sticker.
+            case .cover:
+                DexCoverFlow(stickers: filtered.map(\.forCards)) { router.detailSticker = dex.sticker(id: $0.id) ?? $0 }
+                    .padding(.top, headerHeight)
             case .map: DexMapView(stickers: filtered) { router.detailSticker = $0 }
             case .grid: gallery
             case .list: list
