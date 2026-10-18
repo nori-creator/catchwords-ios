@@ -322,6 +322,49 @@ nonisolated final class DemoDatabase: @unchecked Sendable {
                 insert("encounters", e)
             }
         }
+
+        // `-uiDemoMany N`: N more words (the fixture words again, each its own word and photo) — a dex the size of a
+        // real learner's (DexOpenTests: the 図鑑 opened with many words).
+        let many = defaults.integer(forKey: "uiDemoMany")
+        let all = fixtureWords
+        if many > 0, !all.isEmpty {
+            for n in 0..<many {
+                let w = all[n % all.count]
+                let key = "many\(n)"
+                let wordId = "demo-word-\(key)"
+                insert("words", wordRow(w, id: wordId, reader: r))
+                registerExplanations(w, wordId: wordId)
+                let taken = now.addingTimeInterval(-Double(n + 10) * 3_600)
+                let place: [String: Any] = places.isEmpty ? [:] : places[n % places.count]
+                let object = "\(uid)/demo-\(key)-object.jpg"
+                imageLabels[object] = ["emoji": DJ.str(w["emoji"]) ?? "", "text": DJ.str(w["headword"]) ?? "", "kind": "object"]
+                var s: [String: Any] = [:]
+                s["id"] = "demo-sticker-\(key)"
+                s["user_id"] = uid
+                s["word_id"] = wordId
+                s["caption"] = NSNull()
+                s["location_name"] = text(place["name"], r)
+                s["lat"] = (DJ.num(place["lat"]) ?? 0) + Double(n) * 0.0007
+                s["lng"] = (DJ.num(place["lng"]) ?? 0) - Double(n) * 0.0005
+                s["taken_at"] = DJ.iso(taken)
+                s["created_at"] = DJ.iso(taken)
+                s["shelf_key"] = NSNull()
+                s["hero_role"] = NSNull()
+                s["placeholder_credit"] = NSNull()
+                s["placeholder_image_url"] = NSNull()
+                s["selfie_image_url"] = NSNull()
+                s["object_image_url"] = object
+                s["capture_type"] = "photo"
+                if n % 2 == 0 {
+                    let cutout = "\(uid)/demo-\(key)-cutout.png"
+                    s["cutout_image_url"] = cutout
+                    imageLabels[cutout] = ["emoji": DJ.str(w["emoji"]) ?? "", "text": "", "kind": "cutout"]
+                } else {
+                    s["cutout_image_url"] = NSNull()
+                }
+                insert("stickers", s)
+            }
+        }
     }
 
     func profileRow(onboarded: Bool, plan: String, displayName: String, created: Date) -> [String: Any] {

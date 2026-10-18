@@ -1,0 +1,57 @@
+# 図鑑を単語の多いアカウントで開く確認（2026-10-18 オーナー: 図鑑タブで画面が固まる）
+# デモ用サーバーに 300 語を足して（-uiDemoMany）図鑑タブを開き、スライドを回し、ホームへ戻れるかを見る。
+# アプリの記録（メインスレッドが止まった時間と、そのとき何をしていたか）を成果物 dex-open-report に入れる。
+name: iOS dex open（単語の多い図鑑を開く）
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dex-open:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: シミュレーターを選んで起動する
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          runtimes = sorted((k for k in d if "iOS" in k), reverse=True)
+          for rt in runtimes:
+              phones = [x for x in d[rt] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]]
+              phones = phones or [x for x in d[rt] if x["name"].startswith("iPhone")]
+              if phones:
+                  print(phones[-1]["udid"]); break
+          ')
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: 300 語の図鑑を開く
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild test -project CatchWords.xcodeproj -scheme CatchWords \
+            -destination "platform=iOS Simulator,id=$(cat "$RUNNER_TEMP/udid")" \
+            -only-testing:CatchWordsUITests/DexOpenTests \
+            -resultBundlePath "$RUNNER_TEMP/dex.xcresult" \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 600 \
+            CODE_SIGNING_ALLOWED=NO | tee "$RUNNER_TEMP/dex.log" | grep -E 'error:|Test Case|DEXOPEN|TEST (SUCCEEDED|FAILED)'
+      - name: 記録を取り出す
+        if: always()
+        run: |
+          OUT="$RUNNER_TEMP/dex-report"
+          mkdir -p "$OUT"
+          DATA=$(xcrun simctl get_app_container "$(cat "$RUNNER_TEMP/udid")" com.nori.catchwords data 2>/dev/null) \
+            && cp "$DATA/Library/Caches/uitest-trace.txt" "$OUT/trace.txt" 2>/dev/null || echo "no app trace"
+          [ -f "$OUT/trace.txt" ] && grep -E "not answering|answering again|launch uiDemo" "$OUT/trace.txt" | head -80 || true
+          xcrun xcresulttool export attachments --path "$RUNNER_TEMP/dex.xcresult" --output-path "$OUT" || true
+          find "$OUT" -name "*.mp4" -delete 2>/dev/null || true
+          cp "$RUNNER_TEMP/dex.log" "$OUT/" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dex-open-report
+          path: ${{ runner.temp }}/dex-report
