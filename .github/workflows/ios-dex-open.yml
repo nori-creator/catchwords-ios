@@ -11,19 +11,28 @@ jobs:
   dex-open:
     runs-on: macos-26
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # The owner's device is an iPad (iPad16_3, iPadOS 26) running this iPhone-only app.
+        device: [iphone, ipad]
     steps:
       - uses: actions/checkout@v4
       - name: シミュレーターを選んで起動する
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
+          UDID=$(xcrun simctl list devices available -j | DEVICE=${{ matrix.device }} python3 -c '
+          import json, os, sys
           d = json.load(sys.stdin)["devices"]
+          kind = os.environ["DEVICE"]
           runtimes = sorted((k for k in d if "iOS" in k), reverse=True)
           for rt in runtimes:
-              phones = [x for x in d[rt] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]]
-              phones = phones or [x for x in d[rt] if x["name"].startswith("iPhone")]
-              if phones:
-                  print(phones[-1]["udid"]); break
+              if kind == "ipad":
+                  found = [x for x in d[rt] if x["name"].startswith("iPad Pro 11")] or [x for x in d[rt] if x["name"].startswith("iPad Pro")]
+              else:
+                  found = [x for x in d[rt] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]]
+                  found = found or [x for x in d[rt] if x["name"].startswith("iPhone")]
+              if found:
+                  print(found[-1]["udid"]); print(rt, found[-1]["name"], file=sys.stderr); break
           ')
           echo "$UDID" > "$RUNNER_TEMP/udid"
           xcrun simctl boot "$UDID" || true
@@ -53,5 +62,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dex-open-report
+          name: dex-open-report-${{ matrix.device }}
           path: ${{ runner.temp }}/dex-report

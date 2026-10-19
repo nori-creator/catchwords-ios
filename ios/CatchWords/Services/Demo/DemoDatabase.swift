@@ -675,8 +675,10 @@ nonisolated final class DemoDatabase: @unchecked Sendable {
 
         if let uploaded { return .image(uploaded, contentType: uploadedType) }
         if base.hasSuffix(".m4a") || base.hasSuffix(".mp4") || base.hasSuffix(".mov") { return .notFound() }
+        // `-uiDemoImageSize N`: pictures as big as a real dex's (cut-outs are uploaded at 1024 px).
+        let side = UserDefaults.standard.integer(forKey: "uiDemoImageSize")
         let png = DemoImages.png(seed: base, emoji: label["emoji"] ?? "📷", text: label["text"] ?? "",
-                                 transparent: label["kind"] == "cutout")
+                                 transparent: label["kind"] == "cutout", size: side > 0 ? side : 512)
         return .image(png)
     }
 

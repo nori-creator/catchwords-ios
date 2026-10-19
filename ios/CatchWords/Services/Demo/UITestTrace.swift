@@ -71,8 +71,16 @@ nonisolated enum UITestTrace {
             t.resume()
         }
 
+        /// The footprint last logged (MB): a line is written when it moves by 25 MB or more.
+        private var loggedMB = 0
+
         private func check() {
             let now = Date()
+            let mb = Self.footprintMB()
+            if abs(mb - loggedMB) >= 25 {
+                loggedMB = mb
+                UITestTrace.log("memory \(mb) MB")
+            }
             lock.lock()
             let gap = now.timeIntervalSince(beat)
             let first = gap > 1 && stalledSince == nil
@@ -97,6 +105,16 @@ nonisolated enum UITestTrace {
                     UITestTrace.log("main thread answering again after \(String(format: "%.1f", back.timeIntervalSince(since))) s")
                 }
             }
+        }
+
+        /// The app's memory as iOS counts it against its limit (`phys_footprint`, what Xcode's gauge shows).
+        static func footprintMB() -> Int {
+            var info = task_vm_info_data_t()
+            var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+            let kr = withUnsafeMutablePointer(to: &info) {
+                $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+            }
+            return kr == KERN_SUCCESS ? Int(info.phys_footprint / 1_048_576) : -1
         }
     }
     #endif
