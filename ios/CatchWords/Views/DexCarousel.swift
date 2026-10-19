@@ -186,6 +186,19 @@ struct DexCoverFlow: View {
     }
 }
 
+extension Sticker {
+    /// The sticker as the slide dex draws it: its word without the extras (examples, chunks, notes, measure words…),
+    /// which no card shows. SwiftUI compares a view's stickers field by field each time the dex redraws, and with the
+    /// extras a big dex compared megabytes of text on the main thread every time — the 図鑑 tab froze the screen
+    /// (owner 2026-10-18; DexOpenTests' trace: `Sticker.==` holding the main thread for seconds at a time).
+    nonisolated var forCards: Sticker {
+        guard word?.extras != nil else { return self }
+        var s = self
+        s.word?.extras = nil
+        return s
+    }
+}
+
 /// The ring itself — the only view that reads the spring's per-frame value, so a swipe redraws the cards'
 /// poses and nothing else. Each card's face is its own view (`CarouselCardFace`) whose inputs don't change
 /// while it moves, so SwiftUI skips rebuilding it and only the transforms update.
