@@ -54,18 +54,18 @@ def app_id(bundle_id: str) -> str | None:
     return apps[0]["id"] if apps else None
 
 
-def build_versions(app: str) -> dict[str, str]:
-    """build id → "1.0.2 (1234)"."""
+def build_versions(app: str) -> tuple[dict[str, str], str | None]:
+    """build id → "1.0.2 (1234)", and why the builds could not be read (None when they were)."""
     out = {}
     data, err = get(f"{API}/builds?filter[app]={app}&sort=-uploadedDate&limit=30&include=preReleaseVersion"
                     "&fields[builds]=version,uploadedDate,preReleaseVersion&fields[preReleaseVersions]=version")
     if err:
-        return out
+        return out, err
     pre = {i["id"]: i["attributes"].get("version") for i in data.get("included", []) if i["type"] == "preReleaseVersions"}
     for b in data.get("data", []):
         rel = (b.get("relationships", {}).get("preReleaseVersion", {}).get("data") or {}).get("id")
         out[b["id"]] = f"{pre.get(rel, '?')} ({b['attributes'].get('version')})"
-    return out
+    return out, None
 
 
 def crash_log(item: dict) -> tuple[str | None, list[str]]:
@@ -118,11 +118,14 @@ def crashes(app: str, builds: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def hangs(builds: dict[str, str]) -> str:
+def hangs(builds: dict[str, str], builds_error: str | None) -> str:
     lines = ["# Apple が集めた固まり（HANGS）・起動の記録", "",
              "テスターの iPhone が「解析データを共有」にしている時だけ、日ごとにまとめて届く。", ""]
+    if builds_error:
+        return "\n".join(lines + [f"ビルドの一覧を読めませんでした: {builds_error}"])
     for build_id, name in list(builds.items())[:6]:
-        data, err = get(f"{API}/builds/{build_id}/diagnosticSignatures?limit=20")
+        # Hangs and launches only: disk writes would take the page's places.
+        data, err = get(f"{API}/builds/{build_id}/diagnosticSignatures?filter[diagnosticType]=HANGS,LAUNCHES&limit=20")
         if err:
             lines.append(f"## ビルド {name}: 読めませんでした（{err}）")
             continue
@@ -144,11 +147,16 @@ def main():
     os.makedirs(out, exist_ok=True)
     app = app_id(bundle_id)
     if not app:
-        open(os.path.join(out, "crashes.md"), "w").write("アプリが見つかりませんでした。\n")
+        # Both files, so an older report is never published as this run's.
+        for name in ("crashes.md", "hangs.md"):
+            open(os.path.join(out, name), "w").write("アプリを読めませんでした（理由は実行のログ）。\n")
         return 0
-    builds = build_versions(app)
-    open(os.path.join(out, "crashes.md"), "w").write(crashes(app, builds) + "\n")
-    open(os.path.join(out, "hangs.md"), "w").write(hangs(builds) + "\n")
+    builds, builds_error = build_versions(app)
+    crash_text = crashes(app, builds)
+    if builds_error:
+        crash_text = f"（ビルドの一覧を読めませんでした: {builds_error}。ビルドは ID のまま）\n\n" + crash_text
+    open(os.path.join(out, "crashes.md"), "w").write(crash_text + "\n")
+    open(os.path.join(out, "hangs.md"), "w").write(hangs(builds, builds_error) + "\n")
     return 0
 
 
