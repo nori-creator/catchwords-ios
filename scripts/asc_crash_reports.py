@@ -68,9 +68,34 @@ def build_versions(app: str) -> dict[str, str]:
     return out
 
 
+def crash_log(item: dict) -> tuple[str | None, list[str]]:
+    """The crash log's text: through the submission's relationship, else by the log's own id. Each failed way is told."""
+    tried = []
+    rel = (item.get("relationships", {}).get("crashLog", {}) or {})
+    rel_id = (rel.get("data") or {}).get("id")
+    urls = [f"{API}/betaFeedbackCrashSubmissions/{item['id']}/crashLog"]
+    if rel_id:
+        urls.append(f"{API}/betaCrashLogs/{rel_id}")
+    related = (rel.get("links") or {}).get("related")
+    if related and related not in urls:
+        urls.append(related)
+    for url in urls:
+        data, err = get(url)
+        if err:
+            tried.append(f"{url.replace(API, '')}: {err.splitlines()[0][:80]} {err[-160:]}")
+            continue
+        attrs = ((data or {}).get("data") or {}).get("attributes", {})
+        text = attrs.get("logText")
+        if text:
+            return text, tried
+        tried.append(f"{url.replace(API, '')}: 本文なし（attributes: {', '.join(attrs.keys())}）")
+    tried.append(f"relationships: {json.dumps(item.get('relationships', {}).get('crashLog'), ensure_ascii=False)[:300]}")
+    return None, tried
+
+
 def crashes(app: str, builds: dict[str, str]) -> str:
     lines = ["# TestFlight に届いたクラッシュ（新しい順）", ""]
-    data, err = get(f"{API}/apps/{app}/betaFeedbackCrashSubmissions?sort=-createdDate&limit=10&include=build")
+    data, err = get(f"{API}/apps/{app}/betaFeedbackCrashSubmissions?sort=-createdDate&limit=20&include=build")
     if err:
         return "\n".join(lines + [f"読めませんでした: {err}"])
     items = data.get("data", [])
@@ -85,11 +110,10 @@ def crashes(app: str, builds: dict[str, str]) -> str:
                 lines.append(f"- {k}: {a[k]}")
         if a.get("comment"):
             lines.append(f"- comment: （{len(a['comment'])} 文字。公開しない）")
-        log, lerr = get(f"{API}/betaFeedbackCrashSubmissions/{item['id']}/crashLog")
-        if lerr:
-            lines += ["", f"記録を読めませんでした: {lerr}", ""]
+        text, tried = crash_log(item)
+        if text is None:
+            lines += ["", "記録を読めませんでした:", *[f"- {t}" for t in tried], ""]
             continue
-        text = ((log or {}).get("data") or {}).get("attributes", {}).get("logText") or ""
         lines += ["", "```", scrub(text).strip()[:60000], "```", ""]
     return "\n".join(lines)
 
