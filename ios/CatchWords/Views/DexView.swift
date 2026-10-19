@@ -277,6 +277,7 @@ struct DexView: View {
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.height
         } action: { h in
+            UITestTrace.geometry("dex.header", "\(h) was \(headerHeight)")
             headerHeight = h
         }
     }
@@ -772,6 +773,7 @@ struct DexFitWidth<Content: View>: View {
             .onGeometryChange(for: CGSize.self) { proxy in
                 proxy.size
             } action: { size in
+                UITestTrace.geometry("fit.natural", "\(size) was \(natural) available \(available)")
                 natural = size
             }
             .scaleEffect(s)
@@ -782,6 +784,7 @@ struct DexFitWidth<Content: View>: View {
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.width
             } action: { w in
+                UITestTrace.geometry("fit.available", "\(w) was \(available) natural \(natural)")
                 available = w
             }
             .clipped()

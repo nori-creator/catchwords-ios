@@ -33,6 +33,26 @@ nonisolated enum UITestTrace {
         #endif
     }
 
+    /// A geometry report written into a view's state (`onGeometryChange`): the first 400, then every 500th with its
+    /// running count — a layout that keeps answering itself (each report moving the view, the move giving a new
+    /// report) shows as the same tags repeating with the values going back and forth.
+    static func geometry(_ tag: String, _ value: @autoclosure () -> String) {
+        #if DEBUG
+        guard DemoBackend.isOn else { return }
+        geometryLock.lock()
+        geometryCount += 1
+        let n = geometryCount
+        geometryLock.unlock()
+        guard n <= 400 || n % 500 == 0 else { return }
+        log("geometry #\(n) \(tag) \(value())")
+        #endif
+    }
+
+    #if DEBUG
+    nonisolated(unsafe) private static var geometryCount = 0
+    private static let geometryLock = NSLock()
+    #endif
+
     /// At launch: a header naming the run, and the touch log.
     @MainActor
     static func start() {

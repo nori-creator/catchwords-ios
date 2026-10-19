@@ -55,7 +55,11 @@ jobs:
           mkdir -p "$OUT"
           DATA=$(xcrun simctl get_app_container "$(cat "$RUNNER_TEMP/udid")" com.nori.catchwords data 2>/dev/null) \
             && cp "$DATA/Library/Caches/uitest-trace.txt" "$OUT/trace.txt" 2>/dev/null || echo "no app trace"
-          [ -f "$OUT/trace.txt" ] && grep -v "touch " "$OUT/trace.txt" | head -400 || true
+          if [ -f "$OUT/trace.txt" ]; then
+            grep -v "touch " "$OUT/trace.txt" | head -250
+            echo "…"
+            grep -v "touch " "$OUT/trace.txt" | tail -350
+          fi
           xcrun xcresulttool export attachments --path "$RUNNER_TEMP/dex.xcresult" --output-path "$OUT" || true
           find "$OUT" -name "*.mp4" -delete 2>/dev/null || true
           cp "$RUNNER_TEMP/dex.log" "$OUT/" || true
