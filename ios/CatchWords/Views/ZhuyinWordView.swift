@@ -89,13 +89,15 @@ struct PinyinRubyLine: View {
     var weight: Font.Weight = .medium
     var color: Color = Theme.foreground
     var readingColor: Color = Theme.muted
+    /// The reading keeps the headword's proportion at every size (no 9 pt floor): a small tag reads like the word page.
+    var proportional: Bool = false
 
     var body: some View {
         HStack(alignment: .bottom, spacing: size * 0.05) {
             ForEach(Array(units.enumerated()), id: \.offset) { _, u in
                 VStack(spacing: 0) {
                     Text(u.reading ?? " ")
-                        .font(.system(size: max(9, size * 0.36), weight: .medium))
+                        .font(.system(size: proportional ? size * 0.36 : max(9, size * 0.36), weight: .medium))
                         .foregroundStyle(readingColor)
                         .lineLimit(1)
                         .fixedSize()
@@ -126,6 +128,9 @@ struct ZhuyinWordView: View {
     var pinyin: String? = nil
     /// The word's learning language (nil = the learner's current one).
     var language: String? = nil
+    /// Readings in the headword's proportion at every size, as on the word page (no minimum size): the home tags
+    /// (owner 2026-10-20: the small tag's reading came out as big as its characters).
+    var proportionalReading: Bool = false
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
     /// Japanese reading: "kana" (furigana, default) or "romaji". Kept apart from the Mandarin choice.
     @AppStorage("reading.ja") private var readingJa: String = "kana"
@@ -198,11 +203,12 @@ struct ZhuyinWordView: View {
 
     @ViewBuilder private func mandarinRuby(size: CGFloat) -> some View {
         if readingPref == "pinyin", let units = PinyinLayout.pair(headword, pinyin: pinyin, zhuyin: zhuyin) {
-            PinyinRubyLine(units: units, size: size, weight: weight, color: color, readingColor: readingColor)
+            PinyinRubyLine(units: units, size: size, weight: weight, color: color, readingColor: readingColor,
+                           proportional: proportionalReading)
         } else if readingPref == "pinyin", let p = pinyin?.trimmingCharacters(in: .whitespaces), !p.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 Text(p)
-                    .font(.system(size: max(10, size * 0.4), weight: .medium))
+                    .font(.system(size: reading(size * 0.4, floor: 10), weight: .medium))
                     .foregroundStyle(readingColor)
                 Text(headword)
                     .font(.system(size: size, weight: weight))
@@ -231,14 +237,19 @@ struct ZhuyinWordView: View {
                     .font(.system(size: size, weight: weight))
                     .foregroundStyle(color)
                 if let z = zhuyin, !z.isEmpty {
-                    Text(z).font(.system(size: max(11, size * 0.42))).foregroundStyle(readingColor)
+                    Text(z).font(.system(size: reading(size * 0.42, floor: 11))).foregroundStyle(readingColor)
                 }
             }
         }
     }
 
+    /// A reading's size: in proportion, kept from going below `floor` unless `proportionalReading`.
+    private func reading(_ proportional: CGFloat, floor: CGFloat) -> CGFloat {
+        proportionalReading ? proportional : max(floor, proportional)
+    }
+
     private func column(_ u: ZhuyinUnit, size: CGFloat) -> some View {
-        let s = max(7, size * 0.3)
+        let s = reading(size * 0.3, floor: 7)
         return HStack(alignment: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 if u.neutral {

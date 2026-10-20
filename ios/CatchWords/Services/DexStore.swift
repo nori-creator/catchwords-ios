@@ -1508,6 +1508,10 @@ final class DexStore {
     /// Photos taken off the home album. They stay in the dex; only the album page skips them.
     var albumHidden: Set<String> = []
 
+    /// The photo just taken off the album with ✕: Home offers 「元に戻す」 for a few seconds (owner 2026-10-20: 「ホームの
+    /// 画像をバツで消した時に戻す方法がない」 — the tray at the album's end was out of sight).
+    var albumUndo: String?
+
     /// The ones the server holds (the rest of `albumHidden` is kept on this phone only).
     @ObservationIgnored private var serverAlbumHidden: Set<String> = []
 

@@ -94,6 +94,7 @@ struct CaptureView: View {
         .onAppear {
             LocationService.shared.requestPermissionIfNeeded()
             syncChrome()
+            SoundService.shared.warmTicks()   // the shutter plays from the tick engine
         }
         .onDisappear {
             UITestTrace.log("capture.disappear step=\(vm.step)")
@@ -482,6 +483,11 @@ struct CaptureView: View {
         return await camera.capture()
     }
 
+    /// The app's shutter, unless the system's own click plays (and may not be silenced) on this device.
+    private func shutterSound() {
+        if demoCamera || !camera.systemShutterSound { SoundService.shared.shutter() }
+    }
+
     private func shoot() {
         if vm.step == .selfie {
             // With the timer on, the shutter starts the count; a second press stops it.
@@ -492,6 +498,7 @@ struct CaptureView: View {
             }
             selfieCountdown.start(selfieTimer) {
                 guard vm.step == .selfie else { return }
+                shutterSound()
                 flash()
                 Task { vm.finishSelfie(await capturePhoto()) }
             }
@@ -499,7 +506,7 @@ struct CaptureView: View {
         }
         guard plan.canCatch else { router.showPaywall = true; return }
         // The shutter sound, the white flash, the shutter and viewfinder hide.
-        SoundService.shared.playLayered(.ccShutter)
+        shutterSound()
         let shotAt = CCClock.now
         shotFlash = shotAt
         shooting = true

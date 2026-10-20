@@ -4906,5 +4906,13 @@
  "iPhone標準": {
   "en": "iPhone standard",
   "zh-TW": "iPhone 標準"
+ },
+ "写真をアルバムから外しました": {
+  "en": "Removed from the album",
+  "zh-TW": "已從相簿移除"
+ },
+ "カメラのシャッター音": {
+  "en": "Camera shutter sound",
+  "zh-TW": "相機快門聲"
  }
 }

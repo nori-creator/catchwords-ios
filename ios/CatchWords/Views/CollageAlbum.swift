@@ -157,6 +157,7 @@ struct CollageBoard: View {
     /// The red ✕ while rearranging: the photo leaves the album (it stays in the dex; 「アルバムから外した写真」 has it).
     private func remove(_ id: String) {
         Haptics.impact(.light)
+        withAnimation(.snappy) { dex.albumUndo = id }
         Task {
             let ok = await dex.setAlbumHidden(id, hidden: true)
             if !ok { Haptics.warning() }
@@ -383,7 +384,7 @@ private struct CollagePiece: View {
         } else {
             // A word looked up from text (no photo): its tag alone.
             WordTag(text: word, zhuyin: sticker.word?.readingZhuyin, pinyin: sticker.word?.pinyin,
-                    tilt: Self.tagTilt(sticker.id), size: 22)
+                    tilt: Self.tagTilt(sticker.id), size: 26)
                 .frame(width: size.w, height: max(size.h, 44))
         }
     }
@@ -441,19 +442,23 @@ struct WordTag: View {
     var zhuyin: String? = nil
     var pinyin: String? = nil
     var tilt: Double = 0
-    var size: CGFloat = 15
+    /// The characters' size. The reading keeps the word page's proportion (pinyin 0.36, zhuyin 0.3 of it) at any size
+    /// (owner 2026-10-20: 「単語の詳細の見出しの大きさのバランスにして」 — at 15 pt the reading's 9 pt minimum made it as
+    /// big as the characters). 20 pt keeps the reading legible; an English word, with no reading, stays at 15 pt.
+    var size: CGFloat? = nil
+    private var textSize: CGFloat { size ?? (NativeAPI.targetLanguage == "en" ? 15 : 20) }
 
-    /// The tag's height at the default size (the album keeps half of it under the photo).
+    /// The tag's height without a reading at 15 pt (the album keeps half of it under the photo).
     static let height: CGFloat = 28
 
     private static let ink = Color(hex: 0x4A3A28)
 
     var body: some View {
-        ZhuyinWordView(headword: text, zhuyin: zhuyin, size: size, weight: .bold, color: Self.ink,
-                       readingColor: Self.ink.opacity(0.75), pinyin: pinyin)
+        ZhuyinWordView(headword: text, zhuyin: zhuyin, size: textSize, weight: .bold, color: Self.ink,
+                       readingColor: Self.ink.opacity(0.75), pinyin: pinyin, proportionalReading: true)
             .padding(.horizontal, 12)
             .padding(.vertical, 2)
-            .frame(minHeight: Self.height * size / 15)
+            .frame(minHeight: Self.height * min(textSize, 15) / 15)
             .background(Color(hex: 0xF6E4C8), in: .rect(cornerRadius: 3, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).stroke(Color(hex: 0xE6CFA8), lineWidth: 0.5))
             .shadow(color: Color(hex: 0x5A4630).opacity(0.22), radius: 2.5, y: 1.5)
