@@ -477,14 +477,35 @@ struct DexSilhouette: View {
         let kept = symbols[sf]
         symbolsLock.unlock()
         if let kept { return kept }
-        // Large enough to stay sharp at the biggest shadow; drawn smaller as a vector.
-        let config = UIImage.SymbolConfiguration(pointSize: 160)
-        guard let image = UIImage(systemName: sf + ".fill", withConfiguration: config)
-                ?? UIImage(systemName: sf, withConfiguration: config) else { return nil }
+        let config = UIImage.SymbolConfiguration(pointSize: 60)
+        guard let symbol = UIImage(systemName: sf + ".fill", withConfiguration: config)
+                ?? UIImage(systemName: sf, withConfiguration: config),
+              let image = rasterized(symbol) else { return nil }
         symbolsLock.lock()
         symbols[sf] = image
         symbolsLock.unlock()
         return image
+    }
+
+    /// The symbol's shape as a plain bitmap (its alpha only, 180 px on its longer side: a shadow is drawn at most about
+    /// 60 pt): SwiftUI draws a symbol `UIImage` by looking its vector up in the symbol catalog again, on the main
+    /// thread — the first 図鑑 still spent 13 s in that lookup with the symbols kept as `UIImage`s (DexOpenTests on
+    /// ffa9b08, 2026-10-20). A bitmap is only drawn.
+    nonisolated private static func rasterized(_ symbol: UIImage) -> UIImage? {
+        let s = symbol.size
+        guard s.width > 0, s.height > 0 else { return nil }
+        let k = 180 / max(s.width, s.height)
+        let w = max(1, Int((s.width * k).rounded())), h = max(1, Int((s.height * k).rounded()))
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w, space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue) else { return nil }
+        // UIKit's drawing: top-left origin, in the bitmap's pixels.
+        ctx.translateBy(x: 0, y: CGFloat(h))
+        ctx.scaleBy(x: k, y: -k)
+        UIGraphicsPushContext(ctx)
+        symbol.withTintColor(.black, renderingMode: .alwaysOriginal).draw(in: CGRect(origin: .zero, size: s))
+        UIGraphicsPopContext()
+        guard let cg = ctx.makeImage() else { return nil }
+        return UIImage(cgImage: cg, scale: 3, orientation: .up).withRenderingMode(.alwaysTemplate)
     }
 
     var body: some View {
