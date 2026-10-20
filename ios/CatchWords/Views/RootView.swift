@@ -62,7 +62,7 @@ struct RootView: View {
                             DexSilhouette.warmUp()
                             let sample = "見つけた言葉を毎日の暮らしで覚えよう。今日の復習はここから始めます。"  // l10n-ignore (text system warm-up)
                             _ = NSAttributedString(string: sample, attributes: [.font: UIFont.systemFont(ofSize: 15)])
-                                .boundingRect(with: CGSize(width: 120, height: .greatestFiniteMagnitude),
+                                .boundingRect(with: CGSize(width: 120, height: CGFloat.greatestFiniteMagnitude),
                                               options: [.usesLineFragmentOrigin], context: nil)
                         }
                         // Before the profile arrives (`needsOnboarding` waits for it): the account that just
