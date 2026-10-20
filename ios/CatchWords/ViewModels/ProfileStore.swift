@@ -102,6 +102,8 @@ final class ProfileStore {
             L10n.set(ui)
             nativeLanguage = L10n.lang
         }
+        // What the server writes explanations in (an empty value is its default, Japanese).
+        ReaderLanguage.serverLang = L10n.normalize(row["ui_language"] as? String)
         targetLanguage = row["target_language"] as? String ?? "zh-TW"
         if let v = row["current_level"] as? String, !v.isEmpty { currentLevel = v }
         if let v = row["level_goal"] as? String, !v.isEmpty { levelGoal = v }
@@ -133,6 +135,7 @@ final class ProfileStore {
         do {
             _ = try await client.rest("PATCH", "profiles?id=eq.\(uid)", body: body)
             message = nil
+            if let ui = fields["ui_language"] as? String { ReaderLanguage.serverLang = L10n.normalize(ui) }
             return true
         } catch {
             message = L("保存できませんでした。通信を確かめてください。")

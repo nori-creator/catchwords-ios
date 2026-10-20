@@ -1172,7 +1172,7 @@ final class DexStore {
         stickers = stickers.map { $0.wordId == wordId ? applyReader($0) : $0 }
         if r.unavailable == true { return }
         // Writing a new explanation uses the AI (`generateCard`): only with the AI consent.
-        guard AIConsent.shared.isGranted, ReaderLanguage.needsGeneration(r.picked, lang: lang, l1: l1),
+        guard AIConsent.shared.isGranted, ReaderLanguage.serverWritesIn(lang), ReaderLanguage.needsGeneration(r.picked, lang: lang, l1: l1),
               let shared = sharedWords[wordId], !generatingWords.contains(wordId) else { return }
         generatingWords.insert(wordId)
         Task {
@@ -1697,6 +1697,8 @@ final class DexStore {
     func fillSection(wordId: String, section: String, onlyIfEmpty: Bool) async -> Bool {
         // 発音のコツ・覚え方・語源・部首 are no longer on the word page, and the server stops writing them (owner 2026-10-15).
         guard !Self.retiredSections.contains(section) else { return false }
+        // Written in the server's language of this account: not before the screen's language has reached it.
+        guard ReaderLanguage.serverWritesIn(L10n.lang) else { return false }
         struct Res: Decodable { let ok: Bool?; let filled: Bool? }
         let r = try? await NativeAPI.call("regenerateCardSection", [
             "word_id": wordId, "section": section, "only_if_empty": onlyIfEmpty,

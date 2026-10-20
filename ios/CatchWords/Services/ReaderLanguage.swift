@@ -12,6 +12,15 @@ nonisolated enum ReaderLanguage {
     static var explainLang: String { L10n.lang }
     /// The learner's old native language (`profiles.native_language`), set when the profile loads.
     nonisolated(unsafe) static var native: String?
+    /// The display language the server has for this account (`profiles.ui_language`), set when the profile is read and
+    /// when a change is saved. The server writes every explanation in that one (`getExplanationLanguage`), and keys it
+    /// by it — not by what this screen shows.
+    nonisolated(unsafe) static var serverLang: String?
+
+    /// A new explanation asked for now would be written in `lang`. Not while the screen's language has not reached the
+    /// server (the save failed or is still on its way): the server would write it in the old language, under the old
+    /// key, and the word page would ask again on every opening (one AI card each time).
+    static func serverWritesIn(_ lang: String) -> Bool { serverLang.map { $0 == lang } ?? true }
 
     /// web `readerL1`: the display language when it differs from the learning language, else the old
     /// native language, else the first allowed choice. The choices are the display languages (web `L1_ORDER`, the
