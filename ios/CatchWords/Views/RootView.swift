@@ -55,8 +55,16 @@ struct RootView: View {
                 }
                     .transition(.opacity)
                     .task {
-                        // The 図鑑's shadows read once off the main thread (`DexSilhouette.warmUp`).
-                        Task.detached(priority: .utility) { DexSilhouette.warmUp() }
+                        // The 図鑑's shadows read once off the main thread (`DexSilhouette.warmUp`), then Japanese line
+                        // breaking's dictionary and language detection, read on their first use: the 図鑑's first open
+                        // spent 6 s in them on the iPhone simulator (DexOpenTests 2026-10-20).
+                        Task.detached(priority: .utility) {
+                            DexSilhouette.warmUp()
+                            let sample = "見つけた言葉を毎日の暮らしで覚えよう。今日の復習はここから始めます。"  // l10n-ignore (text system warm-up)
+                            _ = NSAttributedString(string: sample, attributes: [.font: UIFont.systemFont(ofSize: 15)])
+                                .boundingRect(with: CGSize(width: 120, height: CGFloat.greatestFiniteMagnitude),
+                                              options: [.usesLineFragmentOrigin], context: nil)
+                        }
                         // Before the profile arrives (`needsOnboarding` waits for it): the account that just
                         // signed in, not the previous one.
                         onboardingDone = OnboardingState.isDone(userId: SupabaseClient.shared.userId)
@@ -70,6 +78,17 @@ struct RootView: View {
                         await dex.load()
                         await snapshot
                         await p
+                        // First uses that used to land on the first 図鑑's opening (DexOpenTests, 2026-10-20: a 12 s
+                        // first open): the location service (its CLLocationManager, made on the main thread, for the
+                        // cards' place names), the text system and the tick engine's sounds (read off the main thread).
+                        Task {
+                            try? await Task.sleep(for: .seconds(1))
+                            _ = LocationService.shared
+                            // The text system's first field (the 図鑑's search field was the first one made): its
+                            // settings are read from disk once, here instead.
+                            _ = UITextField()
+                            await SoundService.shared.prepareTicks()
+                        }
                         // Today's review is read and its first cards made ready now, not when the tab is opened.
                         Task { await review.preload(dex: dex, limit: profile.effectiveReviewLimit) }
                         // This device's answer and the server's record are made to agree (an unsent answer is

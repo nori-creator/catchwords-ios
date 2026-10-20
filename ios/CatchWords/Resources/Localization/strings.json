@@ -4890,5 +4890,21 @@
  "状態を変えられませんでした": {
   "en": "Couldn’t change the status",
   "zh-TW": "無法變更狀態"
+ },
+ "設定を変えたときの音": {
+  "en": "Sound when a setting changes",
+  "zh-TW": "變更設定時的音效"
+ },
+ "言語とレベルを選ぶホイール": {
+  "en": "Wheel for languages and levels",
+  "zh-TW": "選擇語言與等級的滾輪"
+ },
+ "新しいホイール": {
+  "en": "New wheel",
+  "zh-TW": "新滾輪"
+ },
+ "iPhone標準": {
+  "en": "iPhone standard",
+  "zh-TW": "iPhone 標準"
  }
 }

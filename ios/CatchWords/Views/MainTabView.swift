@@ -371,8 +371,12 @@ struct CapsuleTabBar: View {
     static let height: CGFloat = 58
     static let raise: CGFloat = 16
 
-    /// Variant B (not shipped): only on a developer's device that chose it.
-    private var raised: Bool { variant == DevChoices.tabBarRaised }
+    /// Variant B (not shipped): only for a signed-in developer who chose it (the server's admin answer, never the stored
+    /// choice alone). Owner 2026-10-20: a look that changes after review for ordinary users would be a hidden feature
+    /// (App Review 2.3.1), so on any other account the stored choice is ignored.
+    private var raised: Bool {
+        variant == DevChoices.tabBarRaised && (AdminAccess.shared.isAdmin || DevChoices.previewing)
+    }
 
     var body: some View {
         GeometryReader { geo in
