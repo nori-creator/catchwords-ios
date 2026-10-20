@@ -253,7 +253,7 @@ struct CandidatePickerView: View {
             .opacity(covered ? 0 : 1)
             .task(id: melt) {
                 // The page is opaque 0.6 s after the tap (`CatchChooseOverlay`: page 0.05 → 0.6 s).
-                guard melt else { covered = false; return }
+                guard melt, !CatchDrawing.legacy else { covered = false; return }
                 try? await Task.sleep(for: .milliseconds(700))
                 if !Task.isCancelled, melt, flow != nil { covered = true }
             }

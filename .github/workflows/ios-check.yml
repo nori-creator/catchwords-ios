@@ -221,20 +221,24 @@ jobs:
           TRACE="$DATA/Library/Caches/uitest-trace.txt"
           SUM="$RUNNER_TEMP/report/previews/frames.txt"
           : > "$SUM"
+          # 今の描き方（now）と、軽くする前の描き方（before: -catchLegacyDraw YES）を交互に 2 回ずつ。
           for round in 1 2; do
-            for spec in "analyzing 8" "variants 7" "get 9" "landing 9"; do
-              set -- $spec
-              name=$1; secs=$2
-              xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
-              rm -f "$TRACE"
-              xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW >/dev/null || continue
-              sleep "$secs"
-              xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
-              sleep 0.5
-              # The last "all:" totals of the run: frames shown, late frames, refreshes lost.
-              line=$(grep -o "all: frames [0-9]* late [0-9]* lost [0-9]*" "$TRACE" 2>/dev/null | tail -1)
-              echo "round $round $name: ${line:-no late frames}" | tee -a "$SUM"
-              grep -E "frames [0-9]+ late" "$TRACE" 2>/dev/null | sed "s/^/    $name /" >> "$SUM"
+            for mode in now before; do
+              legacy=NO; [ "$mode" = before ] && legacy=YES
+              for spec in "analyzing 8" "variants 7" "get 9" "landing 9"; do
+                set -- $spec
+                name=$1; secs=$2
+                xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+                rm -f "$TRACE"
+                xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW -catchLegacyDraw "$legacy" >/dev/null || continue
+                sleep "$secs"
+                xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+                sleep 0.5
+                # The last "all:" totals of the run: frames shown, late frames, refreshes lost.
+                line=$(grep -o "all: frames [0-9]* late [0-9]* lost [0-9]*" "$TRACE" 2>/dev/null | tail -1)
+                echo "round $round $mode $name: ${line:-no late frames}" | tee -a "$SUM"
+                grep -E "frames [0-9]+ late" "$TRACE" 2>/dev/null | sed "s/^/    $mode $name /" >> "$SUM"
+              done
             done
           done
           for spec in "variants 7" "get 9" "landing 9"; do

@@ -225,6 +225,16 @@ enum StickerCrop {
     }
 }
 
+/// DEBUG and `-catchLegacyDraw YES` only: the catch's animations drawn the way they were before the work per frame was
+/// cut (2026-10-20) — the CI counts late frames both ways in one run, on one machine, to compare.
+nonisolated enum CatchDrawing {
+    #if DEBUG
+    static let legacy = UserDefaults.standard.bool(forKey: "catchLegacyDraw")
+    #else
+    static let legacy = false
+    #endif
+}
+
 /// A cut-out at the size the catch draws it: Vision's cut-outs are up to 1600 px, and the sticker draws its picture
 /// 14 times a frame (its white border is 12 tinted copies) — every frame of the choose screen and the GET moment
 /// (owner 2026-10-20: the floating cut-out and the add to 図鑑 stuttered). The full cut-out is still what is saved.
@@ -261,6 +271,7 @@ nonisolated enum StickerDisplay {
 
     /// The bordered sticker when it is made; else nil, and it is made off the main thread (the next frame has it).
     static func borderedIfReady(_ cut: UIImage) -> Bordered? {
+        if CatchDrawing.legacy { return nil }
         if let hit = bordered.object(forKey: cut) { return hit }
         let id = ObjectIdentifier(cut)
         lock.lock()
@@ -446,7 +457,7 @@ nonisolated enum StageBackdrop {
 
     /// The pictures when made; else nil, and they are made off the main thread (the canvas draws meanwhile).
     static func ifReady(size: CGSize, scale: CGFloat, palette: StagePalette) -> Pair? {
-        guard size.width > 1, size.height > 1 else { return nil }
+        guard !CatchDrawing.legacy, size.width > 1, size.height > 1 else { return nil }
         let k = key(size, scale, palette)
         if let hit = cache.object(forKey: k as NSString) { return hit }
         lock.lock()
@@ -787,6 +798,14 @@ struct SoftEllipse: View {
     let blur: CGFloat
 
     var body: some View {
+        if CatchDrawing.legacy {
+            Ellipse().fill(color).frame(width: size.width, height: size.height).blur(radius: blur)
+        } else {
+            gradient
+        }
+    }
+
+    private var gradient: some View {
         // The blur spreads about 2.5 radii past the edge; the stops follow a Gaussian edge (an erf profile).
         let reach = blur * 2.5
         let w = size.width + 2 * reach, h = size.height + 2 * reach

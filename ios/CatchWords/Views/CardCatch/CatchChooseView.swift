@@ -51,7 +51,7 @@ struct CatchChooseOverlay: View {
     /// by 0.82 s, the rows by 0.9 + 0.07 s each, the line under it by 1.1 s after the tap; new rows by 0.32 + 0.07 s each).
     private func settleCard() async {
         cardStill = false
-        guard chosenAt == nil, closingAt == nil else { return }
+        guard chosenAt == nil, closingAt == nil, !CatchDrawing.legacy else { return }
         let rowsEnd = (rowsAt.map { $0 + 0.32 } ?? tappedAt + 0.9) + 0.07 * Double(words.count)
         let end = max(tappedAt + 1.15, rowsEnd) + 0.1
         let wait = end - CCClock.now
