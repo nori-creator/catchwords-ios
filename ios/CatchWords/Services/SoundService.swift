@@ -206,21 +206,63 @@ final class SoundService {
         player.play()
     }
 
-    /// Plays `sfx` on a fresh player so it can overlap an earlier play of the same sound (the prototype's
-    /// pops come 130 ms apart and each rings out). Same level rules as `play`.
+    /// Plays `sfx` so it can overlap an earlier play of the same sound (the prototype's pops come 130 ms apart and
+    /// each rings out): on a player of its own that is not playing, from a few kept ready per sound. Same level rules
+    /// as `play`. A new player used to be made from the file on every call, on the main thread, in the middle of the
+    /// catch's animations (owner 2026-10-20: the add to 図鑑 stuttered).
     func playLayered(_ sfx: SFX, volume: Float = 1) {
         let level = levelMultiplier
-        guard level > 0,
-              let url = Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension),
-              let player = try? AVAudioPlayer(contentsOf: url) else { return }
-        layered.removeAll { !$0.isPlaying }
+        guard level > 0 else { return }
+        var pool = pools[sfx] ?? []
+        let player: AVAudioPlayer
+        if let free = pool.first(where: { !$0.isPlaying }) {
+            player = free
+        } else if pool.count < 4,
+                  let url = Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension),
+                  let made = try? AVAudioPlayer(contentsOf: url) {
+            pool.append(made)
+            pools[sfx] = pool
+            player = made
+        } else if let oldest = pool.first {
+            player = oldest
+            player.stop()
+        } else {
+            return
+        }
         player.currentTime = sfx.offset
         player.volume = min(1, sfx.gain * volume * level)
         player.play()
-        layered.append(player)
     }
 
-    private var layered: [AVAudioPlayer] = []
+    /// `playLayered`'s players, a few per sound.
+    private var pools: [SFX: [AVAudioPlayer]] = [:]
+
+    /// Players made off the main thread, handed back to it.
+    nonisolated private struct Made: @unchecked Sendable {
+        let players: [Int: AVAudioPlayer]
+    }
+
+    /// The catch's sounds made ready behind the camera (it opens long before they play): a player each, made and
+    /// prepared off the main thread.
+    func prepareCatchSounds() {
+        let list: [SFX] = [.ccPop, .c6Choose, .c6StagePad, .c6CatchJingle, .c6Riser, .c6DexOpen, .c6LandImpact, .c6NewBadge,
+                           .c6Tick1, .c6Tick2, .c6Tick3, .c6Refill, .c6GoalOneMore]
+        let todo = list.filter { (pools[$0] ?? []).isEmpty }
+        let urls = todo.map { Bundle.main.url(forResource: $0.rawValue, withExtension: $0.fileExtension) }
+        guard !todo.isEmpty else { return }
+        Task {
+            let made = await Task.detached(priority: .utility) { () -> Made in
+                var out: [Int: AVAudioPlayer] = [:]
+                for (i, url) in urls.enumerated() {
+                    guard let url, let p = try? AVAudioPlayer(contentsOf: url) else { continue }
+                    p.prepareToPlay()
+                    out[i] = p
+                }
+                return Made(players: out)
+            }.value
+            for (i, p) in made.players where (pools[todo[i]] ?? []).isEmpty { pools[todo[i]] = [p] }
+        }
+    }
 
     /// A page opening (dex, word detail, tab) or going back: the bubble pon plus its matching tap.
     /// The sound follows the sound level ("off" is silent); the tap follows the vibration switch.
@@ -565,16 +607,27 @@ final class TickEngine {
         attach(decoded)
     }
 
-    /// Starts the engine (again after an interruption or a quiet spell stopped it); reads the sounds first if
-    /// `prepare` has not.
-    func warm() {
+    /// Starts the engine (again after an interruption or a quiet spell stopped it). Sounds not read yet are read off the
+    /// main thread first — a screen readying its ticks as it appears must not decode them there (owner 2026-10-20: the
+    /// add to 図鑑 stuttered) — unless one is to be played right now (`decodeNow`).
+    func warm(decodeNow: Bool = false) {
         idle?.cancel()
         idle = Task { [weak self] in
             try? await Task.sleep(for: .seconds(10))
             guard !Task.isCancelled else { return }
             self?.engine.pause()
         }
-        if !built { attach(Self.decode(files)) }
+        if !built {
+            guard decodeNow else {
+                Task { [weak self] in
+                    await self?.prepare()
+                    guard let self, !self.engine.isRunning else { return }
+                    try? self.engine.start()
+                }
+                return
+            }
+            attach(Self.decode(files))
+        }
         guard !engine.isRunning else { return }
         try? engine.start()
     }
@@ -582,7 +635,7 @@ final class TickEngine {
     /// `volume` already carries the sound level; 0 plays nothing.
     func play(_ sfx: SFX, volume: Float) {
         guard volume > 0 else { return }
-        warm()
+        warm(decodeNow: true)
         guard engine.isRunning, let buffer = buffers[sfx], let nodes = voices[sfx], !nodes.isEmpty else { return }
         let i = (next[sfx] ?? 0) % nodes.count
         next[sfx] = i + 1

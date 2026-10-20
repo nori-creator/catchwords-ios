@@ -225,6 +225,26 @@ enum StickerCrop {
     }
 }
 
+/// A cut-out at the size the catch draws it: Vision's cut-outs are up to 1600 px, and the sticker draws its picture
+/// 14 times a frame (its white border is 12 tinted copies) — every frame of the choose screen and the GET moment
+/// (owner 2026-10-20: the floating cut-out and the add to 図鑑 stuttered). The full cut-out is still what is saved.
+nonisolated enum StickerDisplay {
+    private static let cache = NSCache<UIImage, UIImage>()
+    /// Pixels on the longer side: the sticker is drawn at most about 360 pt wide, at 2x.
+    private static let maxPixels: CGFloat = 760
+
+    /// The copy to draw (made once per cut-out; thread-safe, so it can be made ahead off the main thread).
+    static func image(_ cut: UIImage) -> UIImage {
+        if let hit = cache.object(forKey: cut) { return hit }
+        let pixels = max(cut.size.width, cut.size.height) * cut.scale
+        guard pixels > maxPixels else { return cut }
+        // `resized` draws at scale 1: its points are pixels.
+        let small = ImageTools.resized(cut, maxSide: min(maxPixels, max(cut.size.width, cut.size.height)))
+        cache.setObject(small, forKey: cut)
+        return small
+    }
+}
+
 /// The thing as a sticker (film `sticker()`): its cut-out, a white die-cut border that grows in (`border` 0 → 1),
 /// a white sheen sweeping across (`sheen` 0 → 1) and the holographic sheen of the catch (`holo` 0 → 1). Without a
 /// cut-out yet, the photo round the thing in a rounded white frame.
@@ -256,7 +276,8 @@ struct CatchStickerArt: View {
         .accessibilityHidden(true)
     }
 
-    private func cutout(_ cut: UIImage) -> some View {
+    private func cutout(_ full: UIImage) -> some View {
+        let cut = StickerDisplay.image(full)
         let edge = max(2, min(size.width, size.height) * 0.04) * CGFloat(border)
         return ZStack {
             if border > 0.001 {

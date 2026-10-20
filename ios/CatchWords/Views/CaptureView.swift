@@ -95,6 +95,7 @@ struct CaptureView: View {
             LocationService.shared.requestPermissionIfNeeded()
             syncChrome()
             SoundService.shared.warmTicks()   // the shutter plays from the tick engine
+            SoundService.shared.prepareCatchSounds()
         }
         .onDisappear {
             UITestTrace.log("capture.disappear step=\(vm.step)")

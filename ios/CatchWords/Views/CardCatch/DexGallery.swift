@@ -410,10 +410,27 @@ struct DexSilhouette: View {
     /// in that lookup on the iPhone simulator, after this warm-up had read them through UIKit).
     nonisolated static func warmUp() {
         for item in DexCatalog.allItems {
-            if UIImage(named: "dexsil-\(item.id)") != nil { continue }
+            if art(item) != nil { continue }
             _ = symbolImage(item)
         }
     }
+
+    /// The item's drawn art (`dexsil-<id>` in the asset catalog), looked up once: the lookup ran on every body — every
+    /// frame of the landing's tint (owner 2026-10-20: the add to 図鑑 stuttered) — and a miss is never cached by UIKit.
+    nonisolated static func art(_ item: DexItem) -> UIImage? {
+        symbolsLock.lock()
+        let known = arts[item.id]
+        symbolsLock.unlock()
+        if let known { return known }
+        let found = UIImage(named: "dexsil-\(item.id)")
+        symbolsLock.lock()
+        arts[item.id] = .some(found)
+        symbolsLock.unlock()
+        return found
+    }
+
+    /// `art` per item id: the image, or nil for "none" (only under `symbolsLock`).
+    private nonisolated(unsafe) static var arts: [String: UIImage?] = [:]
 
     /// Read from the warm-up's thread and the main thread: only under `symbolsLock`.
     private nonisolated(unsafe) static var symbols: [String: UIImage] = [:]
@@ -440,7 +457,7 @@ struct DexSilhouette: View {
         GeometryReader { g in
             let s = min(g.size.width, g.size.height) * 0.72
             Group {
-                if let art = UIImage(named: "dexsil-\(item.id)") {
+                if let art = Self.art(item) {
                     Image(uiImage: art).renderingMode(.template).resizable().scaledToFit()
                 } else if let symbol = Self.symbolImage(item) {
                     Image(uiImage: symbol).renderingMode(.template).resizable().scaledToFit()
