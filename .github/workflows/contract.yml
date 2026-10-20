@@ -3,6 +3,8 @@
 # iOS 版が呼ぶサーバの関数（NativeAPI.call("…")）が、Web 版の「iOS から呼んでよい関数の名簿」
 # （src/lib/native-fn.ts の NATIVE_FNS）に載っていて、Web のコードにまだ在るかを確かめる。
 # Web 版で消したり名前を変えたりすると、iOS 版のボタンが黙って何もしなくなるので、赤にして知らせる。
+# あわせて、iOS の表示言語（ios/Localization/languages.json）が全部、Web のサーバが解説を書ける言語
+# （src/lib/explain-languages.ts）に同じ順で入っているかも確かめる。
 #
 # - iOS 版を変えた時（push / PR）
 # - 毎日 1 回（Web 版だけが変わった時に気づくため。失敗すると GitHub からメールが届く）

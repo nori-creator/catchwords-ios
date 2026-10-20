@@ -133,18 +133,13 @@ nonisolated enum ChunkRules {
     /// Negations (不・不太) are left out: 「とても甘い」 cannot become 「甘くない」 by swapping one word.
     static let degreeChoices = ["很", "超", "非常", "有點", "蠻"]  // l10n-ignore (Mandarin words)
 
-    /// What each degree word means, in the reader's language (as it would read in the chunk's translation).
+    /// What each degree word means, in the reader's language (as it would read in the chunk's translation; the
+    /// glosses are in languages.json). A Han-script reader reads the word itself; a missing gloss is "".
     static func degreeGloss(_ word: String, reader: String) -> String {
-        let table: [String: (ja: String, en: String)] = [  // l10n-ignore (glosses per reader language)
-            "很": ("とても", "very"), "超": ("すごく", "super"), "非常": ("非常に", "extremely"),  // l10n-ignore
-            "有點": ("ちょっと", "a little"), "蠻": ("わりと", "pretty"), "好": ("すごく", "so"),  // l10n-ignore
-        ]
-        guard let g = table[word] else { return "" }
-        switch reader {
-        case "en": return g.en
-        case "ja": return g.ja
-        default: return word
-        }
+        guard degreeChoices.contains(word) || word == "好" else { return "" }  // l10n-ignore (Mandarin word)
+        guard let l = DisplayLanguages.find(reader) else { return "" }
+        if let g = l.degreeGlosses[word] { return g }
+        return l.script == .han ? word : ""
     }
 
     static func isDegree(_ p: ChunkPart) -> Bool { degreeChoices.contains(p.text.trimmingCharacters(in: .whitespaces)) }
@@ -337,7 +332,7 @@ nonisolated enum ChunkRules {
             }
         }
         guard !notes.isEmpty else { return out }
-        return reader == "en" ? "\(out) (\(notes.joined(separator: ", ")))"
-            : reader == "ja" ? "\(out)（\(notes.joined(separator: "、"))）" : "\(out)（\(notes.joined(separator: "，"))）"
+        let l = DisplayLanguages.find(reader) ?? DisplayLanguages.find(DisplayLanguages.fallback)!
+        return out + l.openBracket + notes.joined(separator: l.listSeparator) + l.closeBracket
     }
 }

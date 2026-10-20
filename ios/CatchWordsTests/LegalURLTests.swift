@@ -41,4 +41,12 @@ final class LegalURLTests: XCTestCase {
         XCTAssertEqual(query(AppConfig.legalURL("terms", lang: "en-GB"))["lang"], "en")
         XCTAssertEqual(query(AppConfig.legalURL("terms", lang: "fr"))["lang"], "ja")
     }
+
+    /// A display language the web has no legal pages in (languages.json `legalDocs: false`) opens the English ones.
+    func testALanguageWithoutLegalPagesOpensEnglish() {
+        for lang in DisplayLanguages.all where !lang.legalDocs {
+            XCTAssertEqual(query(AppConfig.legalURL("terms", lang: lang.code))["lang"], "en", lang.code)
+        }
+        XCTAssertEqual(query(AppConfig.legalURL("privacy", lang: "es-MX"))["lang"], "en")
+    }
 }

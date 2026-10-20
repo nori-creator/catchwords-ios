@@ -1271,7 +1271,7 @@ struct DexMapView: View {
                     Text(s.word?.headword ?? "").scaledFont(size: 17, weight: .medium).foregroundStyle(Theme.foreground)
                         .lineLimit(1).minimumScaleFactor(0.45)
                     if let cap = s.caption, !cap.isEmpty {
-                        Text(cap).font(AppFont.hand(15)).foregroundStyle(Theme.muted).lineLimit(1)
+                        Text(cap).scaledFont(size: 15).foregroundStyle(Theme.muted).lineLimit(1)
                     } else {
                         Text(s.word?.meaningJa ?? "").scaledFont(size: 15).foregroundStyle(Theme.muted).lineLimit(1)
                     }
@@ -1378,7 +1378,7 @@ struct EmptyDexView: View {
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(Theme.primary)
             Text(isFiltered ? L("この条件の単語はまだありません") : L("今日のページはまだ白紙です。"))
-                .font(AppFont.hand(20))
+                .scaledFont(size: 20)
                 .foregroundStyle(Theme.foreground)
             if !isFiltered {
                 PrimaryButton(title: L("最初の1枚を撮る"), icon: "camera.fill", sheen: true, action: onCamera)

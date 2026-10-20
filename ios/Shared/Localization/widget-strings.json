@@ -1,0 +1,15 @@
+{
+ "今日の単語": {"en": "Word of the Day", "zh-TW": "今日單字", "es": "Palabra del día", "ko": "오늘의 단어", "vi": "Từ của hôm nay"},
+ "図鑑から毎日ひとつ、単語を表示します。": {"en": "A word from your collection, every day.", "zh-TW": "每天從圖鑑中顯示一個單字。", "es": "Una palabra de tu colección cada día.", "ko": "도감에서 매일 단어 하나를 보여줘요.", "vi": "Mỗi ngày một từ trong bộ sưu tập của bạn."},
+ "復習": {"en": "Review", "zh-TW": "複習", "es": "Repaso", "ko": "복습", "vi": "Ôn tập"},
+ "復習するカードの枚数を表示します。": {"en": "Shows how many cards are due for review.", "zh-TW": "顯示需要複習的卡片數量。", "es": "Muestra cuántas tarjetas te toca repasar.", "ko": "복습할 카드 수를 보여줘요.", "vi": "Hiển thị số thẻ cần ôn tập."},
+ "あと {1} 枚": {"en": "{1} left", "zh-TW": "還有 {1} 張", "es": "Quedan {1}", "ko": "{1}장 남음", "vi": "Còn {1} thẻ"},
+ "今日の復習は完了": {"en": "All caught up", "zh-TW": "今天的複習完成了", "es": "Repaso de hoy completado", "ko": "오늘 복습 완료", "vi": "Đã ôn xong hôm nay"},
+ "写真を撮って単語を集めよう": {"en": "Take a photo to catch a word", "zh-TW": "拍照收集單字吧", "es": "Toma una foto para atrapar una palabra", "ko": "사진을 찍어 단어를 모아 보세요", "vi": "Chụp ảnh để bắt từ mới"},
+ "{1} 語": {"en": "{1} words", "zh-TW": "{1} 個單字", "es": "{1} palabras", "ko": "단어 {1}개", "vi": "{1} từ"},
+ "{1}日連続": {"en": "{1}-day streak", "zh-TW": "連續 {1} 天", "es": "Racha de {1} días", "ko": "{1}일 연속", "vi": "Chuỗi {1} ngày"},
+ "復習中": {"en": "Reviewing", "zh-TW": "複習中", "es": "Repasando", "ko": "복습 중", "vi": "Đang ôn tập"},
+ "正解 {1}": {"en": "{1} correct", "zh-TW": "答對 {1}", "es": "{1} correctas", "ko": "정답 {1}", "vi": "Đúng {1}"},
+ "復習おつかれさま": {"en": "Review complete", "zh-TW": "複習完成", "es": "Repaso completado", "ko": "복습 완료", "vi": "Ôn tập xong rồi"},
+ "かさ": {"en": "umbrella", "zh-TW": "雨傘", "es": "paraguas", "ko": "우산", "vi": "cái ô"}
+}

@@ -164,6 +164,9 @@ nonisolated struct PendingSave: Codable, Sendable, Hashable {
     var hasSelfie: Bool
     /// The photos already in storage (nil: send them again).
     var uploads: SavedUploads?
+    /// The display language it was caught in (the candidate's meaning and the card are written in it; nil on records
+    /// from before 2026-10-20). Shown again only to a reader of that language (`ReaderLanguage.resolve`).
+    var readerLang: String? = nil
 
     /// The card to save it with: the real one when it came, else the word's own fields.
     var details: CardDetails {

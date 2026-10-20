@@ -274,7 +274,7 @@ struct MemorialReveal: View {
                         .foregroundStyle(LinearGradient(colors: [.white, Color(hex: 0xFFE7A8)], startPoint: .top, endPoint: .bottom))
                         .contentTransition(.numericText(value: Double(day)))
                         .shadow(color: Theme.gold.opacity(0.5), radius: phase == .count ? 0 : 24)
-                    Text(L("日")).font(.system(size: 30, weight: .heavy)).foregroundStyle(.white.opacity(0.9))
+                    Text(L10n.unit(L("日"), count: day)).font(.system(size: 30, weight: .heavy)).foregroundStyle(.white.opacity(0.9))
                 }
                 Text(L("\(count)語を集めました"))
                     .font(.system(size: 17, weight: .semibold).monospacedDigit())

@@ -173,6 +173,7 @@ final class AuthStore {
     func signOut(keepLanguage: Bool = false) {
         client.signOutRevokingSession()
         isGuest = false
+        ReaderLanguage.serverLang = nil  // the next account's comes with its profile
         if !keepLanguage { L10n.resetToDevice() }
         phase = .signedOut
     }

@@ -178,6 +178,7 @@ private struct DexSlotView: View {
     }
 
     private var noText: some View {
+        // "No." and "NEW" are common notation, the same on every display language (owner 2026-10-20).
         Text(slot.no.map { "No.\(String(format: "%03d", $0))" } ?? "No.---")
             .font(.system(size: 9.5, weight: .bold))
             .tracking(0.38)

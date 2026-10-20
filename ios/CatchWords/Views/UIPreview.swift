@@ -22,7 +22,9 @@ enum UIPreview {
         var parts = raw.split(separator: "-").map(String.init)
         var dark = false
         var lang = "ja"
-        while let last = parts.last, parts.count > 1, ["dark", "en", "zh", "ja"].contains(last) {
+        // Any display language's code ("ko", "vi" …; "zh" for zh-TW) picks the language.
+        let codes = Set(L10n.supported.filter { !$0.contains("-") } + ["zh"])
+        while let last = parts.last, parts.count > 1, last == "dark" || codes.contains(last) {
             if last == "dark" { dark = true } else { lang = last == "zh" ? "zh-TW" : last }
             parts.removeLast()
         }

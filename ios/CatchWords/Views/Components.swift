@@ -310,7 +310,7 @@ struct LocalizedPlaceText: View {
     var fallback: String = ""
     @State private var name: String?
 
-    private var savedName: String? { saved.flatMap { $0.isEmpty ? nil : $0 } }
+    private var savedName: String? { LocationService.shownPlace(saved) }
 
     var body: some View {
         // With coordinates the saved name (maybe another language) is never shown; the lookup replaces it.

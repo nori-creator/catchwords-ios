@@ -43,19 +43,30 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func placeName(for location: CLLocation) async -> String? {
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: L10n.locale)
         guard let p = placemarks?.first else { return nil }
-        let parts = [p.locality, p.subLocality ?? p.name].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: L10n.lang == "en" ? ", " : " ")
+        // Apple answers in the place's own script when it has no name in the requested language (a Taipei district in
+        // 中文 on a Spanish screen): each part is kept only when it reads as the display language.
+        let parts = [p.locality, p.subLocality ?? p.name].compactMap { Self.shownPlace($0) }
+        return parts.isEmpty ? nil : parts.joined(separator: L10n.current.placeSeparator)
     }
 
     private var nameCache: [String: String] = [:]
 
+    /// A saved place name shown as it was saved — only when it reads as the display language (a name saved on a
+    /// Japanese screen, 「渋谷区」, is not shown on a Spanish one; Han-only names stay for 日本語 and 繁體中文). The
+    /// screens without coordinates to look the name up again use this; nil = show no place.
+    nonisolated static func shownPlace(_ saved: String?) -> String? {
+        let v = ReaderLanguage.shown(saved, hanOnlyOk: true)
+        return v.isEmpty ? nil : v
+    }
+
     /// A saved place shown in the current display language: the coordinates are looked up again
-    /// (once per place and language); without coordinates, or when the lookup fails, the saved name.
+    /// (once per place and language); without coordinates, or when the lookup fails, the saved name when it reads
+    /// as the display language (`shownPlace`), else none.
     func localizedName(lat: Double?, lng: Double?, saved: String?) async -> String? {
-        guard let lat, let lng else { return saved }
+        guard let lat, let lng else { return Self.shownPlace(saved) }
         let key = String(format: "%.3f,%.3f,", lat, lng) + L10n.lang
         if let hit = nameCache[key] { return hit }
-        guard let name = await placeName(for: CLLocation(latitude: lat, longitude: lng)) else { return saved }
+        guard let name = await placeName(for: CLLocation(latitude: lat, longitude: lng)) else { return Self.shownPlace(saved) }
         nameCache[key] = name
         return name
     }

@@ -901,13 +901,10 @@ struct AdminAiSettingsView: View {
         .disabled(disabled)
     }
 
-    /// The server's name / description in the display language, else Japanese.
+    /// The server's name / description in the display language, else English (the neutral fallback), else Japanese.
     private static func localized(_ texts: [String: String], fallback: String) -> String {
-        if let t = texts[L10n.lang], !t.isEmpty {
-            return t
-        }
-        if let t = texts["ja"], !t.isEmpty {
-            return t
+        for code in [L10n.lang, DisplayLanguages.fallback, DisplayLanguages.source] {
+            if let t = texts[code], !t.isEmpty { return t }
         }
         return fallback
     }
