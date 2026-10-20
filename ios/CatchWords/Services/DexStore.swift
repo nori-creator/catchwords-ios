@@ -1138,11 +1138,11 @@ final class DexStore {
         readerMeanings = [:]
         stickers = stickers.map(applyReader)
         let ids = Array(Set(stickers.map(\.wordId)))
-        Task { await loadReaderMeanings(ids) }
+        Task { await loadReaderMeanings(ids, afterLanguageSwitch: true) }
     }
 
     /// web `getReaderMeanings`: the meanings written in the reader's language, 200 words at a time.
-    private func loadReaderMeanings(_ ids: [String]) async {
+    private func loadReaderMeanings(_ ids: [String], afterLanguageSwitch: Bool = false) async {
         let lang = L10n.lang
         var i = 0
         while i < ids.count {
@@ -1157,8 +1157,9 @@ final class DexStore {
         stickers = stickers.map(applyReader)
         scheduleSnapshot()
         // The widget was redrawn right after a language switch, before these meanings came: again with them (else the
-        // word of the day has no meaning until the next foreground).
-        WidgetBridge.refresh(dex: self)
+        // word of the day has no meaning until the next foreground). Only then — at launch the widget is written once
+        // the dex is read, and a second write would load its pictures while the dex shows its first ones.
+        if afterLanguageSwitch { WidgetBridge.refresh(dex: self) }
     }
 
     /// Words whose explanation is being written for this reader right now (the detail page shows
