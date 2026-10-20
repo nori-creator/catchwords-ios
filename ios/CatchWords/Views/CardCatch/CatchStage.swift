@@ -811,7 +811,7 @@ struct SoftEllipse: View {
         let w = size.width + 2 * reach, h = size.height + 2 * reach
         let inner = Double(min(size.width, size.height) / max(1, min(w, h)))
         let core = min(1, Double(min(size.width, size.height)) / max(1, Double(blur) * 2.2))
-        EllipticalGradient(stops: [
+        return EllipticalGradient(stops: [
             .init(color: color.opacity(core), location: 0),
             .init(color: color.opacity(core * 0.92), location: inner * 0.5),
             .init(color: color.opacity(core * 0.5), location: inner + (1 - inner) * 0.3),
