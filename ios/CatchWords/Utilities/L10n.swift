@@ -12,14 +12,15 @@ nonisolated final class LanguageState: @unchecked Sendable {
     }()
 }
 
-/// The app's display language (web `ui_language`): 日本語 / English / 繁體中文.
+/// The app's display language (web `ui_language`). The languages are listed once, in
+/// `ios/Localization/languages.json` (`DisplayLanguages`, generated from it).
 ///
 /// Every piece of text the app itself writes goes through `L(...)`. The key is the Japanese source
-/// text; English and Traditional Chinese come from `Resources/Localization/strings.json`. The CI
-/// check (`scripts/check_l10n.py`) fails the build if any Japanese text in the code is not passed
-/// through `L` or has no translation — so a screen can never show two languages at once.
+/// text; every other language comes from `Resources/Localization/strings.json`. The CI check
+/// (`scripts/check_l10n.py`) fails the build if any Japanese text in the code is not passed through
+/// `L` or lacks a translation in any listed language — so a screen can never show two languages at once.
 nonisolated enum L10n {
-    static let supported = ["ja", "en", "zh-TW"]
+    static let supported = DisplayLanguages.codes
     static let storageKey = "ui.lang"
 
     /// The current display language. Set from the profile (`ui_language`) and kept on the device so
@@ -29,15 +30,19 @@ nonisolated enum L10n {
         set { LanguageState.shared.lang = newValue }
     }
 
-    /// First launch: the device's language when we support it, else English for non-Japanese devices.
+    /// The current display language's details (separators, locale, script).
+    static var current: DisplayLanguage { language(lang) }
+
+    static func language(_ code: String) -> DisplayLanguage {
+        DisplayLanguages.find(code) ?? DisplayLanguages.find(DisplayLanguages.fallback)!
+    }
+
+    /// First launch: the first of the iPhone's languages we have, else English.
     static var deviceDefault: String {
         for id in Locale.preferredLanguages {
-            let l = id.lowercased()
-            if l.hasPrefix("ja") { return "ja" }
-            if l.hasPrefix("zh-hant") || l.hasPrefix("zh-tw") || l.hasPrefix("zh-hk") || l.hasPrefix("zh-mo") { return "zh-TW" }
-            if l.hasPrefix("en") { return "en" }
+            if let l = DisplayLanguages.forDevice(id) { return l.code }
         }
-        return "en"
+        return DisplayLanguages.fallback
     }
 
     static func set(_ code: String) {
@@ -54,22 +59,13 @@ nonisolated enum L10n {
         lang = deviceDefault
     }
 
+    /// A listed code as it is, another by its language part ("zh" → zh-TW, "es-MX" → es); unknown → ja.
     static func normalize(_ code: String?) -> String {
-        let c = (code ?? "").trimmingCharacters(in: .whitespaces)
-        if supported.contains(c) { return c }
-        if c.lowercased().hasPrefix("zh") { return "zh-TW" }
-        if c.lowercased().hasPrefix("en") { return "en" }
-        return "ja"
+        DisplayLanguages.match(code)?.code ?? DisplayLanguages.source
     }
 
     /// For dates and numbers in the display language.
-    static var locale: Locale {
-        switch lang {
-        case "en": Locale(identifier: "en_US")
-        case "zh-TW": Locale(identifier: "zh_Hant_TW")
-        default: Locale(identifier: "ja_JP")
-        }
-    }
+    static var locale: Locale { Locale(identifier: current.localeID) }
 
     /// key (Japanese) → [language code: text]
     private static let table: [String: [String: String]] = {
@@ -115,8 +111,12 @@ nonisolated enum L10n {
     static func isOwnText(_ s: String) -> Bool {
         let c = lang
         let n = LanguageRules.counts(s)
-        if c == "en", n.cjk > 0 { return false }
-        if c == "zh-TW", n.kana > 0 { return false }
+        switch current.script {
+        case .latin: if n.cjk > 0 { return false }
+        case .han: if n.kana > 0 || n.hangul > 0 { return false }
+        case .hangul: if n.kana > 0 || n.han > 0 { return false }
+        case .kana: break
+        }
         guard let own = ownText[c] else { return false }
         if own.values.contains(s) { return true }
         let range = NSRange(s.startIndex..., in: s)
@@ -124,19 +124,18 @@ nonisolated enum L10n {
     }
 
     /// Per language: every table value, and every template with `{n}` as an anchored pattern (a filled
-    /// value is 1–40 characters on one line). English templates also match their singular form ("1 word").
+    /// value is 1–40 characters on one line). Templates also match their singular form ("1 word").
     /// Built once (a `static let` is initialised thread-safely).
     private static let ownText: [String: (values: Set<String>, patterns: [NSRegularExpression])] = {
         var out: [String: (values: Set<String>, patterns: [NSRegularExpression])] = [:]
         for c in supported {
             let templates = c == "ja" ? Array(table.keys) : table.values.compactMap { $0[c] }
             var forms = templates
-            if c == "en" {
-                for t in templates {
-                    var one = t
-                    for (many, single) in plurals { one = one.replacingOccurrences(of: "} " + many, with: "} " + single) }
-                    if one != t { forms.append(one) }
-                }
+            let plurals = language(c).plurals
+            for t in templates where !plurals.isEmpty {
+                var one = t
+                for (many, single) in plurals { one = one.replacingOccurrences(of: "} " + many, with: "} " + single) }
+                if one != t { forms.append(one) }
             }
             let patterns: [NSRegularExpression] = forms.filter {
                 // Only templates with enough fixed text to identify them ("{1}、{2}" would match anything).
@@ -163,7 +162,7 @@ nonisolated enum L10n {
         print("⚠️ L10n missing [\(c)]: \(key)")
         #endif
         // Never mix languages on screen: English is the neutral fallback for a missing translation.
-        return table[key]?["en"] ?? key
+        return table[key]?[DisplayLanguages.fallback] ?? key
     }
 }
 
@@ -205,20 +204,17 @@ nonisolated func L(_ k: LKey) -> String { L10n.fill(L10n.text(k.key), k.args, la
 nonisolated func L(_ k: LKey, in code: String) -> String { L10n.fill(L10n.text(k.key, in: code), k.args, lang: code) }
 
 extension L10n {
-    /// English counted nouns that follow a number ("{1} words"); "1 words" becomes "1 word".
-    nonisolated private static let plurals = ["words": "word", "days": "day", "photos": "photo", "times": "time", "cards": "card",
-                                  "stickers": "sticker", "items": "item", "reviews": "review", "books": "book",
-                                  "minutes": "minute", "hours": "hour", "pages": "page", "entries": "entry"]
-
-    /// Puts the values into `{1}`, `{2}` … (and, in English, makes "1 words" singular).
     /// The comma between spoken parts in the display language: "、" / ", " / "，".
-    static var comma: String { lang == "en" ? ", " : lang == "ja" ? "、" : "，" }
+    static var comma: String { current.listSeparator }
 
+    /// Puts the values into `{1}`, `{2}` … (and makes a counted noun after 1 singular: "1 words" → "1 word",
+    /// with the language's own list in languages.json).
     nonisolated static func fill(_ template: String, _ args: [String], lang: String) -> String {
         var out = template
+        let plurals = language(lang).plurals
         for (i, a) in args.enumerated() {
             let slot = "{\(i + 1)}"
-            if lang == "en", a == "1" {
+            if a == "1", !plurals.isEmpty {
                 for (many, one) in plurals {
                     out = out.replacingOccurrences(of: slot + " " + many, with: slot + " " + one)
                 }

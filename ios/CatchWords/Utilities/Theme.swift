@@ -123,9 +123,17 @@ enum AppFont {
         }
     }
 
-    /// Follows Dynamic Type like the nearest text style (`fixed: true` inside fixed-size frames).
+    /// Follows Dynamic Type like the nearest text style (`fixed: true` inside fixed-size frames). A display language
+    /// the font has no letters for (Hangul, Vietnamese ơ ư ạ — languages.json `handwritingFont: false`) gets the
+    /// system's rounded font instead, never a line of mixed fonts.
     static func hand(_ size: CGFloat, fixed: Bool = false) -> Font {
-        resolve(["ZenKurenaido-Regular", "Zen Kurenaido"], size, relativeTo: fixed ? nil : AppTypeScale.fontTextStyle(for: size))
+        let style = fixed ? nil : AppTypeScale.fontTextStyle(for: size)
+        guard L10n.current.handwritingFont else {
+            // The user's text size at the time it is drawn (a custom font's `relativeTo:` has no system equivalent).
+            let current = DynamicTypeSize(UITraitCollection.current.preferredContentSizeCategory) ?? .large
+            return .system(size: fixed ? size : AppTypeScale.scaled(size, for: current), design: .rounded)
+        }
+        return resolve(["ZenKurenaido-Regular", "Zen Kurenaido"], size, relativeTo: style)
             ?? .system(size: size, design: .rounded)
     }
 

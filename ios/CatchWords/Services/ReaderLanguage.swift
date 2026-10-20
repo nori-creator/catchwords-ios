@@ -14,10 +14,10 @@ nonisolated enum ReaderLanguage {
     nonisolated(unsafe) static var native: String?
 
     /// web `readerL1`: the display language when it differs from the learning language, else the old
-    /// native language, else the first allowed choice.
+    /// native language, else the first allowed choice. The choices are the display languages (web `L1_ORDER`, the
+    /// same list in the same order), never the learning language.
     static func l1(native: String?, target: String) -> String {
-        let order = ["ja", "en", "zh-TW"]
-        let choices = order.filter { $0 != target }
+        let choices = DisplayLanguages.codes.filter { $0 != target }
         if choices.contains(L10n.lang) { return L10n.lang }
         if let n = native, choices.contains(n) { return n }
         return choices.first ?? "ja"
@@ -121,9 +121,15 @@ nonisolated enum ReaderLanguage {
     /// only where it is written in their language; nothing (rather than another language) otherwise.
     static func resolve(_ shared: Word, explanation: Explanation?, readerMeaning: String?, reader: String) -> Word {
         var w = shared
-        let meanings = [explanation?.meaning, readerMeaning, shared.meaningJa].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        // R22: the shared row's text marked as written in another language of the reader's script (English on a
+        // Spanish screen) cannot be told apart by its letters — it is not used.
+        let sharedMark = (shared.extras?.explainLang ?? "").trimmingCharacters(in: .whitespaces)
+        let sharedForeign = !sharedMark.isEmpty && sharedMark != reader && LanguageRules.sameScript(sharedMark, reader)
+        let sharedMeaning = sharedForeign ? nil : shared.meaningJa
+        let sharedTranslation = sharedForeign ? nil : shared.exampleTranslation
+        let meanings = [explanation?.meaning, readerMeaning, sharedMeaning].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
         w.meaningJa = meanings.first { !$0.isEmpty && !looksWrong($0, reader: reader, hanOnlyOk: true) } ?? ""
-        let translations = [explanation?.exampleTranslation, shared.exampleTranslation].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let translations = [explanation?.exampleTranslation, sharedTranslation].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
         w.exampleTranslation = translations.first { !$0.isEmpty && !looksWrong($0, reader: reader, source: shared.exampleSentence) }
         // A row for this reader wins even when still empty (it is being filled in the background).
         var extras = explanation != nil ? explanation?.extras : shared.extras

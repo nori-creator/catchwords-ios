@@ -30,8 +30,9 @@ final class ProfileStore {
 
     static let levelOptions: [(value: String, label: String)] = (1...6).map { ("TOCFL-\($0)", "TOCFL Level \($0)") }
     static let cefrOptions: [(value: String, label: String)] = ["A1", "A2", "B1", "B2", "C1", "C2"].map { ($0, "CEFR \($0)") }
-    // Language names in their own language (an autonym never changes with the display language).
-    static let nativeOptions: [(value: String, label: String)] = [("ja", "日本語"), ("en", "English"), ("zh-TW", "繁體中文")]  // l10n-ignore (autonyms)
+    // Language names in their own language (an autonym never changes with the display language): every display
+    // language in languages.json, in its order.
+    static let nativeOptions: [(value: String, label: String)] = DisplayLanguages.all.map { ($0.code, $0.autonym) }
     /// Every learning language the app can teach. Only 繁體字（台灣） is offered for now (owner 2026-10-11: 「学習言語は
     /// とりあえず英語はコードを隠して、繁體字(台灣)に絞って。名前も変更して」): English and Japanese stay in the code,
     /// hidden (`offeredTargets`). The name is the web's (`settings.langZhTw`).
@@ -44,10 +45,11 @@ final class ProfileStore {
         allTargetOptions.filter { offeredTargets.contains($0.value) }
     }
     /// The choices for someone learning `current`: the offered ones, plus `current` itself when it is a hidden one
-    /// (an account that already learns English keeps seeing — and can keep — its own language). Never the display
-    /// language (the two are never the same, as in onboarding), so the 設定 row and its wheel agree on the count.
+    /// (an account that already learns English keeps seeing — and can keep — its own language). The display language
+    /// may be one of them (owner 2026-10-20: 繁體字（台灣） as the display language while learning it), so the 設定 row
+    /// and its wheel agree on the count.
     static func targetChoices(current: String) -> [(value: String, label: String)] {
-        allTargetOptions.filter { (offeredTargets.contains($0.value) || $0.value == current) && $0.value != L10n.lang }
+        allTargetOptions.filter { offeredTargets.contains($0.value) || $0.value == current }
     }
     /// The learning language's name as the 設定 row shows it.
     static func targetLabel(_ code: String) -> String {

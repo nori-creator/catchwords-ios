@@ -25,11 +25,13 @@ enum AppConfig {
     nonisolated static var supportURL: URL { legalURL("support") }
 
     /// A page of the web app with the display language as its `lang` query (`URLComponents`, never pasted strings).
-    /// `lang` defaults to the app's display language (`L10n.lang`: ja / en / zh-TW, the web's own codes).
+    /// `lang` defaults to the app's display language (`L10n.lang`, the web's own codes); a language the web has no
+    /// pages in (languages.json `legalDocs`) opens the English ones.
     nonisolated static func legalURL(_ path: String, lang: String? = nil) -> URL {
         var parts = URLComponents(url: webBaseURL, resolvingAgainstBaseURL: false) ?? URLComponents()
         parts.path = "/" + path.split(separator: "/").joined(separator: "/")
-        parts.queryItems = [URLQueryItem(name: "lang", value: L10n.normalize(lang ?? L10n.lang))]
+        let code = L10n.normalize(lang ?? L10n.lang)
+        parts.queryItems = [URLQueryItem(name: "lang", value: L10n.language(code).legalDocs ? code : DisplayLanguages.fallback)]
         return parts.url ?? webBaseURL.appendingPathComponent(path)
     }
     /// Apple's page for the subscriptions of the signed-in Apple ID (cancel there).

@@ -14,54 +14,57 @@ enum WidgetStyle {
 
 // MARK: - Text (the widget follows the app's display language, written into the snapshot)
 
+/// The widgets' few sentences, from `Shared/Localization/widget-strings.json` (Japanese key → every other display
+/// language, `{1}` for the number), checked by scripts/check_l10n.py like the app's own table.
 enum WidgetText {
-    enum Key {
-        case todayName, todayDesc, reviewName, reviewDesc, remaining, allDone, emptyWords, wordsCaught,
-             streak, reviewing, correct, liveDone, dueLabel
+    enum Key: String {
+        case todayName = "今日の単語"
+        case todayDesc = "図鑑から毎日ひとつ、単語を表示します。"
+        case reviewName = "復習"
+        case reviewDesc = "復習するカードの枚数を表示します。"
+        case remaining = "あと {1} 枚"
+        case allDone = "今日の復習は完了"
+        case emptyWords = "写真を撮って単語を集めよう"
+        case wordsCaught = "{1} 語"
+        case streak = "{1}日連続"
+        case reviewing = "復習中"
+        case correct = "正解 {1}"
+        case liveDone = "復習おつかれさま"
+        /// The gallery sample's meaning (雨傘).
+        case sampleMeaning = "かさ"
     }
 
     /// The app's display language; before the app has written anything, the device's language.
     static var currentLang: String {
         if let l = WidgetShared.load()?.lang { return l }
         for id in Locale.preferredLanguages {
-            let l = id.lowercased()
-            if l.hasPrefix("ja") { return "ja" }
-            if l.hasPrefix("zh") { return "zh-TW" }
-            if l.hasPrefix("en") { return "en" }
+            if let l = DisplayLanguages.forDevice(id) { return l.code }
         }
-        return "ja"
+        return DisplayLanguages.fallback
     }
+
+    private static let table: [String: [String: String]] = {
+        guard let url = Bundle.main.url(forResource: "widget-strings", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: [String: String]] else { return [:] }
+        return obj
+    }()
 
     static func t(_ key: Key, _ lang: String) -> String {
-        let (ja, en, zh) = table(key)
-        switch lang {
-        case "en": return en
-        case "zh-TW": return zh
-        default: return ja
-        }
+        if lang == DisplayLanguages.source { return key.rawValue }
+        if let v = table[key.rawValue]?[lang], !v.isEmpty { return v }
+        return table[key.rawValue]?[DisplayLanguages.fallback] ?? key.rawValue
     }
 
-    /// `%d` replaced by `n`.
+    /// `{1}` replaced by `n` (a counted noun after 1 made singular, as in the app: "1 words" → "1 word").
     static func t(_ key: Key, _ lang: String, _ n: Int) -> String {
-        t(key, lang).replacingOccurrences(of: "%d", with: "\(n)")
-    }
-
-    private static func table(_ key: Key) -> (String, String, String) {
-        switch key {
-        case .todayName: ("今日の単語", "Word of the Day", "今日單字")
-        case .todayDesc: ("図鑑から毎日ひとつ、単語を表示します。", "A word from your collection, every day.", "每天從圖鑑中顯示一個單字。")
-        case .reviewName: ("復習", "Review", "複習")
-        case .reviewDesc: ("復習するカードの枚数を表示します。", "Shows how many cards are due for review.", "顯示需要複習的卡片數量。")
-        case .remaining: ("あと %d 枚", "%d left", "還有 %d 張")
-        case .allDone: ("今日の復習は完了", "All caught up", "今天的複習完成了")
-        case .emptyWords: ("写真を撮って単語を集めよう", "Take a photo to catch a word", "拍照收集單字吧")
-        case .wordsCaught: ("%d 語", "%d words", "%d 個單字")
-        case .streak: ("%d日連続", "%d-day streak", "連續 %d 天")
-        case .reviewing: ("復習中", "Reviewing", "複習中")
-        case .correct: ("正解 %d", "%d correct", "答對 %d")
-        case .liveDone: ("復習おつかれさま", "Review complete", "複習完成")
-        case .dueLabel: ("復習", "Due", "複習")
+        var out = t(key, lang)
+        if n == 1 {
+            for (many, one) in DisplayLanguages.find(lang)?.plurals ?? [:] {
+                out = out.replacingOccurrences(of: "{1} " + many, with: "{1} " + one)
+            }
         }
+        return out.replacingOccurrences(of: "{1}", with: "\(n)")
     }
 }
 
@@ -92,8 +95,8 @@ struct CatchWordsEntry: TimelineEntry {
     static func sample(lang: String) -> CatchWordsEntry {
         let word: WidgetWord = switch lang {
         case "en": WidgetWord(day: "", stickerId: "", headword: "umbrella", reading: nil, meaning: "umbrella", thumbFile: nil, isCutout: false)
-        case "zh-TW": WidgetWord(day: "", stickerId: "", headword: "雨傘", reading: "ㄩˇ ㄙㄢˇ", meaning: "雨傘", thumbFile: nil, isCutout: false)
-        default: WidgetWord(day: "", stickerId: "", headword: "雨傘", reading: "ㄩˇ ㄙㄢˇ", meaning: "かさ", thumbFile: nil, isCutout: false)
+        default: WidgetWord(day: "", stickerId: "", headword: "雨傘", reading: "ㄩˇ ㄙㄢˇ",  // l10n-ignore (learning-language sample)
+                            meaning: WidgetText.t(.sampleMeaning, lang), thumbFile: nil, isCutout: false)
         }
         return CatchWordsEntry(date: Date(), lang: lang, word: word, image: nil, due: 3, totalWords: 42, streak: 5, hasData: true)
     }

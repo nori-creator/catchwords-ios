@@ -44,7 +44,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: L10n.locale)
         guard let p = placemarks?.first else { return nil }
         let parts = [p.locality, p.subLocality ?? p.name].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: L10n.lang == "en" ? ", " : " ")
+        return parts.isEmpty ? nil : parts.joined(separator: L10n.current.placeSeparator)
     }
 
     private var nameCache: [String: String] = [:]
