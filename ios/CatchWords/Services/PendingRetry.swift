@@ -31,6 +31,8 @@ final class PendingRetry {
         /// The words found, for the learning language they were found in (handed to the camera once).
         var candidates: [Candidate]?
         var language: String?
+        /// The display language the words' meanings were written in (nil on records from before 2026-10-20).
+        var readerLang: String?
         var updatedAt: Date = Date()
     }
 
@@ -120,7 +122,10 @@ final class PendingRetry {
     /// analysis running for this photo now, or a new one — never two at once for the same photo.
     func suggest(for id: String, image: UIImage) async throws -> [Candidate] {
         loadRecords()
-        if var r = records[id], let found = r.candidates, !found.isEmpty, r.language == NativeAPI.targetLanguage {
+        // Only for the same learning language and the same display language (meanings found for a Japanese screen are
+        // not shown on a 繁體中文 one — 自転車 reads as both).
+        if var r = records[id], let found = r.candidates, !found.isEmpty, r.language == NativeAPI.targetLanguage,
+           r.readerLang == L10n.lang {
             r.candidates = nil
             records[id] = r
             saveRecords()
@@ -208,6 +213,7 @@ final class PendingRetry {
             done.analyzed = true
             done.candidates = found
             done.language = language
+            done.readerLang = L10n.lang
             done.nextAt = nil
             records[id] = done
             saveRecords()

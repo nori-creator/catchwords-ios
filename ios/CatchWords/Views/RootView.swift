@@ -106,6 +106,9 @@ struct RootView: View {
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.9), value: auth.phase)
         .animation(.spring(response: 0.45, dampingFraction: 0.9), value: AIConsent.shared.status)
+        // Dates, numbers and the time pickers in the display language, redrawn when it changes (this body reads it; the
+        // App's own `.environment` may not be read again after a switch in the app).
+        .environment(\.locale, L10n.locale)
         .task {
             // A review Live Activity left from a previous run (the app was closed mid-round) shows a round
             // that no longer exists: end it; a new round starts its own.

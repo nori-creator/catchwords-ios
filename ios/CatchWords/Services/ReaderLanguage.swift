@@ -154,6 +154,11 @@ nonisolated enum ReaderLanguage {
             // counters, the picture words) are still this word's, every explaining text is emptied.
             w.extras = sharedForReader ? scrub(extras, reader: reader) : learningOnly(extras)
         }
+        // What is kept is this reader's: marked so. A word resolved again for another reader (the dex copy kept on the
+        // phone, a language switch before the server's read) then never passes for its shared row's language — an
+        // unmarked word reads as Japanese (`sharedTextIsFor`).
+        if w.extras == nil { w.extras = WordExtras() }
+        w.extras?.explainLang = reader
         return w
     }
 
@@ -168,31 +173,36 @@ nonisolated enum ReaderLanguage {
     /// Drop single translations and notes that came back in another language (web `scrubForReader`
     /// and `scrubForeignNotes`) — never rewritten, only emptied.
     static func scrub(_ e: WordExtras, reader: String) -> WordExtras {
-        clean(e) { text, source, hanOnlyOk in looksWrong(text, reader: reader, source: source, hanOnlyOk: hanOnlyOk) }
+        clean(e, kanaReader: L10n.language(reader).script == .kana) { text, source, hanOnlyOk in
+            looksWrong(text, reader: reader, source: source, hanOnlyOk: hanOnlyOk)
+        }
     }
 
     /// Every explaining text emptied, the learning-language parts kept: the shared notes of a word whose
     /// notes were written for another reader's language.
     static func learningOnly(_ e: WordExtras) -> WordExtras {
-        var e = clean(e) { _, _, _ in true }
+        var e = clean(e, kanaReader: false) { _, _, _ in true }
         e.explainLang = nil
         return e
     }
 
     /// Empties each reader-language text `drop(text, source, hanOnlyOk)` says to drop. The one list of the extras'
-    /// reader-language fields: a field added to `WordExtras` in the reader's language is added here.
-    private static func clean(_ e: WordExtras, drop: (String?, String?, Bool) -> Bool) -> WordExtras {
+    /// reader-language fields: a field added to `WordExtras` in the reader's language is added here. `hanOnlyOk` only
+    /// for words (a part's or a kanji's meaning, a form's name), where a Japanese word can be all kanji: notes, scene
+    /// labels and chunk translations of 5+ kanji with no kana are Chinese on a Japanese screen (owner report
+    /// 「量詞の説明が台湾華語になってる」).
+    private static func clean(_ e: WordExtras, kanaReader: Bool, drop: (String?, String?, Bool) -> Bool) -> WordExtras {
         var e = e
-        if drop(e.exampleScene, nil, true) { e.exampleScene = nil }
+        if drop(e.exampleScene, nil, false) { e.exampleScene = nil }
         e.examplesExtra = e.examplesExtra?.map { x in
             var x = x
             if drop(x.ja, x.zh, false) { x.ja = "" }
-            if drop(x.scene, nil, true) { x.scene = "" }
+            if drop(x.scene, nil, false) { x.scene = "" }
             return x
         }
         e.usageChunks = e.usageChunks?.map { c in
             var c = c
-            if drop(c.ja, nil, true) { c.ja = "" }
+            if drop(c.ja, nil, false) { c.ja = "" }
             // A swappable part's meaning and its choices' meanings are in the reader's language too (R6).
             c.parts = c.parts.map { p in
                 var p = p
@@ -206,12 +216,12 @@ nonisolated enum ReaderLanguage {
         }
         e.measureWords = e.measureWords?.map { m in
             var m = m
-            if drop(m.note, nil, true) { m.note = "" }
+            if drop(m.note, nil, false) { m.note = "" }
             return m
         }
         e.relatedWords = e.relatedWords?.map { r in
             var r = r
-            if drop(r.note, nil, true) { r.note = "" }
+            if drop(r.note, nil, false) { r.note = "" }
             return r
         }
         // English and Japanese sections: the explanatory parts are in the reader's language; the
@@ -225,7 +235,7 @@ nonisolated enum ReaderLanguage {
         }
         e.etymologyRelatives = e.etymologyRelatives?.map { w in
             var w = w
-            if drop(w.note, nil, true) { w.note = "" }
+            if drop(w.note, nil, false) { w.note = "" }
             return w
         }
         e.kanjiBreakdown = e.kanjiBreakdown?.map { k in
@@ -240,7 +250,7 @@ nonisolated enum ReaderLanguage {
         }
         e.counters = e.counters?.map { c in
             var c = c
-            if drop(c.note, nil, true) { c.note = "" }
+            if drop(c.note, nil, false) { c.note = "" }
             return c
         }
         let notes: [WritableKeyPath<WordExtras, String?>] = [\.mnemonic, \.taiwanNote, \.pronunciationTips, \.studyTips,
@@ -249,10 +259,12 @@ nonisolated enum ReaderLanguage {
         for kp in notes where drop(e[keyPath: kp], nil, false) {
             e[keyPath: kp] = nil
         }
-        // Japanese-card notes cite the word's kana unquoted (「は↘し＝頭高型」): judge them without kana.
+        // Japanese-card notes cite the word's kana unquoted (「は↘し＝頭高型」): judged without kana for other readers
+        // (for a Japanese reader the kana are part of the Japanese note).
         let kanaCiting: [WritableKeyPath<WordExtras, String?>] = [\.pitchAccent, \.politeness, \.wordOrigin]
         for kp in kanaCiting {
-            let t = String((e[keyPath: kp] ?? "").unicodeScalars.filter { !LanguageRules.isKana($0.value) }.map(Character.init))
+            let whole = e[keyPath: kp] ?? ""
+            let t = kanaReader ? whole : String(whole.unicodeScalars.filter { !LanguageRules.isKana($0.value) }.map(Character.init))
             if drop(t, nil, false) { e[keyPath: kp] = nil }
         }
         return e

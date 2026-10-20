@@ -16,7 +16,7 @@ import sys
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "ios", "CatchWords")
 # `place` / `locationName`: a place name saved at capture time is in the language of that moment (2026-10-20).
-FIELDS = r"(meaningJa|feedbackJa|questionJa|bodyJa|ja|note|exampleTranslation|scene|reason|distinction|meaning|form|place|locationName)"
+FIELDS = r"(meaningJa|feedbackJa|questionJa|bodyJa|ja|note|exampleTranslation|scene|reason|distinction|meaning|form|place|locationName|objectLabel|gloss)"
 USE = re.compile(r"(Text\(|Label\(|accessibilityHint\(|accessibilityLabel\(|meaning:\s|label:\s|content\.(?:title|subtitle|body)\s*=)[^\n]*?\b([A-Za-z_][\w?.()]*?)\." + FIELDS + r"\b")
 FILTERS = ("ReaderLanguage.", "L10n.readerSafe", "readable(", "LocationService.shownPlace", "LocalizedPlaceText(")
 RESOLVED = re.compile(r"(^|[^\w])(word\??|\.word\??)$")

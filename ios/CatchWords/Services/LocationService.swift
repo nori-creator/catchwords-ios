@@ -43,7 +43,9 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func placeName(for location: CLLocation) async -> String? {
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: L10n.locale)
         guard let p = placemarks?.first else { return nil }
-        let parts = [p.locality, p.subLocality ?? p.name].compactMap { $0 }
+        // Apple answers in the place's own script when it has no name in the requested language (a Taipei district in
+        // 中文 on a Spanish screen): each part is kept only when it reads as the display language.
+        let parts = [p.locality, p.subLocality ?? p.name].compactMap { Self.shownPlace($0) }
         return parts.isEmpty ? nil : parts.joined(separator: L10n.current.placeSeparator)
     }
 

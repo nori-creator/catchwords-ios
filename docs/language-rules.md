@@ -42,6 +42,8 @@ CatchWords の画面には、3種類の言葉が同時に出る。
 | R23 | **共有の語の行（意味・例文訳・解説）は、行の言語の印（`explain_lang`、印の無い古い行は日本語）の読者にだけ出す**。文字で選ばない（英語とスペイン語、日本語と中文の漢字だけの意味は文字で見分けられない）。別の言語の行の解説は、学ぶ言語の部分（チャンクの文・語形・漢字・量詞）だけ残し、説明の文をすべて空にする。サーバは、行の言語と同じ言語の人だけが空の所を埋め、何も無い行は最初の人の言語の行にして印を付ける | iOS `ReaderLanguage.resolve` / `sharedTextIsFor` / `learningOnly`、Web `shared-word-guard.ts`（`mayWriteSharedReaderText` / `claimSharedRowLanguage`）、`applyWordExtrasUpdate`・`fillSharedWordFromCard`・`runSectionRegen`・`reportAndFixSection`・`fillReaderMeanings` | Web `shared-word-guard.test.ts`（共有の行の言語）・`generated-cards.test.ts` |
 | R24 | **保存した場所の名前**は、保存した時の言語のまま。座標があれば表示言語で引き直し、無い・引けない時は、表示言語として読める名前だけ出す（読めなければ場所を出さない） | `LocationService.shownPlace` / `localizedName`、`LocalizedPlaceText` | `scripts/check_server_text.py`（`place` / `locationName`） |
 | R25 | **共通の表記は訳さない**: 試験・枠の名前（TOCFL・CEFR・JLPT と「TOCFL Level n」）、「NEW」、番号の「No.」は、どの表示言語でも同じ（オーナー 2026-10-20）。点検で「英語が出ている」と数えない | `ProfileStore.levelOptions`、`DexGallery`・`CatchStage` の札 | — |
+| R26 | **サーバの書く解説は、読む人の言語で書く欄をすべて**、読む人の言語でない物だけ空にしてから保存する（意味・注記・場面の札・型の訳・量詞の注…）。注記・札・型の訳は文の欄（日本語の読み手には、漢字だけ5字以上の文は中文）、語の意味・部品の意味だけが漢字だけの和文を許す | Web `scrubExtrasForReader`（`generateCard`・項目の作り直し・読む人の行への書き込み）、iOS `ReaderLanguage.scrub` | Web `explain-languages.test.ts` |
+| R27 | **この端末で選んだ表示言語が、アカウントに届くまでは端末が正**: 初めの設定を終えていない新しいアカウント（行は既定で日本語）と、iPhone の「設定」→ CatchWords →「言語」で選んだ言語は、サーバに送る。AI を呼ぶ前にも、サーバの言語が画面と違えば送る（サーバは保存された言語で書く） | iOS `L10n.launchLanguage`・`ProfileStore.load`・`ProfileStore.syncLanguageToServer` | — |
 
 判定の中身は `ios/CatchWords/Utilities/LanguageRules.swift` に1つだけ置く（Web版 `note-language.ts` の
 `looksWrongForReader` と同じ考え方）。**画面ごとに判定を書かない。**
@@ -86,6 +88,12 @@ CatchWords の画面には、3種類の言葉が同時に出る。
 | IOS14 | 再会・写真の帯・通知 | 日本語の画面で保存した場所の名前が、スペイン語の画面に出ていた | 保存した名前をそのまま表示 | R24 |
 | IOS15 | 設定・新しいキャッチ・図鑑 | 「TOCFL Level 1」「NEW」「No.001」がどの言語の画面にも出る | — | **混ざりではない**（オーナー 2026-10-20「TOCFLやnew, No.などはどの言語でも共通でいい。英語というより共通言語に近い」）。共通の表記として訳さない（R25） |
 | IOS16 | Google / Apple でログイン | 英語・スペイン語の人にも、つなぎの Web の画面が日本語で出ていた | 毎回まっさらなブラウザで、Web の言語の保存が無い | アプリが `lang` を渡す（Web `sanitizeNativeLang`） |
+| IOS17 | 初めの設定・最初のキャッチ | 英語・スペイン語などの iPhone で新しく登録すると、初めの設定の前にアプリ全体が日本語になり、最初のキャッチの AI も日本語で書いていた | 新しいアカウントの `ui_language` は既定で日本語（サーバ）。アプリがそれを読み込んで表示言語を切り替えていた | R27 |
+| IOS18 | 図鑑・単語の詳細 | 撮った場所の名前が、別の言語の画面に中文・英語で出ていた（台湾で撮ると多い） | 場所の名前を引き直した結果（Apple の答え）を確かめずに出していた | R24（引き直した名前も確かめる） |
+| IOS19 | 統計・記念日・記憶の曲線 | 英語・スペイン語で「1 days」「1 times」「Reviewed **1** times」 | 数と単位を別の文字で描くと単数の規則が効かない／太字の数の後ろで効かない | R14（`L10n.unit`、`fill` の太字） |
+| IOS20 | 図鑑の日付・グラフの目盛り | スペイン語・ベトナム語で「10/3」が10月3日（その言語では3月10日と読む） | 日付を「月/日」の固定の形で書いていた | 言語ごとの日付の形（テンプレート） |
+| IOS21 | 単語の詳細（日本語の読み手） | 量詞の注・場面の札・型の訳に、漢字だけの中文が出得た | 注記を語の意味と同じ緩さ（漢字だけを許す）で見ていた | R26 |
+| IOS22 | 保存待ちの単語・あとで選ぶ写真の候補 | 撮った時と別の表示言語で開くと、撮った時の言語の意味・解説が出ていた | 保存待ちの語と写真の候補が、表示言語の規則を通っていなかった | R23（撮った時の言語を覚え、同じ言語の時だけ出す） |
 
 ### Web 版の過去の事例
 

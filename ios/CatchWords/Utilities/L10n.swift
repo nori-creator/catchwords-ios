@@ -6,10 +6,7 @@ import Observation
 @Observable
 nonisolated final class LanguageState: @unchecked Sendable {
     static let shared = LanguageState()
-    var lang: String = {
-        if let saved = UserDefaults.standard.string(forKey: L10n.storageKey), L10n.supported.contains(saved) { return saved }
-        return L10n.deviceDefault
-    }()
+    var lang: String = L10n.launchLanguage()
 }
 
 /// The app's display language (web `ui_language`). The languages are listed once, in
@@ -45,6 +42,34 @@ nonisolated enum L10n {
         return DisplayLanguages.fallback
     }
 
+    /// A display language chosen in iPhone Settings › CatchWords › Language (iOS relaunches the app with it): taken over
+    /// at launch, and sent to the server with the profile (`ProfileStore.load`) instead of being replaced by the
+    /// account's old one. nil = none.
+    nonisolated(unsafe) static var chosenInSettings: String?
+
+    /// The app's language list as the app wrote it last (`followInSystemScreens`). Another value at launch was chosen in
+    /// iPhone Settings.
+    private static let writtenKey = "ui.appleLanguagesWritten"
+
+    /// The display language at launch: the one kept on this device, unless one was chosen in iPhone Settings since;
+    /// else the iPhone's. Reads only the saved values (`lang` is being set from it).
+    static func launchLanguage() -> String {
+        let d = UserDefaults.standard
+        let saved = d.string(forKey: storageKey).flatMap { supported.contains($0) ? $0 : nil }
+        // The app's own saved list (where iPhone Settings writes), not a launch argument (the UI tests pass one).
+        let own = (Bundle.main.bundleIdentifier.flatMap { d.persistentDomain(forName: $0) }?[appleLanguagesKey] as? [String])?.first
+        if let own, let written = d.string(forKey: writtenKey), own != written, let picked = DisplayLanguages.match(own)?.code {
+            d.set(picked, forKey: storageKey)
+            d.set(own, forKey: writtenKey)
+            chosenInSettings = picked
+            return picked
+        }
+        let code = saved ?? deviceDefault
+        // Updated from a version that did not write the list yet: written once now (iOS reads it at the next launch).
+        if saved != nil, d.string(forKey: writtenKey) == nil { followInSystemScreens(code) }
+        return code
+    }
+
     static func set(_ code: String) {
         let c = normalize(code)
         lang = c
@@ -58,6 +83,8 @@ nonisolated enum L10n {
     static func resetToDevice() {
         UserDefaults.standard.removeObject(forKey: storageKey)
         UserDefaults.standard.removeObject(forKey: appleLanguagesKey)
+        UserDefaults.standard.removeObject(forKey: writtenKey)
+        chosenInSettings = nil
         lang = deviceDefault
     }
 
@@ -72,6 +99,7 @@ nonisolated enum L10n {
     private static func followInSystemScreens(_ code: String) {
         let id = language(code).lproj
         let defaults = UserDefaults.standard
+        defaults.set(id, forKey: writtenKey)
         if (defaults.array(forKey: appleLanguagesKey) as? [String])?.first == id { return }
         defaults.set([id], forKey: appleLanguagesKey)
     }
@@ -226,6 +254,13 @@ extension L10n {
 
     /// Puts the values into `{1}`, `{2}` … (and makes a counted noun after 1 singular: "1 words" → "1 word",
     /// with the language's own list in languages.json).
+    /// A unit drawn in its own `Text` beside a number drawn bigger (the stats tiles, the memorial day): its singular
+    /// after 1, the rule `fill` applies to "{1} days" ("1 day", "1 palabra"). Pass the translated unit (`L("日")`).
+    nonisolated static func unit(_ unit: String, count: Int?) -> String {
+        guard count == 1 else { return unit }
+        return current.plurals[unit] ?? unit
+    }
+
     nonisolated static func fill(_ template: String, _ args: [String], lang: String) -> String {
         var out = template
         let plurals = language(lang).plurals
@@ -234,6 +269,8 @@ extension L10n {
             if a == "1", !plurals.isEmpty {
                 for (many, one) in plurals {
                     out = out.replacingOccurrences(of: slot + " " + many, with: slot + " " + one)
+                    // A bold number (「復習 **{1}** 回」 → "Reviewed **1** time").
+                    out = out.replacingOccurrences(of: slot + "** " + many, with: slot + "** " + one)
                 }
             }
             out = out.replacingOccurrences(of: slot, with: a)

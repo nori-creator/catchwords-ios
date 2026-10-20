@@ -85,18 +85,18 @@ enum JPDate {
     static func monthDay(_ date: Date) -> String { fmt("MMMd").string(from: date) }
     /// 2026年9月28日 18:17 · Sep 28, 2026, 18:17
     static func full(_ d: Date) -> String { fmt("yMMMdHHmm").string(from: d) }
-    /// 09/28
-    static func mmdd(_ d: Date) -> String { fmt("MM/dd", fixed: true).string(from: d) }
+    /// 09/28 · 28/09 (the language's day/month order — es and vi read 10/3 as 10 March)
+    static func mmdd(_ d: Date) -> String { fmt("MMdd").string(from: d) }
     /// 水曜日 · Wednesday
     static func weekday(_ d: Date) -> String { fmt("EEEE").string(from: d) }
     /// 9月28日(月) · Mon, Sep 28
     static func monthDayWeek(_ d: Date) -> String { fmt("MMMdE").string(from: d) }
     /// 2025年9月28日(日) · Sun, Sep 28, 2025
     static func yearMonthDayWeek(_ d: Date) -> String { fmt("yMMMdE").string(from: d) }
-    /// 9/28
-    static func slash(_ d: Date) -> String { fmt("M/d", fixed: true).string(from: d) }
-    /// 15:36
-    static func time(_ d: Date) -> String { fmt("HH:mm", fixed: true).string(from: d) }
+    /// 9/28 · 28/9 (the language's day/month order)
+    static func slash(_ d: Date) -> String { fmt("Md").string(from: d) }
+    /// 15:36 · 3:36 PM (the language's clock, as in the time pickers)
+    static func time(_ d: Date) -> String { fmt("jmm").string(from: d) }
     /// 2026年 · 2026
     static func year(_ d: Date) -> String { fmt("y").string(from: d) }
     /// 9月 · September (stand-alone month name)

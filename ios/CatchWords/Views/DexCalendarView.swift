@@ -9,10 +9,12 @@ struct DexCalendarView: View {
     /// When set, tapping a day hands it back instead of opening the in-sheet timeline (used by the map).
     var onPickDay: ((Date) -> Void)? = nil
 
-    @State private var month: Date = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
+    @State private var month: Date = Calendar(identifier: .gregorian).date(
+        from: Calendar(identifier: .gregorian).dateComponents([.year, .month], from: Date())) ?? Date()
     @State private var timelineDay: Date?
 
-    private let cal = Calendar.current
+    /// Gregorian whatever the iPhone's calendar (the grid's month names and weekday headers are Gregorian ones).
+    private let cal = Calendar(identifier: .gregorian)
     private var weekdays: [String] { JPDate.veryShortWeekdays }
 
     var body: some View {

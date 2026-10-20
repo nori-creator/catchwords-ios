@@ -93,11 +93,10 @@ struct CatchWordsEntry: TimelineEntry {
 
     /// Widget gallery / placeholder.
     static func sample(lang: String) -> CatchWordsEntry {
-        let word: WidgetWord = switch lang {
-        case "en": WidgetWord(day: "", stickerId: "", headword: "umbrella", reading: nil, meaning: "umbrella", thumbFile: nil, isCutout: false)
-        default: WidgetWord(day: "", stickerId: "", headword: "雨傘", reading: "ㄩˇ ㄙㄢˇ",  // l10n-ignore (learning-language sample)
-                            meaning: WidgetText.t(.sampleMeaning, lang), thumbFile: nil, isCutout: false)
-        }
+        // The sample word is in the learning language (繁體字（台灣）, the only one offered) whatever the display language:
+        // the display language picked "umbrella" as the headword for an English screen. Its meaning is the screen's.
+        let word = WidgetWord(day: "", stickerId: "", headword: "雨傘", reading: "ㄩˇ ㄙㄢˇ",  // l10n-ignore (learning-language sample)
+                              meaning: WidgetText.t(.sampleMeaning, lang), thumbFile: nil, isCutout: false)
         return CatchWordsEntry(date: Date(), lang: lang, word: word, image: nil, due: 3, totalWords: 42, streak: 5, hasData: true)
     }
 }
