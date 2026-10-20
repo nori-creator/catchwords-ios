@@ -758,17 +758,19 @@ struct CatchStageScene: View {
         let lift = max(0, Double((floorPt - bottom) / H) * Film6.canvasH) + 6
         // the soft shadow that follows the floating sticker
         let pose = Film6.clamp(Film6.seg(sinceTap, 0.05, 0.4))
-        // The blurred ellipses are a soft elliptical gradient as large as the blur reaches (no blur pass every frame).
-        SoftEllipse(color: Color(hex: 0x0F2850), size: CGSize(width: p.size.width * 1.05, height: max(2, p.size.height * 0.09)),
-                    blur: 16 * k)
+        Ellipse()
+            .fill(Color(hex: 0x0F2850))
+            .frame(width: p.size.width * 1.05, height: max(2, p.size.height * 0.09))
+            .blur(radius: 16 * k)
             .opacity(0.2 * (sinceChoice == nil ? pose : 1) * (1 - stageA * 0.6))
             .position(x: p.center.x, y: p.still.y + p.size.height * 0.5 + p.size.height * 0.1)
         if stageA > 0.001 {
             let sa = stageA * Film6.clamp(1 - lift / 160) * 0.42
             if sa > 0.005 {
-                SoftEllipse(color: Color(hex: 0x2B3A52),
-                            size: CGSize(width: max(2, p.size.width * 0.9 * CGFloat(1 - lift / 600)), height: max(2, 40 * k * p.size.height / Film6.y(586, H))),
-                            blur: CGFloat(10 + lift * 0.18) * k)
+                Ellipse()
+                    .fill(Color(hex: 0x2B3A52))
+                    .frame(width: max(2, p.size.width * 0.9 * CGFloat(1 - lift / 600)), height: max(2, 40 * k * p.size.height / Film6.y(586, H)))
+                    .blur(radius: CGFloat(10 + lift * 0.18) * k)
                     .opacity(sa)
                     .position(x: p.center.x, y: floorPt + 4 * k)
             }
@@ -787,39 +789,6 @@ struct CatchStageScene: View {
                     .opacity(stageA * 0.16 * Film6.clamp(1 - lift / 120))
             }
         }
-    }
-}
-
-/// An ellipse blurred by `blur` (the Gaussian's radius), drawn as an elliptical gradient over the area the blur reaches:
-/// the same soft shadow without a blur pass on every frame.
-struct SoftEllipse: View {
-    let color: Color
-    let size: CGSize
-    let blur: CGFloat
-
-    var body: some View {
-        if CatchDrawing.legacy {
-            Ellipse().fill(color).frame(width: size.width, height: size.height).blur(radius: blur)
-        } else {
-            gradient
-        }
-    }
-
-    private var gradient: some View {
-        // The blur spreads about 2.5 radii past the edge; the stops follow a Gaussian edge (an erf profile).
-        let reach = blur * 2.5
-        let w = size.width + 2 * reach, h = size.height + 2 * reach
-        let inner = Double(min(size.width, size.height) / max(1, min(w, h)))
-        let core = min(1, Double(min(size.width, size.height)) / max(1, Double(blur) * 2.2))
-        return EllipticalGradient(stops: [
-            .init(color: color.opacity(core), location: 0),
-            .init(color: color.opacity(core * 0.92), location: inner * 0.5),
-            .init(color: color.opacity(core * 0.5), location: inner + (1 - inner) * 0.3),
-            .init(color: color.opacity(core * 0.16), location: inner + (1 - inner) * 0.6),
-            .init(color: color.opacity(0), location: 1),
-        ], center: .center)
-        .frame(width: w, height: h)
-        .allowsHitTesting(false)
     }
 }
 
