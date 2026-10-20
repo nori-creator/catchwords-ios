@@ -12,8 +12,8 @@
     python3 scripts/add_language.py missing
 
 `fill` writes the translations into strings.json, widget-strings.json and <lproj>.lproj/InfoPlist.strings, asks for the
-language's own marker words and degree-word glosses when they are empty, decides whether the bundled handwriting font
-has every letter the translations use, regenerates ios/Shared/DisplayLanguages.swift, and runs check_l10n.py.
+language's own marker words and degree-word glosses when they are empty, regenerates ios/Shared/DisplayLanguages.swift,
+and runs check_l10n.py. (The app draws every language with the system font, so no font has to be checked.)
 Machine translations are marked `"reviewed": false` in languages.json until a person has read them on screen.
 The whole procedure, for people: docs/adding-a-display-language.md.
 """
@@ -33,7 +33,6 @@ TABLE = os.path.join(IOS, "CatchWords", "Resources", "Localization", "strings.js
 WIDGET_TABLE = os.path.join(IOS, "Shared", "Localization", "widget-strings.json")
 RESOURCES = os.path.join(IOS, "CatchWords", "Resources")
 PBXPROJ = os.path.join(IOS, "CatchWords.xcodeproj", "project.pbxproj")
-FONT = os.path.join(RESOURCES, "Fonts", "ZenKurenaido-Regular.ttf")
 MODEL = os.environ.get("CATCHWORDS_TRANSLATE_MODEL", "claude-opus-5-5")
 BATCH = 60
 
@@ -126,7 +125,6 @@ def cmd_add(args):
         "devicePrefixes": [p.lower() for p in (args.device or [args.code.lower()])],
         "script": args.script,
         **SCRIPT_DEFAULTS[args.script],
-        "handwritingFont": False,
         "legalDocs": False,
         "reviewed": False,
         "plurals": {},
@@ -292,17 +290,6 @@ def ask_language_data(client, lang, data):
     return True
 
 
-def font_covers(texts):
-    """Whether the bundled handwriting font has every letter of these texts (fontTools; False when it can't tell)."""
-    try:
-        from fontTools.ttLib import TTFont
-    except ImportError:
-        return False
-    cmap = TTFont(FONT).getBestCmap()
-    letters = {c for t in texts for c in t if c.isalpha()}
-    return all(ord(c) in cmap for c in letters)
-
-
 def cmd_fill(args):
     try:
         import anthropic
@@ -346,13 +333,11 @@ def cmd_fill(args):
             if plist_values:
                 write_plist(plist_path(lang), lang, plist_values)
             print(f"  {min(i + batch, len(rows))}/{len(rows)}")
-    # Language data and the font decision, for every machine-translated language.
+    # The language's own data (marker words, degree glosses), for every machine-translated language.
     for lang in data["languages"]:
         if lang["reviewed"] or (args.only and lang["code"] not in args.only):
             continue
         ask_language_data(client, lang, data)
-        texts = [e.get(lang["code"], "") for e in table.values()] + [e.get(lang["code"], "") for e in widgets.values()]
-        lang["handwritingFont"] = font_covers(texts)
     write_registry(data)
     subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "l10n_languages.py")], check=True)
     if failed:

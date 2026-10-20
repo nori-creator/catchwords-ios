@@ -29,8 +29,6 @@ nonisolated struct DisplayLanguage: Sendable, Hashable {
     let placeSeparator: String
     /// How many characters a short meaning keeps on a candidate card.
     let glossLimit: Int
-    /// The bundled handwriting font has every letter of this language (else the system font is used).
-    let handwritingFont: Bool
     /// The web has the terms and privacy policy in this language (else the English pages open).
     let legalDocs: Bool
     /// After the number 1: "{1} words" → "{1} word".
@@ -54,7 +52,7 @@ nonisolated enum DisplayLanguages {
             code: "ja", autonym: "日本語", nameJa: "日本語", flag: "🇯🇵",
             localeID: "ja_JP", lproj: "ja", devicePrefixes: ["ja"], script: .kana,
             listSeparator: "、", openBracket: "（", closeBracket: "）", placeSeparator: " ",
-            glossLimit: 12, handwritingFont: true, legalDocs: true,
+            glossLimit: 12, legalDocs: true,
             plurals: [:],
             markerWords: [],
             markerLetters: "",
@@ -64,7 +62,7 @@ nonisolated enum DisplayLanguages {
             code: "en", autonym: "English", nameJa: "英語", flag: "🇺🇸",
             localeID: "en_US", lproj: "en", devicePrefixes: ["en"], script: .latin,
             listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
-            glossLimit: 24, handwritingFont: true, legalDocs: true,
+            glossLimit: 24, legalDocs: true,
             plurals: ["words": "word", "days": "day", "photos": "photo", "times": "time", "cards": "card", "stickers": "sticker", "items": "item", "reviews": "review", "books": "book", "minutes": "minute", "hours": "hour", "pages": "page", "entries": "entry"],
             markerWords: ["the", "of", "and", "to", "is", "are", "was", "were", "with", "for", "this", "that", "these", "those", "it", "its", "you", "your", "be", "been", "from", "by", "an", "or", "not", "can", "used", "when", "which", "who", "what", "on", "at", "as", "in", "into", "about", "something", "someone", "thing", "people"],
             markerLetters: "",
@@ -74,7 +72,7 @@ nonisolated enum DisplayLanguages {
             code: "zh-TW", autonym: "繁體中文", nameJa: "繁体字中国語", flag: "🇹🇼",
             localeID: "zh_Hant_TW", lproj: "zh-Hant", devicePrefixes: ["zh-hant", "zh-tw", "zh-hk", "zh-mo"], script: .han,
             listSeparator: "，", openBracket: "（", closeBracket: "）", placeSeparator: " ",
-            glossLimit: 12, handwritingFont: true, legalDocs: true,
+            glossLimit: 12, legalDocs: true,
             plurals: [:],
             markerWords: [],
             markerLetters: "",
@@ -84,7 +82,7 @@ nonisolated enum DisplayLanguages {
             code: "es", autonym: "Español", nameJa: "スペイン語", flag: "🇪🇸",
             localeID: "es", lproj: "es", devicePrefixes: ["es"], script: .latin,
             listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
-            glossLimit: 24, handwritingFont: true, legalDocs: false,
+            glossLimit: 24, legalDocs: false,
             plurals: ["palabras": "palabra", "días": "día", "fotos": "foto", "veces": "vez", "llamadas": "llamada", "correctas": "correcta", "repasos": "repaso", "usuarios": "usuario", "fallidas": "fallida", "tarjetas": "tarjeta", "pendientes": "pendiente", "selecciones": "selección", "meses": "mes", "sesiones": "sesión", "reportes": "reporte", "segundos": "segundo", "formas": "forma", "minutos": "minuto", "horas": "hora", "stickers": "sticker"],
             markerWords: ["el", "la", "los", "las", "del", "de", "que", "en", "un", "una", "unos", "unas", "es", "son", "por", "para", "se", "su", "sus", "al", "lo", "como", "más", "muy", "pero", "este", "esta", "estos", "estas", "también", "cuando", "donde", "sin", "sobre", "entre", "hay", "está", "están", "ser", "puede", "algo", "alguien"],
             markerLetters: "ñ¿¡",
@@ -94,7 +92,7 @@ nonisolated enum DisplayLanguages {
             code: "ko", autonym: "한국어", nameJa: "韓国語", flag: "🇰🇷",
             localeID: "ko_KR", lproj: "ko", devicePrefixes: ["ko"], script: .hangul,
             listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: " ",
-            glossLimit: 12, handwritingFont: false, legalDocs: false,
+            glossLimit: 12, legalDocs: false,
             plurals: [:],
             markerWords: [],
             markerLetters: "",
@@ -104,7 +102,7 @@ nonisolated enum DisplayLanguages {
             code: "vi", autonym: "Tiếng Việt", nameJa: "ベトナム語", flag: "🇻🇳",
             localeID: "vi_VN", lproj: "vi", devicePrefixes: ["vi"], script: .latin,
             listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
-            glossLimit: 24, handwritingFont: false, legalDocs: false,
+            glossLimit: 24, legalDocs: false,
             plurals: [:],
             markerWords: ["của", "và", "là", "một", "có", "không", "cho", "với", "này", "được", "những", "các", "người", "trong", "khi", "để", "cũng", "đã", "rất", "thì", "mà", "nhưng", "hoặc", "nên", "từ", "khác", "đó", "gì"],
             markerLetters: "ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịĩọỏốồổỗộớờởỡợũụủứừửữựỳỵỷỹ",

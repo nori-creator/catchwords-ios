@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import CoreText
 
 /// Design tokens ported from the web app's `styles.css` (light `:root` and dark `.dark`
 /// "Deep Ocean", oklch → sRGB). Surface and text tokens follow the light/dark setting; the
@@ -113,49 +112,11 @@ enum JPDate {
     static var veryShortWeekdays: [String] { fmt("EEEEE").veryShortWeekdaySymbols ?? [] }
 }
 
-/// Bundled fonts: Zen Kurenaido (handwritten Japanese captions), Caveat (handwritten Latin) and Iansui
-/// cut down to the welcome screen's words (Taiwan's standard glyph shapes; Resources/Fonts/Iansui-OFL.txt).
+/// The app's fonts: the system font everywhere (owner 2026-10-20: 「アプリから手書き風のものは完全に消して、すべての言語対応
+/// できるようにして」 — the bundled handwriting fonts had no Hangul and no Vietnamese ơ ư ạ, so a line could mix two
+/// fonts). Text uses `.scaledFont(size:weight:)`; this keeps the one monospaced style.
 enum AppFont {
-    static func registerAll() {
-        for name in ["ZenKurenaido-Regular", "Caveat", "IansuiWelcome-Regular"] {
-            guard let url = Bundle.main.url(forResource: name, withExtension: "ttf") else { continue }
-            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
-        }
-    }
-
-    /// Follows Dynamic Type like the nearest text style (`fixed: true` inside fixed-size frames). A display language
-    /// the font has no letters for (Hangul, Vietnamese ơ ư ạ — languages.json `handwritingFont: false`) gets the
-    /// system's rounded font instead, never a line of mixed fonts.
-    static func hand(_ size: CGFloat, fixed: Bool = false) -> Font {
-        let style = fixed ? nil : AppTypeScale.fontTextStyle(for: size)
-        guard L10n.current.handwritingFont else {
-            // The user's text size at the time it is drawn (a custom font's `relativeTo:` has no system equivalent).
-            let current = DynamicTypeSize(UITraitCollection.current.preferredContentSizeCategory) ?? .large
-            return .system(size: fixed ? size : AppTypeScale.scaled(size, for: current), design: .rounded)
-        }
-        return resolve(["ZenKurenaido-Regular", "Zen Kurenaido"], size, relativeTo: style)
-            ?? .system(size: size, design: .rounded)
-    }
-
-    /// The welcome screen's pen for Taiwanese Mandarin words (芫荽 / Iansui; only 海邊 花 貓 咖啡 湖 are in it).
-    static func welcomePen(_ size: CGFloat) -> Font {
-        resolve(["IansuiWelcome-Regular", "Iansui Welcome"], size, relativeTo: nil) ?? .system(size: size)
-    }
-
-    /// Handwritten Latin (Caveat), at a fixed size.
-    static func caveat(_ size: CGFloat) -> Font {
-        resolve(["Caveat-Regular", "Caveat"], size, relativeTo: nil) ?? .system(size: size, design: .rounded)
-    }
-
     static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .monospaced)
-    }
-
-    private static func resolve(_ names: [String], _ size: CGFloat, relativeTo style: Font.TextStyle?) -> Font? {
-        for name in names where UIFont(name: name, size: size) != nil {
-            if let style { return .custom(name, size: size, relativeTo: style) }
-            return .custom(name, fixedSize: size)
-        }
-        return nil
     }
 }

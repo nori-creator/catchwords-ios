@@ -66,8 +66,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 道具を入れる（Claude の API と、フォントの文字を調べる道具）
-        run: pip install anthropic fonttools
+      - name: 道具を入れる（Claude の API）
+        run: pip install anthropic
 
       - name: 言語を登録する
         if: ${{ !inputs.fill_only }}

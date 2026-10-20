@@ -370,7 +370,7 @@ private struct CollagePiece: View {
                 Group {
                     if let c = sticker.caption, !c.isEmpty {
                         Text(c)
-                            .font(AppFont.hand(15, fixed: true))
+                            .font(.system(size: 15))
                             .foregroundStyle(Color(hex: 0x33291F).opacity(0.85))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)

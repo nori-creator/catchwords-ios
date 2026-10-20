@@ -16,7 +16,7 @@ REGISTRY = os.path.join(ROOT, "ios", "Localization", "languages.json")
 SWIFT = os.path.join(ROOT, "ios", "Shared", "DisplayLanguages.swift")
 SCRIPTS = ("kana", "han", "hangul", "latin")
 FIELDS = ("code", "autonym", "nameJa", "flag", "locale", "lproj", "devicePrefixes", "script", "listSeparator",
-          "openBracket", "closeBracket", "placeSeparator", "glossLimit", "handwritingFont", "legalDocs", "reviewed",
+          "openBracket", "closeBracket", "placeSeparator", "glossLimit", "legalDocs", "reviewed",
           "plurals", "markerWords", "markerLetters", "degreeGlosses")
 
 
@@ -87,8 +87,7 @@ def render(data):
             f"devicePrefixes: {swift_list(l['devicePrefixes'])}, script: .{l['script']},\n"
             f"            listSeparator: {swift_str(l['listSeparator'])}, openBracket: {swift_str(l['openBracket'])}, "
             f"closeBracket: {swift_str(l['closeBracket'])}, placeSeparator: {swift_str(l['placeSeparator'])},\n"
-            f"            glossLimit: {int(l['glossLimit'])}, handwritingFont: {str(bool(l['handwritingFont'])).lower()}, "
-            f"legalDocs: {str(bool(l['legalDocs'])).lower()},\n"
+            f"            glossLimit: {int(l['glossLimit'])}, legalDocs: {str(bool(l['legalDocs'])).lower()},\n"
             f"            plurals: {swift_dict(l['plurals'])},\n"
             f"            markerWords: {swift_list(words)},\n"
             f"            markerLetters: {swift_str(letters)},\n"
@@ -127,8 +126,6 @@ def render(data):
         "    let placeSeparator: String\n"
         "    /// How many characters a short meaning keeps on a candidate card.\n"
         "    let glossLimit: Int\n"
-        "    /// The bundled handwriting font has every letter of this language (else the system font is used).\n"
-        "    let handwritingFont: Bool\n"
         "    /// The web has the terms and privacy policy in this language (else the English pages open).\n"
         "    let legalDocs: Bool\n"
         "    /// After the number 1: \"{1} words\" → \"{1} word\".\n"

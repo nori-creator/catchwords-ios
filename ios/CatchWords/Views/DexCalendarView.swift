@@ -137,7 +137,7 @@ struct DexCalendarView: View {
                 .frame(minHeight: 44)
                 Spacer()
                 Text(JPDate.monthDayWeek(day))
-                    .font(AppFont.hand(18)).foregroundStyle(Theme.foreground)
+                    .scaledFont(size: 18).foregroundStyle(Theme.foreground)
             }
             ForEach(Array(items.enumerated()), id: \.element.id) { idx, s in
                 HStack(alignment: .top, spacing: 14) {
@@ -169,7 +169,7 @@ struct DexCalendarView: View {
                                     .scaledFont(size: 11).foregroundStyle(Theme.muted)
                                 }
                                 if let cap = s.caption, !cap.isEmpty {
-                                    Text(cap).font(AppFont.hand(14)).foregroundStyle(Theme.foreground.opacity(0.8)).lineLimit(2)
+                                    Text(cap).scaledFont(size: 14).foregroundStyle(Theme.foreground.opacity(0.8)).lineLimit(2)
                                 }
                             }
                             Spacer(minLength: 0)

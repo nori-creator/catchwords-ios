@@ -143,7 +143,7 @@ nonisolated enum AlbumLayout {
     static let PLACEHOLDER_RATIO: Double = 1.2
     /// 写真の下の白い余白＋間（px）。
     static let CAP_ROW_PX: Double = 38
-    /// 手書きの一言3行ぶん（px）。
+    /// 一言（キャプション）3行ぶん（px）。
     static let CAP_NOTE_PX: Double = 56
     /// 写真の無い語の札の高さ（px）。
     static let PLAIN_WORD_PX: Double = 32
