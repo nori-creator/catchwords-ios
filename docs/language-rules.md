@@ -4,9 +4,9 @@ CatchWords の画面には、3種類の言葉が同時に出る。
 
 | 種類 | 何か | 例 |
 |---|---|---|
-| **表示言語**（＝母語） | アプリの文字と、AI が書く解説の言語。ja / en / zh-TW | ボタン、意味、例文の訳、チャンクの訳、量詞の注記、日記の添削の解説 |
+| **表示言語**（＝母語） | アプリの文字と、AI が書く解説の言語。ja / en / zh-TW / es / ko / vi（一覧は `ios/Localization/languages.json` の1つだけ。足し方は [adding-a-display-language.md](adding-a-display-language.md)） | ボタン、意味、例文の訳、チャンクの訳、量詞の注記、日記の添削の解説 |
 | **学習言語** | 学んでいる言語。zh-TW / en / ja | 見出し語、読み、例文、チャンクの語、4択の選択肢 |
-| **固有の名前** | 言語に関係なく同じ表記 | CatchWords、YouTube、Weblio、言語の自称（日本語 / English / 繁體中文） |
+| **固有の名前** | 言語に関係なく同じ表記 | CatchWords、YouTube、Weblio、言語の自称（日本語 / English / 繁體中文 / Español / 한국어 / Tiếng Việt） |
 
 **決まりは1つだけ：** どの画面のどの文も「表示言語」か「学習言語」のどちらかで、その役目どおりの言語で出す。
 それ以外の言語の文は、**出さない（空にする）**。間違った言語で読ませるより、「まだ無い」と描くほうが正しい。
@@ -17,8 +17,8 @@ CatchWords の画面には、3種類の言葉が同時に出る。
 
 | 番号 | 規則 | 強制している場所 | 自動検査 |
 |---|---|---|---|
-| R1 | アプリが書く文はすべて `L(...)` を通す。英訳に**かな・漢字を入れない** | `Utilities/L10n.swift` | `scripts/check_l10n.py`（CI） |
-| R2 | 台湾華語訳に**かなを入れない** | 同上 | 同上 |
+| R1 | アプリが書く文はすべて `L(...)` を通し、**一覧のすべての表示言語の訳**を持つ。欧文の言語（英語・スペイン語・ベトナム語）の訳に**かな・漢字・ハングルを入れない** | `Utilities/L10n.swift` | `scripts/check_l10n.py`（CI） |
+| R2 | 台湾華語訳に**かな・ハングルを入れない**。韓国語訳に**かな・漢字を入れない** | 同上 | 同上 |
 | R3 | 訳が**元の文の写し**（訳していない）なら、どの言語でも出さない | `LanguageRules.looksWrong` | `ios/LanguageRules/cases.json`（CI） |
 | R4 | 日本語の読者：かなの無い漢字だけの長い文（≥5字）は中文、欧文だけの文は英語として出さない。短い意味（鉄板焼・故宮博物院）は漢字だけでも日本語 | 同上 | 同上 |
 | R5 | 台湾華語の読者：かなが文の大半を占めれば日本語、欧文だけの文は英語として出さない。中文の中で引用した1語のかなは残す | 同上 | 同上 |
@@ -38,6 +38,7 @@ CatchWords の画面には、3種類の言葉が同時に出る。
 | R19 | 読み上げは**その文の言語**の声で（かな→日本語、欧文→英語、漢字→学習言語） | `SoundService.language(of:)` | レビューで確認 |
 | R20 | 使い方の型（チャンク）には（チャンクの表示ルールの全体は [chunk-rules.md](chunk-rules.md)）**学ぶ語そのもの**（日本語・英語は活用形も可）を必ず入れる。「芒果」の型に「很+甜」だけを出さない。入っていない型は表示しない | `LanguageRules.mentionsHeadword`（答えの画面・単語の詳細）、Web `refineUsageChunks` と指示文 | `cases.json`（`mentionsHeadword`） |
 | R21 | 単語の画像を探す言葉は**読む人の意味の最初の語義**（括弧・〜を落とす）。見出し語（例: 腳踏車）で探すと通販の写真や字の画像が返る。意味が空なら見出し語 | `LanguageRules.heroSearchQuery`（`WebImages.search`）、Web `heroSearchQuery` | `cases.json`（`heroSearchQuery`） |
+| R22 | 判定は**読む人の言語の書く文字**ごと（かな / 漢字 / ハングル / 欧文）。欧文の言語どうしは文字では分からないので、**別の欧文の言語だとはっきり分かる文**（その言語だけの語・文字が2つ以上で、ほかの言語の2倍以上: "the … of" をスペイン語の読者に、đ ơ ư を英語の読者に）を出さない。手がかりの無い短い語（bus stop）は残す。韓国語の読者には、ハングルの無い文と、漢字・かながハングルの2倍より多い文を出さない。共有の語の意味は、同じ文字の別の言語の印（`explain_lang`）が付いていれば使わない | `LanguageRules.looksWrong` / `latinLanguage`、`ReaderLanguage.resolve`、Web `note-language.ts` / `meaning-language.ts` / `explain-languages.ts` | `cases.json`（`L-es-*` / `L-ko-*` / `L-vi-*` / `L-en-*`）、Web `explain-languages.test.ts` |
 
 判定の中身は `ios/CatchWords/Utilities/LanguageRules.swift` に1つだけ置く（Web版 `note-language.ts` の
 `looksWrongForReader` と同じ考え方）。**画面ごとに判定を書かない。**

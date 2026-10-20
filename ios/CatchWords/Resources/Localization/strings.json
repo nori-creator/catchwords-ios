@@ -8560,6 +8560,34 @@
   "ko": "상태를 바꾸지 못했어요",
   "vi": "Không đổi được trạng thái"
  },
+ "設定を変えたときの音": {
+  "en": "Sound when a setting changes",
+  "zh-TW": "變更設定時的音效",
+  "es": "Sonido al cambiar un ajuste",
+  "ko": "설정을 바꿀 때의 소리",
+  "vi": "Âm thanh khi đổi cài đặt"
+ },
+ "言語とレベルを選ぶホイール": {
+  "en": "Wheel for languages and levels",
+  "zh-TW": "選擇語言與等級的滾輪",
+  "es": "Rueda para elegir idioma y nivel",
+  "ko": "언어와 레벨을 고르는 휠",
+  "vi": "Vòng xoay chọn ngôn ngữ và trình độ"
+ },
+ "新しいホイール": {
+  "en": "New wheel",
+  "zh-TW": "新滾輪",
+  "es": "Rueda nueva",
+  "ko": "새 휠",
+  "vi": "Vòng xoay mới"
+ },
+ "iPhone標準": {
+  "en": "iPhone standard",
+  "zh-TW": "iPhone 標準",
+  "es": "Estándar de iPhone",
+  "ko": "iPhone 기본",
+  "vi": "Mặc định của iPhone"
+ },
  "スペイン語": {
   "en": "Spanish",
   "zh-TW": "西班牙文",
