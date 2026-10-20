@@ -170,12 +170,15 @@ struct SettingsView: View {
                 label(L("母語"))
                 wheelRow(ProfileStore.nativeOptions.first { $0.value == profile.nativeLanguage }?.label ?? L("日本語")) { openWheel(.native) }
                     .accessibilityIdentifier("settings.wheel.native")
-                label(L("学習言語")).padding(.top, 6)
-                // Only 繁體字（台灣） is offered for now (ProfileStore.offeredTargets): with nothing else to pick the row
-                // just names it; an account on a hidden language still opens the wheel to switch.
-                wheelRow(ProfileStore.targetLabel(profile.targetLanguage),
-                         interactive: ProfileStore.targetChoices(current: profile.targetLanguage).count > 1) { openWheel(.target) }
-                    .accessibilityIdentifier("settings.wheel.target")
+                // 学習言語 is hidden while 繁體字（台灣） is the only language offered (owner 2026-10-20: 「設定の学習言語の設定欄
+                // アプリから消して。ただいずれほかの言語にも対応させるためにコードは残しておいて」). It comes back by itself
+                // when ProfileStore.offeredTargets offers more, and for an account still on a hidden language (it must be
+                // able to switch away from it).
+                if ProfileStore.targetChoices(current: profile.targetLanguage).count > 1 {
+                    label(L("学習言語")).padding(.top, 6)
+                    wheelRow(ProfileStore.targetLabel(profile.targetLanguage)) { openWheel(.target) }
+                        .accessibilityIdentifier("settings.wheel.target")
+                }
                 label(L("今のレベル")).padding(.top, 6)
                 wheelRow(levels.first { $0.value == profile.currentLevel }?.label ?? profile.currentLevel) { openWheel(.current) }
                     .accessibilityIdentifier("settings.wheel.current")

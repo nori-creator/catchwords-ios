@@ -369,7 +369,10 @@ final class FullTourTests: XCTestCase {
         tap("tab.settings")
         settle(2)
         snap("settings")
-        for wheel in ["settings.wheel.native", "settings.wheel.target", "settings.wheel.current", "settings.wheel.goal"] {
+        // 学習言語 shows only for an account on a language no longer offered, which can switch away from it (owner
+        // 2026-10-20: the row is hidden while 繁體字（台灣） is the only choice).
+        let target = learning == "zh-TW" ? [] : ["settings.wheel.target"]
+        for wheel in ["settings.wheel.native"] + target + ["settings.wheel.current", "settings.wheel.goal"] {
             let row = app.buttons[wheel]
             guard row.waitForExistence(timeout: 4) else {
                 XCTFail("[\(display)/\(learning)] \(wheel) missing")
