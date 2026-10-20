@@ -370,8 +370,9 @@ final class FullTourTests: XCTestCase {
         settle(2)
         snap("settings")
         // 学習言語 shows only for an account on a language no longer offered, which can switch away from it (owner
-        // 2026-10-20: the row is hidden while 繁體字（台灣） is the only choice).
-        let target = learning == "zh-TW" ? [] : ["settings.wheel.target"]
+        // 2026-10-20: the row is hidden while 繁體字（台灣） is the only choice). With 中文 as the display language
+        // 繁體字（台灣） is no choice either (ProfileStore.targetChoices leaves out the display language).
+        let target = learning == "zh-TW" || display == "zh-TW" ? [] : ["settings.wheel.target"]
         for wheel in ["settings.wheel.native"] + target + ["settings.wheel.current", "settings.wheel.goal"] {
             let row = app.buttons[wheel]
             guard row.waitForExistence(timeout: 4) else {
