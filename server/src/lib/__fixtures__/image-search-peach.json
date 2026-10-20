@@ -1,0 +1,154 @@
+{
+  "_note": "桃（もも）の画像検索で返ってくる形の見本（オーナー報告 2026-10-09「桃の写真になぜか鳩の画像が出る」— 桃園市信鴿協會の貼り紙・少女の写真）。説明・URL は実際の出所の書き方に似せた作り物。",
+  "unsplash": {
+    "results": [
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/photo-peach-bowl?w=1080",
+          "small": "https://images.unsplash.com/photo-peach-bowl?w=400"
+        },
+        "user": { "name": "Fruit A", "links": { "html": "https://unsplash.com/@fa" } },
+        "alt_description": "fresh peaches in a bowl",
+        "description": null,
+        "tags": [{ "title": "peach" }, { "title": "fruit" }]
+      },
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/photo-peach-halves?w=1080",
+          "small": "https://images.unsplash.com/photo-peach-halves?w=400"
+        },
+        "user": { "name": "Fruit B", "links": { "html": "https://unsplash.com/@fb" } },
+        "alt_description": "ripe peach cut in half",
+        "description": null,
+        "tags": [{ "title": "food" }]
+      }
+    ]
+  },
+  "wikiLead": {
+    "query": { "pages": [{ "title": "桃", "pageimage": "Peach_fruit_on_branch.jpg" }] }
+  },
+  "wikiLeadInfo": {
+    "query": {
+      "pages": {
+        "1": {
+          "title": "File:Peach fruit on branch.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/a/aa/Peach_fruit_on_branch.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Peach_fruit_on_branch.jpg/960px-Peach_fruit_on_branch.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Peach_fruit_on_branch.jpg",
+              "extmetadata": {
+                "Artist": { "value": "Orchard C" },
+                "LicenseShortName": { "value": "CC BY-SA 4.0" },
+                "ImageDescription": { "value": "Peaches (Prunus persica) on the branch" },
+                "Categories": { "value": "Peaches|Prunus persica" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "commonsLearning": {
+    "query": {
+      "pages": {
+        "10": {
+          "title": "File:111年夏季桃園市信鴿協會 01.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/b/bb/Pigeon_poster_01.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Pigeon_poster_01.jpg/960px-Pigeon_poster_01.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Pigeon_poster_01.jpg",
+              "extmetadata": {
+                "Artist": { "value": "p-jing.com" },
+                "LicenseShortName": { "value": "CC BY-SA 4.0" },
+                "ImageDescription": { "value": "111年夏季 桃 園 市 信鴿協會 賽鴿" },
+                "Categories": { "value": "桃|Pigeon racing in Taiwan" }
+              }
+            }
+          ]
+        },
+        "11": {
+          "title": "File:拉拉山水蜜桃.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/c/cc/Lalashan_peach.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cc/Lalashan_peach.jpg/960px-Lalashan_peach.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Lalashan_peach.jpg",
+              "extmetadata": {
+                "Artist": { "value": "Orchard D" },
+                "LicenseShortName": { "value": "CC BY 4.0" },
+                "ImageDescription": { "value": "拉拉山的 水蜜桃" },
+                "Categories": { "value": "Peaches in Taiwan" }
+              }
+            }
+          ]
+        },
+        "12": {
+          "title": "File:桃園火車站.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/Taoyuan_station.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Taoyuan_station.jpg/960px-Taoyuan_station.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Taoyuan_station.jpg",
+              "extmetadata": {
+                "Artist": { "value": "Rail E" },
+                "LicenseShortName": { "value": "CC BY-SA 4.0" },
+                "ImageDescription": { "value": "桃園火車站" },
+                "Categories": { "value": "Taoyuan railway station" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "openverse": {
+    "results": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "title": "桃",
+        "url": "https://example.org/girl.jpg",
+        "thumbnail": "https://api.openverse.org/v1/images/11111111-1111-1111-1111-111111111111/thumb/",
+        "creator": "Photographer F",
+        "license": "by",
+        "license_version": "2.0",
+        "foreign_landing_url": "https://www.flickr.com/photos/f/1",
+        "tags": [{ "name": "portrait" }, { "name": "girl" }, { "name": "少女" }]
+      },
+      {
+        "id": "22222222-2222-2222-2222-222222222222",
+        "title": "111年夏季桃園市信鴿協會",
+        "url": "https://example.org/pigeon2.jpg",
+        "thumbnail": "https://api.openverse.org/v1/images/22222222-2222-2222-2222-222222222222/thumb/",
+        "creator": "p-jing.com",
+        "license": "by-sa",
+        "license_version": "4.0",
+        "foreign_landing_url": "https://www.p-jing.com/x",
+        "tags": [{ "name": "桃" }, { "name": "信鴿" }]
+      },
+      {
+        "id": "33333333-3333-3333-3333-333333333333",
+        "title": "桃",
+        "url": "https://example.org/pigeon3.jpg",
+        "thumbnail": "https://api.openverse.org/v1/images/33333333-3333-3333-3333-333333333333/thumb/",
+        "creator": "Bird G",
+        "license": "by",
+        "license_version": "2.0",
+        "foreign_landing_url": "https://www.flickr.com/photos/g/3",
+        "tags": [{ "name": "鴿子" }]
+      },
+      {
+        "id": "44444444-4444-4444-4444-444444444444",
+        "title": "桃子",
+        "url": "https://example.org/peach4.jpg",
+        "thumbnail": "https://api.openverse.org/v1/images/44444444-4444-4444-4444-444444444444/thumb/",
+        "creator": "Market H",
+        "license": "by",
+        "license_version": "2.0",
+        "foreign_landing_url": "https://www.flickr.com/photos/h/4",
+        "tags": [{ "name": "水果" }]
+      }
+    ]
+  }
+}

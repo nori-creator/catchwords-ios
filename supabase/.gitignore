@@ -1,0 +1,4 @@
+# Build output of server/build.mjs
+functions/native-fn/bundle.js
+.temp/
+.branches/

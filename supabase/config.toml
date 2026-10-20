@@ -1,0 +1,9 @@
+# The app's own Supabase project (catchwords, Tokyo). Used by the Supabase CLI in CI
+# (.github/workflows/server.yml) to deploy the Edge Function.
+project_id = "libwmvpoqvxfxbjgqnuj"
+
+[functions.native-fn]
+# The platform checks the caller's Supabase sign-in token before the function runs; the function then
+# checks it again per call (`requireSupabaseAuth`).
+verify_jwt = true
+entrypoint = "./functions/native-fn/index.ts"

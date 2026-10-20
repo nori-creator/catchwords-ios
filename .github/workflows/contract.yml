@@ -1,25 +1,17 @@
-# iOS 版と Web 版の「約束」の確認（scripts/check_native_contract.py）
+# iOS 版とサーバの「約束」の確認（scripts/check_native_contract.py）
 #
-# iOS 版が呼ぶサーバの関数（NativeAPI.call("…")）が、Web 版の「iOS から呼んでよい関数の名簿」
-# （src/lib/native-fn.ts の NATIVE_FNS）に載っていて、Web のコードにまだ在るかを確かめる。
-# Web 版で消したり名前を変えたりすると、iOS 版のボタンが黙って何もしなくなるので、赤にして知らせる。
+# iOS 版が呼ぶサーバの関数（NativeAPI.call("…")）が、このリポジトリのサーバ（server/src/lib/native-fn.ts の
+# NATIVE_FNS）に載っていて、コードにまだ在るかを確かめる。サーバで消したり名前を変えたりすると、iOS 版の
+# ボタンが黙って何もしなくなるので、赤にして知らせる。
 #
-# - iOS 版を変えた時（push / PR）
-# - 毎日 1 回（Web 版だけが変わった時に気づくため。失敗すると GitHub からメールが届く）
-# - 手で（Actions → このワークフロー → Run workflow。Web の別のブランチも指定できる）
-name: iOS ↔ Web contract（約束の確認）
+# サーバは 2026-10-20 から同じリポジトリ（server/ → Supabase の Edge Function）に在るので、
+# iOS 版とサーバのどちらを変えても、同じ push / PR で確かめられる。
+name: iOS ↔ server contract（約束の確認）
 
 on:
   push:
   pull_request:
-  schedule:
-    - cron: "17 0 * * *"   # 毎日 09:17（日本時間）
   workflow_dispatch:
-    inputs:
-      web_ref:
-        description: "確かめる Web 版のブランチ"
-        required: false
-        default: "main"
 
 jobs:
   contract:
@@ -27,5 +19,5 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: iOS 版が呼ぶ関数が Web 版に全部あるか
-        run: python3 scripts/check_native_contract.py --ref "${{ inputs.web_ref || 'main' }}"
+      - name: iOS 版が呼ぶ関数がサーバに全部あるか
+        run: python3 scripts/check_native_contract.py --web server
