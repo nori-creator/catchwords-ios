@@ -167,7 +167,9 @@ struct SettingsView: View {
         return SettingsCard(title: L("言語")) {
             VStack(alignment: .leading, spacing: 10) {
                 label(L("母語"))
-                wheelRow(ProfileStore.nativeOptions.first { $0.value == profile.nativeLanguage }?.label ?? L("日本語")) { openWheel(.native) }
+                // The display language itself (the screen's language), not the profile's copy: before the profile is read
+                // (offline) that copy is still its default, Japanese — 「日本語」 on a Spanish screen.
+                wheelRow(ProfileStore.nativeOptions.first { $0.value == L10n.lang }?.label ?? L10n.current.autonym) { openWheel(.native) }
                     .accessibilityIdentifier("settings.wheel.native")
                 label(L("学習言語")).padding(.top, 6)
                 // Only 繁體字（台灣） is offered for now (ProfileStore.offeredTargets): with nothing else to pick the row
@@ -784,7 +786,7 @@ struct WheelCard: View {
 
     private var initial: String {
         switch field {
-        case .native: profile.nativeLanguage
+        case .native: L10n.lang
         case .target: profile.targetLanguage
         case .current: profile.currentLevel
         case .goal: profile.levelGoal
