@@ -178,7 +178,8 @@ private struct DexSlotView: View {
     }
 
     private var noText: some View {
-        Text(L("No.\(slot.no.map { String(format: "%03d", $0) } ?? "---")"))
+        // "No." and "NEW" are common notation, the same on every display language (owner 2026-10-20).
+        Text(slot.no.map { "No.\(String(format: "%03d", $0))" } ?? "No.---")
             .font(.system(size: 9.5, weight: .bold))
             .tracking(0.38)
             .foregroundStyle(DexInk.no)
@@ -546,7 +547,7 @@ private struct DexNewBadge: View {
     @State private var shown = false
 
     var body: some View {
-        Text(L("初ゲット"))
+        Text(verbatim: "NEW")
             .font(.system(size: 9, weight: .heavy))
             .tracking(0.7)
             .foregroundStyle(.white)

@@ -28,8 +28,8 @@ final class ProfileStore {
 
     private let client = SupabaseClient.shared
 
-    /// Read each time (not stored): the label is in the display language, which can change while the app runs.
-    static var levelOptions: [(value: String, label: String)] { (1...6).map { ("TOCFL-\($0)", L("TOCFL \($0)級")) } }
+    /// "TOCFL Level n" is common notation, the same on every display language (owner 2026-10-20).
+    static let levelOptions: [(value: String, label: String)] = (1...6).map { ("TOCFL-\($0)", "TOCFL Level \($0)") }
     static let cefrOptions: [(value: String, label: String)] = ["A1", "A2", "B1", "B2", "C1", "C2"].map { ($0, "CEFR \($0)") }
     // Language names in their own language (an autonym never changes with the display language): every display
     // language in languages.json, in its order.

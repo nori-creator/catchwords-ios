@@ -41,6 +41,7 @@ CatchWords の画面には、3種類の言葉が同時に出る。
 | R22 | 判定は**読む人の言語の書く文字**ごと（かな / 漢字 / ハングル / 欧文）。欧文の言語どうしは文字では分からないので、**別の欧文の言語だとはっきり分かる文**（その言語だけの語・文字が2つ以上で、ほかの言語の2倍以上: "the … of" をスペイン語の読者に、đ ơ ư を英語の読者に）を出さない。手がかりの無い短い語（bus stop）は残す。韓国語の読者には、ハングルの無い文と、漢字・かながハングルの2倍より多い文を出さない。共有の語の行は、文字ではなく行の言語の印で選ぶ（R23） | `LanguageRules.looksWrong` / `latinLanguage`、`ReaderLanguage.resolve`、Web `note-language.ts` / `meaning-language.ts` / `explain-languages.ts` | `cases.json`（`L-es-*` / `L-ko-*` / `L-vi-*` / `L-en-*`）、Web `explain-languages.test.ts` |
 | R23 | **共有の語の行（意味・例文訳・解説）は、行の言語の印（`explain_lang`、印の無い古い行は日本語）の読者にだけ出す**。文字で選ばない（英語とスペイン語、日本語と中文の漢字だけの意味は文字で見分けられない）。別の言語の行の解説は、学ぶ言語の部分（チャンクの文・語形・漢字・量詞）だけ残し、説明の文をすべて空にする。サーバは、行の言語と同じ言語の人だけが空の所を埋め、何も無い行は最初の人の言語の行にして印を付ける | iOS `ReaderLanguage.resolve` / `sharedTextIsFor` / `learningOnly`、Web `shared-word-guard.ts`（`mayWriteSharedReaderText` / `claimSharedRowLanguage`）、`applyWordExtrasUpdate`・`fillSharedWordFromCard`・`runSectionRegen`・`reportAndFixSection`・`fillReaderMeanings` | Web `shared-word-guard.test.ts`（共有の行の言語）・`generated-cards.test.ts` |
 | R24 | **保存した場所の名前**は、保存した時の言語のまま。座標があれば表示言語で引き直し、無い・引けない時は、表示言語として読める名前だけ出す（読めなければ場所を出さない） | `LocationService.shownPlace` / `localizedName`、`LocalizedPlaceText` | `scripts/check_server_text.py`（`place` / `locationName`） |
+| R25 | **共通の表記は訳さない**: 試験・枠の名前（TOCFL・CEFR・JLPT と「TOCFL Level n」）、「NEW」、番号の「No.」は、どの表示言語でも同じ（オーナー 2026-10-20）。点検で「英語が出ている」と数えない | `ProfileStore.levelOptions`、`DexGallery`・`CatchStage` の札 | — |
 
 判定の中身は `ios/CatchWords/Utilities/LanguageRules.swift` に1つだけ置く（Web版 `note-language.ts` の
 `looksWrongForReader` と同じ考え方）。**画面ごとに判定を書かない。**
@@ -83,7 +84,7 @@ CatchWords の画面には、3種類の言葉が同時に出る。
 | IOS12 | 単語の詳細・図鑑 | スペイン語の読者に英語の意味、日本語の読者に中文の漢字だけの意味が出得た（本番 2026-10-20: 共有の行 312 のうち印の無い行 107、印と意味の言語が食い違う行 約10） | 共有の行を「文字が合えば使う」で選んでいた。サーバも、別の言語の人が空の列を埋めていた（印は変えずに） | R23 |
 | IOS13 | 再会の画面 | 共有の行の意味（作った人の言語）がそのまま出ていた | `checkOwnedWord` の意味を図鑑の解決を通さずに出していた | R23（図鑑の解決済みの意味を使う） |
 | IOS14 | 再会・写真の帯・通知 | 日本語の画面で保存した場所の名前が、スペイン語の画面に出ていた | 保存した名前をそのまま表示 | R24 |
-| IOS15 | 設定・新しいキャッチ・図鑑 | どの言語の画面にも「TOCFL Level 1」「NEW」 | 英語の札を訳さずに書いていた | R1（翻訳表へ） |
+| IOS15 | 設定・新しいキャッチ・図鑑 | 「TOCFL Level 1」「NEW」「No.001」がどの言語の画面にも出る | — | **混ざりではない**（オーナー 2026-10-20「TOCFLやnew, No.などはどの言語でも共通でいい。英語というより共通言語に近い」）。共通の表記として訳さない（R25） |
 | IOS16 | Google / Apple でログイン | 英語・スペイン語の人にも、つなぎの Web の画面が日本語で出ていた | 毎回まっさらなブラウザで、Web の言語の保存が無い | アプリが `lang` を渡す（Web `sanitizeNativeLang`） |
 
 ### Web 版の過去の事例
