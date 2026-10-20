@@ -18,6 +18,23 @@ nonisolated enum DevChoices {
         UserDefaults.standard.string(forKey: tabBarKey) == tabBarRaised ? tabBarRaised : tabBarDefault
     }
 
+    /// The sound of a choice made in 設定 (owner 2026-10-20: 「最適な音を複数提案して」), compared on the device from
+    /// 設定 › 開発者 › 開発者の試し. The one picked there plays for everyone on this device; "pick" until then.
+    static let settingsSoundKey = "dev.sfx.settings"
+    @MainActor static let settingsSoundChoices: [(value: String, sfx: SFX, label: String)] = [
+        ("pick", .c6PickTick3, "A"), ("pop", .ccPop, "B"), ("choose", .c6Choose, "C"), ("tick", .ccTick, "D"),
+    ]
+    @MainActor static var settingsSound: String {
+        let v = UserDefaults.standard.string(forKey: settingsSoundKey) ?? "pick"
+        return settingsSoundChoices.contains { $0.value == v } ? v : "pick"
+    }
+    @MainActor static var settingsSoundSFX: SFX {
+        settingsSoundChoices.first { $0.value == settingsSound }?.sfx ?? .c6PickTick3
+    }
+
+    /// The simulator previews (`-uiPreview tabbar-b`) draw a developer's choice without an account behind them.
+    nonisolated(unsafe) static var previewing = false
+
     /// Once per launch, before anything is drawn: the retired trial keys go (a stored "b" from the old trial never
     /// brings the raised disc back on its own).
     static func migrate() {

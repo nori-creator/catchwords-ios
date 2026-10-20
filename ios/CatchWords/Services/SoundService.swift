@@ -225,16 +225,38 @@ final class SoundService {
         /// A word passing the reading line of the Collection map's timeline while scrolling: the bubble tick (owner
         /// 2026-10-16: the Settings pick tick 3, not the map-scroll one).
         case timeline
+        /// A row of a 設定 wheel crossing its centre line (owner 2026-10-20: the system wheel's click came late and the
+        /// first scroll was silent; the app's own wheel ticks with the same pick tick 3).
+        case wheel
     }
 
     /// The small tick for `kind`, on the same rules as every SFX — the sound level (控えめ / しっかり / オフ) scales it.
-    /// A tick restarts the one before it (a fast scroll never piles them up). The Settings choices and wheels play no
-    /// sound of the app's own (owner 2026-10-16: the wheel's own click is the only one, never two at once).
+    /// Played by the tick engine (`TickEngine`): it starts at once, every time, however fast they come.
     func tick(_ kind: Tick) {
         switch kind {
-        case .timeline: play(.c6PickTick3)
+        case .timeline: ticks.play(.c6PickTick3, volume: SFX.c6PickTick3.gain * levelMultiplier)
+        case .wheel: ticks.play(.c6PickTick3, volume: SFX.c6PickTick3.gain * levelMultiplier)
         }
     }
+
+    /// A choice made in 設定 (a pill, a switch): the sound picked in 設定 › 開発者の試し (`DevChoices.settingsSound`),
+    /// a little softer when a switch is turned off. Owner 2026-10-20: 「設定のボタンを押して、またはスライドして設定を
+    /// 変更したときに効果音が鳴るようにして」.
+    func settingChanged(on: Bool = true) {
+        let sfx = DevChoices.settingsSoundSFX
+        ticks.play(sfx, volume: sfx.gain * levelMultiplier * (on ? 1 : 0.75))
+    }
+
+    /// A card of the slide dex reaching the middle (web `el-gallery-slide`, gain 0.8): from the tick engine, which
+    /// starts it at once — the restarted player answered late and could stall a frame of the swipe.
+    func slide() {
+        ticks.play(.slide, volume: SFX.slide.gain * 0.8 * levelMultiplier)
+    }
+
+    /// Readies the tick engine before a wheel or a timeline can tick (its first tick must not be lost).
+    func warmTicks() { ticks.warm() }
+
+    private let ticks = TickEngine(sounds: [.c6PickTick3, .slide] + DevChoices.settingsSoundChoices.map(\.sfx))
 
     func startAnalyzeLoop() {
         let level = levelMultiplier
@@ -444,5 +466,76 @@ final class SoundService {
                 return lhs.identifier < rhs.identifier
             }
         return voices.first ?? AVSpeechSynthesisVoice(language: lang)
+    }
+}
+
+
+/// Short UI sounds that can come many times a second (a wheel's rows, the map's timeline, a 設定 choice): an audio engine
+/// kept running with each sound already decoded, and a few voices per sound so quick ticks overlap instead of cutting
+/// each other off. An `AVAudioPlayer` restarted for every tick (stop, rewind, play) started late and unevenly, and the
+/// first one after a while could be lost.
+final class TickEngine {
+    private let engine = AVAudioEngine()
+    private let sounds: [SFX]
+    private var voices: [SFX: [AVAudioPlayerNode]] = [:]
+    private var buffers: [SFX: AVAudioPCMBuffer] = [:]
+    private var next: [SFX: Int] = [:]
+    private var built = false
+
+    init(sounds: [SFX]) {
+        var seen = Set<SFX>()
+        self.sounds = sounds.filter { seen.insert($0).inserted }
+    }
+
+    /// Pauses the engine after a few quiet seconds (a running engine keeps the audio hardware awake); `warm` starts it
+    /// again.
+    private var idle: Task<Void, Never>?
+
+    /// Decodes the sounds and starts the engine (once; again after an interruption or a quiet spell stopped it).
+    func warm() {
+        idle?.cancel()
+        idle = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled else { return }
+            self?.engine.pause()
+        }
+        if !built {
+            built = true
+            for sfx in sounds {
+                guard let url = Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension),
+                      let file = try? AVAudioFile(forReading: url) else { continue }
+                // The same trim as the players (`SFX.offset`): the sound starts that far in.
+                let skip = AVAudioFramePosition(sfx.offset * file.processingFormat.sampleRate)
+                if skip > 0, skip < file.length { file.framePosition = skip }
+                let frames = AVAudioFrameCount(file.length - file.framePosition)
+                guard frames > 0,
+                      let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames),
+                      (try? file.read(into: buffer)) != nil else { continue }
+                buffers[sfx] = buffer
+                voices[sfx] = (0..<3).map { _ in
+                    let node = AVAudioPlayerNode()
+                    engine.attach(node)
+                    engine.connect(node, to: engine.mainMixerNode, format: buffer.format)
+                    return node
+                }
+            }
+            engine.prepare()
+        }
+        guard !engine.isRunning else { return }
+        try? engine.start()
+    }
+
+    /// `volume` already carries the sound level; 0 plays nothing.
+    func play(_ sfx: SFX, volume: Float) {
+        guard volume > 0 else { return }
+        warm()
+        guard engine.isRunning, let buffer = buffers[sfx], let nodes = voices[sfx], !nodes.isEmpty else { return }
+        let i = (next[sfx] ?? 0) % nodes.count
+        next[sfx] = i + 1
+        let node = nodes[i]
+        node.stop()
+        node.volume = min(1, volume)
+        node.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+        node.play()
     }
 }

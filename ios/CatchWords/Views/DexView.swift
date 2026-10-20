@@ -137,13 +137,11 @@ struct DexView: View {
         }
     }
 
-    /// The header's counts held back during a catch's landing (film v6: they roll one after another after the impact).
-    private var headerLag: (words: Int, shadows: Int) {
-        guard let l = router.landing, !l.alreadyCaught, l.ticks < 3 else { return (0, 0) }
+    /// The header's count held back during a catch's landing (film v6: it rolls after the impact).
+    private var headerLag: Int {
+        guard let l = router.landing, !l.alreadyCaught, l.ticks < 2 else { return 0 }
         let others = dex.stickers.filter { $0.id != l.stickerId }
-        let words = l.ticks < 2 ? DexBook.words(dex.stickers, lang: lang).count - DexBook.words(others, lang: lang).count : 0
-        let shadows = DexBook.baseCaught(dex.stickers, lang: lang) - DexBook.baseCaught(others, lang: lang)
-        return (max(0, words), max(0, shadows))
+        return max(0, DexBook.words(dex.stickers, lang: lang).count - DexBook.words(others, lang: lang).count)
     }
 
     /// The landing slot with the sticker's anticipation and hit times (film v6: its silhouette tints blue).
@@ -234,10 +232,9 @@ struct DexView: View {
                         .scaledFont(size: 24, weight: .black)
                         .foregroundStyle(Theme.foreground)
                     // N枚 counts words (one per headword, like the prototype's S.dex), not stickers. During a catch's
-                    // landing both numbers still show the dex before it until they roll (film v6: 枚 at impact + .42,
-                    // 影 at + .5).
-                    let lag = headerLag
-                    Text(L("\(DexBook.words(dex.stickers, lang: lang).count - lag.words)枚・影 \(DexBook.baseCaught(dex.stickers, lang: lang) - lag.shadows) / 100"))
+                    // landing it still shows the dex before it until it rolls (film v6: impact + .42). No 影 count any
+                    // more (owner 2026-10-20: 「図鑑の影の数字は消して」).
+                    Text(L("\(DexBook.words(dex.stickers, lang: lang).count - headerLag)枚"))
                         .scaledFont(size: 12, weight: .semibold)
                         .foregroundStyle(Theme.muted)
                         .contentTransition(.numericText())
@@ -452,7 +449,7 @@ struct DexView: View {
             case .cover:
                 DexCoverFlow(stickers: filtered.map(\.forCards)) { router.detailSticker = dex.sticker(id: $0.id) ?? $0 }
                     .padding(.top, headerHeight)
-            case .map: DexMapView(stickers: filtered) { router.detailSticker = $0 }
+            case .map: DexMapView(stickers: filtered, topCover: headerHeight) { router.detailSticker = $0 }
             case .grid: gallery
             case .list: list
             }
@@ -723,17 +720,19 @@ struct DexThumb: View {
     var inset: CGFloat = 4
     var preferThumb: Bool = true
     var cornerRadius: CGFloat = 0
+    /// Drawn this small at most (points): a copy decoded at that size (`StickerImage.maxPoints`); nil: the picture.
+    var maxPoints: CGFloat? = nil
 
     var body: some View {
         // The same picture the dex grid shows (a file the storage lacks is skipped).
         let pic = dex.dexPicture(of: sticker)
         let path = pic?.path
         if pic?.isCutout == true {
-            StickerImage(path: path, url: dex.url(for: path, preferThumb: preferThumb), contentMode: .fit)
+            StickerImage(path: path, url: dex.url(for: path, preferThumb: preferThumb), contentMode: .fit, maxPoints: maxPoints)
                 .padding(inset)
         } else {
             Color.clear
-                .overlay { StickerImage(path: path, url: dex.url(for: path, preferThumb: preferThumb), contentMode: .fill) }
+                .overlay { StickerImage(path: path, url: dex.url(for: path, preferThumb: preferThumb), contentMode: .fill, maxPoints: maxPoints) }
                 .clipShape(.rect(cornerRadius: cornerRadius, style: .continuous))
         }
     }
@@ -844,10 +843,17 @@ struct DexMapView: View {
     @Environment(DexStore.self) private var dex
     @Environment(\.appReduceMotion) private var reduceMotion
     let stickers: [Sticker]
+    /// How much of the map's top the dex header covers.
+    var topCover: CGFloat = 0
     let onOpen: (Sticker) -> Void
 
     @State private var day: Date?
     @State private var selectedId: String?
+    /// The map's frame and the top of the panel / day bar / tab bar stacked over its bottom, in the window: the pins
+    /// are framed in the part of the map left uncovered (owner 2026-10-20: the word read in the timeline sat under the
+    /// panel). Written only when they move by more than a point or two (no layout ever waits on them).
+    @State private var mapFrame: CGRect = .zero
+    @State private var coverTop: CGFloat = 0
     @State private var panelOpen: Bool = true
     @State private var position: MapCameraPosition = .automatic
     @State private var showDatePicker: Bool = false
@@ -916,6 +922,9 @@ struct DexMapView: View {
             .mapStyle(.standard(elevation: .flat, pointsOfInterest: .all))
             .onMapCameraChange(frequency: .onEnd) { ctx in visibleRegion = ctx.region }
             .ignoresSafeArea(edges: .bottom)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { f in
+                if abs(f.height - mapFrame.height) > 2 || abs(f.minY - mapFrame.minY) > 2 { mapFrame = f }
+            }
 
             VStack(spacing: 10) {
                 if located.isEmpty && !dayItems.isEmpty {
@@ -928,9 +937,21 @@ struct DexMapView: View {
                 dayBar
             }
             .padding(.horizontal, 16)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { y in
+                if abs(y - coverTop) > 2 { coverTop = y }
+            }
             .padding(.bottom, 84)
         }
+        .onChange(of: coverTop) { old, new in
+            // The panel opened, closed or changed height: the word being read stays in sight.
+            guard abs(new - old) > 20, let s = dayItems.first(where: { $0.id == selectedId }) else { return }
+            focusOn(s)
+        }
         .onAppear {
+            // The rows laid out under the reading line as the map opens are not the user's scroll: no tick then — the
+            // tap that opened the map has already ponned (owner 2026-10-20: two sounds at once on the map icon).
+            quietUntil = Date().addingTimeInterval(0.8)
+            SoundService.shared.warmTicks()
             if day == nil { day = days.first }
             focus()
         }
@@ -967,8 +988,19 @@ struct DexMapView: View {
         }
     }
 
-    /// DexDayMap frame(): fit only the stops within 3 km of the anchor, so a Taipei-morning /
-    /// Tamsui-evening day stays a close-up map; farther stops are reached through the timeline.
+    /// The share of the map's height covered at the top (the dex header) and at the bottom (the timeline panel, the day
+    /// bar and the tab bar). Before the first layout: about what they are on an iPhone.
+    private var covered: (top: Double, bottom: Double) {
+        guard mapFrame.height > 100, coverTop > 0 else { return (0.22, 0.45) }
+        let h = Double(mapFrame.height)
+        let top = Double(max(0, topCover)) / h
+        let bottom = Double(max(0, mapFrame.maxY - coverTop + 8)) / h
+        return (min(0.45, top), min(0.6, bottom))
+    }
+
+    /// DexDayMap frame(): fit the stops within 3 km of the anchor — all of the day's when they are that close, else
+    /// the anchor's part of the day only (a Taipei-morning / Tamsui-evening day stays a close-up map; farther stops are
+    /// reached through the timeline) — into the part of the map the header and the panel leave uncovered.
     private func focus(anchor: Sticker? = nil) {
         let located = dayItems.compactMap { s -> CLLocationCoordinate2D? in
             guard let la = s.lat, let lo = s.lng else { return nil }
@@ -981,26 +1013,37 @@ struct DexMapView: View {
         guard let a else { return }
         let origin = CLLocation(latitude: a.latitude, longitude: a.longitude)
         let pts = located.filter { origin.distance(from: CLLocation(latitude: $0.latitude, longitude: $0.longitude)) <= 3000 }
-        guard let first = pts.first else { return }
+        guard !pts.isEmpty else { return }
         let lats = pts.map(\.latitude), lngs = pts.map(\.longitude)
-        let center = CLLocationCoordinate2D(latitude: ((lats.min() ?? 0) + (lats.max() ?? 0)) / 2 - 0.002,
-                                            longitude: ((lngs.min() ?? 0) + (lngs.max() ?? 0)) / 2)
-        let span = pts.count == 1
-            ? MKCoordinateSpan(latitudeDelta: 0.007, longitudeDelta: 0.007)
-            : MKCoordinateSpan(latitudeDelta: max(0.005, ((lats.max() ?? 0) - (lats.min() ?? 0)) * 2.4),
-                               longitudeDelta: max(0.005, ((lngs.max() ?? 0) - (lngs.min() ?? 0)) * 2.4))
+        let (minLat, maxLat) = (lats.min() ?? a.latitude, lats.max() ?? a.latitude)
+        let (minLng, maxLng) = (lngs.min() ?? a.longitude, lngs.max() ?? a.longitude)
+        let cover = covered
+        let band = max(0.25, 1 - cover.top - cover.bottom)
+        // The pins' own extent with room for the pin drawings (a risen pin is ~90 pt tall), at least a few streets.
+        let latSpan = max(0.004, (maxLat - minLat) * 1.5) / band
+        let lngSpan = max(0.004, (maxLng - minLng) * 1.4)
+        // The middle of the uncovered band sits `shift` of the map's height below the map's middle (above it when the
+        // bottom is covered more; screen y grows down, latitude up), so the map's centre is that much further north of
+        // the pins' middle: a negative shift puts the centre south of them and the pins above the panel.
+        let shift = (cover.top - cover.bottom) / 2
+        let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2 + shift * latSpan,
+                                            longitude: (minLng + maxLng) / 2)
         withAnimation(.easeInOut(duration: 0.6)) {
-            position = .region(MKCoordinateRegion(center: pts.count == 1 ? CLLocationCoordinate2D(latitude: first.latitude - 0.002, longitude: first.longitude) : center, span: span))
+            position = .region(MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lngSpan)))
         }
     }
 
-    /// Already on screen (clear of the top filters and bottom panel) → don't move; otherwise re-frame near it.
+    /// Already in sight (inside the part of the map the header and the panel leave uncovered) → don't move; otherwise
+    /// frame the day around it.
     private func focusOn(_ s: Sticker) {
         guard let la = s.lat, let lo = s.lng else { return }
         if let r = visibleRegion {
-            let top = r.center.latitude + r.span.latitudeDelta * 0.32
-            let bottom = r.center.latitude - r.span.latitudeDelta * 0.05
-            let half = r.span.longitudeDelta * 0.4
+            let cover = covered
+            let northEdge = r.center.latitude + r.span.latitudeDelta / 2
+            // A pin stands on its point and rises above it: keep its point a little under the header's edge.
+            let top = northEdge - r.span.latitudeDelta * (cover.top + 0.08)
+            let bottom = northEdge - r.span.latitudeDelta * (1 - cover.bottom - 0.02)
+            let half = r.span.longitudeDelta * 0.42
             if la <= top, la >= bottom, abs(lo - r.center.longitude) <= half { return }
         }
         focus(anchor: s)

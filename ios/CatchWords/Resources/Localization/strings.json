@@ -4890,5 +4890,9 @@
  "状態を変えられませんでした": {
   "en": "Couldn’t change the status",
   "zh-TW": "無法變更狀態"
+ },
+ "設定を変えたときの音": {
+  "en": "Sound when a setting changes",
+  "zh-TW": "變更設定時的音效"
  }
 }

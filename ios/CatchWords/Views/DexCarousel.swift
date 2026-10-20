@@ -88,10 +88,11 @@ struct DexCoverFlow: View {
             let now = CACurrentMediaTime()
             guard now - lastSlideSound >= 0.07 else { return }
             lastSlideSound = now
-            SoundService.shared.play(.slide, volume: 0.8)
+            SoundService.shared.slide()
             Haptics.selection()
         }
         .onAppear {
+            SoundService.shared.warmTicks()
             muteSlideSound = initialIndex > 0
             spring.set(Double(max(0, min(stickers.count - 1, initialIndex))))
         }
@@ -134,7 +135,7 @@ struct DexCoverFlow: View {
                         ForEach(Array(stickers.enumerated()), id: \.element.id) { i, s in
                             Button { bring(i) } label: {
                                 Color.black.opacity(0.05).frame(width: 48, height: 48)
-                                    .overlay { DexThumb(sticker: s, inset: 3).allowsHitTesting(false) }
+                                    .overlay { DexThumb(sticker: s, inset: 3, maxPoints: 48).allowsHitTesting(false) }
                                     .clipShape(.rect(cornerRadius: 12))
                                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(i == center ? Theme.primary : .clear, lineWidth: 2))
                                     .opacity(i == center ? 1 : 0.6)
@@ -364,29 +365,59 @@ private struct CarouselCard: View {
         CarouselCardFace(sticker: sticker, width: width)
             .clipShape(.rect(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color(red: 40 / 255, green: 80 / 255, blue: 140 / 255).opacity(0.1), lineWidth: 1))
-            // One flattened layer, so the two shadows are cast once from the card outline rather than from
-            // every text and image inside it on every frame.
-            .compositingGroup()
-            .shadow(color: Color(red: 40 / 255, green: 70 / 255, blue: 120 / 255).opacity(0.08), radius: 3, y: 2)
-            .shadow(color: Color(red: 40 / 255, green: 70 / 255, blue: 120 / 255).opacity(0.3), radius: 16, y: 18)
+            // The two shadows as one picture drawn once (`CardShadow`), not cast from the card on every frame: a shadow
+            // under a 3D turn was worked out again, off screen, for every card at every frame of a swipe (owner
+            // 2026-10-20: 「図鑑のスライドがなめらかじゃない」).
+            .background { CardShadow.image.resizable(capInsets: CardShadow.insets).padding(-CardShadow.pad) }
             .background(alignment: .top) {
                 if mirror { reflection }
             }
     }
 
-    /// The card upside down under itself, faint at its feet and gone within the ring's reflection band.
+    /// The card's feet on the floor: what the faint upside-down copy showed within the reflection band was the white
+    /// of the card's bottom edge (its date line upside down at 22% was all but invisible), so a white glow that fades
+    /// out within the band takes its place — a second whole card face for every card cost as much as the card.
     private var reflection: some View {
-        CarouselCardFace(sticker: sticker, width: width)
-            .clipShape(.rect(cornerRadius: 14, style: .continuous))
-            .scaleEffect(x: 1, y: -1)
-            .mask(LinearGradient(stops: [.init(color: .black, location: 0),
-                                         .init(color: .clear, location: DexCoverFlow.reflectionFade)],
-                                 startPoint: .top, endPoint: .bottom))
-            .opacity(0.22)
+        UnevenRoundedRectangle(topLeadingRadius: 14, topTrailingRadius: 14, style: .continuous)
+            .fill(LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0)], startPoint: .top, endPoint: .bottom))
+            .frame(width: width, height: width * 1.48 * DexCoverFlow.reflectionFade)
             .offset(y: width * 1.48 + 3)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
+}
+
+/// The card's two shadows (0.08 at radius 3, 2 pt down; 0.3 at radius 16, 18 pt down) drawn once into a stretchable
+/// picture: its corners and edges are kept and its middle stretched to any card size, so a card in motion is a plain
+/// picture behind a plain picture.
+enum CardShadow {
+    static let pad: CGFloat = 48
+    private static let corner: CGFloat = 14
+    static var insets: EdgeInsets {
+        let c = pad + corner + 4
+        return EdgeInsets(top: c, leading: c, bottom: c + 20, trailing: c)
+    }
+
+    static let image: Image = {
+        let inner = CGSize(width: 120, height: 160)
+        let size = CGSize(width: inner.width + pad * 2, height: inner.height + pad * 2)
+        let ink = UIColor(red: 40 / 255, green: 70 / 255, blue: 120 / 255, alpha: 1)
+        let picture = UIGraphicsImageRenderer(size: size).image { r in
+            let cg = r.cgContext
+            let card = UIBezierPath(roundedRect: CGRect(x: pad, y: pad, width: inner.width, height: inner.height),
+                                    cornerRadius: corner).cgPath
+            // SwiftUI's shadow radius is about half of Core Graphics' blur.
+            for (alpha, radius, y) in [(0.3, 16.0, 18.0), (0.08, 3.0, 2.0)] {
+                cg.saveGState()
+                cg.setShadow(offset: CGSize(width: 0, height: y), blur: radius * 2, color: ink.withAlphaComponent(alpha).cgColor)
+                cg.addPath(card)
+                cg.setFillColor(UIColor.white.cgColor)
+                cg.fillPath()
+                cg.restoreGState()
+            }
+        }
+        return Image(uiImage: picture)
+    }()
 }
 
 /// The card's printed face. Its inputs (the sticker and the width) don't change while the ring turns, so
@@ -501,14 +532,16 @@ struct DexGalleryBackdrop: View {
                             .position(x: geo.size.width * sp.0 / 100, y: geo.size.height * sp.1 / 100)
                     }
                 } else {
+                    // One Canvas drawn 30 times a second: twelve glows as gradients. Twelve views with two shadows
+                    // each were twenty-four off-screen passes per frame under the turning cards.
                     TimelineView(.animation(minimumInterval: 1 / 30)) { tl in
                         let t = tl.date.timeIntervalSinceReferenceDate
-                        ZStack {
-                            ForEach(Self.sparks.indices, id: \.self) { k in
-                                let sp = Self.sparks[k]
+                        Canvas { ctx, size in
+                            for sp in Self.sparks {
                                 let phase = Self.twinkle(((t - sp.2) / 4.2).truncatingRemainder(dividingBy: 1))
-                                Spark(alpha: 0.95 * phase, dy: 4 - 7 * phase)
-                                    .position(x: geo.size.width * sp.0 / 100, y: geo.size.height * sp.1 / 100)
+                                Self.drawSpark(in: &ctx, at: CGPoint(x: size.width * sp.0 / 100,
+                                                                     y: size.height * sp.1 / 100 + 4 - 7 * phase),
+                                               alpha: 0.95 * phase)
                             }
                         }
                     }
@@ -518,6 +551,18 @@ struct DexGalleryBackdrop: View {
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// A spark as the shadows drew it: a blue haze (radius 8), a white glow (radius 4) and the 3 pt dot.
+    private static func drawSpark(in ctx: inout GraphicsContext, at p: CGPoint, alpha: Double) {
+        guard alpha > 0.01 else { return }
+        let haze = Path(ellipseIn: CGRect(x: p.x - 10, y: p.y - 10, width: 20, height: 20))
+        ctx.fill(haze, with: .radialGradient(Gradient(colors: [Color(red: 120 / 255, green: 170 / 255, blue: 1).opacity(0.35 * alpha), .clear]),
+                                             center: p, startRadius: 0, endRadius: 10))
+        let glow = Path(ellipseIn: CGRect(x: p.x - 6, y: p.y - 6, width: 12, height: 12))
+        ctx.fill(glow, with: .radialGradient(Gradient(colors: [.white.opacity(0.9 * alpha), .clear]),
+                                             center: p, startRadius: 0, endRadius: 6))
+        ctx.fill(Path(ellipseIn: CGRect(x: p.x - 1.5, y: p.y - 1.5, width: 3, height: 3)), with: .color(.white.opacity(alpha)))
     }
 
     /// 0 → 1 at 45% of the 4.2s cycle → 0 (ease-in-out), like the web's `dex-cf-spark` keyframes.

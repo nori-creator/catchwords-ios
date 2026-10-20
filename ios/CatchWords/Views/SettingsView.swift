@@ -77,7 +77,10 @@ struct SettingsView: View {
                     .zIndex(3)
             }
         }
-        .onAppear { nameDraft = profile.displayName }
+        .onAppear {
+            nameDraft = profile.displayName
+            SoundService.shared.warmTicks()   // a choice's sound must not be lost the first time
+        }
         .task {
             // Reminders that are on (set at sign-in from the account, or before) while the iPhone's own
             // setting refuses them: say so, instead of a setting that silently never notifies.
@@ -275,8 +278,10 @@ struct SettingsView: View {
         SettingsCard(title: L("音と手ざわり")) {
             VStack(alignment: .leading, spacing: 10) {
                 label(L("効果音"))
+                // Its own preview (the land bounce) is its sound: no choice tick on top of it.
                 ChoicePills(
                     options: [("off", L("オフ")), ("subtle", L("控えめ")), ("full", L("しっかり"))],
+                    sounds: false,
                     selection: Binding(get: { soundLevel }, set: { v in
                         soundLevel = v
                         if v != "off" { SoundService.shared.play(.landBounce) }
@@ -319,7 +324,7 @@ struct SettingsView: View {
     @AppStorage(DevChoices.tabBarKey) private var tabBarVariant: String = DevChoices.tabBarDefault
 
     /// 開発者の試し (owner 2026-10-15): the camera tab's look to compare on the device — the original one, shipped, or
-    /// B, kept for a later release (owner 2026-10-16). The sounds are decided (owner 2026-10-16): no choice here.
+    /// B, kept for a later release (owner 2026-10-16) — and the sound of a 設定 choice, A–D (owner 2026-10-20).
     private var developerTrials: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(L("開発者の試し（端末で比べて選ぶ）")).scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
@@ -328,8 +333,18 @@ struct SettingsView: View {
                         selection: Binding(get: { tabBarVariant == DevChoices.tabBarRaised ? DevChoices.tabBarRaised : DevChoices.tabBarDefault },
                                            set: { tabBarVariant = $0 }))
                 .accessibilityIdentifier("settings.dev.tabbar")
+            label(L("設定を変えたときの音"))
+            ChoicePills(options: DevChoices.settingsSoundChoices.map { (value: $0.value, label: $0.label) },
+                        sounds: false,
+                        selection: Binding(get: { settingsSound }, set: { v in
+                            settingsSound = v
+                            SoundService.shared.settingChanged()   // heard at once, to compare
+                        }))
+                .accessibilityIdentifier("settings.dev.settingsSound")
         }
     }
+
+    @AppStorage(DevChoices.settingsSoundKey) private var settingsSound: String = "pick"
 
     private func devRow(icon: String, title: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -666,6 +681,8 @@ struct SettingsCard<Content: View>: View {
 /// ChoiceRow: equal-width pills; the selected one is a glowing blue capsule that slides between them.
 struct ChoicePills: View {
     let options: [(value: String, label: String)]
+    /// A choice plays the 設定 choice sound (`SoundService.settingChanged`), owner 2026-10-20.
+    var sounds: Bool = true
     @Binding var selection: String
     @Namespace private var ns
     @Environment(\.appReduceMotion) private var reduceMotion
@@ -677,6 +694,7 @@ struct ChoicePills: View {
                 Button {
                     guard !on else { return }
                     Haptics.selection()
+                    if sounds { SoundService.shared.settingChanged() }
                     withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.72)) { selection = o.value }
                 } label: {
                     Text(o.label)
@@ -712,7 +730,11 @@ struct SettingsToggle: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        Toggle(isOn: Binding(get: { isOn }, set: { v in Haptics.selection(); isOn = v })) {
+        Toggle(isOn: Binding(get: { isOn }, set: { v in
+            Haptics.selection()
+            SoundService.shared.settingChanged(on: v)
+            isOn = v
+        })) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).scaledFont(size: 17, weight: .semibold).foregroundStyle(Theme.foreground)
                 if let detail {
@@ -801,13 +823,9 @@ struct WheelCard: View {
                     }
                     .accessibilityLabel(L("閉じる"))
                 }
-                // The system wheel: its own click as each row crosses the centre line is the only sound (owner
-                // 2026-10-16: one カチカチ per row, never two layered — the app's own tick on top of it is gone).
-                Picker(field.title, selection: $value) {
-                    ForEach(options, id: \.value) { o in Text(o.label).tag(o.value) }
-                }
-                .pickerStyle(.wheel)
-                .frame(height: 150)
+                // The app's own wheel (`TickWheel`): one tick per row as it crosses the centre line, from the first
+                // scroll on. The system wheel's click came late and its first scroll was silent (owner 2026-10-20).
+                TickWheel(title: field.title, options: options, selection: $value)
                 Button(action: close) {
                     Text(L("閉じる")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 52)
@@ -876,6 +894,97 @@ struct WheelCard: View {
         case .goal:
             profile.levelGoal = v
             Task { if await profile.update(["level_goal": v]) { SaveStatus.shared.saved() } }
+        }
+    }
+}
+
+
+/// A wheel of choices that ticks as each row crosses its centre line (`SoundService.tick(.wheel)` and a selection tap),
+/// from the very first scroll: the system wheel's own click could not be made to come on time (owner 2026-10-20:
+/// 「カチカチとなる効果音が滑らかにならない…はじめにスクロールしたときに音が鳴らない」). The rows snap to the centre;
+/// VoiceOver and UI tests see a standard wheel picker (`accessibilityRepresentation`).
+struct TickWheel: View {
+    let title: String
+    let options: [(value: String, label: String)]
+    @Binding var selection: String
+
+    static let rowHeight: CGFloat = 34
+    static let visibleRows: CGFloat = 5
+    private var height: CGFloat { Self.rowHeight * Self.visibleRows }
+    private static let space = "tick.wheel"
+
+    @State private var position: String?
+    /// The row on the centre line now (ticks when it changes).
+    @State private var centred: String?
+    /// The first layout puts the chosen row on the centre line by itself: no tick for that.
+    @State private var quietUntil: Date = .distantFuture
+    @State private var feedback = UISelectionFeedbackGenerator()
+
+    var body: some View {
+        let h = height
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(spacing: 0) {
+                ForEach(options, id: \.value) { o in
+                    Text(o.label)
+                        .font(.system(size: 21, weight: o.value == selection ? .semibold : .regular))
+                        .foregroundStyle(Theme.foreground)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, minHeight: Self.rowHeight, maxHeight: Self.rowHeight)
+                        .contentShape(Rectangle())
+                        .onTapGesture { withAnimation(.snappy(duration: 0.25)) { position = o.value } }
+                        .scrollTransition(axis: .vertical) { content, phase in
+                            content
+                                .opacity(1 - min(1, abs(phase.value)) * 0.65)
+                                .scaleEffect(1 - min(1, abs(phase.value)) * 0.1)
+                        }
+                        .onGeometryChange(for: Bool.self) { geo in
+                            abs(geo.frame(in: .named(Self.space)).midY - h / 2) < Self.rowHeight / 2
+                        } action: { onLine in
+                            if onLine { reached(o.value) }
+                        }
+                        .id(o.value)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .coordinateSpace(.named(Self.space))
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(id: $position, anchor: .center)
+        .contentMargins(.vertical, (h - Self.rowHeight) / 2, for: .scrollContent)
+        .background {
+            // The centre band, like the system wheel's.
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Theme.secondary)
+                .frame(height: Self.rowHeight)
+        }
+        .frame(height: h)
+        .clipped()
+        .onChange(of: position) { _, v in if let v, v != selection { selection = v } }
+        // Set from outside (VoiceOver, a UI test adjusting the wheel): the rows follow.
+        .onChange(of: selection) { _, v in if position != v { position = v } }
+        .onAppear {
+            centred = selection
+            position = selection
+            feedback.prepare()
+            SoundService.shared.warmTicks()
+            quietUntil = Date().addingTimeInterval(0.35)
+        }
+        .accessibilityRepresentation {
+            Picker(title, selection: $selection) {
+                ForEach(options, id: \.value) { o in Text(o.label).tag(o.value) }
+            }
+            .pickerStyle(.wheel)
+        }
+    }
+
+    private func reached(_ value: String) {
+        guard value != centred else { return }
+        centred = value
+        guard Date() >= quietUntil else { return }
+        SoundService.shared.tick(.wheel)
+        if Haptics.isEnabled {
+            feedback.selectionChanged()
+            feedback.prepare()
         }
     }
 }
