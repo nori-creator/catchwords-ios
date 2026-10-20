@@ -3,6 +3,8 @@
 # iOS 版が呼ぶサーバの関数（NativeAPI.call("…")）が、このリポジトリのサーバ（server/src/lib/native-fn.ts の
 # NATIVE_FNS）に載っていて、コードにまだ在るかを確かめる。サーバで消したり名前を変えたりすると、iOS 版の
 # ボタンが黙って何もしなくなるので、赤にして知らせる。
+# あわせて、iOS の表示言語（ios/Localization/languages.json）が全部、サーバが解説を書ける言語
+# （server/src/lib/explain-languages.ts）に同じ順で入っているかも確かめる。
 #
 # サーバは 2026-10-20 から同じリポジトリ（server/ → Supabase の Edge Function）に在るので、
 # iOS 版とサーバのどちらを変えても、同じ push / PR で確かめられる。

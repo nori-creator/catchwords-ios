@@ -145,10 +145,15 @@ struct HomeView: View {
                 memorialOpen = nil
             }
         }
-        .task(id: profile.createdAt) {
+        // Again when the display language changes: the scheduled notification carries its text.
+        .task(id: "\(profile.createdAt?.timeIntervalSince1970 ?? 0)|\(LanguageState.shared.lang)") {
             if let start = profile.createdAt { await Milestone.scheduleNotification(start: start) }
         }
-        .sheet(isPresented: $calendarOpen) {
+        .sheet(isPresented: $calendarOpen, onDismiss: {
+            // Closed (×, a swipe down, a day picked): the same pon back as a word's page closing (owner 2026-10-20). A
+            // word opened from it pons open instead.
+            if router.detailSticker == nil { SoundService.shared.pon(open: false) }
+        }) {
             NavigationStack {
                 ScrollView {
                     DexCalendarView(stickers: AlbumDay.onePerWord(dex.albumStickers), selectedDay: $calendarDay, onOpen: { s in

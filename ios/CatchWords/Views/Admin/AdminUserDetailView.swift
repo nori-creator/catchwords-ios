@@ -133,7 +133,9 @@ struct AdminUserDetailView: View {
     private func usageSection(_ u: JSONValue) -> some View {
         let sessions = u["sessions"] ?? .null
         let hours = u.list("hours").enumerated().map { AdminBar(label: "\($0.offset)", value: $0.element.double ?? 0) }
-        let weekdayNames = [L("月"), L("火"), L("水"), L("木"), L("金"), L("土"), L("日")]
+        // Monday first, in the display language (the calendar's own short names: 月 火 … / M T …).
+        let sundayFirst = JPDate.veryShortWeekdays
+        let weekdayNames = sundayFirst.count == 7 ? Array(sundayFirst[1...] + sundayFirst[..<1]) : Array(repeating: "", count: 7)
         let weekdays = u.list("weekdays").enumerated().map {
             AdminBar(label: weekdayNames[min($0.offset, 6)], value: $0.element.double ?? 0)
         }

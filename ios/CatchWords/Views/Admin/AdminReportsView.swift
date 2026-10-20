@@ -41,7 +41,7 @@ struct AdminReportsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { Button(L("閉じる")) { dismiss() } }
         }
-        .alert(L("状態を変えられませんでした"), isPresented: $failed) { Button("OK", role: .cancel) {} }
+        .alert(L("状態を変えられませんでした"), isPresented: $failed) { Button(L("閉じる"), role: .cancel) {} }
         .refreshable { await load() }
         .task(id: showAll) { await load() }
     }

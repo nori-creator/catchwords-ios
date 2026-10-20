@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import CoreText
 
 /// Design tokens ported from the web app's `styles.css` (light `:root` and dark `.dark`
 /// "Deep Ocean", oklch → sRGB). Surface and text tokens follow the light/dark setting; the
@@ -86,18 +85,18 @@ enum JPDate {
     static func monthDay(_ date: Date) -> String { fmt("MMMd").string(from: date) }
     /// 2026年9月28日 18:17 · Sep 28, 2026, 18:17
     static func full(_ d: Date) -> String { fmt("yMMMdHHmm").string(from: d) }
-    /// 09/28
-    static func mmdd(_ d: Date) -> String { fmt("MM/dd", fixed: true).string(from: d) }
+    /// 09/28 · 28/09 (the language's day/month order — es and vi read 10/3 as 10 March)
+    static func mmdd(_ d: Date) -> String { fmt("MMdd").string(from: d) }
     /// 水曜日 · Wednesday
     static func weekday(_ d: Date) -> String { fmt("EEEE").string(from: d) }
     /// 9月28日(月) · Mon, Sep 28
     static func monthDayWeek(_ d: Date) -> String { fmt("MMMdE").string(from: d) }
     /// 2025年9月28日(日) · Sun, Sep 28, 2025
     static func yearMonthDayWeek(_ d: Date) -> String { fmt("yMMMdE").string(from: d) }
-    /// 9/28
-    static func slash(_ d: Date) -> String { fmt("M/d", fixed: true).string(from: d) }
-    /// 15:36
-    static func time(_ d: Date) -> String { fmt("HH:mm", fixed: true).string(from: d) }
+    /// 9/28 · 28/9 (the language's day/month order)
+    static func slash(_ d: Date) -> String { fmt("Md").string(from: d) }
+    /// 15:36 · 3:36 PM (the language's clock, as in the time pickers)
+    static func time(_ d: Date) -> String { fmt("jmm").string(from: d) }
     /// 2026年 · 2026
     static func year(_ d: Date) -> String { fmt("y").string(from: d) }
     /// 9月 · September (stand-alone month name)
@@ -113,41 +112,11 @@ enum JPDate {
     static var veryShortWeekdays: [String] { fmt("EEEEE").veryShortWeekdaySymbols ?? [] }
 }
 
-/// Bundled fonts: Zen Kurenaido (handwritten Japanese captions), Caveat (handwritten Latin) and Iansui
-/// cut down to the welcome screen's words (Taiwan's standard glyph shapes; Resources/Fonts/Iansui-OFL.txt).
+/// The app's fonts: the system font everywhere (owner 2026-10-20: 「アプリから手書き風のものは完全に消して、すべての言語対応
+/// できるようにして」 — the bundled handwriting fonts had no Hangul and no Vietnamese ơ ư ạ, so a line could mix two
+/// fonts). Text uses `.scaledFont(size:weight:)`; this keeps the one monospaced style.
 enum AppFont {
-    static func registerAll() {
-        for name in ["ZenKurenaido-Regular", "Caveat", "IansuiWelcome-Regular"] {
-            guard let url = Bundle.main.url(forResource: name, withExtension: "ttf") else { continue }
-            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
-        }
-    }
-
-    /// Follows Dynamic Type like the nearest text style (`fixed: true` inside fixed-size frames).
-    static func hand(_ size: CGFloat, fixed: Bool = false) -> Font {
-        resolve(["ZenKurenaido-Regular", "Zen Kurenaido"], size, relativeTo: fixed ? nil : AppTypeScale.fontTextStyle(for: size))
-            ?? .system(size: size, design: .rounded)
-    }
-
-    /// The welcome screen's pen for Taiwanese Mandarin words (芫荽 / Iansui; only 海邊 花 貓 咖啡 湖 are in it).
-    static func welcomePen(_ size: CGFloat) -> Font {
-        resolve(["IansuiWelcome-Regular", "Iansui Welcome"], size, relativeTo: nil) ?? .system(size: size)
-    }
-
-    /// Handwritten Latin (Caveat), at a fixed size.
-    static func caveat(_ size: CGFloat) -> Font {
-        resolve(["Caveat-Regular", "Caveat"], size, relativeTo: nil) ?? .system(size: size, design: .rounded)
-    }
-
     static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .monospaced)
-    }
-
-    private static func resolve(_ names: [String], _ size: CGFloat, relativeTo style: Font.TextStyle?) -> Font? {
-        for name in names where UIFont(name: name, size: size) != nil {
-            if let style { return .custom(name, size: size, relativeTo: style) }
-            return .custom(name, fixedSize: size)
-        }
-        return nil
     }
 }

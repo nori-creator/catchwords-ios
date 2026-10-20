@@ -47,6 +47,8 @@ final class AIService {
         guard let jpeg = await ImageTools.jpegForUploadInBackground(image, maxSide: 768, quality: 0.8) else {
             throw APIError.message(L("写真を読み込めませんでした。"))
         }
+        // The server writes the candidates in the account's saved display language: the screen's first.
+        await ProfileStore.syncLanguageToServer()
         let res = try await NativeAPI.call("suggestWords", [
             "imageBase64": "data:image/jpeg;base64,\(jpeg.base64EncodedString())",
             "targetLanguage": NativeAPI.targetLanguage,
@@ -88,6 +90,7 @@ final class AIService {
     func candidates(for query: String, scene: String? = nil) async throws -> [Candidate] {
         var data: [String: Any] = ["query": String(query.prefix(60)), "targetLanguage": NativeAPI.targetLanguage]
         if let scene, !scene.isEmpty { data["scene"] = String(scene.prefix(200)) }
+        await ProfileStore.syncLanguageToServer()
         let res = try await NativeAPI.call("suggestWordCandidates", data, as: WordCandidates.self, timeout: 30)
         return res.candidates
     }
@@ -105,6 +108,7 @@ final class AIService {
     func cardDetails(for candidate: Candidate) async throws -> CardDetails {
         var data: [String: Any] = ["headword": candidate.headword, "targetLanguage": NativeAPI.targetLanguage]
         if let hint = candidate.categoryKey, !hint.isEmpty { data["hintCategory"] = hint }
+        await ProfileStore.syncLanguageToServer()
         return try await NativeAPI.call("generateCard", data, as: CardDetails.self, timeout: 60)
     }
 }

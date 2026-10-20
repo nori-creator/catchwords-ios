@@ -17,8 +17,7 @@ struct OnboardingView: View {
     @State private var step: Int = 0
     @State private var forward: Bool = true
     @State private var uiLanguage: String = L10n.lang
-    /// Never the display language itself (a zh-TW device starts on English while the step is shown).
-    @State private var targetLanguage: String = OnboardingView.showsTargetStep && L10n.lang == "zh-TW" ? "en" : OnboardingView.fixedTarget
+    @State private var targetLanguage: String = OnboardingView.fixedTarget
     @State private var minutes: Int = 10
     @State private var goals: Set<String> = []
     @State private var interests: Set<String> = []
@@ -45,10 +44,11 @@ struct OnboardingView: View {
         ("nature", L("自然")), ("city", L("建物・街")), ("fashion", L("ファッション")),
         ("business", L("ビジネス")), ("music", L("音楽・映画")), ("sports", L("スポーツ")),
     ] }
-    // label = in the display language, native = the language's own name (never translated).
-    static var uiLanguages: [(id: String, label: String, native: String, flag: String)] { [
-        ("ja", L("日本語"), "日本語", "🇯🇵"), ("en", L("英語"), "English", "🇺🇸"), ("zh-TW", L("繁体字中国語"), "繁體中文", "🇹🇼"),  // l10n-ignore (autonyms)
-    ] }
+    // label = in the display language, native = the language's own name (never translated). Every display language
+    // in languages.json, in its order.
+    static var uiLanguages: [(id: String, label: String, native: String, flag: String)] {
+        DisplayLanguages.all.map { ($0.code, L10n.text($0.nameJa), $0.autonym, $0.flag) }
+    }
     static var targets: [(id: String, label: String, native: String, flag: String)] { [
         ("zh-TW", L("繁體字（台灣）"), "繁體字（台灣）", "🇹🇼"), ("en", L("英語"), "English", "🇺🇸"), ("ja", L("日本語"), "日本語", "🇯🇵")  // l10n-ignore (autonyms)
     ] }
@@ -65,17 +65,21 @@ struct OnboardingView: View {
     /// Every screen the progress bar counts: the questions, the reminders and the ready screen.
     static var totalSteps: Int { questionSteps.count + 2 }
 
-    /// The display languages offered: never the learning language itself.
+    /// The display languages offered: all of them, the learning language too (owner 2026-10-20: 繁體字（台灣） as the
+    /// display language while learning it — explanations are then written in Mandarin).
     static var uiChoices: [(id: String, label: String, native: String, flag: String)] {
-        showsTargetStep ? uiLanguages : uiLanguages.filter { $0.id != fixedTarget }
+        uiLanguages
     }
 
     /// The learning languages offered (only 繁體字（台灣） for now: `ProfileStore.offeredTargets`), never the display
     /// language itself. Someone whose display language is the only offered one still gets a choice (the hidden
     /// ones) instead of an empty step.
+    /// The offered learning languages, the display language left out when another one is offered (owner 2026-10-20:
+    /// 繁體字（台灣） may be the display language while it is the only language to learn).
     static func targetChoices(ui: String) -> [(id: String, label: String, native: String, flag: String)] {
-        let offered = targets.filter { ProfileStore.offeredTargets.contains($0.id) && $0.id != ui }
-        return offered.isEmpty ? targets.filter { $0.id != ui } : offered
+        let offered = targets.filter { ProfileStore.offeredTargets.contains($0.id) }
+        let others = offered.filter { $0.id != ui }
+        return others.isEmpty ? offered : others
     }
 
     var body: some View {
@@ -97,14 +101,6 @@ struct OnboardingView: View {
         .animation(.spring(response: 0.45, dampingFraction: 0.88), value: stage)
         .animation(.spring(response: 0.45, dampingFraction: 0.88), value: step)
         .sheet(isPresented: $showMenu) { menu.presentationDetents([.large]) }
-        .onAppear {
-            // A phone set to the learning language itself (繁體中文) starts the guide in English: the display
-            // language is never the one being learned, and only that one is learned for now.
-            if !Self.showsTargetStep, uiLanguage == Self.fixedTarget {
-                uiLanguage = "en"
-                L10n.set("en")
-            }
-        }
     }
 
     // MARK: - Intro
@@ -122,7 +118,7 @@ struct OnboardingView: View {
                 .padding(.horizontal, 24)
             Spacer(minLength: 12)
             Text(L("見つけたものが、\nあなたのことばになる。"))
-                .font(AppFont.hand(24))
+                .scaledFont(size: 24)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Color(hex: 0x33291F))
                 .padding(.bottom, 24)
@@ -300,7 +296,7 @@ struct OnboardingView: View {
                 .rotationEffect(.degrees(-3))
                 .shadow(color: .black.opacity(0.15), radius: 18, y: 10)
             Text(L("最初の発見は、もうすぐ。"))
-                .font(AppFont.hand(18)).foregroundStyle(Theme.muted).padding(.top, 18)
+                .scaledFont(size: 18).foregroundStyle(Theme.muted).padding(.top, 18)
             Text(L("準備ができました！"))
                 .scaledFont(size: 30, weight: .heavy).padding(.top, 26)
             Text(L("まずはアプリを見て回って、\n気になるものをひとつ撮ってみましょう。"))
@@ -612,7 +608,7 @@ struct OnboardingPrint: View {
                 }
                 .clipped()
             Text(label)
-                .font(AppFont.hand(15))
+                .scaledFont(size: 15)
                 .foregroundStyle(Color(hex: 0x33291F))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)

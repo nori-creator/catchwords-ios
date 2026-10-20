@@ -118,7 +118,7 @@ enum ReminderService {
         for (i, p) in plan(mode: mode, times: times, due: due, opens: opens(), now: Date()).enumerated() {
             let content = UNMutableNotificationContent()
             content.title = "CatchWords"
-            content.body = switch p.reason {
+            content.body = switch p.reason {  // lang-ok: the app's own enum, each case an L() string
             case .srs: L("思い出しどきの単語がたまっています。今なら記憶に残りやすい時間です")
             case .habit: L("いつもの時間です。1枚だけでも思い出してみよう")
             case .custom: L("今日の復習が待っています。1枚だけでも思い出してみよう")
@@ -177,7 +177,7 @@ enum ReminderService {
             region.notifyOnExit = false
             let content = UNMutableNotificationContent()
             content.title = L("ここで覚えた単語")
-            content.body = L("\(s.locationName ?? L("この場所"))で「\(head)」をキャッチしました。覚えていますか？")
+            content.body = L("\(LocationService.shownPlace(s.locationName) ?? L("この場所"))で「\(head)」をキャッチしました。覚えていますか？")
             content.sound = .default
             let trigger = UNLocationNotificationTrigger(region: region, repeats: false)
             try? await center.add(UNNotificationRequest(identifier: region.identifier, content: content, trigger: trigger))

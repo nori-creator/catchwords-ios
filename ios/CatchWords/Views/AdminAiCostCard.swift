@@ -388,8 +388,10 @@ struct AdminAiCostCard: View {
     }
 
     private static func localized(_ texts: [String: String], fallback: String) -> String {
-        if let t = texts[L10n.lang], !t.isEmpty { return t }
-        if let t = texts["ja"], !t.isEmpty { return t }
+        // A language the server has no name in reads the neutral fallback (English), as everywhere else (L10n.text).
+        for code in [L10n.lang, DisplayLanguages.fallback, DisplayLanguages.source] {
+            if let t = texts[code], !t.isEmpty { return t }
+        }
         return fallback
     }
 

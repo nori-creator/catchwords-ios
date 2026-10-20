@@ -362,7 +362,8 @@ private struct CollagePiece: View {
                     .overlay(alignment: .bottom) {
                         // The tag hangs across the photo's lower edge, into the strip kept under it (CAP_ROW_PX).
                         if !word.isEmpty {
-                            WordTag(text: word, tilt: Self.tagTilt(sticker.id))
+                            WordTag(text: word, zhuyin: sticker.word?.readingZhuyin, pinyin: sticker.word?.pinyin,
+                                    tilt: Self.tagTilt(sticker.id))
                                 .offset(x: Self.tagShift(sticker.id) * size.w, y: WordTag.height / 2)
                         }
                     }
@@ -370,7 +371,7 @@ private struct CollagePiece: View {
                 Group {
                     if let c = sticker.caption, !c.isEmpty {
                         Text(c)
-                            .font(AppFont.hand(15, fixed: true))
+                            .font(.system(size: 15))
                             .foregroundStyle(Color(hex: 0x33291F).opacity(0.85))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
@@ -381,7 +382,8 @@ private struct CollagePiece: View {
             }
         } else {
             // A word looked up from text (no photo): its tag alone.
-            WordTag(text: word, tilt: Self.tagTilt(sticker.id), size: 22)
+            WordTag(text: word, zhuyin: sticker.word?.readingZhuyin, pinyin: sticker.word?.pinyin,
+                    tilt: Self.tagTilt(sticker.id), size: 22)
                 .frame(width: size.w, height: max(size.h, 44))
         }
     }
@@ -434,19 +436,23 @@ private struct CollagePiece: View {
 /// The word on a beige paper tag (the welcome mock's label: 咖啡 / 植物 under the stickers).
 struct WordTag: View {
     let text: String
+    /// The word's reading, drawn the way the rest of the app draws it (`ZhuyinWordView`: zhuyin beside each character,
+    /// or pinyin above it per 設定 › 発音表記; kana for Japanese; none for English) — owner 2026-10-20.
+    var zhuyin: String? = nil
+    var pinyin: String? = nil
     var tilt: Double = 0
     var size: CGFloat = 15
 
     /// The tag's height at the default size (the album keeps half of it under the photo).
     static let height: CGFloat = 28
 
+    private static let ink = Color(hex: 0x4A3A28)
+
     var body: some View {
-        Text(text)
-            .font(.system(size: size, weight: .bold))
-            .foregroundStyle(Color(hex: 0x4A3A28))
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
+        ZhuyinWordView(headword: text, zhuyin: zhuyin, size: size, weight: .bold, color: Self.ink,
+                       readingColor: Self.ink.opacity(0.75), pinyin: pinyin)
             .padding(.horizontal, 12)
+            .padding(.vertical, 2)
             .frame(minHeight: Self.height * size / 15)
             .background(Color(hex: 0xF6E4C8), in: .rect(cornerRadius: 3, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).stroke(Color(hex: 0xE6CFA8), lineWidth: 0.5))

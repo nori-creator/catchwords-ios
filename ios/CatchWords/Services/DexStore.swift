@@ -917,7 +917,7 @@ final class DexStore {
             exampleTranslation: card.exampleTranslation, caption: draft.caption, placeName: draft.placeName,
             lat: draft.location?.coordinate.latitude, lng: draft.location?.coordinate.longitude, captureType: draft.captureType,
             takenAt: sticker(id: provisional)?.takenAt ?? Date(), hasCutout: draft.cutout != nil, hasSelfie: draft.selfie != nil,
-            uploads: landed.map { SavedUploads($0) }
+            uploads: landed.map { SavedUploads($0) }, readerLang: L10n.lang
         )
         PendingQueue.shared.markUnsaved(id: id, save: pending, cutout: draft.cutout, selfie: draft.selfie, reason: reason)
         unsaved[provisional] = id
@@ -946,7 +946,8 @@ final class DexStore {
                 id: ps.provisionalId, wordId: "", objectImageUrl: obj, cutoutImageUrl: cut, selfieImageUrl: selfie,
                 caption: caption.isEmpty ? nil : caption, locationName: ps.placeName, takenAt: ps.takenAt,
                 captureType: ps.captureType,
-                word: Self.localWord(Self.wordFields(ps.candidate, ps.details), id: "", language: ps.language),
+                word: Self.localWord(Self.wordFields(ps.candidate, ps.details, readerLang: ps.readerLang ?? L10n.lang), id: "",
+                                     language: ps.language),
                 lat: ps.lat, lng: ps.lng
             )
             stickers.insert(entry, at: 0)
@@ -1028,7 +1029,7 @@ final class DexStore {
     }
 
     /// The `words` fields `saveSticker` gets for a catch.
-    private static func wordFields(_ c: Candidate, _ card: CardDetails) -> [String: Any] {
+    private static func wordFields(_ c: Candidate, _ card: CardDetails, readerLang: String = L10n.lang) -> [String: Any] {
         let raw = card.raw
         func text(_ key: String, _ fallback: String) -> String {
             let v = raw?[key]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1045,7 +1046,13 @@ final class DexStore {
             "example_sentence": text("example_sentence", card.exampleSentence),
             "example_translation": text("example_translation", card.exampleTranslation),
         ]
-        if let extras = raw?["extras"], case .object = extras { word["extras"] = extras.foundation }
+        // The meaning and notes are this reader's (the candidate's and the card's are written in the display language):
+        // marked so (`explain_lang`), the shared row's rule (`ReaderLanguage.sharedTextIsFor`) shows them to this reader
+        // while the word is shown from these fields, and a server without its receipts stores the right mark.
+        var extras: [String: Any] = [:]
+        if let e = raw?["extras"], case .object = e, let obj = e.foundation as? [String: Any] { extras = obj }
+        if ((extras["explain_lang"] as? String) ?? "").isEmpty { extras["explain_lang"] = readerLang }
+        word["extras"] = extras
         // The word's exam level is not used on iOS (owner 2026-10-03). The server's own value from `generateCard`
         // is handed back untouched when there is one: without it saveSticker would store its default "TOCFL-2"
         // (stickers.functions.ts SaveStickerInput), which is wrong for English and Japanese words.
@@ -1080,7 +1087,12 @@ final class DexStore {
         var w = fields
         w["id"] = id
         w["language"] = language ?? NativeAPI.targetLanguage
+        // The headword stands in for a missing meaning only in what is sent (`wordFields`): never shown as the meaning.
+        if (w["meaning_ja"] as? String) == (w["headword"] as? String) { w["meaning_ja"] = "" }
+        // Shown through the same reader-language rule as the server's words (a 保存待ち word caught in another
+        // display language shows only its learning-language parts).
         return (try? JSONSerialization.data(withJSONObject: w)).flatMap { try? JSONDecoder().decode(Word.self, from: $0) }
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
     }
 
     private func fetchSticker(id: String) async throws -> Sticker {
@@ -1126,11 +1138,11 @@ final class DexStore {
         readerMeanings = [:]
         stickers = stickers.map(applyReader)
         let ids = Array(Set(stickers.map(\.wordId)))
-        Task { await loadReaderMeanings(ids) }
+        Task { await loadReaderMeanings(ids, afterLanguageSwitch: true) }
     }
 
     /// web `getReaderMeanings`: the meanings written in the reader's language, 200 words at a time.
-    private func loadReaderMeanings(_ ids: [String]) async {
+    private func loadReaderMeanings(_ ids: [String], afterLanguageSwitch: Bool = false) async {
         let lang = L10n.lang
         var i = 0
         while i < ids.count {
@@ -1144,6 +1156,10 @@ final class DexStore {
         guard lang == L10n.lang else { return }
         stickers = stickers.map(applyReader)
         scheduleSnapshot()
+        // The widget was redrawn right after a language switch, before these meanings came: again with them (else the
+        // word of the day has no meaning until the next foreground). Only then — at launch the widget is written once
+        // the dex is read, and a second write would load its pictures while the dex shows its first ones.
+        if afterLanguageSwitch { WidgetBridge.refresh(dex: self) }
     }
 
     /// Words whose explanation is being written for this reader right now (the detail page shows
@@ -1163,8 +1179,9 @@ final class DexStore {
         if let p = r.picked { explanations[wordId] = p } else { explanations.removeValue(forKey: wordId) }
         stickers = stickers.map { $0.wordId == wordId ? applyReader($0) : $0 }
         if r.unavailable == true { return }
+        await ProfileStore.syncLanguageToServer()
         // Writing a new explanation uses the AI (`generateCard`): only with the AI consent.
-        guard AIConsent.shared.isGranted, ReaderLanguage.needsGeneration(r.picked, lang: lang, l1: l1),
+        guard AIConsent.shared.isGranted, ReaderLanguage.serverWritesIn(lang), ReaderLanguage.needsGeneration(r.picked, lang: lang, l1: l1),
               let shared = sharedWords[wordId], !generatingWords.contains(wordId) else { return }
         generatingWords.insert(wordId)
         Task {
@@ -1689,6 +1706,9 @@ final class DexStore {
     func fillSection(wordId: String, section: String, onlyIfEmpty: Bool) async -> Bool {
         // 発音のコツ・覚え方・語源・部首 are no longer on the word page, and the server stops writing them (owner 2026-10-15).
         guard !Self.retiredSections.contains(section) else { return false }
+        // Written in the server's language of this account: not before the screen's language has reached it.
+        await ProfileStore.syncLanguageToServer()
+        guard ReaderLanguage.serverWritesIn(L10n.lang) else { return false }
         struct Res: Decodable { let ok: Bool?; let filled: Bool? }
         let r = try? await NativeAPI.call("regenerateCardSection", [
             "word_id": wordId, "section": section, "only_if_empty": onlyIfEmpty,

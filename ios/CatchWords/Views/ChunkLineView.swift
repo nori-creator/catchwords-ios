@@ -195,13 +195,16 @@ struct ChunkLineView: View {
             .padding(.horizontal, (big ? 12 : 10) * scale)
             .padding(.vertical, reading == nil && side == nil ? 0 : 4)
             .frame(minHeight: big ? 48 : 34)
-            .background(kind.ink.opacity(isHead ? 0.15 : swappable ? 0.04 : 0.08), in: .rect(cornerRadius: big ? 12 : 10, style: .continuous))
+            // The word itself is its text and reading only, in its colour — no box (owner 2026-10-20: 「該当の単語は枠で
+            // 囲わず、文字と発音記号だけにして」); the other parts keep theirs.
+            .background(kind.ink.opacity(isHead ? 0 : swappable ? 0.04 : 0.08), in: .rect(cornerRadius: big ? 12 : 10, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: big ? 12 : 10, style: .continuous)
-                    .stroke(kind.ink.opacity(isHead ? 0.78 : swappable ? 0.6 : 0.35),
-                            style: StrokeStyle(lineWidth: isHead ? (big ? 2.5 : 2) : 1.5, dash: swappable ? [4, 3] : []))
+                if !isHead {
+                    RoundedRectangle(cornerRadius: big ? 12 : 10, style: .continuous)
+                        .stroke(kind.ink.opacity(swappable ? 0.6 : 0.35),
+                                style: StrokeStyle(lineWidth: 1.5, dash: swappable ? [4, 3] : []))
+                }
             }
-            .shadow(color: kind.ink.opacity(isHead ? 0.18 : 0), radius: 6, y: 2)
             .frame(minHeight: 44)
             .contentShape(.rect)
         }

@@ -93,7 +93,7 @@ struct EncounterHistoryView: View {
             if let d = SupabaseDate.parse(p.takenAt) {
                 Text(JPDate.full(d)).scaledFont(size: 11, monospacedDigit: true).foregroundStyle(Theme.muted)
             }
-            if let place = p.place, !place.isEmpty {
+            if let place = LocationService.shownPlace(p.place) {
                 Label(place, systemImage: "mappin").scaledFont(size: 11).foregroundStyle(Theme.muted).lineLimit(1)
             }
         }

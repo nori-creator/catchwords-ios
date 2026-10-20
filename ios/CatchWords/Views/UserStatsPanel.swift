@@ -62,11 +62,11 @@ struct UserStatsPanel: View {
             }
 
             HStack(spacing: 0) {
-                figure(stats?.capturedTotal, L("集めた単語"), unit: L("語"))
+                figure(stats?.capturedTotal, L("集めた単語"), unit: L10n.unit(L("語"), count: stats?.capturedTotal))
                 Divider().frame(height: 34)
-                figure(stats?.reviewsDoneToday, L("今日の復習"), unit: L("回"))
+                figure(stats?.reviewsDoneToday, L("今日の復習"), unit: L10n.unit(L("回"), count: stats?.reviewsDoneToday))
                 Divider().frame(height: 34)
-                figure(stats?.reviewsDue, L("復習待ち"), unit: L("語"))
+                figure(stats?.reviewsDue, L("復習待ち"), unit: L10n.unit(L("語"), count: stats?.reviewsDue))
             }
             .padding(.vertical, 12)
             .background(Theme.card, in: .rect(cornerRadius: 18, style: .continuous))
@@ -153,7 +153,7 @@ struct UserStatsPanel: View {
                     .scaledFont(size: 34, weight: .heavy, monospacedDigit: true)
                     .foregroundStyle(Theme.foreground)
                     .contentTransition(.numericText())
-                Text(L("日")).scaledFont(size: 14, weight: .semibold).foregroundStyle(Theme.muted)
+                Text(L10n.unit(L("日"), count: value)).scaledFont(size: 14, weight: .semibold).foregroundStyle(Theme.muted)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

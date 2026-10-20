@@ -178,6 +178,7 @@ private struct DexSlotView: View {
     }
 
     private var noText: some View {
+        // "No." and "NEW" are common notation, the same on every display language (owner 2026-10-20).
         Text(slot.no.map { "No.\(String(format: "%03d", $0))" } ?? "No.---")
             .font(.system(size: 9.5, weight: .bold))
             .tracking(0.38)
@@ -404,11 +405,36 @@ struct DexSilhouette: View {
     /// else the SF Symbol. The first open of the 図鑑 drew them all on the main thread while the system's symbol files
     /// were still being read from the disk (50 s on the UI tour's cold simulator, 2026-10-16); read once here, they are
     /// in the file cache by then.
+    ///
+    /// The symbols are kept as pictures and drawn from those: SwiftUI's own `Image(systemName:)` looked each one up
+    /// in the symbol catalog again on the main thread (DexOpenTests 2026-10-20: 17 s of the first open's 27 s stall
+    /// in that lookup on the iPhone simulator, after this warm-up had read them through UIKit).
     nonisolated static func warmUp() {
         for item in DexCatalog.allItems {
             if UIImage(named: "dexsil-\(item.id)") != nil { continue }
-            if let sf = item.symbol { _ = UIImage(systemName: sf + ".fill") ?? UIImage(systemName: sf) }
+            _ = symbolImage(item)
         }
+    }
+
+    /// Read from the warm-up's thread and the main thread: only under `symbolsLock`.
+    private nonisolated(unsafe) static var symbols: [String: UIImage] = [:]
+    private nonisolated(unsafe) static let symbolsLock = NSLock()
+
+    /// The shadow's SF Symbol (its filled variant when it has one), read once; nil for a needsArt item.
+    nonisolated static func symbolImage(_ item: DexItem) -> UIImage? {
+        guard let sf = item.symbol else { return nil }
+        symbolsLock.lock()
+        let kept = symbols[sf]
+        symbolsLock.unlock()
+        if let kept { return kept }
+        // Large enough to stay sharp at the biggest shadow; drawn smaller as a vector.
+        let config = UIImage.SymbolConfiguration(pointSize: 160)
+        guard let image = UIImage(systemName: sf + ".fill", withConfiguration: config)
+                ?? UIImage(systemName: sf, withConfiguration: config) else { return nil }
+        symbolsLock.lock()
+        symbols[sf] = image
+        symbolsLock.unlock()
+        return image
     }
 
     var body: some View {
@@ -417,8 +443,8 @@ struct DexSilhouette: View {
             Group {
                 if let art = UIImage(named: "dexsil-\(item.id)") {
                     Image(uiImage: art).renderingMode(.template).resizable().scaledToFit()
-                } else if let sf = item.symbol {
-                    Image(systemName: sf).resizable().symbolVariant(.fill).scaledToFit()
+                } else if let symbol = Self.symbolImage(item) {
+                    Image(uiImage: symbol).renderingMode(.template).resizable().scaledToFit()
                 } else {
                     // .sil.ph: 52% of the square, radius 22%
                     let ph = min(g.size.width, g.size.height) * 0.52

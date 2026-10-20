@@ -12,12 +12,21 @@ nonisolated enum ReaderLanguage {
     static var explainLang: String { L10n.lang }
     /// The learner's old native language (`profiles.native_language`), set when the profile loads.
     nonisolated(unsafe) static var native: String?
+    /// The display language the server has for this account (`profiles.ui_language`), set when the profile is read and
+    /// when a change is saved. The server writes every explanation in that one (`getExplanationLanguage`), and keys it
+    /// by it — not by what this screen shows.
+    nonisolated(unsafe) static var serverLang: String?
+
+    /// A new explanation asked for now would be written in `lang`. Not while the screen's language has not reached the
+    /// server (the save failed or is still on its way): the server would write it in the old language, under the old
+    /// key, and the word page would ask again on every opening (one AI card each time).
+    static func serverWritesIn(_ lang: String) -> Bool { serverLang.map { $0 == lang } ?? true }
 
     /// web `readerL1`: the display language when it differs from the learning language, else the old
-    /// native language, else the first allowed choice.
+    /// native language, else the first allowed choice. The choices are the display languages (web `L1_ORDER`, the
+    /// same list in the same order), never the learning language.
     static func l1(native: String?, target: String) -> String {
-        let order = ["ja", "en", "zh-TW"]
-        let choices = order.filter { $0 != target }
+        let choices = DisplayLanguages.codes.filter { $0 != target }
         if choices.contains(L10n.lang) { return L10n.lang }
         if let n = native, choices.contains(n) { return n }
         return choices.first ?? "ja"
@@ -117,40 +126,89 @@ nonisolated enum ReaderLanguage {
 
     // MARK: - resolveDisplayWord (word-explanation.ts) + scrubForReader
 
-    /// The word as this reader should see it: their explanation when there is one; the shared row
-    /// only where it is written in their language; nothing (rather than another language) otherwise.
-    static func resolve(_ shared: Word, explanation: Explanation?, readerMeaning: String?, reader: String) -> Word {
+    /// The word as this reader should see it: their explanation when there is one; the shared row's
+    /// reader-language text only when that row was written for this very reader's language; nothing
+    /// (rather than another language) otherwise.
+    static func resolve(_ shared: Word, explanation picked: Explanation?, readerMeaning: String?, reader: String) -> Word {
         var w = shared
-        let meanings = [explanation?.meaning, readerMeaning, shared.meaningJa].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        // Only an explanation written for this reader's language (one read for the language before a switch is not).
+        let explanation = picked?.explainLang == reader ? picked : nil
+        // R23: the shared row is one per word for every reader, so its meaning, translation and notes are in the
+        // language of whoever made the card first. They are used only for a reader of that language — never on the
+        // strength of their letters alone (English on a Spanish screen, 漢字 on a Japanese one look right; on
+        // 2026-10-20 about 10 of the 312 shared rows carried a mark that did not match their meaning's language).
+        let sharedForReader = sharedTextIsFor(shared, reader: reader)
+        let sharedMeaning = sharedForReader ? shared.meaningJa : nil
+        let sharedTranslation = sharedForReader ? shared.exampleTranslation : nil
+        let meanings = [explanation?.meaning, readerMeaning, sharedMeaning].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
         w.meaningJa = meanings.first { !$0.isEmpty && !looksWrong($0, reader: reader, hanOnlyOk: true) } ?? ""
-        let translations = [explanation?.exampleTranslation, shared.exampleTranslation].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let translations = [explanation?.exampleTranslation, sharedTranslation].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
         w.exampleTranslation = translations.first { !$0.isEmpty && !looksWrong($0, reader: reader, source: shared.exampleSentence) }
         // A row for this reader wins even when still empty (it is being filled in the background).
-        var extras = explanation != nil ? explanation?.extras : shared.extras
-        if let mark = extras?.explainLang?.trimmingCharacters(in: .whitespaces), !mark.isEmpty, mark != reader { extras = nil }
-        w.extras = extras.map { scrub($0, reader: reader) }
+        if let explanation {
+            var extras = explanation.extras
+            if let mark = extras?.explainLang?.trimmingCharacters(in: .whitespaces), !mark.isEmpty, mark != reader { extras = nil }
+            w.extras = extras.map { scrub($0, reader: reader) }
+        } else if let extras = shared.extras {
+            // The shared notes of another reader's language: the learning-language parts (chunks, forms, kanji,
+            // counters, the picture words) are still this word's, every explaining text is emptied.
+            w.extras = sharedForReader ? scrub(extras, reader: reader) : learningOnly(extras)
+        }
+        // What is kept is this reader's: marked so. A word resolved again for another reader (the dex copy kept on the
+        // phone, a language switch before the server's read) then never passes for its shared row's language — an
+        // unmarked word reads as Japanese (`sharedTextIsFor`).
+        if w.extras == nil { w.extras = WordExtras() }
+        w.extras?.explainLang = reader
         return w
+    }
+
+    /// The shared row's reader-language text (meaning, translation, notes) was written for `reader`: its mark is that
+    /// language. Rows from before the marks (107 of 312 on 2026-10-20) were all written while Japanese was the only
+    /// display language, so an unmarked row is for the first display language only.
+    static func sharedTextIsFor(_ shared: Word, reader: String) -> Bool {
+        let mark = (shared.extras?.explainLang ?? "").trimmingCharacters(in: .whitespaces)
+        return mark.isEmpty ? reader == DisplayLanguages.source : mark == reader
     }
 
     /// Drop single translations and notes that came back in another language (web `scrubForReader`
     /// and `scrubForeignNotes`) — never rewritten, only emptied.
     static func scrub(_ e: WordExtras, reader: String) -> WordExtras {
+        clean(e, kanaReader: L10n.language(reader).script == .kana) { text, source, hanOnlyOk in
+            looksWrong(text, reader: reader, source: source, hanOnlyOk: hanOnlyOk)
+        }
+    }
+
+    /// Every explaining text emptied, the learning-language parts kept: the shared notes of a word whose
+    /// notes were written for another reader's language.
+    static func learningOnly(_ e: WordExtras) -> WordExtras {
+        var e = clean(e, kanaReader: false) { _, _, _ in true }
+        e.explainLang = nil
+        return e
+    }
+
+    /// Empties each reader-language text `drop(text, source, hanOnlyOk)` says to drop. The one list of the extras'
+    /// reader-language fields: a field added to `WordExtras` in the reader's language is added here. `hanOnlyOk` only
+    /// for words (a part's or a kanji's meaning, a form's name), where a Japanese word can be all kanji: notes, scene
+    /// labels and chunk translations of 5+ kanji with no kana are Chinese on a Japanese screen (owner report
+    /// 「量詞の説明が台湾華語になってる」).
+    private static func clean(_ e: WordExtras, kanaReader: Bool, drop: (String?, String?, Bool) -> Bool) -> WordExtras {
         var e = e
+        if drop(e.exampleScene, nil, false) { e.exampleScene = nil }
         e.examplesExtra = e.examplesExtra?.map { x in
             var x = x
-            if looksWrong(x.ja, reader: reader, source: x.zh) { x.ja = "" }
-            if looksWrong(x.scene, reader: reader, hanOnlyOk: true) { x.scene = "" }
+            if drop(x.ja, x.zh, false) { x.ja = "" }
+            if drop(x.scene, nil, false) { x.scene = "" }
             return x
         }
         e.usageChunks = e.usageChunks?.map { c in
             var c = c
-            if looksWrong(c.ja, reader: reader, hanOnlyOk: true) { c.ja = "" }
+            if drop(c.ja, nil, false) { c.ja = "" }
             // A swappable part's meaning and its choices' meanings are in the reader's language too (R6).
             c.parts = c.parts.map { p in
                 var p = p
-                if let j = p.ja, looksWrong(j, reader: reader, hanOnlyOk: true) { p.ja = nil }
+                if let j = p.ja, drop(j, nil, true) { p.ja = nil }
                 p.alts = p.alts?.map { a in
-                    looksWrong(a.ja, reader: reader, hanOnlyOk: true) ? ChunkAlt(text: a.text, ja: "") : a
+                    drop(a.ja, nil, true) ? ChunkAlt(text: a.text, ja: "") : a
                 }
                 return p
             }
@@ -158,54 +216,56 @@ nonisolated enum ReaderLanguage {
         }
         e.measureWords = e.measureWords?.map { m in
             var m = m
-            if looksWrong(m.note, reader: reader, hanOnlyOk: true) { m.note = "" }
+            if drop(m.note, nil, false) { m.note = "" }
             return m
         }
         e.relatedWords = e.relatedWords?.map { r in
             var r = r
-            if looksWrong(r.note, reader: reader, hanOnlyOk: true) { r.note = "" }
+            if drop(r.note, nil, false) { r.note = "" }
             return r
         }
         // English and Japanese sections: the explanatory parts are in the reader's language; the
         // learning-language parts (forms, phrases, kanji, conjugated forms, counters) are left alone.
-        if var c = e.countability { if looksWrong(c.note, reader: reader) { c.note = "" }; e.countability = c }
-        if var st = e.stress { if looksWrong(st.note, reader: reader) { st.note = "" }; e.stress = st }
+        if var c = e.countability { if drop(c.note, nil, false) { c.note = "" }; e.countability = c }
+        if var st = e.stress { if drop(st.note, nil, false) { st.note = "" }; e.stress = st }
         e.phrasalVerbs = e.phrasalVerbs?.map { p in
             var p = p
-            if looksWrong(p.meaning, reader: reader, hanOnlyOk: true) { p.meaning = "" }
+            if drop(p.meaning, nil, true) { p.meaning = "" }
             return p
         }
         e.etymologyRelatives = e.etymologyRelatives?.map { w in
             var w = w
-            if looksWrong(w.note, reader: reader, hanOnlyOk: true) { w.note = "" }
+            if drop(w.note, nil, false) { w.note = "" }
             return w
         }
         e.kanjiBreakdown = e.kanjiBreakdown?.map { k in
             var k = k
-            if looksWrong(k.meaning, reader: reader, hanOnlyOk: true) { k.meaning = "" }
+            if drop(k.meaning, nil, true) { k.meaning = "" }
             return k
         }
         e.conjugation = e.conjugation?.map { r in
             var r = r
-            if looksWrong(r.form, reader: reader, hanOnlyOk: true) { r.form = "" }
+            if drop(r.form, nil, true) { r.form = "" }
             return r
         }
         e.counters = e.counters?.map { c in
             var c = c
-            if looksWrong(c.note, reader: reader, hanOnlyOk: true) { c.note = "" }
+            if drop(c.note, nil, false) { c.note = "" }
             return c
         }
         let notes: [WritableKeyPath<WordExtras, String?>] = [\.mnemonic, \.taiwanNote, \.pronunciationTips, \.studyTips,
                                                               \.etymology, \.trivia, \.usageNote, \.synonymDiff, \.usageContext, \.radicals,
                                                               \.cultureNote, \.japanNote]
-        for kp in notes where looksWrong(e[keyPath: kp], reader: reader) {
+        for kp in notes where drop(e[keyPath: kp], nil, false) {
             e[keyPath: kp] = nil
         }
-        // Japanese-card notes cite the word's kana unquoted (「は↘し＝頭高型」): judge them without kana.
+        // Japanese-card notes cite the word's kana unquoted (「は↘し＝頭高型」): judged without kana for other readers
+        // (for a Japanese reader the kana are part of the Japanese note).
         let kanaCiting: [WritableKeyPath<WordExtras, String?>] = [\.pitchAccent, \.politeness, \.wordOrigin]
         for kp in kanaCiting {
-            let t = String((e[keyPath: kp] ?? "").unicodeScalars.filter { !LanguageRules.isKana($0.value) }.map(Character.init))
-            if looksWrong(t, reader: reader) { e[keyPath: kp] = nil }
+            let whole = e[keyPath: kp] ?? ""
+            let t = kanaReader ? whole : String(whole.unicodeScalars.filter { !LanguageRules.isKana($0.value) }.map(Character.init))
+            if drop(t, nil, false) { e[keyPath: kp] = nil }
         }
         return e
     }

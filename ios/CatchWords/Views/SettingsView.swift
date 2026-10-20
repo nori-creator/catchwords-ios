@@ -77,7 +77,10 @@ struct SettingsView: View {
                     .zIndex(3)
             }
         }
-        .onAppear { nameDraft = profile.displayName }
+        .onAppear {
+            nameDraft = profile.displayName
+            SoundService.shared.warmTicks()   // a choice's sound must not be lost the first time
+        }
         .task {
             // Reminders that are on (set at sign-in from the account, or before) while the iPhone's own
             // setting refuses them: say so, instead of a setting that silently never notifies.
@@ -118,6 +121,8 @@ struct SettingsView: View {
         .confirmationDialog(L("サインアウトしますか？"), isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button(L("サインアウト"), role: .destructive) { auth.signOut() }
                 .accessibilityIdentifier("settings.signOut.confirm")
+            // Without it the system adds its own "Cancel" in the iPhone's language, not the app's.
+            Button(L("キャンセル"), role: .cancel) {}
         }
     }
 
@@ -165,14 +170,19 @@ struct SettingsView: View {
         return SettingsCard(title: L("言語")) {
             VStack(alignment: .leading, spacing: 10) {
                 label(L("母語"))
-                wheelRow(ProfileStore.nativeOptions.first { $0.value == profile.nativeLanguage }?.label ?? L("日本語")) { openWheel(.native) }
+                // The display language itself (the screen's language), not the profile's copy: before the profile is read
+                // (offline) that copy is still its default, Japanese — 「日本語」 on a Spanish screen.
+                wheelRow(ProfileStore.nativeOptions.first { $0.value == L10n.lang }?.label ?? L10n.current.autonym) { openWheel(.native) }
                     .accessibilityIdentifier("settings.wheel.native")
-                label(L("学習言語")).padding(.top, 6)
-                // Only 繁體字（台灣） is offered for now (ProfileStore.offeredTargets): with nothing else to pick the row
-                // just names it; an account on a hidden language still opens the wheel to switch.
-                wheelRow(ProfileStore.targetLabel(profile.targetLanguage),
-                         interactive: ProfileStore.targetChoices(current: profile.targetLanguage).count > 1) { openWheel(.target) }
-                    .accessibilityIdentifier("settings.wheel.target")
+                // 学習言語 is hidden while 繁體字（台灣） is the only language offered (owner 2026-10-20: 「設定の学習言語の設定欄
+                // アプリから消して。ただいずれほかの言語にも対応させるためにコードは残しておいて」). It comes back by itself
+                // when ProfileStore.offeredTargets offers more, and for an account still on a hidden language (it must be
+                // able to switch away from it).
+                if ProfileStore.targetChoices(current: profile.targetLanguage).count > 1 {
+                    label(L("学習言語")).padding(.top, 6)
+                    wheelRow(ProfileStore.targetLabel(profile.targetLanguage)) { openWheel(.target) }
+                        .accessibilityIdentifier("settings.wheel.target")
+                }
                 label(L("今のレベル")).padding(.top, 6)
                 wheelRow(levels.first { $0.value == profile.currentLevel }?.label ?? profile.currentLevel) { openWheel(.current) }
                     .accessibilityIdentifier("settings.wheel.current")
@@ -275,8 +285,10 @@ struct SettingsView: View {
         SettingsCard(title: L("音と手ざわり")) {
             VStack(alignment: .leading, spacing: 10) {
                 label(L("効果音"))
+                // Its own preview (the land bounce) is its sound: no choice tick on top of it.
                 ChoicePills(
                     options: [("off", L("オフ")), ("subtle", L("控えめ")), ("full", L("しっかり"))],
+                    sounds: false,
                     selection: Binding(get: { soundLevel }, set: { v in
                         soundLevel = v
                         if v != "off" { SoundService.shared.play(.landBounce) }
@@ -319,7 +331,7 @@ struct SettingsView: View {
     @AppStorage(DevChoices.tabBarKey) private var tabBarVariant: String = DevChoices.tabBarDefault
 
     /// 開発者の試し (owner 2026-10-15): the camera tab's look to compare on the device — the original one, shipped, or
-    /// B, kept for a later release (owner 2026-10-16). The sounds are decided (owner 2026-10-16): no choice here.
+    /// B, kept for a later release (owner 2026-10-16) — and the sound of a 設定 choice, A–D (owner 2026-10-20).
     private var developerTrials: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(L("開発者の試し（端末で比べて選ぶ）")).scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
@@ -328,8 +340,25 @@ struct SettingsView: View {
                         selection: Binding(get: { tabBarVariant == DevChoices.tabBarRaised ? DevChoices.tabBarRaised : DevChoices.tabBarDefault },
                                            set: { tabBarVariant = $0 }))
                 .accessibilityIdentifier("settings.dev.tabbar")
+            label(L("設定を変えたときの音"))
+            ChoicePills(options: DevChoices.settingsSoundChoices.map { (value: $0.value, label: $0.label) },
+                        sounds: false,
+                        selection: Binding(get: { settingsSound }, set: { v in
+                            settingsSound = v
+                            SoundService.shared.settingChanged()   // heard at once, to compare
+                        }))
+                .accessibilityIdentifier("settings.dev.settingsSound")
+            label(L("言語とレベルを選ぶホイール"))
+            ChoicePills(options: [(DevChoices.wheelApp, L("新しいホイール")), (DevChoices.wheelSystem, L("iPhone標準"))],
+                        selection: Binding(get: { wheelChoice == DevChoices.wheelSystem ? DevChoices.wheelSystem : DevChoices.wheelApp },
+                                           set: { wheelChoice = $0 }))
+                .accessibilityIdentifier("settings.dev.wheel")
         }
     }
+
+    @AppStorage(DevChoices.wheelKey) private var wheelChoice: String = DevChoices.wheelApp
+
+    @AppStorage(DevChoices.settingsSoundKey) private var settingsSound: String = "pick"
 
     private func devRow(icon: String, title: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -415,14 +444,15 @@ struct SettingsView: View {
 
             deleteZone
 
-            Text("CatchWords for iPhone \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"))")
+            Text(L("CatchWords iPhone版 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")（\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1")）"))
                 .scaledFont(size: 12).foregroundStyle(Theme.muted)
         }
     }
 
     private var deleteZone: some View {
-        let armed = ["削除", "DELETE", "刪除"].contains(  // l10n-ignore (accepted confirm words)
-           deleteText.trimmingCharacters(in: .whitespaces).uppercased())
+        // The confirm word in any display language (and DELETE), so a switched language never locks the button.
+        let accepted = Set(L10n.supported.map { L("削除", in: $0).uppercased() } + ["DELETE"])
+        let armed = accepted.contains(deleteText.trimmingCharacters(in: .whitespaces).uppercased())
         return VStack(alignment: .leading, spacing: 12) {
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { deleteOpen.toggle() }
@@ -449,7 +479,7 @@ struct SettingsView: View {
                     .scaledFont(size: 14, weight: .medium).foregroundStyle(Theme.primaryInk)
                     .frame(minHeight: 44)
                 Text(L("確認のため「削除」と入力してください")).scaledFont(size: 14, weight: .semibold).foregroundStyle(Theme.foreground)
-                TextField(L10n.lang == "en" ? "DELETE" : L("削除"), text: $deleteText)  // the confirm word itself
+                TextField(L10n.current.script == .latin ? L("削除").uppercased() : L("削除"), text: $deleteText)  // the confirm word itself
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .padding(.horizontal, 14).frame(minHeight: 46)
                     .background(Theme.card, in: .rect(cornerRadius: 14))
@@ -561,7 +591,10 @@ struct SettingsView: View {
     }
 
     private func closeWheel() {
-        wheel = nil
+        // Out of the tree with no animation of any kind: nothing of the card may be drawn on its way out.
+        var quiet = Transaction()
+        quiet.disablesAnimations = true
+        withTransaction(quiet) { wheel = nil }
     }
 
     private func saveName() {
@@ -666,6 +699,8 @@ struct SettingsCard<Content: View>: View {
 /// ChoiceRow: equal-width pills; the selected one is a glowing blue capsule that slides between them.
 struct ChoicePills: View {
     let options: [(value: String, label: String)]
+    /// A choice plays the 設定 choice sound (`SoundService.settingChanged`), owner 2026-10-20.
+    var sounds: Bool = true
     @Binding var selection: String
     @Namespace private var ns
     @Environment(\.appReduceMotion) private var reduceMotion
@@ -677,6 +712,7 @@ struct ChoicePills: View {
                 Button {
                     guard !on else { return }
                     Haptics.selection()
+                    if sounds { SoundService.shared.settingChanged() }
                     withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.72)) { selection = o.value }
                 } label: {
                     Text(o.label)
@@ -712,7 +748,11 @@ struct SettingsToggle: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        Toggle(isOn: Binding(get: { isOn }, set: { v in Haptics.selection(); isOn = v })) {
+        Toggle(isOn: Binding(get: { isOn }, set: { v in
+            Haptics.selection()
+            SoundService.shared.settingChanged(on: v)
+            isOn = v
+        })) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).scaledFont(size: 17, weight: .semibold).foregroundStyle(Theme.foreground)
                 if let detail {
@@ -768,11 +808,15 @@ struct WheelCard: View {
     @State private var appeared: Bool = false
     /// 「閉じる」 was tapped: the card is fading out and takes no more taps.
     @State private var closing: Bool = false
+    @AppStorage(DevChoices.wheelKey) private var wheelChoice: String = DevChoices.wheelApp
+    /// The system wheel: only for a signed-in developer comparing the two.
+    private var systemWheel: Bool { wheelChoice == DevChoices.wheelSystem && AdminAccess.shared.isAdmin }
 
-    /// The native (display) language and the learning language are never the same (as in onboarding).
+    /// Every display language, the learning language too (owner 2026-10-20: 繁體字（台灣） may be both; the
+    /// learner's own language for the AI, `native_language`, is then the one saved before — ReaderLanguage.l1).
     private var options: [(value: String, label: String)] {
         switch field {
-        case .native: ProfileStore.nativeOptions.filter { $0.value != profile.targetLanguage }
+        case .native: ProfileStore.nativeOptions
         case .target: ProfileStore.targetChoices(current: profile.targetLanguage)
         case .current, .goal: ProfileStore.levels(for: profile.targetLanguage)
         }
@@ -780,7 +824,7 @@ struct WheelCard: View {
 
     private var initial: String {
         switch field {
-        case .native: profile.nativeLanguage
+        case .native: L10n.lang
         case .target: profile.targetLanguage
         case .current: profile.currentLevel
         case .goal: profile.levelGoal
@@ -801,19 +845,29 @@ struct WheelCard: View {
                     }
                     .accessibilityLabel(L("閉じる"))
                 }
-                // The system wheel: its own click as each row crosses the centre line is the only sound (owner
-                // 2026-10-16: one カチカチ per row, never two layered — the app's own tick on top of it is gone).
-                Picker(field.title, selection: $value) {
-                    ForEach(options, id: \.value) { o in Text(o.label).tag(o.value) }
+                // The app's own wheel (`TickWheel`): one tick per row as it crosses the centre line, from the first
+                // scroll on. The system wheel's click came late and its first scroll was silent (owner 2026-10-20). A
+                // developer can pick the system wheel to compare (開発者の試し).
+                if systemWheel {
+                    Picker(field.title, selection: $value) {
+                        ForEach(options, id: \.value) { o in Text(o.label).tag(o.value) }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(height: 150)
+                } else {
+                    TickWheel(title: field.title, options: options, selection: $value)
                 }
-                .pickerStyle(.wheel)
-                .frame(height: 150)
                 Button(action: close) {
                     Text(L("閉じる")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .background(Theme.primary, in: Capsule())
                 }
-                .buttonStyle(PressableStyle())
+                // A press that ends in a plain fade: the springy press (scale + brightness, still swinging after the
+                // finger lifts) outlived the card that faded out around it and left a ghost of the button over the
+                // page (owner 2026-10-20: 「閉じるボタンの残像がある」). Hidden at once when tapped.
+                .buttonStyle(FadePressStyle())
+                .opacity(closing ? 0 : 1)
+                .animation(nil, value: closing)
                 .accessibilityIdentifier("wheel.close")
             }
             .padding(.horizontal, 20).padding(.vertical, 16)
@@ -877,5 +931,110 @@ struct WheelCard: View {
             profile.levelGoal = v
             Task { if await profile.update(["level_goal": v]) { SaveStatus.shared.saved() } }
         }
+    }
+}
+
+
+/// A wheel of choices that ticks as each row crosses its centre line (`SoundService.tick(.wheel)` and a selection tap),
+/// from the very first scroll: the system wheel's own click could not be made to come on time (owner 2026-10-20:
+/// 「カチカチとなる効果音が滑らかにならない…はじめにスクロールしたときに音が鳴らない」). The rows snap to the centre;
+/// VoiceOver and UI tests see a standard wheel picker (`accessibilityRepresentation`).
+struct TickWheel: View {
+    let title: String
+    let options: [(value: String, label: String)]
+    @Binding var selection: String
+
+    static let rowHeight: CGFloat = 34
+    static let visibleRows: CGFloat = 5
+    private var height: CGFloat { Self.rowHeight * Self.visibleRows }
+    private static let space = "tick.wheel"
+
+    @State private var position: String?
+    /// The row on the centre line now (ticks when it changes).
+    @State private var centred: String?
+    /// The first layout puts the chosen row on the centre line by itself: no tick for that.
+    @State private var quietUntil: Date = .distantFuture
+    @State private var feedback = UISelectionFeedbackGenerator()
+
+    var body: some View {
+        let h = height
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(spacing: 0) {
+                ForEach(options, id: \.value) { o in
+                    Text(o.label)
+                        .font(.system(size: 21, weight: o.value == selection ? .semibold : .regular))
+                        .foregroundStyle(Theme.foreground)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, minHeight: Self.rowHeight, maxHeight: Self.rowHeight)
+                        .contentShape(Rectangle())
+                        .onTapGesture { withAnimation(.snappy(duration: 0.25)) { position = o.value } }
+                        .scrollTransition(axis: .vertical) { content, phase in
+                            content
+                                .opacity(1 - min(1, abs(phase.value)) * 0.65)
+                                .scaleEffect(1 - min(1, abs(phase.value)) * 0.1)
+                        }
+                        .onGeometryChange(for: Bool.self) { geo in
+                            abs(geo.frame(in: .named(Self.space)).midY - h / 2) < Self.rowHeight / 2
+                        } action: { onLine in
+                            if onLine { reached(o.value) }
+                        }
+                        .id(o.value)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .coordinateSpace(.named(Self.space))
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(id: $position, anchor: .center)
+        .contentMargins(.vertical, (h - Self.rowHeight) / 2, for: .scrollContent)
+        .background {
+            // The centre band, like the system wheel's.
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Theme.secondary)
+                .frame(height: Self.rowHeight)
+        }
+        .frame(height: h)
+        .clipped()
+        .onChange(of: position) { _, v in if let v, v != selection { selection = v } }
+        // Set from outside (VoiceOver, a UI test adjusting the wheel): the rows follow.
+        .onChange(of: selection) { _, v in if position != v { position = v } }
+        .onAppear {
+            centred = selection
+            position = selection
+            feedback.prepare()
+            SoundService.shared.warmTicks()
+            quietUntil = Date().addingTimeInterval(0.35)
+        }
+        .accessibilityRepresentation {
+            Picker(title, selection: $selection) {
+                ForEach(options, id: \.value) { o in Text(o.label).tag(o.value) }
+            }
+            .pickerStyle(.wheel)
+        }
+    }
+
+    private func reached(_ value: String) {
+        guard value != centred else { return }
+        centred = value
+        guard Date() >= quietUntil else { return }
+        SoundService.shared.tick(.wheel)
+        if Haptics.isEnabled {
+            feedback.selectionChanged()
+            feedback.prepare()
+        }
+    }
+}
+
+
+/// A press that dims a little and comes straight back with a short ease (no spring, no brightness filter): nothing of it
+/// is still moving once the finger is up (the 設定 wheel card's 「閉じる」, which fades out right after the tap).
+struct FadePressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed { Haptics.impact(.light, intensity: 0.6) }
+            }
     }
 }

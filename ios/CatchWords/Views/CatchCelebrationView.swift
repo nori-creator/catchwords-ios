@@ -272,10 +272,11 @@ struct CatchCelebrationView: View {
     }
 
     /// The card's meaning once it arrives (reader language, scrubbed), else the candidate's. A re-encounter: the
-    /// meaning the word has in the dex.
+    /// meaning the word has in the dex — the dex's own, already chosen for this reader (`ReaderLanguage.resolve`).
+    /// `checkOwnedWord` sends the shared row's meaning, written in whoever made the card first's language.
     private func meaning(_ c: Candidate) -> String {
-        if let again {
-            let own = ReaderLanguage.gloss(ReaderLanguage.shown(again.meaningJa))
+        if let again, let resolved = dex.sticker(id: again.stickerId)?.word?.meaningJa {
+            let own = ReaderLanguage.gloss(ReaderLanguage.shown(resolved))
             if !own.isEmpty { return own }
         }
         let m = vm.details?.raw?["meaning_ja"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -285,7 +286,7 @@ struct CatchCelebrationView: View {
     /// 「この言葉、{date}に{place}でゲットしています。」 (web cap.reencBefore + reencAt/reencOn + reencAfter).
     static func metLine(_ owned: OwnedWord) -> String {
         let date = owned.takenDate.map { $0.formatted(Date.FormatStyle(date: .long, time: .omitted).locale(L10n.locale)) } ?? ""
-        if let place = owned.locationName, !place.isEmpty {
+        if let place = LocationService.shownPlace(owned.locationName) {
             return L("この言葉、\(date)に\(place)でゲットしています。")
         }
         return L("この言葉、\(date)にゲットしています。")
