@@ -62,12 +62,60 @@ nonisolated enum UITestTrace {
         let d = UserDefaults.standard
         // The pid: an XCUITest failure names the process it could not read (kAXErrorIPCTimeout "for <pid>", tour
         // 2026-10-15), so it can be told whether that was this app or a process of the simulator.
-        log("launch uiDemo=\(d.string(forKey: "uiDemo") ?? "-") lang=\(d.string(forKey: "ui.lang") ?? "-") pid=\(getpid())")
+        log("launch uiDemo=\(d.string(forKey: "uiDemo") ?? "-") lang=\(d.string(forKey: "ui.lang") ?? "-") pid=\(getpid())"
+            + (d.string(forKey: "uiPreview").map { " preview=\($0)" } ?? ""))
         UIWindow.traceTouches()
         MainStackSampler.captureMain()
         MainWatchdog.shared.start()
+        // The previews of the catch's animations measure their frames (CI compares the counts run to run).
+        if d.string(forKey: "uiPreview") != nil { FrameMeter.shared.start() }
         #endif
     }
+
+    #if DEBUG
+    /// Frames the main thread delivered late, once a second while any were (owner 2026-10-20: 「限界まで滑らかな
+    /// アニメーション」): `frames` displayed, `late` frames whose gap was over 1.5 refreshes, `lost` refreshes missed in
+    /// all, `worst` the longest gap. The simulator's own numbers, not a device's — compared before and after a change.
+    @MainActor private final class FrameMeter: NSObject {
+        static let shared = FrameMeter()
+        private var link: CADisplayLink?
+        private var last: CFTimeInterval = 0
+        private var windowStart: CFTimeInterval = 0
+        private var frames = 0, late = 0, lost = 0
+        private var worst: CFTimeInterval = 0
+        private var total = (frames: 0, late: 0, lost: 0)
+
+        func start() {
+            guard link == nil else { return }
+            let l = CADisplayLink(target: self, selector: #selector(tick(_:)))
+            l.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+            l.add(to: .main, forMode: .common)
+            link = l
+        }
+
+        @objc private func tick(_ l: CADisplayLink) {
+            let now = l.timestamp
+            let period = max(1.0 / 120, l.targetTimestamp - l.timestamp)
+            defer { last = now }
+            guard last > 0 else { windowStart = now; return }
+            let gap = now - last
+            frames += 1
+            if gap > period * 1.5 {
+                late += 1
+                lost += Int((gap / period).rounded()) - 1
+            }
+            worst = max(worst, gap)
+            guard now - windowStart >= 1 else { return }
+            total.frames += frames; total.late += late; total.lost += lost
+            if late > 0 {
+                UITestTrace.log("frames \(frames) late \(late) lost \(lost) worst \(Int(worst * 1000)) ms"
+                                + " (all: frames \(total.frames) late \(total.late) lost \(total.lost))")
+            }
+            windowStart = now
+            frames = 0; late = 0; lost = 0; worst = 0
+        }
+    }
+    #endif
 
     #if DEBUG
     /// Logs every time the main thread does not answer for more than a second, and when it answers again: an

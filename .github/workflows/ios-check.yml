@@ -206,6 +206,51 @@ jobs:
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
           ls -la "$OUT"
 
+      # キャッチの演出（v10 のスキャン、v6 の選ぶ画面・ゲット・図鑑へ）のコマ落ちを数える（オーナー 2026-10-20:
+      # 「限界まで滑らかなアニメーション」）。アプリの FrameMeter（UITestTrace.swift）が 1 秒ごとに遅れたコマを書く。
+      # 録画は CPU を使うので、数える回は録画しない。シミュレーターの数字なので、端末の値ではなく変更の前後の比較に使う。
+      # 録画は ci-previews に置く（Claude がお手本の動画とコマごとに比べる）。
+      - name: キャッチの演出のコマ落ちを数え、動画で撮る
+        continue-on-error: true
+        run: |
+          set +e -uo pipefail
+          OUT="$RUNNER_TEMP/report/videos"
+          mkdir -p "$OUT" "$RUNNER_TEMP/report/previews"
+          UDID=$(cat "$RUNNER_TEMP/udid"); BUNDLE_ID=$(cat "$RUNNER_TEMP/bundle")
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data 2>/dev/null || echo "$RUNNER_TEMP/no-data-container")
+          TRACE="$DATA/Library/Caches/uitest-trace.txt"
+          SUM="$RUNNER_TEMP/report/previews/frames.txt"
+          : > "$SUM"
+          for round in 1 2; do
+            for spec in "analyzing 8" "variants 7" "get 9" "landing 9"; do
+              set -- $spec
+              name=$1; secs=$2
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+              rm -f "$TRACE"
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW >/dev/null || continue
+              sleep "$secs"
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+              sleep 0.5
+              # The last "all:" totals of the run: frames shown, late frames, refreshes lost.
+              line=$(grep -o "all: frames [0-9]* late [0-9]* lost [0-9]*" "$TRACE" 2>/dev/null | tail -1)
+              echo "round $round $name: ${line:-no late frames}" | tee -a "$SUM"
+              grep -E "frames [0-9]+ late" "$TRACE" 2>/dev/null | sed "s/^/    $name /" >> "$SUM"
+            done
+          done
+          for spec in "variants 7" "get 9" "landing 9"; do
+            set -- $spec
+            name=$1; secs=$2
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+            xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/catch-${name}.mp4" &
+            REC=$!
+            sleep 1
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW >/dev/null
+            sleep "$secs"
+            kill -INT $REC; wait $REC
+          done
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+          cat "$SUM"
+
       # 監査 D-04: 主な画面だけを (1) 大きな文字（アクセシビリティの「大」= AX2、アプリの上限）と
       # (2) 小さな iPhone（iPhone SE 第3世代。無ければ入っている中で一番小さい iPhone）で撮る。
       # ファイル名: axl-<画面>.png / small-<画面>.png / small-axl-<画面>.png（端末名は small-device.txt）。
@@ -312,6 +357,8 @@ jobs:
             [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.txt "$DIR"/ 2>/dev/null || true
             # 「作り直す」の動き（-uiPreview regen の録画）
             [ -f "$SRC/videos/scan-regen.mp4" ] && cp "$SRC/videos/scan-regen.mp4" "$DIR/regen.mp4" || true
+            # キャッチの演出の録画（お手本の動画と比べる）
+            for v in "$SRC"/videos/catch-*.mp4 "$SRC"/videos/scan-analyzing.mp4; do [ -f "$v" ] && cp "$v" "$DIR/" ; done
             echo "${{ github.sha }}" > "$DIR/COMMIT"
             git add -A
             git -c user.name="ios-check" -c user.email="ios-check@users.noreply.github.com" commit --quiet -m "previews for $HEAD_REF @ ${{ github.sha }}" || return 0
