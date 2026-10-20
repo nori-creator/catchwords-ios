@@ -1,3 +1,4 @@
+import { explainScript } from "./explain-languages";
 import { z } from "zod";
 import { ChunkPartSchema } from "./extras";
 import { readerText } from "./note-language";
@@ -50,13 +51,23 @@ export type ExamplePattern = z.infer<typeof ExamplePatternSchema>;
  * **場面の札の長さの上限**（読む人の言語ごと、2026-10-15 オーナー「場面の説明は短く1行で」）。
  * 超えた札は区切り（読点・空白）で短くする（`shortScene`）。
  */
-export const SCENE_MAX_CHARS = { ja: 24, zh: 18, en: 60 } as const;
+export const SCENE_MAX_CHARS = { ja: 24, zh: 18, en: 60, ko: 30 } as const;
 
+/** 言語は書く文字で分ける: 欧文の言語（英語・スペイン語・ベトナム語）は英語と同じ、ハングルは韓国語。 */
 export function sceneMaxChars(readerLang: string | null | undefined): number {
-  const l = (readerLang ?? "").toLowerCase();
-  if (l.startsWith("zh")) return SCENE_MAX_CHARS.zh;
-  if (l.startsWith("en")) return SCENE_MAX_CHARS.en;
-  return SCENE_MAX_CHARS.ja;
+  switch (explainScript(readerLang)) {
+    case "han":
+      return SCENE_MAX_CHARS.zh;
+    case "latin":
+      return SCENE_MAX_CHARS.en;
+    case "hangul":
+      return SCENE_MAX_CHARS.ko;
+    default:
+      // 地域付きの英語（en-US）は英語。
+      return (readerLang ?? "").toLowerCase().startsWith("en")
+        ? SCENE_MAX_CHARS.en
+        : SCENE_MAX_CHARS.ja;
+  }
 }
 
 /**

@@ -13,7 +13,7 @@
 import { detectQueryLang, type QueryLang } from "./text-query-lang";
 import { BASIC_LEVEL_ZH_TW, basicLevelTable } from "./basic-level";
 import { firstGloss, type NameRegister } from "./candidate-register";
-import type { UiLang } from "./i18n";
+import type { ExplainLang } from "./explain-languages";
 
 /**
  * 打った語をどう読むか。
@@ -27,7 +27,7 @@ export type TypedQueryMode = "learning" | "display" | "display_first";
 export function typedQueryMode(
   query: string,
   targetLanguage: string,
-  reader: UiLang,
+  reader: ExplainLang,
   given?: QueryLang,
 ): TypedQueryMode {
   const lang = given ?? detectQueryLang(query, targetLanguage);
@@ -87,7 +87,7 @@ export function ensureTypedBasic<T extends TypedCandidate>(
   list: readonly T[],
   query: string,
   mode: TypedQueryMode,
-  reader: UiLang,
+  reader: ExplainLang,
   targetLanguage: string,
 ): T[] {
   if (mode === "learning") return [...list];

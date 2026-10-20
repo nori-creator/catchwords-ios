@@ -3,6 +3,7 @@ import { readerL1 } from "./reader-language";
 import { L1_ORDER, l1ChoicesFor } from "./l1";
 import { TARGET_LANGUAGES } from "./target-lang";
 import { UI_LANGS } from "./i18n";
+import { EXPLAIN_LANGS } from "./explain-languages";
 
 describe("readerL1 — 母語と表示言語の統合", () => {
   it("表示言語が学習言語と違うなら、それがそのまま母語", () => {
@@ -29,7 +30,8 @@ describe("readerL1 — 母語と表示言語の統合", () => {
   it("保存されていた母語も使えないときは、選べる先頭に落とす", () => {
     const first = l1ChoicesFor("en")[0];
     expect(readerL1({ uiLanguage: "en", nativeLanguage: "en", targetLanguage: "en" })).toBe(first);
-    expect(readerL1({ uiLanguage: "en", nativeLanguage: "ko", targetLanguage: "en" })).toBe(first);
+    // 退避したままの母語（タイ語）は選べない。
+    expect(readerL1({ uiLanguage: "en", nativeLanguage: "th", targetLanguage: "en" })).toBe(first);
     expect(readerL1({ uiLanguage: null, nativeLanguage: null, targetLanguage: "en" })).toBe(first);
   });
 
@@ -45,8 +47,15 @@ describe("readerL1 — 母語と表示言語の統合", () => {
     }
   });
 
-  it("統合できる前提が崩れていない — 2つの一覧が同じ3つ", () => {
+  it("統合できる前提が崩れていない — 母語の一覧は解説の言語と同じ（Web の画面の言語はその中）", () => {
     // ここがずれたら統合そのものが成り立たない。足したときに気づけるように。
-    expect([...L1_ORDER].sort()).toEqual([...UI_LANGS].sort());
+    expect([...L1_ORDER]).toEqual([...EXPLAIN_LANGS]);
+    for (const ui of UI_LANGS) expect(L1_ORDER).toContain(ui);
+  });
+
+  it("**iOS だけの表示言語（スペイン語など）は、そのまま母語になる**", () => {
+    for (const ui of ["es", "ko", "vi"]) {
+      expect(readerL1({ uiLanguage: ui, nativeLanguage: "ja", targetLanguage: "zh-TW" })).toBe(ui);
+    }
   });
 });

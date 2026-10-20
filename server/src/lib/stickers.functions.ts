@@ -48,8 +48,10 @@ import {
   STORAGE_PATH_MAX,
   SharedColumnsPatchSchema,
   WordInputSchema,
+  claimSharedRowLanguage,
   fillEmptySharedColumns,
   fillEmptySharedExtras,
+  sharedRowLanguage,
   isExplanationLangCode,
   sharedColumnsFromCard,
   type SharedWordColumn,
@@ -850,8 +852,16 @@ export async function newSharedWordContent(
   }
   if (lookup.card) {
     const card: TrustedCard = lookup.card;
+    const columns = sharedColumnsFromCard(card as Record<string, unknown>);
+    const mark = card.extras?.explain_lang;
+    // **意味と目印は同じ言語で入れる**（`mayWriteSharedReaderText`）。言語の分からない候補（目印の無い
+    // 2026-10-20 より前の控え）の意味・訳は入れない — 目印の無い行は「日本語の行」と読まれる。
+    if (typeof mark !== "string" || !mark.trim()) {
+      delete columns.meaning_ja;
+      delete columns.example_translation;
+    }
     return {
-      columns: sharedColumnsFromCard(card as Record<string, unknown>),
+      columns,
       extras: card.extras ?? {},
       categoryKey: card.category_key ?? null,
       from: lookup.kind ?? "card",
@@ -886,7 +896,8 @@ export async function newSharedWordContent(
       .limit(1);
     const entry = !error ? rows?.[0] : undefined;
     if (entry) {
-      const f = resolveDictionaryFields(entry, explainLang ?? "ja");
+      const lang = explainLang ?? "ja";
+      const f = resolveDictionaryFields(entry, lang);
       return {
         columns: sharedColumnsFromCard({
           meaning_ja: f.meaning,
@@ -894,7 +905,8 @@ export async function newSharedWordContent(
           pinyin: f.readingAlt ?? "",
           part_of_speech: entry.pos ?? "",
         }),
-        extras: {},
+        // 意味はその人の言語で引いた物 — 行の言語の目印も付ける（無いと「日本語の行」と読まれる）。
+        extras: f.meaning ? { explain_lang: lang } : {},
         categoryKey: null,
         from: "dictionary",
       };
@@ -1071,10 +1083,11 @@ export async function upsertWord(
     if (incoming) {
       const { data: cur } = await supabaseAdmin
         .from("words")
-        .select("extras")
+        .select("extras, meaning_ja, example_translation")
         .eq("id", wordId)
         .maybeSingle();
-      const filled = fillEmptySharedExtras(cur?.extras, incoming);
+      // 別の言語の意味が載った行には、解説を入れない（`fillEmptySharedExtras` の `row`）。
+      const filled = fillEmptySharedExtras(cur?.extras, incoming, cur as never);
       if (filled) {
         await supabaseAdmin
           .from("words")
@@ -1614,22 +1627,25 @@ export async function applyWordExtrasUpdate(
    * 画面が出すのはそちらなので、作り直した本人の見え方は変わらない。
    */
   const prevRaw = shared.extras;
-  // 読む人の行に重ねる共有の解説は、**同じ言語で書かれている時だけ**（控えを使う道）。
+  // 読む人の行に重ねる共有の解説は、**同じ言語で書かれている時だけ**。
   // 別の言語の項目を読む人の行の空きに入れると、その人の画面に読めない言語が出る。
   const mergePrev =
     prevRaw &&
     typeof prevRaw === "object" &&
     !Array.isArray(prevRaw) &&
-    (!lookup.available || sharedExtrasInLang(prevRaw, key.explainLang));
+    sharedExtrasInLang(prevRaw, key.explainLang);
+  // 共有の行の意味・例文訳が、この読む人の言語で書かれているか（目印の無い古い行は日本語）。
+  const sharedTextIsReaders = sharedRowLanguage(shared) === key.explainLang;
   /**
    * **例文の訳・場面の札・パーツは文と組で書く**（オーナー報告 2026-10-15「眼鏡: 我戴眼鏡。の上に
    * 『友達が眼鏡をしていないことに気づいたとき』」、`example-patterns.ts`）。共有の行は空の所だけ埋めるので、
    * 前から在る例文の横に、別の文のために作った札（2026-10-14 に足した空の欄）だけが入っていた。
    * 表示に使う文（埋める文 → 無ければいまの文）と違う文のために書かれた札・パーツ・訳は使わない。
    */
-  const update: Record<string, unknown> = guardExampleColumns(
+  let update: Record<string, unknown> = guardExampleColumns(
     fillEmptySharedColumns(shared, content.patch, {
       verified: shared.source === "verified",
+      lang: key.explainLang,
     }),
     shared,
     lookup.available ? lookup.card : null,
@@ -1640,8 +1656,9 @@ export async function applyWordExtrasUpdate(
   const merged: Record<string, unknown> = mergePrev
     ? { ...(prevRaw as Record<string, unknown>), ...contentExtras }
     : contentExtras;
-  const filledExtras = fillEmptySharedExtras(prevRaw, contentExtras);
+  const filledExtras = fillEmptySharedExtras(prevRaw, contentExtras, shared);
   if (filledExtras) update.extras = filledExtras;
+  update = claimSharedRowLanguage(update, shared, key.explainLang);
   if (Object.keys(update).length > 0) {
     const { error } = await supabaseAdmin
       .from("words")
@@ -1675,8 +1692,13 @@ export async function applyWordExtrasUpdate(
     explain_lang: String(ex.explain_lang ?? ""),
     l1: String(ex.explain_l1 ?? ""),
     // 意味は共有の列にも在るが、**読む人の言語の物**なのでこちらが正。
+    // 共有の意味は、**この読む人の言語の行の時だけ**落とし所にする（別の言語の意味をこの言語の行に写すと、
+    // 同じ言語で読む全員に出る）。
     meaning: String(
-      content.readerMeaning?.trim() || content.patch?.meaning_ja || shared.meaning_ja || "",
+      content.readerMeaning?.trim() ||
+        content.patch?.meaning_ja ||
+        (sharedTextIsReaders ? shared.meaning_ja : "") ||
+        "",
     ),
     example_translation:
       (lookup.available
@@ -1684,7 +1706,7 @@ export async function applyWordExtrasUpdate(
           ? lookup.card?.example_translation
           : undefined
         : data.patch?.example_translation) ??
-      shared.example_translation ??
+      (sharedTextIsReaders ? shared.example_translation : null) ??
       null,
     extras: merged,
   })) as { saved?: boolean } | undefined;

@@ -28,7 +28,7 @@
  */
 import { coerceCategoryKey, normalizeCategory, type CategoryKey } from "./category";
 import { firstGloss } from "./candidate-register";
-import type { UiLang } from "./i18n";
+import type { ExplainLang } from "./explain-languages";
 
 export type BasicLevelEntry = {
   /** 学習言語（台湾華語）の基本の語。 */
@@ -36,17 +36,17 @@ export type BasicLevelEntry = {
   reading_zhuyin: string;
   pinyin: string;
   category: CategoryKey;
-  /** 表示言語の基本の名前（写真のタグ）。 */
-  label: Record<UiLang, string>;
+  /** 表示言語の基本の名前（写真のタグ）。**解説の言語ごとに必ず1つ**（無いと意味が空になる）。 */
+  label: Record<ExplainLang, string>;
   /** その基本の語の「細かい名前」か（学習言語の見出し語）。基本の語そのものは当たらない。 */
   narrower: (headword: string) => boolean;
   /** 表示言語のタグがこの物の細かい名前か（ストロベリーケーキ・柴犬・ボクサーパンツ。`entryForLabel`）。 */
-  labelNarrower: Partial<Record<UiLang, RegExp>>;
+  labelNarrower: Partial<Record<ExplainLang, RegExp>>;
   /**
    * 表示言語で**この物そのもの**を指す別の書き方（ネコ・子猫・cats / イヌ・puppy / パンツ）。タグにも基本の語を
    * 足す手掛かりにもしないが、意味やタグが**どの行の物を指しているか**を見分けるのに使う（`rowNamedBy`）。
    */
-  labelAlso?: Partial<Record<UiLang, RegExp>>;
+  labelAlso?: Partial<Record<ExplainLang, RegExp>>;
   /**
    * 学習言語で**この物そのもの**を指す口語・愛称（貓咪・小貓 / 狗狗・小狗）。細かい名前ではない（`narrower` は
    * 当たらない）が、その語の意味が別の行の物（貓咪 =「犬」）なら取り違えと分かる（`rowOfHeadword`）。
@@ -107,6 +107,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       ja: "花",
       en: "flower",
       "zh-TW": "花",
+      es: "flor",
+      ko: "꽃",
+      vi: "hoa",
     },
     narrower: isFlowerKind,
     labelNarrower: {
@@ -131,6 +134,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       ja: "ケーキ",
       en: "cake",
       "zh-TW": "蛋糕",
+      es: "pastel",
+      ko: "케이크",
+      vi: "bánh kem",
     },
     // 草莓蛋糕・鮮奶油蛋糕・起司蛋糕・生日蛋糕（味・種類の名前）。雞蛋糕（台湾の屋台のお菓子）は別の物。
     narrower: (h) => h.length > 2 && h.endsWith("蛋糕") && h !== "雞蛋糕",
@@ -152,6 +158,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       ja: "犬",
       en: "dog",
       "zh-TW": "狗",
+      es: "perro",
+      ko: "개",
+      vi: "con chó",
     },
     // 犬の種類（柴犬・柯基・貴賓狗…）。犬ではない「〜狗」・口語の言い方・米克斯は `NOT_DOGS` の注。
     narrower: (h) =>
@@ -181,6 +190,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       ja: "猫",
       en: "cat",
       "zh-TW": "貓",
+      es: "gato",
+      ko: "고양이",
+      vi: "con mèo",
     },
     // 猫の種類（波斯貓・英國短毛貓・橘貓・虎斑貓）。猫ではない「〜貓」・口語の言い方は `NOT_CATS` の注。
     narrower: (h) => !NOT_CATS.has(h) && /^.{1,5}貓$/.test(h),
@@ -206,6 +218,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       ja: "下着",
       en: "underwear",
       "zh-TW": "內褲",
+      es: "ropa interior",
+      ko: "속옷",
+      vi: "đồ lót",
     },
     // ボクサーパンツ（平口褲・四角褲）・ブリーフ（三角褲）など。
     narrower: (h) =>
@@ -227,6 +242,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       ja: "椅子",
       en: "chair",
       "zh-TW": "椅子",
+      es: "silla",
+      ko: "의자",
+      vi: "cái ghế",
     },
     // 木椅・辦公椅・餐椅・摺疊椅（種類の名前）。輪椅（車椅子）は別の物なので除く。
     narrower: (h) => !["椅子", "輪椅"].includes(h) && /^.{1,4}椅(子)?$/.test(h),
@@ -246,6 +264,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       ja: "パン",
       en: "bread",
       "zh-TW": "麵包",
+      es: "pan",
+      ko: "빵",
+      vi: "bánh mì",
     },
     // 抹茶麵包・全麥麵包（味・種類の名前）。
     narrower: (h) => h.length > 2 && h.endsWith("麵包"),
@@ -266,6 +287,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       ja: "アイスクリーム",
       en: "ice cream",
       "zh-TW": "冰淇淋",
+      es: "helado",
+      ko: "아이스크림",
+      vi: "kem",
     },
     narrower: (h) => h.length > 3 && h.endsWith("冰淇淋"),
     labelNarrower: {
@@ -295,7 +319,7 @@ export function basicLevelOf(headword: string, targetLanguage: string): BasicLev
  */
 export function entryForLabel(
   label: string | null | undefined,
-  reader: UiLang,
+  reader: ExplainLang,
   targetLanguage: string,
 ): BasicLevelEntry | null {
   const l = (label ?? "").trim();
@@ -317,7 +341,7 @@ export function entryForLabel(
  */
 export function rowNamedBy(
   text: string | null | undefined,
-  reader: UiLang,
+  reader: ExplainLang,
   targetLanguage: string,
 ): BasicLevelEntry | null {
   const t = (text ?? "").trim();
@@ -350,7 +374,11 @@ export function rowOfHeadword(headword: string, targetLanguage: string): BasicLe
  *
  * 基本の語の表示言語の名前は表が知っている。AI のタグ（label）や意味の書き間違い（貓 に「犬」）をタグにしない。
  */
-export function rowTagOf(headword: string, reader: UiLang, targetLanguage: string): string | null {
+export function rowTagOf(
+  headword: string,
+  reader: ExplainLang,
+  targetLanguage: string,
+): string | null {
   const h = (headword ?? "").trim();
   const row = rowOfHeadword(h, targetLanguage);
   if (!row || (row.headword !== h && !(row.forms?.includes(h) ?? false))) return null;
@@ -375,7 +403,7 @@ export function rowTagOf(headword: string, reader: UiLang, targetLanguage: strin
  */
 export function alignRowMeanings<T extends { headword: string; meaning_ja?: string }>(
   items: readonly T[],
-  reader: UiLang,
+  reader: ExplainLang,
   targetLanguage: string,
 ): T[] {
   if (basicLevelTable(targetLanguage).length === 0) return [...items];
@@ -423,7 +451,7 @@ type Candidate = {
 export function ensureBasicLevel<T extends Candidate>(
   items: readonly T[],
   targetLanguage: string,
-  reader: UiLang,
+  reader: ExplainLang,
 ): T[] {
   if (basicLevelTable(targetLanguage).length === 0) return [...items];
   const order: number[] = [];

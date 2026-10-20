@@ -11,6 +11,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { isNounLike } from "./pos";
+import { fitsReaderMeaning } from "./first-catch-meaning";
 import {
   assertWithinDailyCap,
   forFeature,
@@ -253,6 +254,12 @@ export const detectScan = createServerFn({ method: "POST" })
      * （`alternatives`）も同じ関所に通す。
      */
     parsed.items = keepTargetHeadwords(parsed.items, target);
+    // 意味は読む人の言語（下の `detectParts` と同じ）。**別の言語で返った意味は空にしてから**、控え・辞書・
+    // 画面に渡す（控えには意味の言語の目印を付けるので、目印と中身が食い違う控えを作らない）。
+    const scanReader = await (await import("./ai-provider.server")).getExplanationLanguage(userId);
+    parsed.items = parsed.items.map((it) =>
+      fitsReaderMeaning(it.meaning_ja, scanReader) ? it : { ...it, meaning_ja: "" },
+    );
 
     /**
      * 見つけた語の意味と読みを控える（監査 2026-10-03 M3、`generated-cards.ts`）。
@@ -264,14 +271,17 @@ export const detectScan = createServerFn({ method: "POST" })
       const items = parsed.items;
       await runAfterResponse("scan: record candidate receipts", async () => {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { recordGeneratedCards } = await import("./generated-cards");
+        const { recordGeneratedCards, candidateCard } = await import("./generated-cards");
         await recordGeneratedCards(
           supabaseAdmin,
           items.map((it) => ({
             language: target,
             headword: it.headword,
             kind: "candidate" as const,
-            card: { meaning_ja: it.meaning_ja, reading_zhuyin: it.zhuyin, pinyin: it.pinyin },
+            card: candidateCard(
+              { meaning_ja: it.meaning_ja, reading_zhuyin: it.zhuyin, pinyin: it.pinyin },
+              scanReader,
+            ),
           })),
         );
       });
@@ -282,8 +292,7 @@ export const detectScan = createServerFn({ method: "POST" })
     // ついでに1日1回の自己改善(辞書監査+ニュースコーパス観察)も起動。
     // 意味は読む人の言語で返ってくる。日本語だけが辞書の `meaning_ja`、ほかの言語は `meanings[言語]`（2026-10-15）。
     void import("./lexicon.server").then(async (m) => {
-      const { getExplanationLanguage } = await import("./ai-provider.server");
-      void m.learnLexiconEntries(parsed.items, await getExplanationLanguage(userId));
+      void m.learnLexiconEntries(parsed.items, scanReader);
       void m.maybeRunDailySelfImprovement(userId);
     });
 
@@ -344,10 +353,18 @@ export const detectParts = createServerFn({ method: "POST" })
       : `data:image/jpeg;base64,${data.imageBase64}`;
 
     // 言語・字・例は学習言語の表から(`coach`)。台湾華語の値はいままでの文そのもの。
-    const { getUserTargetLanguage } = await import("./ai-provider.server");
+    const { getUserTargetLanguage, explanationLanguageRule, getExplanationLanguage } =
+      await import("./ai-provider.server");
     const partsTarget = await getUserTargetLanguage(context.userId);
     const coach = targetProfile(partsTarget).coach;
+    // **意味（meaning_ja）は読む人の言語で**（2026-10-20: 見本の値が日本語の「親指」だけで、指示が無かった。
+    // スペイン語・韓国語・ベトナム語の読み手に日本語の意味が返り、その言語の辞書に入っていた）。
+    const [partsLangRule, partsReader] = await Promise.all([
+      explanationLanguageRule(context.userId, partsTarget),
+      getExplanationLanguage(context.userId),
+    ]);
     const prompt = `画像には「${data.parentHeadword}」が写っています。この物体を構成する**部分・要素**の名称を、${coach.partsLanguage}で学習価値のあるものだけ最大6個抽出してください。
+- ${partsLangRule}（meaning_ja はその言語の短い訳語。見本の値の言語につられない）
 - 全体名(${data.parentHeadword})は含めない
 - 部位・部品・素材・付随物のみ(例: ${coach.partsExample})
 - point は切り取られた画像内での中心座標を 0〜1000 に正規化した [x, y]
@@ -392,11 +409,14 @@ export const detectParts = createServerFn({ method: "POST" })
       parsed.items.filter((it) => isNounLike(it.pos)),
       partsTarget,
     );
-    // 意味は読む人の言語（日本語だけが辞書の `meaning_ja`。上の `detectScan` と同じ）。
-    void import("./lexicon.server").then(async ({ learnLexiconEntries }) => {
-      const { getExplanationLanguage } = await import("./ai-provider.server");
-      return learnLexiconEntries(parsed.items, await getExplanationLanguage(context.userId));
-    });
+    // 意味は読む人の言語（日本語だけが辞書の `meaning_ja`。上の `detectScan` と同じ）。**別の言語で返った意味は
+    // 空にしてから**辞書と画面に渡す（その言語の辞書に別の言語の意味を貯めない）。
+    parsed.items = parsed.items.map((it) =>
+      fitsReaderMeaning(it.meaning_ja, partsReader) ? it : { ...it, meaning_ja: "" },
+    );
+    void import("./lexicon.server").then(({ learnLexiconEntries }) =>
+      learnLexiconEntries(parsed.items, partsReader),
+    );
 
     // Also log parts into scan_events so recollection notifications can surface them.
     if (parsed.items.length > 0) {

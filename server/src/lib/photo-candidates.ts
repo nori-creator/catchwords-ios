@@ -1,12 +1,12 @@
 import { normalizeCategory, shareCategoryWithinGroups } from "./category";
 import { applyObjectLabels, finalizeNameRegisters } from "./candidate-register";
 import { alignRowMeanings, ensureBasicLevel, rowTagOf } from "./basic-level";
-import { fitSuggestionsToReader } from "./first-catch-meaning";
+import { fitSuggestionsToReader, fitsReaderNote } from "./first-catch-meaning";
 import { shortMeaning } from "./meaning-rule";
 import { readerText } from "./note-language";
 import { detectQueryLang } from "./text-query-lang";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
-import type { UiLang } from "./i18n";
+import type { ExplainLang } from "./explain-languages";
 
 /** 写真の候補1つ（`suggestWords` の生成の形のうち、ここで読む欄）。 */
 export type PhotoSuggestion = {
@@ -15,6 +15,8 @@ export type PhotoSuggestion = {
   reading_zhuyin?: string;
   pinyin?: string;
   distinction?: string;
+  /** 使う場面の札（読む人の言語）。 */
+  scene?: string;
   category_key?: string;
   register?: string | null;
   label?: string | null;
@@ -41,7 +43,7 @@ export type ReadingCheck = <T extends { pinyin?: string; reading_zhuyin?: string
  */
 export function finishPhotoCandidates<T extends PhotoSuggestion>(
   usable: readonly T[],
-  reader: UiLang,
+  reader: ExplainLang,
   targetLanguage: string,
   correctReading: ReadingCheck,
 ) {
@@ -52,6 +54,8 @@ export function finishPhotoCandidates<T extends PhotoSuggestion>(
     // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
     meaning_ja: shortMeaning(s.meaning_ja),
     category_key: normalizeCategory(s.headword, s.category_key),
+    // 使う場面の札も読む人の言語の物だけ（2026-10-20、`suggestWordCandidates` と同じ）。
+    ...(s.scene && !fitsReaderNote(s.scene, reader, targetLanguage) ? { scene: "" } : {}),
   }));
   // 基本の語の意味を表で確かめる（別の物の名前・細かい名前・空 → 表の名前。細かい語は別の物の名前なら空）。
   const aligned = alignRowMeanings(fitted, reader, targetLanguage);
@@ -71,7 +75,7 @@ const HAN_ONLY = /^\p{Script=Han}+$/u;
  * ただし日本語で読む人には、見出し語と同じ字でも日本語の語なら出す（花・花瓶・椅子 — 台湾の字にしか無い形
  * 「貓」「腳」を含む物は写し）。前はこれも写しとして落とし、タグが空になっていた（画面は見出し語を出していた）。
  */
-export function isReaderTagText(text: string, reader: UiLang, headword: string): boolean {
+export function isReaderTagText(text: string, reader: ExplainLang, headword: string): boolean {
   if (readerText(text, reader, headword)) return true;
   const t = (text ?? "").trim();
   return (

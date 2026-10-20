@@ -1,5 +1,6 @@
 import { posGroup, type PosGroup } from "./pos";
 import { normalizeTargetLanguage } from "./target-lang";
+import { explainScript } from "./explain-languages";
 import type { ChunkPart } from "./extras";
 
 /**
@@ -27,24 +28,30 @@ const SWAPPABLE: ReadonlySet<PosGroup> = new Set(["n", "m"]);
  */
 export const DEGREE_CHOICES = ["很", "超", "非常", "有點", "蠻"] as const;
 
-/** 程度の語の意味（読む人の言語）。型の訳の中で、その語に当たる部分と同じ書き方。 */
-const DEGREE_GLOSS: Record<string, { ja: string; en: string }> = {
-  很: { ja: "とても", en: "very" },
-  超: { ja: "すごく", en: "super" },
-  非常: { ja: "非常に", en: "extremely" },
-  有點: { ja: "ちょっと", en: "a little" },
-  蠻: { ja: "わりと", en: "pretty" },
-  好: { ja: "すごく", en: "so" },
+/**
+ * 程度の語の意味（読む人の言語）。型の訳の中で、その語に当たる部分と同じ書き方。iOS の
+ * `ios/Localization/languages.json` の `degreeGlosses` と同じ語。**解説の言語ごとに必ず1つ**
+ * （無い言語に日本語の意味を入れない — 2026-10-20 にスペイン語・韓国語・ベトナム語を足した）。
+ */
+const DEGREE_GLOSS: Record<string, Record<"ja" | "en" | "es" | "ko" | "vi", string>> = {
+  很: { ja: "とても", en: "very", es: "muy", ko: "아주", vi: "rất" },
+  超: { ja: "すごく", en: "super", es: "súper", ko: "엄청", vi: "siêu" },
+  非常: { ja: "非常に", en: "extremely", es: "extremadamente", ko: "매우", vi: "cực kỳ" },
+  有點: { ja: "ちょっと", en: "a little", es: "un poco", ko: "조금", vi: "hơi" },
+  蠻: { ja: "わりと", en: "pretty", es: "bastante", ko: "꽤", vi: "khá" },
+  好: { ja: "すごく", en: "so", es: "tan", ko: "정말", vi: "thật" },
 };
 
-/** 中国語を読む人には、その語そのもの（訳すと同じ字になる）。 */
+/** 中国語を読む人には、その語そのもの（訳すと同じ字になる）。知らない言語には何も入れない。 */
 export function degreeGloss(word: string, reader?: string | null): string {
   const w = word.trim();
   const g = DEGREE_GLOSS[w];
   if (!g) return "";
-  if (reader === "en") return g.en;
-  if (reader && normalizeTargetLanguage(reader).startsWith("zh")) return w;
-  return g.ja;
+  const r = (reader ?? "").trim();
+  if (!r) return g.ja;
+  // 学習言語の均し（知らない値 → 台湾華語）で見ない: スペイン語の読み手が中国語の読み手になる。
+  if (explainScript(r) === "han") return w;
+  return (g as Record<string, string>)[r] ?? "";
 }
 
 function isDegreeChoice(part: ChunkPart): boolean {

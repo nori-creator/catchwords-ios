@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ExtrasSchema, hasExtrasContent, normalizeExtras } from "./extras";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
-import { readerMeaning, readerText } from "./note-language";
+import { readerMeaning, readerText, scrubExtrasForReader } from "./note-language";
 import { lacksNotes } from "./explanation-cache";
 
 /**
@@ -54,15 +54,20 @@ const filledValue = (v: unknown): boolean =>
  * - 人が確かめた語（`verified`）は何も書かない
  * - いま空の列だけ、送られた空でない値で埋める
  * - 知らない鍵は捨てる（`SHARED_WORD_COLUMNS` だけ）
+ * - `lang`（書く文の言語）を渡したら、別の言語の行には意味・例文訳・例文を書かない
+ *   （`mayWriteSharedReaderText`）。読み・品詞・級は書く
  */
 export function fillEmptySharedColumns(
-  current: Partial<Record<SharedWordColumn, string | null | undefined>> | null | undefined,
+  current: SharedRowText | null | undefined,
   patch: Partial<Record<string, string | null | undefined>> | null | undefined,
-  opts: { verified: boolean },
+  opts: { verified: boolean; lang?: string },
 ): Partial<Record<SharedWordColumn, string>> {
   const out: Partial<Record<SharedWordColumn, string>> = {};
   if (!patch || opts.verified) return out;
+  // 別の言語の行には、読む人の言語の列（意味・例文訳と、その組の例文）を書かない。
+  const textOk = opts.lang === undefined || mayWriteSharedReaderText(current, opts.lang);
   for (const col of SHARED_WORD_COLUMNS) {
+    if (!textOk && READER_TEXT_COLUMNS.includes(col)) continue;
     const next = patch[col];
     if (!filledText(next)) continue;
     if (filledText(current?.[col])) continue;
@@ -75,6 +80,73 @@ export function fillEmptySharedColumns(
 function extrasLanguage(e: Record<string, unknown>): string {
   const v = e.explain_lang;
   return (typeof v === "string" && v.trim()) || "ja";
+}
+
+/**
+ * 共有の列のうち、**読む人の言語で書く物**（とその組の例文）。読み・品詞・級は学習言語の側の物で、
+ * どの言語の人が埋めてもよい。
+ */
+const READER_TEXT_COLUMNS: readonly SharedWordColumn[] = [
+  "meaning_ja",
+  "example_translation",
+  "example_sentence",
+];
+
+type SharedRowText = Partial<Record<SharedWordColumn, string | null | undefined>> & {
+  extras?: unknown;
+};
+
+const asRecord = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+/**
+ * **共有の行の、読む人の言語の文（意味・例文訳・解説）が書かれている言語**。行に1つしか無い:
+ * `extras.explain_lang`。目印の無い古い行は、表示言語が日本語だけだった頃の物なので日本語。
+ */
+export function sharedRowLanguage(row: SharedRowText | null | undefined): string {
+  return extrasLanguage(asRecord(row?.extras));
+}
+
+/** 共有の行に、読む人の言語の文がまだ1つも無いか（どの言語の行でもない）。 */
+export function sharedRowHasReaderText(row: SharedRowText | null | undefined): boolean {
+  if (!row) return false;
+  if (filledText(row.meaning_ja) || filledText(row.example_translation)) return true;
+  return hasExtrasContent(normalizeExtras(asRecord(row.extras)));
+}
+
+/**
+ * **その言語の文で、共有の行を埋めてよいか**（2026-10-20 オーナー指示「決して言語が混ざらないようにして」）。
+ *
+ * 共有の行は1語に1行で、意味・例文訳・解説の言語の目印は行に1つ。別の言語の人が空の列を埋めると、
+ * 目印と中身の言語が食い違う（2026-10-20 の本番で 312 行のうち約10行）。食い違った行は、目印で選ぶ
+ * 画面（iOS の `ReaderLanguage.resolve`）にも、文字で選ぶ画面にも見分けられない（英語とスペイン語は
+ * 同じ文字）。だから、行の言語と同じ言語の人だけが埋め、まだ何も無い行だけは最初の人の言語になる
+ * （そのとき目印も付ける — `claimSharedRowLanguage`）。別の言語の人の解説は `word_explanations` に入る。
+ */
+export function mayWriteSharedReaderText(
+  row: SharedRowText | null | undefined,
+  lang: string,
+): boolean {
+  return !sharedRowHasReaderText(row) || sharedRowLanguage(row) === lang;
+}
+
+/**
+ * まだ何も無い行に読む人の言語の文を書く時、**目印もその言語にする**（`update` に足す）。目印の無いまま
+ * 英語の意味を書くと、その行は「日本語の行」と読まれる。
+ */
+export function claimSharedRowLanguage(
+  update: Record<string, unknown>,
+  row: SharedRowText | null | undefined,
+  lang: string,
+): Record<string, unknown> {
+  if (sharedRowHasReaderText(row)) return update;
+  const writesText =
+    READER_TEXT_COLUMNS.some((c) => c !== "example_sentence" && filledText(update[c])) ||
+    "extras" in update;
+  if (!writesText) return update;
+  const extras = { ...asRecord(row?.extras), ...asRecord(update.extras) };
+  if (extrasLanguage(extras) === lang && extras.explain_lang === lang) return update;
+  return { ...update, extras: { ...extras, explain_lang: lang } };
 }
 
 /**
@@ -122,13 +194,20 @@ function keepScenePair(
 export function fillEmptySharedExtras(
   prevRaw: unknown,
   incoming: Record<string, unknown> | null | undefined,
+  /**
+   * 共有の行の列（意味・例文訳）。渡したら、解説が空でも**別の言語の意味が載った行**には入れない
+   * （日本語の意味の横にスペイン語の解説と目印を入れると、その行の意味が「スペイン語」と読まれる）。
+   */
+  row?: SharedRowText | null,
 ): Record<string, unknown> | null {
   if (!incoming || !hasExtrasContent(normalizeExtras(incoming))) return null;
-  const prev =
-    prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw)
-      ? (prevRaw as Record<string, unknown>)
-      : {};
-  if (!hasExtrasContent(normalizeExtras(prev))) return { ...prev, ...incoming };
+  const prev = asRecord(prevRaw);
+  if (!hasExtrasContent(normalizeExtras(prev))) {
+    if (row && !mayWriteSharedReaderText({ ...row, extras: prev }, extrasLanguage(incoming))) {
+      return null;
+    }
+    return { ...prev, ...incoming };
+  }
   if (extrasLanguage(prev) !== extrasLanguage(incoming)) return null;
   const inc = withoutSceneIfLabelled(prev, incoming);
   const out: Record<string, unknown> = { ...prev };
@@ -201,6 +280,14 @@ export function fillReaderExplanation(
 ): ReaderRowWrite {
   const meaningFits = (t: string) => readerMeaning(t, readerLang).trim().length > 0;
   const textFits = (t: string) => readerText(t, readerLang).trim().length > 0;
+  // **入れる物も読む人の言語の物だけ**（2026-10-20）。この行は同じ言語で読む全員に出る。
+  const tr = incoming.example_translation;
+  incoming = {
+    ...incoming,
+    meaning: meaningFits(incoming.meaning ?? "") ? incoming.meaning : "",
+    ...(typeof tr === "string" && tr.trim() && !textFits(tr) ? { example_translation: "" } : {}),
+    extras: scrubExtrasForReader(incoming.extras, readerLang),
+  };
   if (!existing) return { kind: "insert", row: incoming };
   if (existing.source === "verified") return { kind: "skip", reason: "verified" };
   const patch: Partial<ReaderRowContent> = {};

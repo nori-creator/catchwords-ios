@@ -160,7 +160,7 @@ describe("打って調べた語は、まず表示言語の語として読む（�
     expect(fn).toMatch(
       /category_key: normalizeCategory\(c\.headword, coerceCategoryKey\(c\.category_key\)\)/,
     );
-    expect(fn).toMatch(/const registered = finalizeNameRegisters\(listed\)/);
+    expect(fn).toMatch(/const registered = finalizeNameRegisters\(fitted\)/);
     expect(fn).toMatch(
       /ensureTypedBasic\(\s*mode === "learning" \? registered : preferEverydayCommon\(registered\)/,
     );

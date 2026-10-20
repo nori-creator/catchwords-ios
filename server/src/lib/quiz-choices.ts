@@ -1,4 +1,4 @@
-import type { UiLang } from "./i18n";
+import type { ExplainLang } from "./explain-languages";
 
 /**
  * 4択の選択肢を組む所。
@@ -29,10 +29,14 @@ export const FALLBACK_MEANINGS: readonly string[] = [
  * 別の言語が混ざる」）。日本語の1組しか無かったので、英語で読む人が
  * 撮った語の少ないうちは、4択の3つが日本語になっていた。
  */
-export const FALLBACK_MEANINGS_BY_LANG: Readonly<Record<UiLang, readonly string[]>> = {
+export const FALLBACK_MEANINGS_BY_LANG: Readonly<Record<ExplainLang, readonly string[]>> = {
   ja: FALLBACK_MEANINGS,
   en: ["another object", "a place name", "a job title", "a way to say a time"],
   "zh-TW": ["別的東西", "地方的名字", "職稱", "時間的說法"],
+  // 2026-10-20: iOS の表示言語に足した3つ。**解説の言語ごとに必ず1組**（無いと4択が組めない）。
+  es: ["otro objeto", "un nombre de lugar", "un cargo", "una forma de decir la hora"],
+  ko: ["다른 물건", "장소 이름", "직책", "시간을 말하는 표현"],
+  vi: ["một đồ vật khác", "tên một địa điểm", "một chức danh", "cách nói thời gian"],
 };
 
 /**

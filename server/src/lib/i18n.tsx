@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { isExplainLang } from "./explain-languages";
 import type { TargetLanguage } from "./target-lang";
 
 /**
@@ -22,10 +23,29 @@ export const UI_LANG_STORAGE_KEY = "ui-lang-v1";
 const KEY = UI_LANG_STORAGE_KEY;
 const EVENT = "ui-lang-changed";
 
-/** 知らない値を既定に落とす。**未知の言語のまま描かない。** */
+export function isUiLang(v: unknown): v is UiLang {
+  return typeof v === "string" && (UI_LANGS as readonly string[]).includes(v);
+}
+
+/**
+ * 知らない値を既定に落とす。**未知の言語のまま描かない。**
+ *
+ * **解説の言語にはあるが Web の画面に無い言語**（スペイン語・韓国語・ベトナム語 —
+ * iOS で選べる。`explain-languages.ts`）は英語で描く（`webUiLangOf`）。日本語に落とすと、
+ * 日本語を読まない人に日本語の画面を出すことになる。
+ */
 export function normalizeUiLang(raw: string | null | undefined): UiLang {
   const v = (raw ?? "").trim();
-  return (UI_LANGS as readonly string[]).includes(v) ? (v as UiLang) : "ja";
+  if (isUiLang(v)) return v;
+  return isExplainLang(v) ? webUiLangOf(v) : "ja";
+}
+
+/**
+ * **Web の画面に無い解説の言語を、Web で描く言語へ。** 英語（iOS が訳の無い文を英語で
+ * 出す `L10n.text` と同じ考え方）。
+ */
+export function webUiLangOf(lang: string): UiLang {
+  return isUiLang(lang) ? lang : "en";
 }
 
 /**

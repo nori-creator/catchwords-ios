@@ -1,5 +1,5 @@
+import { explainScript, latinLanguageOf, type ExplainLang } from "./explain-languages";
 import { fitsReaderLanguage } from "./meaning-language";
-import type { UiLang } from "./i18n";
 
 /**
  * **チュートリアルの意味・訳は、必ず表示言語で**（実物確認 2026-10-03 run 37105477674）。
@@ -26,11 +26,12 @@ import type { UiLang } from "./i18n";
 const HAN = /[㐀-䶿一-鿿々]/;
 const KANA = /[ぁ-ゟァ-ヺー]/;
 const LATIN = /[A-Za-z]/;
+const HANGUL = /[가-힯ᄀ-ᇿ]/;
 
 type Suggestion = { headword: string; meaning_ja: string; distinction?: string };
 
 /** 表示言語に合わない意味の見出し（辞書を引く物）。 */
-export function misfitHeadwords(items: readonly Suggestion[], reader: UiLang): string[] {
+export function misfitHeadwords(items: readonly Suggestion[], reader: ExplainLang): string[] {
   return items.filter((s) => !fitsReaderMeaning(s.meaning_ja, reader)).map((s) => s.headword);
 }
 
@@ -41,17 +42,21 @@ export function misfitHeadwords(items: readonly Suggestion[], reader: UiLang): s
  * - 繁體中文 … かなが無く、漢字が在る（ラテン文字だけは英語）
  * - 日本語 … ラテン文字だけの意味（英語）でなければ通す
  */
-export function fitsReaderMeaning(text: string | null | undefined, reader: UiLang): boolean {
+export function fitsReaderMeaning(
+  text: string | null | undefined,
+  reader: ExplainLang | string,
+): boolean {
   const s = (text ?? "").replace(/\s+/g, "");
   if (!s) return true;
   if (reader === "ja") return HAN.test(s) || KANA.test(s) || !LATIN.test(s);
-  return fitsReaderLanguage(s, reader);
+  // 空白を残して渡す（欧文の言語の見分けは語の切れ目で数える）。
+  return fitsReaderLanguage(text, reader);
 }
 
 /** 意味1つを表示言語に揃える。合わなければ辞書の意味、それも無ければ空。 */
 export function readerMeaning(
   text: string | null | undefined,
-  reader: UiLang,
+  reader: ExplainLang,
   dictionary?: string | null,
 ): string {
   const own = (text ?? "").trim();
@@ -64,13 +69,15 @@ export function readerMeaning(
  * 注記・訳・説明（長めの文）が表示言語で書かれているか。意味（短い語）より緩い —
  * 文の中に学習言語の語を引くことがある（英語の説明に「咖啡」、中文の説明に「latte」）。
  * はっきり別の言語の文だけを落とす:
- * - 英語の読み手 … ラテン文字が1つも無く、漢字・かなだけの文
- * - 繁體中文の読み手 … かなが在る文（学習言語が日本語の時は除く）、またはラテン文字だけの文
+ * - 欧文の読み手（英語・スペイン語・ベトナム語）… ラテン文字が1つも無く、漢字・かな・ハングルだけの文。
+ *   別の欧文の言語だとはっきり分かる文（`latinLanguageOf`）
+ * - 繁體中文の読み手 … かな・ハングルが在る文（学習言語が日本語の時のかなは除く）、またはラテン文字だけの文
+ * - 韓国語の読み手 … ハングルが無く、漢字・かな・ラテン文字の文
  * - 日本語の読み手 … `fitsReaderLanguage` と同じ（かなが在れば通す）
  */
 export function fitsReaderNote(
   text: string | null | undefined,
-  reader: UiLang,
+  reader: ExplainLang,
   target: string,
 ): boolean {
   const s = (text ?? "").replace(/\s+/g, "");
@@ -78,15 +85,28 @@ export function fitsReaderNote(
   const han = HAN.test(s);
   const kana = KANA.test(s);
   const latin = LATIN.test(s);
-  if (reader === "en") return latin || (!han && !kana);
-  if (reader === "ja") return fitsReaderLanguage(s, "ja");
-  // 繁體中文
-  if (kana && target !== "ja") return false;
-  return han || kana || !latin;
+  const hangul = HANGUL.test(s);
+  switch (explainScript(reader)) {
+    case "latin": {
+      if (!latin && (han || kana || hangul)) return false;
+      const other = latinLanguageOf(text);
+      return !other || other === reader;
+    }
+    case "kana":
+      return fitsReaderLanguage(s, "ja");
+    case "hangul":
+      if (kana && target !== "ja") return false;
+      return hangul || !(han || latin);
+    default:
+      // 繁體中文
+      if (kana && target !== "ja") return false;
+      if (hangul) return false;
+      return han || kana || !latin;
+  }
 }
 
 /** 注記・訳など（辞書で置き換えない物）。合わなければ空。 */
-function keep(text: string | null | undefined, reader: UiLang, target: string): string {
+function keep(text: string | null | undefined, reader: ExplainLang, target: string): string {
   const s = text ?? "";
   return fitsReaderNote(s, reader, target) ? s : "";
 }
@@ -94,7 +114,7 @@ function keep(text: string | null | undefined, reader: UiLang, target: string): 
 /** 撮った後の候補の意味と使い分けの一言を、表示言語に揃える。 */
 export function fitSuggestionsToReader<T extends Suggestion>(
   items: readonly T[],
-  reader: UiLang,
+  reader: ExplainLang,
   target: string,
   dictionary: ReadonlyMap<string, string> = new Map(),
 ): T[] {
@@ -115,7 +135,7 @@ type CardLike = {
 /** カードの意味・例文の訳・使い方の訳を、表示言語に揃える。 */
 export function fitCardToReader<T extends CardLike>(
   card: T,
-  reader: UiLang,
+  reader: ExplainLang,
   target: string,
   dictionary?: string | null,
 ): T {
@@ -168,7 +188,7 @@ type LessonLike = {
  */
 export function fitLessonToReader<T extends LessonLike>(
   lesson: T,
-  reader: UiLang,
+  reader: ExplainLang,
   target: string,
 ): T | null {
   const senses = lesson.senses

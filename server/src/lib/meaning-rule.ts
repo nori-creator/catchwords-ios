@@ -46,7 +46,7 @@ export function meaningRule(targetName: string, explanationLanguageName: string)
     `  ・${explanationLanguageName}に**対応する語が無い**とき`,
     "    （その物・その事を短く言い表す）",
     // R17「湯咖哩の英語の…単語の意味が長すぎる」— 説明文の形で返る回があった。
-    `  **長さの上限: 日本語・中国語なら15字、英語なら4語まで。** 文にしない（読点・コンマで続けない）。`,
+    `  **長さの上限: 日本語・中国語なら15字、韓国語なら10字、英語なら4語、スペイン語・ベトナム語なら5語まで。** 文にしない（読点・コンマで続けない）。`,
     NO_PADDING,
   ].join("\n");
 }
@@ -64,12 +64,14 @@ const CAP_LATIN = 40;
 
 /** 英語の指示文に入れる長さの上限（`meaningRule` と同じ数）。チュートリアルの AI が使う。 */
 export const MEANING_LENGTH_RULE_EN =
-  "meaning_ja is a short gloss, not a definition: at most 15 characters in Japanese or Chinese, or at most 4 words in English. No sentences, no commas or 。 chaining, no parenthetical notes.";
+  "meaning_ja is a short gloss, not a definition: at most 15 characters in Japanese or Chinese, 10 in Korean, or at most 4 words in English (5 in Spanish or Vietnamese). No sentences, no commas or 。 chaining, no parenthetical notes.";
 
 function isLatinText(s: string): boolean {
-  // ASCII 全域（制御文字を含む）と Latin-1 拡張だけでできた文か。制御文字を含めるのは意図。
+  // ASCII 全域（制御文字を含む）と Latin-1 拡張・ベトナム語の2つ印の文字（ạ ầ ở — U+1E00–1EFF）だけで
+  // できた文か（印を分けて書いた文字は NFC で1字にしてから見る）。制御文字を含めるのは意図。
+  // ベトナム語を漢字の長さ（20字）で切らない。
   // eslint-disable-next-line no-control-regex
-  return /^[\x00-\x7F\u00C0-\u024F\s]+$/.test(s);
+  return /^[\x00-\x7F\u00C0-\u024F\u1E00-\u1EFF\s]+$/.test(s.normalize("NFC"));
 }
 
 /** 字数（サロゲートペアを1字と数える）で上限に収め、切った時だけ「…」を付ける。 */

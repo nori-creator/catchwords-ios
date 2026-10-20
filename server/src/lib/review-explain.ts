@@ -2,7 +2,7 @@ import { keepReaderLanguage } from "./meaning-language";
 import { normalizeExtras, refineUsageChunks, type ChunkPart } from "./extras";
 import { readerMeaning } from "./note-language";
 import { shortMeaning } from "./meaning-rule";
-import type { UiLang } from "./i18n";
+import type { ExplainLang } from "./explain-languages";
 
 /**
  * 復習の答え合わせに出す解説を組む所（外の世界に触れない）。
@@ -50,7 +50,7 @@ export function explainOf(
    * 「解説に別の言語が混ざる」）。表示言語を変える前に作った語は、
    * 訳と注記が前の言語のまま残っている。
    */
-  reader?: UiLang,
+  reader?: ExplainLang,
 ): ReviewExplain | null {
   const ex = normalizeExtras(rawExtras);
   if (!ex) return null;
@@ -109,7 +109,7 @@ export function quizPromptMeaning(opts: {
   explanation?: string | null;
   /** 図鑑と同じ覚え置き（`reader-meanings.ts`）。 */
   cached?: string | null;
-  lang: UiLang;
+  lang: ExplainLang;
 }): string {
   const shared = (opts.shared ?? "").trim();
   // 共有の意味も**語の長さに**（2026-10-05 オーナー報告: 説明文の意味が4択の問いに2行で出た）。

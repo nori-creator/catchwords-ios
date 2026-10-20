@@ -4,6 +4,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GENERATED_CARD_TTL_MS,
+  candidateCard,
+  candidateLanguage,
   fillSharedWordFromCard,
   findGeneratedCard,
   isMissingGeneratedCardsTable,
@@ -68,6 +70,25 @@ describe("pickGeneratedCard", () => {
       { now: NOW },
     );
     expect(picked).toEqual({ card: { meaning_ja: "カード" }, kind: "card" });
+  });
+
+  it("**呼んだ人の言語の候補は、別の言語のカードより先**（新しい共有の行が作った人の言語の行になる）", () => {
+    const picked = pickGeneratedCard(
+      [
+        row({ explain_lang: "en", l1: "en", card: { meaning_ja: "bicycle" } }),
+        row({
+          kind: "candidate",
+          explain_lang: "",
+          l1: "",
+          card: candidateCard({ meaning_ja: "自転車" }, "ja"),
+        }),
+      ],
+      { now: NOW, preferExplainLang: "ja" },
+    );
+    expect(picked?.kind).toBe("candidate");
+    expect(picked?.card.meaning_ja).toBe("自転車");
+    expect(candidateLanguage(candidateCard({ meaning_ja: "x" }, "es"))).toBe("es");
+    expect(candidateLanguage({ meaning_ja: "x" })).toBeNull();
   });
 
   it("カード同士なら、呼んだ人の解説の言語のカードを先に（古くても）", () => {
@@ -298,6 +319,7 @@ describe("fillSharedWordFromCard（既に在る語の空の所だけ）", () => 
         example_sentence: "我騎腳踏車。",
         extras: { explain_lang: "ja", usage_context: "通学" },
       },
+      explainLang: "ja",
     });
     expect(n).toBe(2);
     expect(updates).toEqual([
@@ -312,6 +334,40 @@ describe("fillSharedWordFromCard（既に在る語の空の所だけ）", () => 
       {
         id: "v",
         row: { extras: { explain_lang: "ja", mnemonic: "x", usage_context: "通学" } },
+      },
+    ]);
+  });
+
+  it("**別の言語の行には、意味・例文・訳・解説を書かない**（読み・品詞だけ）。何も無い行は書いた人の言語の行になる", async () => {
+    const { admin, updates } = fakeWords([
+      // 日本語の意味だけの古い行（目印なし = 日本語の行）
+      { id: "ja", source: "ai", meaning_ja: "自転車", pinyin: "", extras: {} },
+      // 何も無い行
+      { id: "empty", source: "ai", meaning_ja: "", extras: {} },
+    ]);
+    await fillSharedWordFromCard(admin, {
+      language: "zh-TW",
+      headwords: ["腳踏車"],
+      card: {
+        meaning_ja: "bicicleta",
+        pinyin: "jiǎotàchē",
+        example_sentence: "我騎腳踏車。",
+        example_translation: "Voy en bicicleta.",
+        extras: { explain_lang: "es", usage_context: "para ir a la escuela" },
+      },
+      explainLang: "es",
+    });
+    expect(updates).toEqual([
+      { id: "ja", row: { pinyin: "jiǎotàchē" } },
+      {
+        id: "empty",
+        row: {
+          meaning_ja: "bicicleta",
+          pinyin: "jiǎotàchē",
+          example_sentence: "我騎腳踏車。",
+          example_translation: "Voy en bicicleta.",
+          extras: { explain_lang: "es", usage_context: "para ir a la escuela" },
+        },
       },
     ]);
   });

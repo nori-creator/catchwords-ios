@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { allowDismiss, allowEntryFix } from "./jev-tasks";
 import { entryJevOpinion } from "./jev-tasks.server";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { fitsReaderMeaning } from "./first-catch-meaning";
 import { z } from "zod";
 import { generateStructured, getAiFor } from "./ai-provider.server";
 import { taiwanUsageFrom, type TaiwanUsage } from "./taiwan-usage";
@@ -56,7 +57,14 @@ export async function learnLexiconEntries(
     const rows = candidates
       .filter(
         (c) =>
-          (c.confidence ?? 1) >= 0.8 && CJK_ONLY.test(c.headword) && !!c.zhuyin && !!c.meaning_ja,
+          (c.confidence ?? 1) >= 0.8 &&
+          CJK_ONLY.test(c.headword) &&
+          !!c.zhuyin &&
+          !!c.meaning_ja &&
+          // **その言語の欄に、別の言語で返った意味を貯めない**（2026-10-20 表示言語にスペイン語・韓国語・
+          // ベトナム語を足した。指示の見本につられて日本語で返った意味が meanings.es に入るのを止める）。
+          // 日本語は漢字だけの長い意味（自動販売機）も通す `fitsReaderMeaning`。
+          fitsReaderMeaning(c.meaning_ja, meaningLang),
       )
       .map((c) => ({
         language: DEFAULT_TARGET_LANGUAGE,

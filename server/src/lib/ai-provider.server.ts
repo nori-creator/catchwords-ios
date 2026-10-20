@@ -2,7 +2,8 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { targetProfile } from "@/lib/target-profile";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
-import { UI_LANG_PROMPT_NAMES } from "./i18n";
+import { explainLanguage, EXPLAIN_LANGS } from "./explain-languages";
+import { isUiLang, UI_LANG_PROMPT_NAMES } from "./i18n";
 import {
   DAILY_CAPS,
   USAGE_CHECK_FAILED_MESSAGE,
@@ -930,8 +931,12 @@ export async function getUserTargetLanguage(userId: string): Promise<string> {
  * 解説文をどの言語で書くか。設定の「表示言語」(profiles.ui_language)に従う。
  * 学習対象の台湾華語はそのまま、**説明・訳だけ**をこの言語で書かせる。
  */
-export async function getExplanationLanguage(userId: string): Promise<import("./i18n").UiLang> {
-  const { normalizeUiLang } = await import("./i18n");
+export async function getExplanationLanguage(
+  userId: string,
+): Promise<import("./explain-languages").ExplainLang> {
+  // **Web の画面の言語（`normalizeUiLang`）で均さない。** スペイン語・韓国語・ベトナム語は
+  // iOS の表示言語で、Web の画面には無いが、解説はその言語で書く（`explain-languages.ts`）。
+  const { normalizeExplainLang } = await import("./explain-languages");
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
@@ -943,9 +948,9 @@ export async function getExplanationLanguage(userId: string): Promise<import("./
     // (2026-08-25)に、この形が残っていると台湾の人の解説だけが黙って
     // 日本語で作られる — 画面は繁體中文なのに中身が日本語、という
     // いちばん気づきにくい壊れ方になる。一覧は `i18n.tsx` が持っている。
-    return normalizeUiLang((data as { ui_language?: string } | null)?.ui_language);
+    return normalizeExplainLang((data as { ui_language?: string } | null)?.ui_language);
   } catch {
-    return normalizeUiLang(null);
+    return normalizeExplainLang(null);
   }
 }
 
@@ -955,11 +960,16 @@ export async function getExplanationLanguage(userId: string): Promise<import("./
  * 表そのものは `i18n.tsx` が持つ — 表示言語の一覧を持っているのがあちらで、
  * ここに写しを置くと、4つ目の言語を足した日に片方だけ増える。
  */
-export function explanationLanguageName(lang: import("./i18n").UiLang): string {
+export function explanationLanguageName(
+  lang: import("./explain-languages").ExplainLang | string,
+): string {
   // 同期で読みたい(プロンプトを組む所で await を増やさない)ので、
   // 表だけを静的に取り込む。`i18n.tsx` は React も持つが、この表は
   // 素のオブジェクトなので server から読んで問題ない。
-  return UI_LANG_PROMPT_NAMES[lang];
+  // Web の画面に無い言語(スペイン語など)の名前は解説の言語の表から。**知らない符号で
+  // undefined を返さない**(指示文に「undefinedで」と入る)— 日本語に落とす。
+  if (isUiLang(lang)) return UI_LANG_PROMPT_NAMES[lang];
+  return (explainLanguage(lang) ?? explainLanguage(EXPLAIN_LANGS[0]))!.promptName;
 }
 
 /**
@@ -1062,8 +1072,27 @@ export async function explanationLanguageRule(
         : `Do not write any Japanese.`)
     );
   }
+  const info = explainLanguage(lang);
+  if (info && !isUiLang(lang)) {
+    // **Web の画面に無い言語(スペイン語・韓国語・ベトナム語)は英語で頼む。** 指示文の例は
+    // 日本語で書いてあり、日本語の指示だけだと例につられて日本語で返ることがある。
+    // 例の言語では書かないことを、はっきり言う。
+    return (
+      `**Write every explanation, meaning, translation and note in ${info.englishName} (${info.autonym}).** ` +
+      `Only the ${target} headwords, example sentences and readings stay in that language. ` +
+      `The examples in these instructions are written in Japanese or English only to show the format: ` +
+      `never write an explanation in Japanese, English or Chinese. ` +
+      info.writingRule
+    ).trim();
+  }
   const name = explanationLanguageName(lang);
-  return `解説・意味・訳・注記はすべて${name}で書く(${target}の見出し語・例文・読みはそのまま)。`;
+  // 繁體中文で読む人にも、例の言語（日本語）で書かないことを言う（2026-10-20 — 指示文の例は日本語なので、
+  // 例につられて注記が日本語で返ることがある。返った物は `scrubExtrasForReader` が落とすが、欄が空になる）。
+  const notExamples =
+    lang === "ja"
+      ? ""
+      : `指示文の中の例は形を示すための日本語で、解説は日本語で書かない(かなを使わない)。`;
+  return `解説・意味・訳・注記はすべて${name}で書く(${target}の見出し語・例文・読みはそのまま)。${notExamples}`;
 }
 
 /**

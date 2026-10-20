@@ -1,11 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
-import { readerMeaning, readerText } from "./note-language";
+import { readerMeaning, readerText, scrubExtrasForReader } from "./note-language";
 import { meaningRule, shortMeaning } from "./meaning-rule";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { normalizeExtras, publicExtras } from "./extras";
 import { UI_LANGS } from "./i18n";
-import { fillReaderExplanation } from "./shared-word-guard";
+import { fillReaderExplanation, sharedRowLanguage } from "./shared-word-guard";
 import {
   explanationKey,
   pickExplanation,
@@ -516,13 +516,16 @@ export async function mergeIntoReaderExplanation(
   const current = await readReaderExplanation(admin, wordId, key);
   if (!current || current.source === "verified") return false;
   const { mergeExtras } = await import("./extras");
-  const extras: Record<string, unknown> = mergeExtras(current.extras, patch.extras as never);
-  for (const k of patch.replaceKeys ?? []) if (k in patch.extras) extras[k] = patch.extras[k];
+  // 重ねるのは読む人の言語の物だけ（2026-10-20 — この行は同じ言語で読む全員に出る）。
+  const incoming = scrubExtrasForReader(patch.extras, key.explainLang);
+  const extras: Record<string, unknown> = mergeExtras(current.extras, incoming as never);
+  for (const k of patch.replaceKeys ?? []) if (k in incoming) extras[k] = incoming[k];
   const row: Record<string, unknown> = {
     extras,
     updated_at: new Date().toISOString(),
   };
-  if ((patch.meaning ?? "").trim()) row.meaning = patch.meaning;
+  const meaning = readerMeaning(patch.meaning ?? null, key.explainLang).trim();
+  if (meaning) row.meaning = meaning;
   const tr = readerText(patch.example_translation ?? null, key.explainLang);
   if (tr) row.example_translation = tr;
   try {
@@ -635,7 +638,12 @@ export const fillReaderMeanings = createServerFn({ method: "POST" })
         out[w.id] = have;
         continue;
       }
-      const shared = shortMeaning(readerMeaning(w.meaning, lang));
+      // 共有の意味は、**その行がこの言語の行の時だけ**写す（`sharedRowLanguage`）。文字だけで選ぶと、
+      // スペイン語の意味（"paraguas"）が英語の行に入り、英語で読む全員に出る。
+      const shared =
+        sharedRowLanguage({ extras: w.extras }) === lang
+          ? shortMeaning(readerMeaning(w.meaning, lang))
+          : "";
       if (shared) fresh.set(w.id, shared);
       else missing.push(w);
     }

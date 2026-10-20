@@ -26,6 +26,7 @@
 import { alignExampleExtras, guardExampleColumns, sameSentence } from "./example-patterns";
 import { normDexHeadword } from "./dex-catalog";
 import {
+  claimSharedRowLanguage,
   fillEmptySharedColumns,
   fillEmptySharedExtras,
   sharedColumnsFromCard,
@@ -362,11 +363,14 @@ export function pickGeneratedCard(
             r.kind === "card" && r.explain_lang === opts.explainLang && r.l1 === (opts.l1 ?? ""),
         )
       : fresh;
-  // カード全体 > 候補。カード同士なら、呼んだ人の解説の言語で書かれた物を先に。
+  // 呼んだ人の解説の言語のカード > その言語の候補 > 別の言語のカード > 言語の分からない候補。
+  // 新しい共有の行は、最初に作った人の言語の行になる（`mayWriteSharedReaderText`）ので、その人の言語の
+  // 物を先に使う — 別の言語の行になると、作った本人の画面には自分の解説ができるまで意味が出ない。
+  const mine = (r: GeneratedCardRow) =>
+    !!opts.preferExplainLang &&
+    (r.kind === "card" ? r.explain_lang : candidateLanguage(r.card)) === opts.preferExplainLang;
   const rank = (r: GeneratedCardRow) =>
-    r.kind === "card"
-      ? 2 + (opts.preferExplainLang && r.explain_lang === opts.preferExplainLang ? 1 : 0)
-      : 0;
+    r.kind === "card" ? (mine(r) ? 4 : 2) : mine(r) ? 3 : candidateLanguage(r.card) ? 1 : 0;
   const best = [...keyed].sort(
     (a, b) => rank(b) - rank(a) || Date.parse(b.created_at) - Date.parse(a.created_at),
   )[0];
@@ -375,6 +379,25 @@ export function pickGeneratedCard(
     card: trustedCardFrom(best.card),
     kind: best.kind === "card" ? "card" : "candidate",
   };
+}
+
+/**
+ * **候補の控え**（意味と読みだけ）。候補の行の鍵には言語が無い（`recordGeneratedCards` は候補の
+ * `explain_lang` を空にする）ので、意味を書いた言語を中身の `extras.explain_lang` に刻む。共有の行を
+ * この控えから作る時、意味と目印が同じ言語になる（2026-10-20、言語が混ざらないように）。
+ */
+export function candidateCard(
+  card: Record<string, string | undefined>,
+  explainLang: string,
+): Record<string, unknown> {
+  return { ...card, extras: { explain_lang: explainLang } };
+}
+
+/** 候補の控えの、意味を書いた言語（2026-10-20 より前の控えは目印が無く `null`）。 */
+export function candidateLanguage(raw: unknown): string | null {
+  const ex = trustedCardFrom(raw).extras;
+  const v = ex?.explain_lang;
+  return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
 type LooseError = { message?: string; code?: string } | null;
@@ -533,7 +556,8 @@ export async function findGeneratedCard(
  */
 export async function fillSharedWordFromCard(
   admin: unknown,
-  opts: { language: string; headwords: readonly string[]; card: TrustedCard },
+  /** `explainLang` = カードを書いた言語（読む人の言語）。別の言語の行の意味・訳・解説は埋めない。 */
+  opts: { language: string; headwords: readonly string[]; card: TrustedCard; explainLang: string },
 ): Promise<number> {
   const heads = [...new Set(opts.headwords.map((h) => (h ?? "").trim()).filter(Boolean))];
   if (heads.length === 0) return 0;
@@ -572,11 +596,11 @@ export async function fillSharedWordFromCard(
     for (const row of rows ?? []) {
       // 例文の訳・場面の札・パーツは**文と組で**埋める（2026-10-15 眼鏡、`example-patterns.ts`）。
       // 前から在る文の横に、別の文のために書いた訳・札を入れない。
-      const update: Record<string, unknown> = guardExampleColumns(
+      let update: Record<string, unknown> = guardExampleColumns(
         fillEmptySharedColumns(
           row as never,
           sharedColumnsFromCard(opts.card as Record<string, unknown>),
-          { verified: row.source === "verified" },
+          { verified: row.source === "verified", lang: opts.explainLang },
         ),
         row as { example_sentence?: string | null },
         opts.card,
@@ -587,8 +611,10 @@ export async function fillSharedWordFromCard(
       const extras = fillEmptySharedExtras(
         row.extras,
         alignExampleExtras(opts.card.extras ?? null, sentence),
+        row as never,
       );
       if (extras) update.extras = extras;
+      update = claimSharedRowLanguage(update, row as never, opts.explainLang);
       if (Object.keys(update).length === 0) continue;
       const { error: upErr } = await db.from("words").update(update).eq("id", row.id);
       if (upErr) console.warn("[generated-cards] 語を埋められない", upErr.message);

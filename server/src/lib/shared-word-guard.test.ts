@@ -26,12 +26,15 @@ import {
   BoundedExtrasSchema,
   EXTRAS_LIMITS,
   WordInputSchema,
+  claimSharedRowLanguage,
   fillEmptySharedColumns,
   fillEmptySharedExtras,
   fillReaderExplanation,
   isExplanationLangCode,
   jsonBoundsProblem,
+  mayWriteSharedReaderText,
   sharedColumnsFromCard,
+  sharedRowLanguage,
 } from "./shared-word-guard";
 import {
   applyWordExtrasUpdate,
@@ -314,6 +317,54 @@ const req = (over: Partial<UpdateWordExtrasData> = {}): UpdateWordExtrasData =>
     ...over,
   }) as UpdateWordExtrasData;
 
+describe("共有の行の言語（mayWriteSharedReaderText / claimSharedRowLanguage）", () => {
+  it("目印が行の言語。目印の無い古い行は日本語", () => {
+    expect(sharedRowLanguage({ extras: { explain_lang: "es" } })).toBe("es");
+    expect(sharedRowLanguage({ extras: {} })).toBe("ja");
+    expect(sharedRowLanguage(null)).toBe("ja");
+  });
+
+  it("**行の言語と同じ言語の人だけが埋める**。何も無い行は誰でも（最初の人の言語になる）", () => {
+    const ja = { meaning_ja: "自転車", extras: {} };
+    expect(mayWriteSharedReaderText(ja, "ja")).toBe(true);
+    expect(mayWriteSharedReaderText(ja, "zh-TW")).toBe(false);
+    expect(mayWriteSharedReaderText(ja, "en")).toBe(false);
+    const en = { meaning_ja: "", extras: { explain_lang: "en", mnemonic: "pedal car" } };
+    expect(mayWriteSharedReaderText(en, "es")).toBe(false);
+    expect(mayWriteSharedReaderText(en, "en")).toBe(true);
+    expect(mayWriteSharedReaderText({ meaning_ja: "", extras: {} }, "vi")).toBe(true);
+  });
+
+  it("別の言語の行: 読み・品詞は埋め、意味・例文・訳は埋めない", () => {
+    expect(
+      fillEmptySharedColumns(
+        { meaning_ja: "自転車", pinyin: "", example_sentence: "", extras: {} },
+        { meaning_ja: "bicicleta", pinyin: "jiǎotàchē", example_sentence: "我騎腳踏車。" },
+        { verified: false, lang: "es" },
+      ),
+    ).toEqual({ pinyin: "jiǎotàchē" });
+  });
+
+  it("解説が空でも、別の言語の意味が載った行には解説を入れない", () => {
+    const incoming = { explain_lang: "es", mnemonic: "pedal" };
+    expect(fillEmptySharedExtras({}, incoming, { meaning_ja: "自転車" })).toBeNull();
+    expect(fillEmptySharedExtras({}, incoming, { meaning_ja: "" })).toEqual(incoming);
+  });
+
+  it("何も無い行に意味を書く時は、目印もその言語にする", () => {
+    expect(claimSharedRowLanguage({ meaning_ja: "bicycle" }, { extras: {} }, "en")).toEqual({
+      meaning_ja: "bicycle",
+      extras: { explain_lang: "en" },
+    });
+    // 既に文の在る行は触らない（書いてよいかは `mayWriteSharedReaderText` が先に決める）。
+    expect(claimSharedRowLanguage({ pinyin: "x" }, { meaning_ja: "自転車" }, "ja")).toEqual({
+      pinyin: "x",
+    });
+    // 読みだけなら目印は付けない。
+    expect(claimSharedRowLanguage({ pinyin: "x" }, { extras: {} }, "en")).toEqual({ pinyin: "x" });
+  });
+});
+
 describe("applyWordExtrasUpdate（updateWordExtras の中身）", () => {
   const deps = (db: ReturnType<typeof fakeDb>, save = vi.fn(async () => ({ saved: true }))) => ({
     deps: { supabase: db.user, admin: db.admin, saveExplanation: save },
@@ -340,11 +391,9 @@ describe("applyWordExtrasUpdate（updateWordExtras の中身）", () => {
       }),
     );
     expect(r.ok).toBe(true);
-    // 共有の行: 埋まっている意味・級はそのまま、空の例文と訳だけを**控えの中身**で。
-    // 英語の解説は日本語の共有の解説に混ぜない。
-    expect(db.updates).toEqual([
-      { example_sentence: "我騎腳踏車上學。", example_translation: "I ride a bike to school." },
-    ]);
+    // 共有の行は日本語の行（意味が日本語、目印 ja）: 英語の人は、空の例文・訳も含めて**何も書かない**
+    // （2026-10-20 — 日本語の行に英語の訳が入ると、目印でも文字でも見分けられない行になる）。
+    expect(db.updates).toEqual([]);
     // 読む人の行: 控えの意味と解説。送られた文はどこにも無い。
     expect(save).toHaveBeenCalledTimes(1);
     const arg = (save.mock.calls[0] as unknown[])[0] as Row;
@@ -356,6 +405,46 @@ describe("applyWordExtrasUpdate（updateWordExtras の中身）", () => {
     });
     expect(JSON.stringify(arg)).not.toContain("ATTACKER");
     expect((arg.extras as Row).usage_context).toBe("commuting (server)");
+  });
+
+  it("同じ言語の行なら、空の例文と訳を控えの中身で埋める", async () => {
+    const db = fakeDb({
+      owns: true,
+      word: { ...sharedWord, meaning_ja: "bicycle", extras: { explain_lang: "en" } },
+      receipts: [receipt()],
+    });
+    const { deps: d } = deps(db);
+    await applyWordExtrasUpdate(d, "u", req({ patch: { example_sentence: "x" } }));
+    expect(db.updates[0]).toMatchObject({
+      example_sentence: "我騎腳踏車上學。",
+      example_translation: "I ride a bike to school.",
+    });
+  });
+
+  it("**何も無い行は書いた人の言語の行になる**（意味と一緒に目印も付ける）", async () => {
+    const db = fakeDb({
+      owns: true,
+      word: { ...sharedWord, meaning_ja: "", extras: {} },
+      receipts: [receipt()],
+    });
+    const { deps: d } = deps(db);
+    await applyWordExtrasUpdate(d, "u", req({ patch: { meaning_ja: "x" } }));
+    const u = db.updates[0] as Row;
+    expect(u.meaning_ja).toBe("bicycle (server)");
+    expect((u.extras as Row).explain_lang).toBe("en");
+  });
+
+  it("**別の言語の共有の意味・訳を、読む人の行に写さない**（控えに意味が無い時の落とし所）", async () => {
+    const db = fakeDb({
+      owns: true,
+      word: { ...sharedWord, example_translation: "自転車で通学する。" },
+      receipts: [receipt({ card: { extras: { usage_context: "commuting (server)" } } })],
+    });
+    const { deps: d, save } = deps(db);
+    await applyWordExtrasUpdate(d, "u", req());
+    const arg = (save.mock.calls[0] as unknown[])[0] as Row;
+    expect(arg.meaning).toBe("");
+    expect(arg.example_translation).toBeNull();
   });
 
   it("別の言語の共有の解説は、読む人の行に混ぜない", async () => {
@@ -427,7 +516,8 @@ describe("applyWordExtrasUpdate（updateWordExtras の中身）", () => {
         reader_meaning: "bicycle",
       }),
     );
-    expect(db.updates).toEqual([{ example_sentence: "我騎腳踏車。" }]);
+    // 日本語の行には、英語の人の例文（と訳）を書かない。
+    expect(db.updates).toEqual([]);
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ explain_lang: "en", l1: "en", meaning: "bicycle" }),
     );
