@@ -323,7 +323,7 @@ struct CandidatePickerView: View {
     static func tagLabel(_ words: [Candidate]) -> (text: String, isName: Bool) {
         guard let main = words.first else { return ("", false) }
         let label = ReaderLanguage.shown(main.objectLabel, words.lazy.map(\.objectLabel).first { !$0.isEmpty })
-        if !label.isEmpty { return (ReaderLanguage.gloss(label, limit: L10n.lang == "en" ? 24 : 12), true) }
+        if !label.isEmpty { return (ReaderLanguage.gloss(label, limit: L10n.current.glossLimit), true) }
         let name = readerName(main)
         if !name.isEmpty { return (name, true) }
         let category = main.categoryKey ?? words.lazy.compactMap(\.categoryKey).first
@@ -335,7 +335,7 @@ struct CandidatePickerView: View {
     private static func readerName(_ c: Candidate) -> String {
         let meaning = ReaderLanguage.shown(c.meaningJa)
         guard !meaning.isEmpty else { return "" }
-        return ReaderLanguage.gloss(firstGloss(meaning), limit: L10n.lang == "en" ? 24 : 12)
+        return ReaderLanguage.gloss(firstGloss(meaning), limit: L10n.current.glossLimit)
     }
 
     /// The first of the meanings listed in `meaning` (「下着、パンツ」 → 下着, "underwear; briefs" → underwear), never

@@ -165,7 +165,8 @@ struct HomeView: View {
                 memorialOpen = nil
             }
         }
-        .task(id: profile.createdAt) {
+        // Again when the display language changes: the scheduled notification carries its text.
+        .task(id: "\(profile.createdAt?.timeIntervalSince1970 ?? 0)|\(LanguageState.shared.lang)") {
             if let start = profile.createdAt { await Milestone.scheduleNotification(start: start) }
         }
         .sheet(isPresented: $calendarOpen, onDismiss: {

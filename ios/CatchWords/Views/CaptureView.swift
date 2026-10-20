@@ -391,7 +391,10 @@ struct CaptureView: View {
                     withAnimation(.snappy) { camera.setZoom(z) }
                     baseZoom = camera.zoom
                 } label: {
-                    Text(isOn && abs(camera.zoom - z) > 0.05 ? String(format: "%.1f×", camera.zoom) : "\(Int(z))×")
+                    // The display language's decimal mark (1.5× · 1,5×).
+                    Text(isOn && abs(camera.zoom - z) > 0.05
+                         ? "\(Double(camera.zoom).formatted(.number.precision(.fractionLength(1)).locale(L10n.locale)))×"
+                         : "\(Int(z))×")
                         .font(.system(size: 12, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(isOn ? Theme.gold : .white.opacity(0.85))
@@ -961,7 +964,7 @@ struct PendingListView: View {
                                         .scaledFont(size: 15, weight: .semibold)
                                         .foregroundStyle(Theme.primaryInk)
                                 }
-                                Text(item.createdAt, format: .dateTime.month().day().hour().minute())
+                                Text(item.createdAt, format: .dateTime.month().day().hour().minute().locale(L10n.locale))
                                     .scaledFont(size: item.isUnsaved ? 12 : 15, weight: item.isUnsaved ? .regular : .semibold)
                                     .foregroundStyle(item.isUnsaved ? Theme.muted : Theme.foreground)
                                 Text(L10n.readerSafe(item.reason, fallback: L("解析待ちの写真"))).scaledFont(size: 12).foregroundStyle(Theme.muted).lineLimit(2)

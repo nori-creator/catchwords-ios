@@ -813,7 +813,8 @@ struct Star4: Shape {
 struct CatchDexChip: View {
     let label: String?
     var scale: CGFloat = 1
-    /// The blue capsule's word: NEW for a new word, 「再会 N回目」 for a re-encounter.
+    /// The blue capsule's word: NEW for a new word (common notation on every display language), 「再会 N回目」 for a
+    /// re-encounter.
     var badge: String? = nil
 
     var body: some View {

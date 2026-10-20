@@ -257,6 +257,7 @@ struct WordDetailView: View {
                     }
                 }
             }
+            Button(L("キャンセル"), role: .cancel) {}
         }
     }
 
@@ -583,7 +584,7 @@ struct WordDetailView: View {
                 if let d = p.takenAt {
                     Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
                 }
-                if let place = p.place, !place.isEmpty {
+                if let place = LocationService.shownPlace(p.place) {
                     Text(place).scaledFont(size: 12).lineLimit(1)
                 }
             }

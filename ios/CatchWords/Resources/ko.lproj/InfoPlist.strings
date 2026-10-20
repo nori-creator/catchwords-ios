@@ -1,0 +1,5 @@
+/* 권한 설명 (한국어) */
+"NSCameraUsageDescription" = "CatchWords는 주변의 사물을 촬영해 학습 중인 언어의 단어로 도감에 모으고, 단어에 곁들일 셀카를 찍기 위해 카메라를 사용해요.";
+"NSLocationWhenInUseUsageDescription" = "CatchWords는 사진을 찍은 장소의 이름을 기록해 그때의 추억과 함께 단어를 기억할 수 있게 해요. 장소 알림을 켜면 단어를 캐치한 장소 근처에 왔을 때 알려 드리기 위해서도 위치를 사용해요.";
+"NSPhotoLibraryAddUsageDescription" = "CatchWords는 찍은 사진을 사진 앱에도 저장해요.";
+"NSPhotoLibraryUsageDescription" = "CatchWords는 사진 보관함의 이미지에서 단어를 찾기 위해 사진을 사용해요.";

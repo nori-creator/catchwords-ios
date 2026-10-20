@@ -1,0 +1,137 @@
+# iOS 版の表示言語を足す（docs/adding-a-display-language.md）
+#
+# 何をするか:
+#   1. 入力した言語を ios/Localization/languages.json に足す（Xcode の地域と、権限の説明のファイルも作る）。
+#      「訳だけ埋める」にしたときは足さない（あとから増えた文の訳を埋めるときに使う）。
+#   2. まだ訳の無い文を、すべての表示言語について Claude（Anthropic の AI）に訳させて埋める
+#      （アプリの文字・ウィジェット・カメラなどの許可の説明）。
+#   3. 訳が全部そろったか・言語が混ざっていないかを確かめる（scripts/check_l10n.py）。
+#   4. 新しいブランチに保存して、下書きの PR を作る。中身を画面で読んで確かめてから取り込む。
+#
+# 使う前に1回だけ: GitHub → Settings → Secrets and variables → Actions に ANTHROPIC_API_KEY を入れる。
+# PR を作れないと言われたら: Settings → Actions → General → Workflow permissions で
+# 「Allow GitHub Actions to create and approve pull requests」をオンにする（ブランチは送られているので、
+# そのブランチから手で PR を作ってもよい）。
+name: 表示言語を足す（iOS）
+
+on:
+  workflow_dispatch:
+    inputs:
+      code:
+        description: "言語の符号（Web と同じ。例: fr / pt-BR / th）。訳だけ埋めるときは空でよい"
+        required: false
+        default: ""
+      autonym:
+        description: "その言語自身での名前（例: Français）"
+        required: false
+        default: ""
+      name_ja:
+        description: "日本語での名前（例: フランス語）"
+        required: false
+        default: ""
+      flag:
+        description: "オンボーディングに出す旗の絵文字（例: 🇫🇷）"
+        required: false
+        default: ""
+      locale:
+        description: "日付・数の書き方（例: fr_FR）"
+        required: false
+        default: ""
+      script:
+        description: "書く文字の種類（latin=アルファベット / hangul=ハングル / han=漢字 / kana=かな）"
+        type: choice
+        options: [latin, hangul, han, kana]
+        default: latin
+      fill_only:
+        description: "言語は足さず、足りない訳だけ埋める"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ios-add-language
+  cancel-in-progress: false
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 道具を入れる（Claude の API）
+        run: pip install anthropic
+
+      - name: 言語を登録する
+        if: ${{ !inputs.fill_only }}
+        env:
+          CODE: ${{ inputs.code }}
+          AUTONYM: ${{ inputs.autonym }}
+          NAME_JA: ${{ inputs.name_ja }}
+          FLAG: ${{ inputs.flag }}
+          LOCALE: ${{ inputs.locale }}
+          SCRIPT: ${{ inputs.script }}
+        run: |
+          for v in CODE AUTONYM NAME_JA FLAG LOCALE; do
+            if [ -z "${!v}" ]; then echo "::error::$v が空です（訳だけ埋めるなら「足りない訳だけ埋める」をオンに）"; exit 1; fi
+          done
+          python3 scripts/add_language.py add --code "$CODE" --autonym "$AUTONYM" --name-ja "$NAME_JA" \
+            --flag "$FLAG" --locale "$LOCALE" --script "$SCRIPT"
+
+      - name: 足りない訳を Claude で埋める
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::Secrets に ANTHROPIC_API_KEY がありません（docs/adding-a-display-language.md の 1）"; exit 1
+          fi
+          python3 scripts/add_language.py missing
+          python3 scripts/add_language.py fill
+
+      - name: 訳が全部そろったか・言語が混ざっていないか
+        run: |
+          python3 scripts/l10n_languages.py --check
+          python3 scripts/check_l10n.py
+          python3 scripts/check_server_text.py
+
+      - name: ブランチに保存して、下書きの PR を作る
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE: ${{ inputs.code }}
+          NAME_JA: ${{ inputs.name_ja }}
+          FILL_ONLY: ${{ inputs.fill_only }}
+        run: |
+          set -e
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard ios scripts)" ]; then
+            echo "変わった所がありません（訳はもう全部そろっています）。"; exit 0
+          fi
+          if [ "$FILL_ONLY" = "true" ]; then
+            BRANCH="l10n/fill-$(date -u +%Y%m%d-%H%M)"; TITLE="足りない訳を埋める（自動）"
+          else
+            BRANCH="l10n/add-${CODE}-$(date -u +%Y%m%d-%H%M)"; TITLE="表示言語に${NAME_JA}（${CODE}）を足す（自動）"
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A ios scripts
+          git commit -m "$TITLE"
+          git push -u origin "$BRANCH"
+          BODY=$(cat <<'MD'
+          このワークフロー（表示言語を足す（iOS））が作った PR です。訳は Claude による機械訳です。
+
+          取り込む前に:
+          1. この PR の「iOS check」の見本の画面（settings-<符号> など）で、言葉が不自然でないか読む
+          2. サーバ側（Web 版リポジトリ）の src/lib/explain-languages.ts にもこの言語を足し、Publish する
+             （docs/adding-a-display-language.md の 4。足すまで、その言語の人の解説は日本語で作られる）
+          3. 人が読んで確かめたら、ios/Localization/languages.json のその言語の "reviewed" を true にする
+          MD
+          )
+          gh pr create --draft --base "${{ github.ref_name }}" --head "$BRANCH" --title "$TITLE" --body "$BODY" \
+            || echo "::warning::PR を作れませんでした。ブランチ $BRANCH から手で PR を作ってください（このファイルの先頭の注）。"

@@ -121,6 +121,8 @@ struct SettingsView: View {
         .confirmationDialog(L("サインアウトしますか？"), isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button(L("サインアウト"), role: .destructive) { auth.signOut() }
                 .accessibilityIdentifier("settings.signOut.confirm")
+            // Without it the system adds its own "Cancel" in the iPhone's language, not the app's.
+            Button(L("キャンセル"), role: .cancel) {}
         }
     }
 
@@ -168,7 +170,9 @@ struct SettingsView: View {
         return SettingsCard(title: L("言語")) {
             VStack(alignment: .leading, spacing: 10) {
                 label(L("母語"))
-                wheelRow(ProfileStore.nativeOptions.first { $0.value == profile.nativeLanguage }?.label ?? L("日本語")) { openWheel(.native) }
+                // The display language itself (the screen's language), not the profile's copy: before the profile is read
+                // (offline) that copy is still its default, Japanese — 「日本語」 on a Spanish screen.
+                wheelRow(ProfileStore.nativeOptions.first { $0.value == L10n.lang }?.label ?? L10n.current.autonym) { openWheel(.native) }
                     .accessibilityIdentifier("settings.wheel.native")
                 // 学習言語 is hidden while 繁體字（台灣） is the only language offered (owner 2026-10-20: 「設定の学習言語の設定欄
                 // アプリから消して。ただいずれほかの言語にも対応させるためにコードは残しておいて」). It comes back by itself
@@ -436,14 +440,15 @@ struct SettingsView: View {
 
             deleteZone
 
-            Text("CatchWords for iPhone \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"))")
+            Text(L("CatchWords iPhone版 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")（\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1")）"))
                 .scaledFont(size: 12).foregroundStyle(Theme.muted)
         }
     }
 
     private var deleteZone: some View {
-        let armed = ["削除", "DELETE", "刪除"].contains(  // l10n-ignore (accepted confirm words)
-           deleteText.trimmingCharacters(in: .whitespaces).uppercased())
+        // The confirm word in any display language (and DELETE), so a switched language never locks the button.
+        let accepted = Set(L10n.supported.map { L("削除", in: $0).uppercased() } + ["DELETE"])
+        let armed = accepted.contains(deleteText.trimmingCharacters(in: .whitespaces).uppercased())
         return VStack(alignment: .leading, spacing: 12) {
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { deleteOpen.toggle() }
@@ -470,7 +475,7 @@ struct SettingsView: View {
                     .scaledFont(size: 14, weight: .medium).foregroundStyle(Theme.primaryInk)
                     .frame(minHeight: 44)
                 Text(L("確認のため「削除」と入力してください")).scaledFont(size: 14, weight: .semibold).foregroundStyle(Theme.foreground)
-                TextField(L10n.lang == "en" ? "DELETE" : L("削除"), text: $deleteText)  // the confirm word itself
+                TextField(L10n.current.script == .latin ? L("削除").uppercased() : L("削除"), text: $deleteText)  // the confirm word itself
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .padding(.horizontal, 14).frame(minHeight: 46)
                     .background(Theme.card, in: .rect(cornerRadius: 14))
@@ -800,10 +805,11 @@ struct WheelCard: View {
     /// 「閉じる」 was tapped: the card is fading out and takes no more taps.
     @State private var closing: Bool = false
 
-    /// The native (display) language and the learning language are never the same (as in onboarding).
+    /// Every display language, the learning language too (owner 2026-10-20: 繁體字（台灣） may be both; the
+    /// learner's own language for the AI, `native_language`, is then the one saved before — ReaderLanguage.l1).
     private var options: [(value: String, label: String)] {
         switch field {
-        case .native: ProfileStore.nativeOptions.filter { $0.value != profile.targetLanguage }
+        case .native: ProfileStore.nativeOptions
         case .target: ProfileStore.targetChoices(current: profile.targetLanguage)
         case .current, .goal: ProfileStore.levels(for: profile.targetLanguage)
         }
@@ -811,7 +817,7 @@ struct WheelCard: View {
 
     private var initial: String {
         switch field {
-        case .native: profile.nativeLanguage
+        case .native: L10n.lang
         case .target: profile.targetLanguage
         case .current: profile.currentLevel
         case .goal: profile.levelGoal

@@ -25,6 +25,9 @@ import re
 import sys
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import l10n_languages  # noqa: E402
+
 ROOT = os.path.join(os.path.dirname(__file__), "..", "ios", "CatchWords")
 REPO = "nori-creator/Lovable-catch-words-app"
 
@@ -47,6 +50,47 @@ PENDING_WEB_DEPLOY = {
     # The learners' error reports (adminListEntryReports / adminSetEntryReportStatus, Views/Admin/AdminReportsView.swift)
     # are on the web's main now (PR #187). Until the web is published they answer 404 and the screen says so.
 }
+
+
+# iOS display languages the web cannot write explanations in yet, each with the web patch that adds them.
+# The iOS app works without them (explanations come back in Japanese until the patch is published), so they
+# are let through with a warning. Remove an entry as soon as the web's main has the language.
+PENDING_WEB_LANGUAGES = {
+    "es": "nori-creator/Lovable-catch-words-app#190",
+    "ko": "nori-creator/Lovable-catch-words-app#190",
+    "vi": "nori-creator/Lovable-catch-words-app#190",
+}
+# The web's explanation languages before src/lib/explain-languages.ts existed.
+WEB_LANGUAGES_BEFORE_REGISTRY = {"ja", "en", "zh-TW"}
+
+
+def check_languages(read, problems, pending):
+    """Every iOS display language (ios/Localization/languages.json) is one the web server writes explanations in
+    (src/lib/explain-languages.ts), in the same order — iOS picks the explanation row's l1 by that order."""
+    ios = [l["code"] for l in l10n_languages.load()["languages"]]
+    src = read("src/lib/explain-languages.ts")
+    if src is None:
+        web = [c for c in ios if c in WEB_LANGUAGES_BEFORE_REGISTRY]
+    else:
+        block = src[src.find("EXPLAIN_LANGUAGES"):]
+        web = re.findall(r'^\s*code:\s*(?:"([\w-]+)"|CHINESE_EXPLANATION_LANGUAGE)', block, re.M)
+        web = [c or "zh-TW" for c in web]
+    for code in sorted(PENDING_WEB_LANGUAGES):
+        if code in web:
+            print(f"::warning::display language {code} is on the web now: remove it from PENDING_WEB_LANGUAGES "
+                  "(scripts/check_native_contract.py)")
+    for code in ios:
+        if code in web:
+            continue
+        if code in PENDING_WEB_LANGUAGES:
+            pending.append(f"display language {code} (awaiting {PENDING_WEB_LANGUAGES[code]})")
+        else:
+            problems.append(f"display language {code}: the web server does not write explanations in it "
+                            "(src/lib/explain-languages.ts — docs/adding-a-display-language.md step 4)")
+    shared = [c for c in web if c in ios]
+    if shared != [c for c in ios if c in web]:
+        problems.append(f"display languages in another order than the web's explanation languages ({', '.join(web)}): "
+                        "the explanation rows iOS looks for (l1) would not be the ones the server writes")
 
 
 def ios_calls():
@@ -130,8 +174,11 @@ def main():
         elif not re.search(r"export const " + re.escape(export) + r"\b", src):
             problems.append(f"{name}: {rel} no longer exports {export} (used at {', '.join(where)})")
 
+    lang_pending = []
+    check_languages(read, problems, lang_pending)
+
     target = args.web or f"{REPO}@{args.ref}"
-    for p in pending:
+    for p in pending + lang_pending:
         print(f"::warning::iOS ↔ web contract: not on {target} yet, allowed as pending web deploy: {p}")
     if problems:
         for p in problems:
@@ -140,6 +187,8 @@ def main():
         return 1
     checked = len(calls) - len(pending)
     extra = f" ({len(pending)} pending web deploy)" if pending else ""
+    if lang_pending:
+        extra += f"; {len(lang_pending)} display language(s) pending web deploy"
     print(f"iOS ↔ web contract OK: all {checked} checked server functions the app calls exist on {target}{extra}.")
     return 0
 

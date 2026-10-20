@@ -1,6 +1,7 @@
 // Language-mixing regression check (docs/language-rules.md).
 // Language-mixing and chunk rules (docs/chunk-rules.md) regression check.
-// CI: swiftc ios/CatchWords/Utilities/LanguageRules.swift ios/CatchWords/Utilities/ChunkRules.swift ios/LanguageRules/main.swift -o lr
+// CI: swiftc ios/Shared/DisplayLanguages.swift ios/CatchWords/Utilities/LanguageRules.swift ios/CatchWords/Utilities/ChunkRules.swift \
+//       ios/LanguageRules/main.swift -o lr
 //     && ./lr ios/LanguageRules/cases.json
 import Foundation
 
