@@ -241,16 +241,20 @@ jobs:
               done
             done
           done
-          for spec in "variants 7" "get 9" "landing 9"; do
+          # 録画も両方の描き方で（オーナー 2026-10-20: マージの前に見た目が変わっていないか見比べる）。
+          for spec in "analyzing 8" "variants 7" "get 9" "landing 9"; do
             set -- $spec
             name=$1; secs=$2
-            xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
-            xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/catch-${name}.mp4" &
-            REC=$!
-            sleep 1
-            xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW >/dev/null
-            sleep "$secs"
-            kill -INT $REC; wait $REC
+            for mode in now before; do
+              legacy=NO; [ "$mode" = before ] && legacy=YES
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+              xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/catch-${name}-${mode}.mp4" &
+              REC=$!
+              sleep 1
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW -catchLegacyDraw "$legacy" >/dev/null
+              sleep "$secs"
+              kill -INT $REC; wait $REC
+            done
           done
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
           cat "$SUM"
