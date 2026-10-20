@@ -344,12 +344,8 @@ struct WordDetailView: View {
                 Spacer(minLength: 8)
                 PronounceCircle(text: headword, size: 50)
             }
-            // The part of speech only. The register chip (中立 / 書き言葉 / 話し言葉) is gone (owner 2026-10-15): the server
-            // no longer writes it; an old card's `register_scale` is still decoded and simply not shown.
-            let pos = word?.partOfSpeech.map(posLabel) ?? ""
-            if !pos.isEmpty {
-                FlowRow(spacing: 8) { chip(pos) }
-            }
+            // No part of speech (owner 2026-10-20: 「品詞の欄消していいわ。このアプリ内の単語はすべて名詞だから」) and no
+            // register chip (2026-10-15): both are still decoded, just not shown.
             // The reading line only when the zhuyin ruby cannot be drawn (web hides it otherwise). With ピンイン chosen
             // the headword already carries it over each character.
             if readingPref != "pinyin", (word?.readingZhuyin ?? "").isEmpty, let p = word?.pinyin, !p.isEmpty {
@@ -411,19 +407,6 @@ struct WordDetailView: View {
     /// Being written right now: one section (auto-fill) or the reader's whole explanation.
     private func isFilling(_ s: CardSection) -> Bool {
         filling.contains(s) || (!s.isExternal && dex.generatingWords.contains(current.wordId))
-    }
-
-    private func posLabel(_ pos: String) -> String {
-        let map: [String: String] = ["N": L("名詞"), "V": L("動詞"), "VS": L("状態動詞"), "ADV": L("副詞"), "M": L("量詞"), "PREP": L("前置詞")]
-        if let ja = map[pos.uppercased()] { return "\(pos) · \(ja)" }
-        // English and Japanese part-of-speech words are shown in the display language, never as stored.
-        let en: [String: String] = ["noun": L("名詞"), "verb": L("動詞"), "adjective": L("形容詞"), "adverb": L("副詞"),
-                                    "preposition": L("前置詞"), "phrase": L("フレーズ"), "pronoun": L("代名詞"),
-                                    "conjunction": L("接続詞"), "interjection": L("感動詞")]
-        if let t = en[pos.lowercased()] { return t }
-        if let t = L10n.translation(pos) { return t }
-        let japaneseOnOtherScreen = L10n.lang != "ja" && !pos.isIn(target: "en")
-        return ReaderLanguage.looksWrong(pos, reader: L10n.lang) || japaneseOnOtherScreen ? "" : pos
     }
 
     // MARK: - Photo hero (flips to the selfie like a card; slides through the word's photos)
@@ -917,16 +900,6 @@ struct WordDetailView: View {
         return nil
     }
 
-    private func chip(_ text: String) -> some View {
-        Text(text)
-            .scaledFont(size: 13, weight: .semibold)
-            .foregroundStyle(Theme.foreground.opacity(0.8))
-            .padding(.horizontal, 12)
-            .frame(minHeight: 30)
-            .background(Theme.secondary, in: Capsule())
-            .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
-    }
-
     // MARK: - Sections
 
     private var meaningCard: some View {
@@ -1146,7 +1119,7 @@ struct WordDetailView: View {
     /// Web reportAndFixSection (item = auto): the AI finds the wrong item among what is on screen.
     /// What can be reported: the reading, the part of speech and every section shown with content.
     private var reportItems: [String] {
-        ["pronunciation", "pos"] + visibleSections.filter { !$0.isExternal && hasContent($0) }.map(\.rawValue)
+        ["pronunciation"] + visibleSections.filter { !$0.isExternal && hasContent($0) }.map(\.rawValue)
     }
 
     private func reportAndFix(item: String = "auto") {
@@ -1258,16 +1231,24 @@ struct WordDetailView: View {
                 ForEach(items, id: \.word) { m in
                     HStack(alignment: .center, spacing: 12) {
                         VStack(alignment: .leading, spacing: 8) {
-                            // Shown as it is said: 一 + the measure word (web: 「一份」).
+                            // Shown as it is said, with the word itself: 一 + the measure word + the noun (「一份蛋糕」),
+                            // on one line — a step smaller when it is long, never wrapped (owner 2026-10-20). The measure
+                            // word leads; the noun is smaller, lighter and grey, so no colour other than the headword's blue
+                            // is needed (owner 2026-10-20).
                             let said = m.word.hasPrefix("一") ? m.word : "一" + m.word  // l10n-ignore (target word)
                             let reading = m.word.hasPrefix("一") ? m.zhuyin : m.zhuyin.map { "ㄧ " + $0 }  // l10n-ignore (target word)
-                            ZhuyinWordView(headword: said, zhuyin: reading, size: 32, weight: .heavy, language: "zh-TW")
+                            ViewThatFits(in: .horizontal) {
+                                measureLine(said, reading: reading, size: 26)
+                                measureLine(said, reading: reading, size: 22)
+                                measureLine(said, reading: reading, size: 18)
+                                measureLine(said, reading: reading, size: 15)
+                            }
                             if let n = m.note, !n.isEmpty {
                                 Text(n).scaledFont(size: 15).foregroundStyle(Theme.muted).lineSpacing(4)
                             }
                         }
                         Spacer(minLength: 0)
-                        PronounceCircle(text: m.word.hasPrefix("一") ? m.word : "一" + m.word, size: 50)  // l10n-ignore (target word)
+                        PronounceCircle(text: (m.word.hasPrefix("一") ? m.word : "一" + m.word) + headword, size: 50)  // l10n-ignore (target word)
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 16)
@@ -1275,6 +1256,16 @@ struct WordDetailView: View {
                 }
             }
         }
+    }
+
+    /// 「一份」 and the word it counts, side by side on one line, each with its reading as the headword draws it.
+    private func measureLine(_ said: String, reading: String?, size: CGFloat) -> some View {
+        HStack(alignment: .bottom, spacing: size * 0.2) {
+            ZhuyinWordView(headword: said, zhuyin: reading, size: size, weight: .heavy, language: "zh-TW")
+            ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: size * 0.8, weight: .regular,
+                           color: Theme.muted, pinyin: word?.pinyin, language: "zh-TW")
+        }
+        .fixedSize()
     }
 
     private func relatedCard(_ items: [RelatedWord]) -> some View {

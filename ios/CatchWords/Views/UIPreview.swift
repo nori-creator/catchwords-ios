@@ -616,6 +616,7 @@ private struct TabBarPreview: View {
 
     init(variant: String = DevChoices.tabBarDefault) {
         UserDefaults.standard.set(variant, forKey: DevChoices.tabBarKey)
+        DevChoices.previewing = true
     }
 
     var body: some View {

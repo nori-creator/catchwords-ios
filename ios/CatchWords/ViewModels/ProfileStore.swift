@@ -4,7 +4,15 @@ import SwiftUI
 @Observable
 final class ProfileStore {
     var displayName: String = ""
-    var avatarURL: String?
+    /// Kept on this phone for the account (`avatarKey`): the home header shows the photo from the first frame instead
+    /// of after the profile's read (owner 2026-10-20: the avatar came in late).
+    var avatarURL: String? {
+        didSet {
+            guard let uid = client.userId, avatarURL != oldValue else { return }
+            UserDefaults.standard.set(avatarURL, forKey: Self.avatarKey(uid))
+        }
+    }
+    private static func avatarKey(_ uid: String) -> String { "profile.avatarURL.\(uid)" }
     var nativeLanguage: String = "ja"
     var targetLanguage: String = "zh-TW" {
         didSet { NativeAPI.targetLanguage = ["en", "ja"].contains(targetLanguage) ? targetLanguage : "zh-TW" }
@@ -78,6 +86,7 @@ final class ProfileStore {
 
     func load() async {
         guard let uid = client.userId else { isLoaded = true; return }
+        if avatarURL == nil { avatarURL = UserDefaults.standard.string(forKey: Self.avatarKey(uid)) }
         let row = await client.myProfileRow(uid: uid)
         // Signed out (or into another account), or cancelled, while reading: this answer is not for the
         // account on screen now — touch nothing (isLoaded / loadFailed included); its own load fills them.
@@ -238,19 +247,38 @@ final class ProfileStore {
 struct AvatarView: View {
     let url: String?
     var size: CGFloat = 40
+    /// The photo, from memory at once when it is there (`ImageCache`, keyed by its URL), else from the phone's copy or
+    /// the network. AsyncImage fetched it again on every appearance, so the home header showed an empty circle first.
+    @State private var image: UIImage?
+
+    init(url: String?, size: CGFloat = 40) {
+        self.url = url
+        self.size = size
+        _image = State(initialValue: url.flatMap { ImageCache.shared.image(for: $0, maxPixel: Self.pixels(size)) })
+    }
+
+    private static func pixels(_ size: CGFloat) -> Int? { ImageCache.pixelStep(forPoints: size) }
 
     var body: some View {
         Circle()
             .fill(Theme.secondary)
             .frame(width: size, height: size)
             .overlay {
-                if let url, let u = URL(string: url) {
-                    AsyncImage(url: u) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.clear
+                if let url, URL(string: url) != nil {
+                    Group {
+                        if let image {
+                            Image(uiImage: image).resizable().scaledToFill()
+                        } else {
+                            Color.clear
+                        }
                     }
                     .allowsHitTesting(false)
+                    .task(id: url) {
+                        guard let u = URL(string: url) else { return }
+                        let px = Self.pixels(size)
+                        if let hit = ImageCache.shared.image(for: url, maxPixel: px) { image = hit; return }
+                        image = await ImageCache.shared.load(url: u, key: url, maxPixel: px)
+                    }
                 } else {
                     Image(systemName: "person.fill").font(.system(size: size * 0.45)).foregroundStyle(Theme.muted)
                 }

@@ -14,9 +14,13 @@ enum Haptics {
         generator.impactOccurred(intensity: intensity)
     }
 
+    /// One generator kept ready (a new one for every tick started late, several times a second in a swipe).
+    private static let selectionGenerator = UISelectionFeedbackGenerator()
+
     static func selection() {
         guard isEnabled else { return }
-        UISelectionFeedbackGenerator().selectionChanged()
+        selectionGenerator.selectionChanged()
+        selectionGenerator.prepare()
     }
 
     static func success() {
