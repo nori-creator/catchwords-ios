@@ -813,10 +813,13 @@ struct CatchScanOverlay: View {
     let scan: CatchScanSession
     let photo: CGSize
     let reduceMotion: Bool
+    /// Under the choose screen's page: nothing of it shows, so nothing is drawn.
+    var hidden: Bool = false
 
     var body: some View {
         let _ = UITestTrace.log("scan.overlay settled=\(scan.settled) paused=\(scan.idle(reduceMotion: reduceMotion))")
-        TimelineView(.animation(minimumInterval: scan.settled ? 1.0 / 30 : nil, paused: scan.idle(reduceMotion: reduceMotion))) { ctx in
+        TimelineView(.animation(minimumInterval: scan.settled ? 1.0 / 30 : nil,
+                                paused: hidden || scan.idle(reduceMotion: reduceMotion))) { ctx in
             Canvas { g, size in
                 scan.draw(&g, size: size, photo: photo, now: ctx.date, reduceMotion: reduceMotion)
             }

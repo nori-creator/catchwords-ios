@@ -1233,8 +1233,8 @@ struct WordDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             // Shown as it is said, with the word itself: 一 + the measure word + the noun (「一份蛋糕」),
                             // on one line — a step smaller when it is long, never wrapped (owner 2026-10-20). The measure
-                            // word leads; the noun is smaller, lighter and grey, so no colour other than the headword's blue
-                            // is needed (owner 2026-10-20).
+                            // word leads in black and heavy; the noun beside it is grey and regular, so no colour other
+                            // than the headword's blue is needed (owner 2026-10-20).
                             let said = m.word.hasPrefix("一") ? m.word : "一" + m.word  // l10n-ignore (target word)
                             let reading = m.word.hasPrefix("一") ? m.zhuyin : m.zhuyin.map { "ㄧ " + $0 }  // l10n-ignore (target word)
                             ViewThatFits(in: .horizontal) {
@@ -1260,9 +1260,11 @@ struct WordDetailView: View {
 
     /// 「一份」 and the word it counts, side by side on one line, each with its reading as the headword draws it.
     private func measureLine(_ said: String, reading: String?, size: CGFloat) -> some View {
+        // Both at one size, so the characters and their readings stand on the same lines (owner 2026-10-20: the
+        // smaller noun's characters and pinyin sat lower — 「高さがずれて、違和感がある」); weight and colour tell them apart.
         HStack(alignment: .bottom, spacing: size * 0.2) {
             ZhuyinWordView(headword: said, zhuyin: reading, size: size, weight: .heavy, language: "zh-TW")
-            ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: size * 0.8, weight: .regular,
+            ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: size, weight: .regular,
                            color: Theme.muted, pinyin: word?.pinyin, language: "zh-TW")
         }
         .fixedSize()

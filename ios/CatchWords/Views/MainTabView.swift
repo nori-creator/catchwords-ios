@@ -142,7 +142,7 @@ struct MainTabView: View {
                 case .home: HomeView().environment(\.colorScheme, .light).statusBarTone(.dark)  // the paper album stays paper
                 case .dex:
                     // A catch landing: the dex page rises over the camera screen (film v6: 140 px with a fade, .4 s).
-                    DexView()
+                    DexView(startInGallery: router.landing != nil || router.landingStickerId != nil)
                         .transition(router.landing != nil
                                     ? AnyTransition.asymmetric(insertion: AnyTransition.offset(y: 52).combined(with: .opacity),
                                                                removal: .opacity)

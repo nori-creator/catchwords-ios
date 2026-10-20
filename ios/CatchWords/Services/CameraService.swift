@@ -141,6 +141,10 @@ final class CameraService: NSObject {
         }
     }
 
+    /// The system plays its shutter sound and it may not be turned off (devices sold where the law asks for it):
+    /// the app's own shutter stays silent then, so one sound is heard (owner 2026-10-20: two sounds on a Japanese iPad).
+    var systemShutterSound: Bool { !output.isShutterSoundSuppressionSupported }
+
     func capture() async -> UIImage? {
         // A second tap while a shot is still being processed would replace the first continuation,
         // which then never resumes (that caller waits forever).
@@ -149,6 +153,9 @@ final class CameraService: NSObject {
             photoContinuation = cont
             let settings = AVCapturePhotoSettings()
             settings.photoQualityPrioritization = .balanced
+            // The app plays its own shutter where the system lets its click be turned off; where it may not (Japan,
+            // Korea) only the system's is heard (`systemShutterSound`).
+            if output.isShutterSoundSuppressionSupported { settings.isShutterSoundSuppressionEnabled = true }
             output.capturePhoto(with: settings, delegate: self)
         }
     }

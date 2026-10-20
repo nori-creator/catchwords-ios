@@ -331,7 +331,8 @@ struct SettingsView: View {
     @AppStorage(DevChoices.tabBarKey) private var tabBarVariant: String = DevChoices.tabBarDefault
 
     /// 開発者の試し (owner 2026-10-15): the camera tab's look to compare on the device — the original one, shipped, or
-    /// B, kept for a later release (owner 2026-10-16) — and the sound of a 設定 choice, A–D (owner 2026-10-20).
+    /// B, kept for a later release (owner 2026-10-16) — and the camera's shutter sound, A–D (owner 2026-10-20). The 設定
+    /// sound (A) and the app's own wheel were decided (owner 2026-10-20) and left the trials.
     private var developerTrials: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(L("開発者の試し（端末で比べて選ぶ）")).scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
@@ -340,25 +341,20 @@ struct SettingsView: View {
                         selection: Binding(get: { tabBarVariant == DevChoices.tabBarRaised ? DevChoices.tabBarRaised : DevChoices.tabBarDefault },
                                            set: { tabBarVariant = $0 }))
                 .accessibilityIdentifier("settings.dev.tabbar")
-            label(L("設定を変えたときの音"))
-            ChoicePills(options: DevChoices.settingsSoundChoices.map { (value: $0.value, label: $0.label) },
+            // The camera's shutter, A–D (owner 2026-10-20). Heard here even where the system's own click is required.
+            label(L("カメラのシャッター音"))
+            ChoicePills(options: DevChoices.shutterChoices.map { (value: $0.value, label: $0.label) },
                         sounds: false,
-                        selection: Binding(get: { settingsSound }, set: { v in
-                            settingsSound = v
-                            SoundService.shared.settingChanged()   // heard at once, to compare
-                        }))
-                .accessibilityIdentifier("settings.dev.settingsSound")
-            label(L("言語とレベルを選ぶホイール"))
-            ChoicePills(options: [(DevChoices.wheelApp, L("新しいホイール")), (DevChoices.wheelSystem, L("iPhone標準"))],
-                        selection: Binding(get: { wheelChoice == DevChoices.wheelSystem ? DevChoices.wheelSystem : DevChoices.wheelApp },
-                                           set: { wheelChoice = $0 }))
-                .accessibilityIdentifier("settings.dev.wheel")
+                        selection: Binding(get: { DevChoices.shutterChoices.contains { $0.value == shutterSound } ? shutterSound : DevChoices.shutterDefault },
+                                           set: { v in
+                                               shutterSound = v
+                                               SoundService.shared.shutter()   // heard at once, to compare
+                                           }))
+                .accessibilityIdentifier("settings.dev.shutter")
         }
     }
 
-    @AppStorage(DevChoices.wheelKey) private var wheelChoice: String = DevChoices.wheelApp
-
-    @AppStorage(DevChoices.settingsSoundKey) private var settingsSound: String = "pick"
+    @AppStorage(DevChoices.shutterKey) private var shutterSound: String = DevChoices.shutterDefault
 
     private func devRow(icon: String, title: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -808,9 +804,6 @@ struct WheelCard: View {
     @State private var appeared: Bool = false
     /// 「閉じる」 was tapped: the card is fading out and takes no more taps.
     @State private var closing: Bool = false
-    @AppStorage(DevChoices.wheelKey) private var wheelChoice: String = DevChoices.wheelApp
-    /// The system wheel: only for a signed-in developer comparing the two.
-    private var systemWheel: Bool { wheelChoice == DevChoices.wheelSystem && AdminAccess.shared.isAdmin }
 
     /// Every display language, the learning language too (owner 2026-10-20: 繁體字（台灣） may be both; the
     /// learner's own language for the AI, `native_language`, is then the one saved before — ReaderLanguage.l1).
@@ -846,17 +839,9 @@ struct WheelCard: View {
                     .accessibilityLabel(L("閉じる"))
                 }
                 // The app's own wheel (`TickWheel`): one tick per row as it crosses the centre line, from the first
-                // scroll on. The system wheel's click came late and its first scroll was silent (owner 2026-10-20). A
-                // developer can pick the system wheel to compare (開発者の試し).
-                if systemWheel {
-                    Picker(field.title, selection: $value) {
-                        ForEach(options, id: \.value) { o in Text(o.label).tag(o.value) }
-                    }
-                    .pickerStyle(.wheel)
-                    .frame(height: 150)
-                } else {
-                    TickWheel(title: field.title, options: options, selection: $value)
-                }
+                // scroll on. The system wheel's click came late and its first scroll was silent (owner 2026-10-20: this
+                // wheel chosen over the system one).
+                TickWheel(title: field.title, options: options, selection: $value)
                 Button(action: close) {
                     Text(L("閉じる")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 52)

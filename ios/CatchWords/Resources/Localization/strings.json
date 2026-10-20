@@ -8615,5 +8615,19 @@
   "es": "CatchWords para iPhone {1} ({2})",
   "ko": "CatchWords iPhone 버전 {1} ({2})",
   "vi": "CatchWords cho iPhone {1} ({2})"
+ },
+ "写真をアルバムから外しました": {
+  "en": "Removed from the album",
+  "zh-TW": "已從相簿移除",
+  "es": "Se quitó del álbum",
+  "ko": "앨범에서 뺐어요",
+  "vi": "Đã gỡ khỏi album"
+ },
+ "カメラのシャッター音": {
+  "en": "Camera shutter sound",
+  "zh-TW": "相機快門聲",
+  "es": "Sonido del obturador",
+  "ko": "카메라 셔터 소리",
+  "vi": "Âm chụp ảnh"
  }
 }

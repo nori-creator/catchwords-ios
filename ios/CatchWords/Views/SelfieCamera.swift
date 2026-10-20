@@ -190,7 +190,8 @@ struct SelfieCamera: View {
     private func take() {
         guard !capturing else { return }
         capturing = true
-        SoundService.shared.playLayered(.ccShutter)
+        // One shutter sound: the app's only where the system's own click is off (`CameraService.systemShutterSound`).
+        if !camera.systemShutterSound { SoundService.shared.shutter() }
         Haptics.impact(.rigid)
         withAnimation(.easeOut(duration: 0.05)) { flash = true }
         Task {

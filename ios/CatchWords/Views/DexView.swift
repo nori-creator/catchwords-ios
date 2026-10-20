@@ -78,7 +78,14 @@ struct DexView: View {
     @Environment(AppRouter.self) private var router
 
     /// The slide dex first (owner 2026-10-16: 「図鑑を開いたらスライドの図鑑」); a landing still opens the gallery.
-    @State private var mode: DexMode = .cover
+    @State private var mode: DexMode
+
+    /// A catch landing opens straight on the gallery: built first as the slide dex and switched on appearing, the
+    /// landing paid for the cover flow (and its sound engine starting) as the page rose (owner 2026-10-20: the add to
+    /// 図鑑 stuttered).
+    init(startInGallery: Bool = false) {
+        _mode = State(initialValue: startInGallery ? .grid : .cover)
+    }
     /// One of the dex's 20 categories (DexCatalog), or nil for all.
     @State private var categoryFilter: Int?
     @State private var dayFilter: Date?
