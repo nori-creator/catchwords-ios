@@ -451,12 +451,15 @@ struct DexSilhouette: View {
 
     /// The item's drawn art (`dexsil-<id>` in the asset catalog), looked up once: the lookup ran on every body — every
     /// frame of the landing's tint (owner 2026-10-20: the add to 図鑑 stuttered) — and a miss is never cached by UIKit.
+    /// Kept as a plain bitmap like the symbols: SwiftUI draws a catalog `UIImage` by looking its name up in the catalog
+    /// again (vector first) on the main thread — the first 図鑑 still stalled 9.6 s in that lookup with the symbols
+    /// already bitmaps (DexOpenTests on c85804b, iPad, 2026-10-20).
     nonisolated static func art(_ item: DexItem) -> UIImage? {
         symbolsLock.lock()
         let known = arts[item.id]
         symbolsLock.unlock()
         if let known { return known }
-        let found = UIImage(named: "dexsil-\(item.id)")
+        let found = UIImage(named: "dexsil-\(item.id)").flatMap { rasterized($0, side: 160) }
         symbolsLock.lock()
         arts[item.id] = .some(found)
         symbolsLock.unlock()
@@ -480,21 +483,21 @@ struct DexSilhouette: View {
         let config = UIImage.SymbolConfiguration(pointSize: 60)
         guard let symbol = UIImage(systemName: sf + ".fill", withConfiguration: config)
                 ?? UIImage(systemName: sf, withConfiguration: config),
-              let image = rasterized(symbol) else { return nil }
+              let image = rasterized(symbol, side: 180) else { return nil }
         symbolsLock.lock()
         symbols[sf] = image
         symbolsLock.unlock()
         return image
     }
 
-    /// The symbol's shape as a plain bitmap (its alpha only, 180 px on its longer side: a shadow is drawn at most about
-    /// 60 pt): SwiftUI draws a symbol `UIImage` by looking its vector up in the symbol catalog again, on the main
+    /// The shape as a plain bitmap (its alpha only, `side` px on its longer side: a shadow is drawn at most about
+    /// 60 pt): SwiftUI draws a symbol or catalog `UIImage` by looking it up in its catalog again, on the main
     /// thread — the first 図鑑 still spent 13 s in that lookup with the symbols kept as `UIImage`s (DexOpenTests on
     /// ffa9b08, 2026-10-20). A bitmap is only drawn.
-    nonisolated private static func rasterized(_ symbol: UIImage) -> UIImage? {
+    nonisolated private static func rasterized(_ symbol: UIImage, side: CGFloat) -> UIImage? {
         let s = symbol.size
         guard s.width > 0, s.height > 0 else { return nil }
-        let k = 180 / max(s.width, s.height)
+        let k = side / max(s.width, s.height)
         let w = max(1, Int((s.width * k).rounded())), h = max(1, Int((s.height * k).rounded()))
         guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w, space: CGColorSpaceCreateDeviceGray(),
                                   bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue) else { return nil }
