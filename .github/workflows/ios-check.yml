@@ -105,6 +105,7 @@ jobs:
             -only-testing:CatchWordsTests/MaskCoverageTests \
             -only-testing:CatchWordsTests/TagPlacementTests \
             -only-testing:CatchWordsTests/LegalURLTests \
+            -only-testing:CatchWordsTests/AuthCallbackTests \
             -only-testing:CatchWordsTests/ChunkReadingTests \
             -only-testing:CatchWordsTests/ReviewHeadwordTests \
             -only-testing:CatchWordsTests/AlbumDayTests \

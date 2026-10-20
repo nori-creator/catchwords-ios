@@ -305,7 +305,9 @@ export type AiBackup = { name: string; gateway: AiConfig["gateway"]; model: stri
  * 鍵の失効・障害）は同じ会社の別のモデルでは直らないため。どれも写真を読める（スキャンの控えにも使える）。
  * 1. Lovable の口の Gemini 2.5 Flash（2026-10-11 の Google の 402 の間も動いていた）
  * 2. Google の最新の版（機能の段の合言葉）
- * 3. OpenRouter の Gemini 2.5 Flash
+ * 3. Anthropic の Claude（スキャンは Haiku、ほかは Sonnet）。2026-10-20 に Lovable を離れて
+ *    1 の鍵が無くなったので、Gemini が止まった時の控えはここが受ける（オーナーの鍵は Gemini と Claude）。
+ * 4. OpenRouter の Gemini 2.5 Flash
  */
 export const DEFAULT_BACKUPS: ReadonlyArray<{
   provider: string;
@@ -313,6 +315,10 @@ export const DEFAULT_BACKUPS: ReadonlyArray<{
 }> = [
   { provider: "lovable", model: () => "google/gemini-2.5-flash" },
   { provider: "google", model: (f) => tierKeyword(featureTier(f)) },
+  {
+    provider: "anthropic",
+    model: (f) => (featureTier(f) === "flash-lite" ? "claude-haiku-5-5" : "claude-sonnet-5-5"),
+  },
   { provider: "openrouter", model: () => "google/gemini-2.5-flash" },
 ];
 

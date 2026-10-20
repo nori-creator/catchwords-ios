@@ -1,12 +1,14 @@
 import AuthenticationServices
+import CryptoKit
 import UIKit
 
-/// Google / Apple sign-in through the web app (`/native-auth`, see `lib/native-auth.ts` there).
+/// Google sign-in through the app's own Supabase Auth (OAuth with PKCE), in the system's secure sign-in sheet.
 ///
-/// Lovable Cloud's Google and Apple logins go through Lovable's own OAuth broker, which the app cannot
-/// call directly. So the app opens the web app's bridge page in the system's secure sign-in sheet
-/// (`ASWebAuthenticationSession`), the web completes the login exactly as on catchwords.lovable.app, and
-/// hands the session back on `catchwords://auth-callback#…`. Same account as the web, no provider setup.
+/// The sheet (`ASWebAuthenticationSession`) opens Supabase's `/auth/v1/authorize?provider=google`, Google
+/// signs the person in, and Supabase sends the sheet back to `catchwords://auth-callback?code=…`. The code is
+/// worth nothing on its own: only this device, holding the PKCE verifier it never sent anywhere, can exchange
+/// it for a session (`SupabaseClient.exchangeOAuthCode`). No web page of ours is involved.
+/// (Until 2026-10-20 this went through the Lovable web app's `/native-auth` bridge.)
 @MainActor
 final class WebAuthSession: NSObject, ASWebAuthenticationPresentationContextProviding {
     enum Failure: Error {
@@ -17,11 +19,10 @@ final class WebAuthSession: NSObject, ASWebAuthenticationPresentationContextProv
 
     private var session: ASWebAuthenticationSession?
 
-    /// Opens the bridge for `provider` ("google" / "apple") and returns the callback URL.
-    func signIn(provider: String, state: String) async throws -> URL {
-        var comps = URLComponents(url: AppConfig.webBaseURL.appendingPathComponent("native-auth"), resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "provider", value: provider), URLQueryItem(name: "state", value: state)]
-        guard let url = comps.url else { throw Failure.failed }
+    /// Opens Supabase's sign-in page for `provider` ("google") and returns the callback URL.
+    /// `codeChallenge` is `PKCE.challenge(for: verifier)`.
+    func signIn(provider: String, codeChallenge: String) async throws -> URL {
+        guard let url = Self.authorizeURL(provider: provider, codeChallenge: codeChallenge) else { throw Failure.failed }
         return try await withCheckedThrowingContinuation { cont in
             let s = ASWebAuthenticationSession(url: url, callback: .customScheme(AppConfig.authCallbackScheme)) { callback, error in
                 Task { @MainActor in
@@ -35,8 +36,7 @@ final class WebAuthSession: NSObject, ASWebAuthenticationPresentationContextProv
                     }
                 }
             }
-            // A fresh, private browser each time: the web's copy of the session is gone when the sheet closes,
-            // and a previous Google account isn't silently reused.
+            // A fresh, private browser each time: a previous Google account isn't silently reused.
             s.prefersEphemeralWebBrowserSession = true
             s.presentationContextProvider = self
             session = s
@@ -47,6 +47,19 @@ final class WebAuthSession: NSObject, ASWebAuthenticationPresentationContextProv
         }
     }
 
+    /// `…/auth/v1/authorize?provider=…&redirect_to=catchwords://auth-callback&code_challenge=…&code_challenge_method=s256`
+    nonisolated static func authorizeURL(provider: String, codeChallenge: String) -> URL? {
+        guard var comps = URLComponents(string: AppConfig.supabaseURL) else { return nil }
+        comps.path = "/auth/v1/authorize"
+        comps.queryItems = [
+            URLQueryItem(name: "provider", value: provider),
+            URLQueryItem(name: "redirect_to", value: AppConfig.authCallbackURL),
+            URLQueryItem(name: "code_challenge", value: codeChallenge),
+            URLQueryItem(name: "code_challenge_method", value: "s256"),
+        ]
+        return comps.url
+    }
+
     nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         MainActor.assumeIsolated {
             let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
@@ -55,31 +68,42 @@ final class WebAuthSession: NSObject, ASWebAuthenticationPresentationContextProv
     }
 }
 
-/// The session the web bridge hands back: `catchwords://auth-callback#access_token=…&refresh_token=…&state=…`.
-nonisolated struct AuthCallback: Equatable {
-    let accessToken: String
-    let refreshToken: String
-    let expiresAt: Date?
-    let state: String
+/// The PKCE pair for one sign-in (RFC 7636): a random verifier kept on the device, and its SHA-256 challenge
+/// (base64url, no padding) that goes in the sign-in URL.
+nonisolated enum PKCE {
+    /// 64 characters from the unreserved set, from the system's secure random generator.
+    static func makeVerifier() -> String {
+        let chars = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        var rng = SystemRandomNumberGenerator()
+        return String((0..<64).map { _ in chars[Int.random(in: 0..<chars.count, using: &rng)] })
+    }
 
-    /// Nil unless the URL is our callback with every required field. Tokens are in the fragment (never sent
-    /// to a server); `expires_at` (unix seconds) is preferred, `expires_in` accepted.
+    static func challenge(for verifier: String) -> String {
+        Data(SHA256.hash(data: Data(verifier.utf8)))
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+}
+
+/// What Supabase hands back on `catchwords://auth-callback?code=…` (or `?error=…&error_description=…`).
+nonisolated enum AuthCallback: Equatable {
+    case code(String)
+    case error(String)
+
+    /// Nil unless the URL is our callback carrying a code or an error.
     static func parse(_ url: URL) -> AuthCallback? {
         guard url.scheme?.lowercased() == AppConfig.authCallbackScheme,
               url.host?.lowercased() == AppConfig.authCallbackHost,
-              let fragment = url.fragment,
-              let items = URLComponents(string: "?" + fragment)?.queryItems else { return nil }
+              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        // Supabase puts the answer in the query; an error can also come in the fragment.
+        var items = comps.queryItems ?? []
+        if let fragment = comps.fragment, let more = URLComponents(string: "?" + fragment)?.queryItems { items += more }
         var map: [String: String] = [:]
         for it in items { map[it.name] = it.value ?? "" }
-        guard let access = map["access_token"], !access.isEmpty,
-              let refresh = map["refresh_token"], !refresh.isEmpty,
-              let state = map["state"], !state.isEmpty else { return nil }
-        var expiresAt: Date?
-        if let at = map["expires_at"].flatMap(Double.init) {
-            expiresAt = Date(timeIntervalSince1970: at)
-        } else if let within = map["expires_in"].flatMap(Double.init) {
-            expiresAt = Date().addingTimeInterval(within)
-        }
-        return AuthCallback(accessToken: access, refreshToken: refresh, expiresAt: expiresAt, state: state)
+        if let code = map["code"], !code.isEmpty { return .code(code) }
+        if let e = map["error_description"] ?? map["error"], !e.isEmpty { return .error(e) }
+        return nil
     }
 }
