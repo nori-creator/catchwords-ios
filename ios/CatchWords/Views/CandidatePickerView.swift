@@ -93,7 +93,8 @@ struct CandidatePickerView: View {
         /// The thing's cut-out; filled in when it is rendered after the choose screen opened (the tags go up first).
         var cut: UIImage?
         let fallback: UIImage?
-        let palette: StagePalette
+        /// The stage's colours: from the cut-out, or from the photo's crop until the cut-out comes.
+        var palette: StagePalette
         let dexLabel: String?
     }
 
@@ -154,11 +155,14 @@ struct CandidatePickerView: View {
         // A typed word's lookup brought words: the choose screen lists them (never straight on to the catch).
         .onChange(of: vm.typedRound) { _, _ in openTyped() }
         // The photo's cut-outs came after the tags (`CatchObject.withCuts`): an open choose screen lifting the photo's
-        // crop takes the thing's cut-out.
+        // crop takes the thing's cut-out, and the stage's colours are taken from it as they were when the cut-out came
+        // first (the crop's background tinted the stage).
         .onChange(of: vm.objects.filter { $0.cut != nil }.map(\.id)) { _, _ in
             guard var f = flow, f.cut == nil, f.chosenAt == nil, f.closingAt == nil, !f.typed,
                   let id = f.anchor?.id, let cut = vm.objects.first(where: { $0.id == id })?.cut else { return }
             f.cut = cut
+            f.palette = StagePalette.make(from: cut)
+            vm.stagePalette = f.palette
             flow = f
         }
         .onAppear {
