@@ -1102,16 +1102,7 @@ struct DexMapView: View {
                 .overlay { DexThumb(sticker: s, inset: 5).allowsHitTesting(false) }
                 .clipShape(Circle())
                 .overlay(Circle().stroke(isOn ? Theme.primary : .white, lineWidth: 3))
-                .overlay(alignment: .topTrailing) {
-                    if v.items.count > 1 {
-                        Text("\(v.items.count)")
-                            .scaledFont(size: 12, weight: .bold, monospacedDigit: true).foregroundStyle(.white)
-                            .frame(minWidth: 22, minHeight: 22)
-                            .background(Theme.primary, in: Circle())
-                            .overlay(Circle().stroke(.white, lineWidth: 2))
-                            .offset(x: 6, y: -6)
-                    }
-                }
+                // No count of the stop's words on the pin any more (owner 2026-10-20: 「数字消して」); the timeline lists them.
                 .shadow(color: .black.opacity(shadowOpacity), radius: shadowRadius, y: shadowY)
                 .scaleEffect(lift, anchor: .bottom)
                 .offset(y: rise)

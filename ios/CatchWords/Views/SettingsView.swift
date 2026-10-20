@@ -341,8 +341,15 @@ struct SettingsView: View {
                             SoundService.shared.settingChanged()   // heard at once, to compare
                         }))
                 .accessibilityIdentifier("settings.dev.settingsSound")
+            label(L("言語とレベルを選ぶホイール"))
+            ChoicePills(options: [(DevChoices.wheelApp, L("新しいホイール")), (DevChoices.wheelSystem, L("iPhone標準"))],
+                        selection: Binding(get: { wheelChoice == DevChoices.wheelSystem ? DevChoices.wheelSystem : DevChoices.wheelApp },
+                                           set: { wheelChoice = $0 }))
+                .accessibilityIdentifier("settings.dev.wheel")
         }
     }
+
+    @AppStorage(DevChoices.wheelKey) private var wheelChoice: String = DevChoices.wheelApp
 
     @AppStorage(DevChoices.settingsSoundKey) private var settingsSound: String = "pick"
 
@@ -576,7 +583,10 @@ struct SettingsView: View {
     }
 
     private func closeWheel() {
-        wheel = nil
+        // Out of the tree with no animation of any kind: nothing of the card may be drawn on its way out.
+        var quiet = Transaction()
+        quiet.disablesAnimations = true
+        withTransaction(quiet) { wheel = nil }
     }
 
     private func saveName() {
@@ -790,6 +800,9 @@ struct WheelCard: View {
     @State private var appeared: Bool = false
     /// 「閉じる」 was tapped: the card is fading out and takes no more taps.
     @State private var closing: Bool = false
+    @AppStorage(DevChoices.wheelKey) private var wheelChoice: String = DevChoices.wheelApp
+    /// The system wheel: only for a signed-in developer comparing the two.
+    private var systemWheel: Bool { wheelChoice == DevChoices.wheelSystem && AdminAccess.shared.isAdmin }
 
     /// The native (display) language and the learning language are never the same (as in onboarding).
     private var options: [(value: String, label: String)] {
@@ -824,14 +837,28 @@ struct WheelCard: View {
                     .accessibilityLabel(L("閉じる"))
                 }
                 // The app's own wheel (`TickWheel`): one tick per row as it crosses the centre line, from the first
-                // scroll on. The system wheel's click came late and its first scroll was silent (owner 2026-10-20).
-                TickWheel(title: field.title, options: options, selection: $value)
+                // scroll on. The system wheel's click came late and its first scroll was silent (owner 2026-10-20). A
+                // developer can pick the system wheel to compare (開発者の試し).
+                if systemWheel {
+                    Picker(field.title, selection: $value) {
+                        ForEach(options, id: \.value) { o in Text(o.label).tag(o.value) }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(height: 150)
+                } else {
+                    TickWheel(title: field.title, options: options, selection: $value)
+                }
                 Button(action: close) {
                     Text(L("閉じる")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .background(Theme.primary, in: Capsule())
                 }
-                .buttonStyle(PressableStyle())
+                // A press that ends in a plain fade: the springy press (scale + brightness, still swinging after the
+                // finger lifts) outlived the card that faded out around it and left a ghost of the button over the
+                // page (owner 2026-10-20: 「閉じるボタンの残像がある」). Hidden at once when tapped.
+                .buttonStyle(FadePressStyle())
+                .opacity(closing ? 0 : 1)
+                .animation(nil, value: closing)
                 .accessibilityIdentifier("wheel.close")
             }
             .padding(.horizontal, 20).padding(.vertical, 16)
@@ -986,5 +1013,19 @@ struct TickWheel: View {
             feedback.selectionChanged()
             feedback.prepare()
         }
+    }
+}
+
+
+/// A press that dims a little and comes straight back with a short ease (no spring, no brightness filter): nothing of it
+/// is still moving once the finger is up (the 設定 wheel card's 「閉じる」, which fades out right after the tap).
+struct FadePressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed { Haptics.impact(.light, intensity: 0.6) }
+            }
     }
 }

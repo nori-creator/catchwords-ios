@@ -32,6 +32,12 @@ nonisolated enum DevChoices {
         settingsSoundChoices.first { $0.value == settingsSound }?.sfx ?? .c6PickTick3
     }
 
+    /// The 設定 wheels: the app's own (`TickWheel`, ticking every row, the default) or the system wheel, to compare on
+    /// the device (owner 2026-10-20). The system one only for a signed-in developer who picked it.
+    static let wheelKey = "dev.settings.wheel"
+    static let wheelApp = "app"
+    static let wheelSystem = "system"
+
     /// The simulator previews (`-uiPreview tabbar-b`) draw a developer's choice without an account behind them.
     nonisolated(unsafe) static var previewing = false
 
