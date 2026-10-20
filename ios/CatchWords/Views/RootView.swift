@@ -70,6 +70,17 @@ struct RootView: View {
                         await dex.load()
                         await snapshot
                         await p
+                        // First uses that used to land on the first 図鑑's opening (DexOpenTests, 2026-10-20: a 12 s
+                        // first open): the location service (its CLLocationManager, made on the main thread, for the
+                        // cards' place names), the text system and the tick engine's sounds (read off the main thread).
+                        Task {
+                            try? await Task.sleep(for: .seconds(1))
+                            _ = LocationService.shared
+                            // The text system's first field (the 図鑑's search field was the first one made): its
+                            // settings are read from disk once, here instead.
+                            _ = UITextField()
+                            await SoundService.shared.prepareTicks()
+                        }
                         // Today's review is read and its first cards made ready now, not when the tab is opened.
                         Task { await review.preload(dex: dex, limit: profile.effectiveReviewLimit) }
                         // This device's answer and the server's record are made to agree (an unsent answer is

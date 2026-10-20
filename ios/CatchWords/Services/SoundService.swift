@@ -256,6 +256,9 @@ final class SoundService {
     /// Readies the tick engine before a wheel or a timeline can tick (its first tick must not be lost).
     func warmTicks() { ticks.warm() }
 
+    /// Reads the tick engine's sounds off the main thread (once, after launch).
+    func prepareTicks() async { await ticks.prepare() }
+
     private let ticks = TickEngine(sounds: [.c6PickTick3, .slide] + DevChoices.settingsSoundChoices.map(\.sfx))
 
     func startAnalyzeLoop() {
@@ -491,7 +494,62 @@ final class TickEngine {
     /// again.
     private var idle: Task<Void, Never>?
 
-    /// Decodes the sounds and starts the engine (once; again after an interruption or a quiet spell stopped it).
+    /// The decoded sounds, handed from the thread that read them (nothing touches them there afterwards).
+    nonisolated private struct Decoded: @unchecked Sendable {
+        let buffers: [Int: AVAudioPCMBuffer]
+    }
+
+    /// Each sound's file and how far into it it starts (`SFX.offset`), read on the main actor.
+    private var files: [(url: URL, offset: TimeInterval)] {
+        sounds.map { sfx in
+            (Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension) ?? URL(fileURLWithPath: "/dev/null"),
+             sfx.offset)
+        }
+    }
+
+    nonisolated private static func decode(_ files: [(url: URL, offset: TimeInterval)]) -> Decoded {
+        var out: [Int: AVAudioPCMBuffer] = [:]
+        for (i, f) in files.enumerated() {
+            guard let file = try? AVAudioFile(forReading: f.url) else { continue }
+            let skip = AVAudioFramePosition(f.offset * file.processingFormat.sampleRate)
+            if skip > 0, skip < file.length { file.framePosition = skip }
+            let frames = AVAudioFrameCount(file.length - file.framePosition)
+            guard frames > 0,
+                  let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames),
+                  (try? file.read(into: buffer)) != nil else { continue }
+            out[i] = buffer
+        }
+        return Decoded(buffers: out)
+    }
+
+    private func attach(_ decoded: Decoded) {
+        guard !built else { return }
+        built = true
+        for (i, sfx) in sounds.enumerated() {
+            guard let buffer = decoded.buffers[i] else { continue }
+            buffers[sfx] = buffer
+            voices[sfx] = (0..<3).map { _ in
+                let node = AVAudioPlayerNode()
+                engine.attach(node)
+                engine.connect(node, to: engine.mainMixerNode, format: buffer.format)
+                return node
+            }
+        }
+        engine.prepare()
+    }
+
+    /// Reads the sounds off the main thread, ahead of time (after launch): opening the slide dex or 設定 then only
+    /// starts the engine. Decoding them there, on the main thread, added to the first 図鑑's opening (DexOpenTests,
+    /// 2026-10-20).
+    func prepare() async {
+        guard !built else { return }
+        let files = self.files
+        let decoded = await Task.detached(priority: .utility) { Self.decode(files) }.value
+        attach(decoded)
+    }
+
+    /// Starts the engine (again after an interruption or a quiet spell stopped it); reads the sounds first if
+    /// `prepare` has not.
     func warm() {
         idle?.cancel()
         idle = Task { [weak self] in
@@ -499,28 +557,7 @@ final class TickEngine {
             guard !Task.isCancelled else { return }
             self?.engine.pause()
         }
-        if !built {
-            built = true
-            for sfx in sounds {
-                guard let url = Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension),
-                      let file = try? AVAudioFile(forReading: url) else { continue }
-                // The same trim as the players (`SFX.offset`): the sound starts that far in.
-                let skip = AVAudioFramePosition(sfx.offset * file.processingFormat.sampleRate)
-                if skip > 0, skip < file.length { file.framePosition = skip }
-                let frames = AVAudioFrameCount(file.length - file.framePosition)
-                guard frames > 0,
-                      let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames),
-                      (try? file.read(into: buffer)) != nil else { continue }
-                buffers[sfx] = buffer
-                voices[sfx] = (0..<3).map { _ in
-                    let node = AVAudioPlayerNode()
-                    engine.attach(node)
-                    engine.connect(node, to: engine.mainMixerNode, format: buffer.format)
-                    return node
-                }
-            }
-            engine.prepare()
-        }
+        if !built { attach(Self.decode(files)) }
         guard !engine.isRunning else { return }
         try? engine.start()
     }
