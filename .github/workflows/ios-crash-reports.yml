@@ -1,0 +1,67 @@
+# TestFlight に届いたクラッシュの記録を読む（読むだけ。何も書き換えない）
+#
+# iPhone で「クラッシュしました。詳細情報をデベロッパと共有しますか?」に「共有」を押すと、その時の記録が
+# App Store Connect に届く。それを App Store Connect API で読み、ci-previews ブランチの runs/crash-reports/ に置く
+# （crashes.md と hangs.md。Claude が読める場所）。テスターのメールアドレス・名前・コメントは出さない
+# （scripts/asc_crash_reports.py）。
+#
+# 使い方: GitHub → Actions →「TestFlight crash reports（クラッシュの記録を読む）」→ Run workflow
+# 必要な Secrets は iOS release と同じ ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_P8。
+name: TestFlight crash reports（クラッシュの記録を読む）
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/asc_crash_reports.py
+      - .github/workflows/ios-crash-reports.yml
+
+concurrency:
+  group: ios-crash-reports
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  crashes:
+    # A fork's pull request gets no secrets: nothing to read with.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: API キーを一時ファイルに置く
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          if [ -n "$ASC_KEY_P8" ]; then
+            printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          elif [ -n "$ASC_KEY_P8_BASE64" ]; then
+            echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          else
+            echo "::error::Secrets の ASC_KEY_P8 がありません（docs/self-managing-ios.md の手順 2-4）"; exit 1
+          fi
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: クラッシュの記録を読む
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          OUT="$RUNNER_TEMP/crash"
+          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/asc_crash_reports.py com.nori.catchwords "$OUT"
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
+          head -c 60000 "$OUT/crashes.md"
+          head -c 20000 "$OUT/hangs.md"
+
+      - name: ci-previews ブランチに置く
+        if: always()
+        run: |
+          SRC="$RUNNER_TEMP/crash"
+          [ -f "$SRC/crashes.md" ] || exit 0
+          echo "${{ github.sha }}" > "$SRC/COMMIT"
+          bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            runs/crash-reports "crash reports @ ${{ github.sha }}" "$SRC"/crashes.md "$SRC"/hangs.md "$SRC"/COMMIT

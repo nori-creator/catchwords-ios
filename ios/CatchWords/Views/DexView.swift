@@ -277,6 +277,7 @@ struct DexView: View {
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.height
         } action: { h in
+            UITestTrace.geometry("dex.header", "\(h) was \(headerHeight)")
             headerHeight = h
         }
     }
@@ -761,6 +762,15 @@ struct DexFitWidth<Content: View>: View {
         return max(minScale, min(1, available / natural.width))
     }
 
+    /// A measured size is taken only when it moves by more than this (points). The frame below re-centres the
+    /// full-size word in its scaled box, which moves it by a fraction of a point; on a 2x screen (an iPad running this
+    /// iPhone app) the word then measured half a point wider or narrower, the box changed by that half point, the word
+    /// moved back, and so on without end — about 3,700 layouts a second, the screen frozen for good, as soon as the
+    /// 図鑑 drew a card (owner 2026-10-19; DexOpenTests on the iPad simulator, the trace's `fit.natural` going
+    /// 88.0 → 88.5 → 88.0 … over 560,000 times). A pixel's worth of rounding (½ pt at 2x, 1 pt at 1x) never gets
+    /// past this, and a word's scale never needs it.
+    private static var settle: CGFloat { 1.5 }
+
     var body: some View {
         let s = scale
         let measured = natural.width > 0
@@ -772,6 +782,8 @@ struct DexFitWidth<Content: View>: View {
             .onGeometryChange(for: CGSize.self) { proxy in
                 proxy.size
             } action: { size in
+                guard abs(size.width - natural.width) > Self.settle || abs(size.height - natural.height) > Self.settle else { return }
+                UITestTrace.geometry("fit.natural", "\(size) was \(natural) available \(available)")
                 natural = size
             }
             .scaleEffect(s)
@@ -782,6 +794,8 @@ struct DexFitWidth<Content: View>: View {
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.width
             } action: { w in
+                guard abs(w - available) > Self.settle else { return }
+                UITestTrace.geometry("fit.available", "\(w) was \(available) natural \(natural)")
                 available = w
             }
             .clipped()
