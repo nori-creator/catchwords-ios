@@ -8615,5 +8615,26 @@
   "es": "CatchWords para iPhone {1} ({2})",
   "ko": "CatchWords iPhone 버전 {1} ({2})",
   "vi": "CatchWords cho iPhone {1} ({2})"
+ },
+ "TOCFL {1}級": {
+  "en": "TOCFL Level {1}",
+  "zh-TW": "TOCFL {1}級",
+  "es": "TOCFL nivel {1}",
+  "ko": "TOCFL {1}급",
+  "vi": "TOCFL cấp {1}"
+ },
+ "初ゲット": {
+  "en": "NEW",
+  "zh-TW": "首次收集",
+  "es": "NUEVA",
+  "ko": "첫 획득",
+  "vi": "MỚI"
+ },
+ "No.{1}": {
+  "en": "No.{1}",
+  "zh-TW": "No.{1}",
+  "es": "N.º {1}",
+  "ko": "No.{1}",
+  "vi": "Số {1}"
  }
 }

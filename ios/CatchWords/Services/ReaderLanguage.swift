@@ -117,46 +117,79 @@ nonisolated enum ReaderLanguage {
 
     // MARK: - resolveDisplayWord (word-explanation.ts) + scrubForReader
 
-    /// The word as this reader should see it: their explanation when there is one; the shared row
-    /// only where it is written in their language; nothing (rather than another language) otherwise.
-    static func resolve(_ shared: Word, explanation: Explanation?, readerMeaning: String?, reader: String) -> Word {
+    /// The word as this reader should see it: their explanation when there is one; the shared row's
+    /// reader-language text only when that row was written for this very reader's language; nothing
+    /// (rather than another language) otherwise.
+    static func resolve(_ shared: Word, explanation picked: Explanation?, readerMeaning: String?, reader: String) -> Word {
         var w = shared
-        // R22: the shared row's text marked as written in another language of the reader's script (English on a
-        // Spanish screen) cannot be told apart by its letters — it is not used.
-        let sharedMark = (shared.extras?.explainLang ?? "").trimmingCharacters(in: .whitespaces)
-        let sharedForeign = !sharedMark.isEmpty && sharedMark != reader && LanguageRules.sameScript(sharedMark, reader)
-        let sharedMeaning = sharedForeign ? nil : shared.meaningJa
-        let sharedTranslation = sharedForeign ? nil : shared.exampleTranslation
+        // Only an explanation written for this reader's language (one read for the language before a switch is not).
+        let explanation = picked?.explainLang == reader ? picked : nil
+        // R23: the shared row is one per word for every reader, so its meaning, translation and notes are in the
+        // language of whoever made the card first. They are used only for a reader of that language — never on the
+        // strength of their letters alone (English on a Spanish screen, 漢字 on a Japanese one look right; on
+        // 2026-10-20 about 10 of the 312 shared rows carried a mark that did not match their meaning's language).
+        let sharedForReader = sharedTextIsFor(shared, reader: reader)
+        let sharedMeaning = sharedForReader ? shared.meaningJa : nil
+        let sharedTranslation = sharedForReader ? shared.exampleTranslation : nil
         let meanings = [explanation?.meaning, readerMeaning, sharedMeaning].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
         w.meaningJa = meanings.first { !$0.isEmpty && !looksWrong($0, reader: reader, hanOnlyOk: true) } ?? ""
         let translations = [explanation?.exampleTranslation, sharedTranslation].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
         w.exampleTranslation = translations.first { !$0.isEmpty && !looksWrong($0, reader: reader, source: shared.exampleSentence) }
         // A row for this reader wins even when still empty (it is being filled in the background).
-        var extras = explanation != nil ? explanation?.extras : shared.extras
-        if let mark = extras?.explainLang?.trimmingCharacters(in: .whitespaces), !mark.isEmpty, mark != reader { extras = nil }
-        w.extras = extras.map { scrub($0, reader: reader) }
+        if let explanation {
+            var extras = explanation.extras
+            if let mark = extras?.explainLang?.trimmingCharacters(in: .whitespaces), !mark.isEmpty, mark != reader { extras = nil }
+            w.extras = extras.map { scrub($0, reader: reader) }
+        } else if let extras = shared.extras {
+            // The shared notes of another reader's language: the learning-language parts (chunks, forms, kanji,
+            // counters, the picture words) are still this word's, every explaining text is emptied.
+            w.extras = sharedForReader ? scrub(extras, reader: reader) : learningOnly(extras)
+        }
         return w
+    }
+
+    /// The shared row's reader-language text (meaning, translation, notes) was written for `reader`: its mark is that
+    /// language. Rows from before the marks (107 of 312 on 2026-10-20) were all written while Japanese was the only
+    /// display language, so an unmarked row is for the first display language only.
+    static func sharedTextIsFor(_ shared: Word, reader: String) -> Bool {
+        let mark = (shared.extras?.explainLang ?? "").trimmingCharacters(in: .whitespaces)
+        return mark.isEmpty ? reader == DisplayLanguages.source : mark == reader
     }
 
     /// Drop single translations and notes that came back in another language (web `scrubForReader`
     /// and `scrubForeignNotes`) — never rewritten, only emptied.
     static func scrub(_ e: WordExtras, reader: String) -> WordExtras {
+        clean(e) { text, source, hanOnlyOk in looksWrong(text, reader: reader, source: source, hanOnlyOk: hanOnlyOk) }
+    }
+
+    /// Every explaining text emptied, the learning-language parts kept: the shared notes of a word whose
+    /// notes were written for another reader's language.
+    static func learningOnly(_ e: WordExtras) -> WordExtras {
+        var e = clean(e) { _, _, _ in true }
+        e.explainLang = nil
+        return e
+    }
+
+    /// Empties each reader-language text `drop(text, source, hanOnlyOk)` says to drop. The one list of the extras'
+    /// reader-language fields: a field added to `WordExtras` in the reader's language is added here.
+    private static func clean(_ e: WordExtras, drop: (String?, String?, Bool) -> Bool) -> WordExtras {
         var e = e
+        if drop(e.exampleScene, nil, true) { e.exampleScene = nil }
         e.examplesExtra = e.examplesExtra?.map { x in
             var x = x
-            if looksWrong(x.ja, reader: reader, source: x.zh) { x.ja = "" }
-            if looksWrong(x.scene, reader: reader, hanOnlyOk: true) { x.scene = "" }
+            if drop(x.ja, x.zh, false) { x.ja = "" }
+            if drop(x.scene, nil, true) { x.scene = "" }
             return x
         }
         e.usageChunks = e.usageChunks?.map { c in
             var c = c
-            if looksWrong(c.ja, reader: reader, hanOnlyOk: true) { c.ja = "" }
+            if drop(c.ja, nil, true) { c.ja = "" }
             // A swappable part's meaning and its choices' meanings are in the reader's language too (R6).
             c.parts = c.parts.map { p in
                 var p = p
-                if let j = p.ja, looksWrong(j, reader: reader, hanOnlyOk: true) { p.ja = nil }
+                if let j = p.ja, drop(j, nil, true) { p.ja = nil }
                 p.alts = p.alts?.map { a in
-                    looksWrong(a.ja, reader: reader, hanOnlyOk: true) ? ChunkAlt(text: a.text, ja: "") : a
+                    drop(a.ja, nil, true) ? ChunkAlt(text: a.text, ja: "") : a
                 }
                 return p
             }
@@ -164,54 +197,54 @@ nonisolated enum ReaderLanguage {
         }
         e.measureWords = e.measureWords?.map { m in
             var m = m
-            if looksWrong(m.note, reader: reader, hanOnlyOk: true) { m.note = "" }
+            if drop(m.note, nil, true) { m.note = "" }
             return m
         }
         e.relatedWords = e.relatedWords?.map { r in
             var r = r
-            if looksWrong(r.note, reader: reader, hanOnlyOk: true) { r.note = "" }
+            if drop(r.note, nil, true) { r.note = "" }
             return r
         }
         // English and Japanese sections: the explanatory parts are in the reader's language; the
         // learning-language parts (forms, phrases, kanji, conjugated forms, counters) are left alone.
-        if var c = e.countability { if looksWrong(c.note, reader: reader) { c.note = "" }; e.countability = c }
-        if var st = e.stress { if looksWrong(st.note, reader: reader) { st.note = "" }; e.stress = st }
+        if var c = e.countability { if drop(c.note, nil, false) { c.note = "" }; e.countability = c }
+        if var st = e.stress { if drop(st.note, nil, false) { st.note = "" }; e.stress = st }
         e.phrasalVerbs = e.phrasalVerbs?.map { p in
             var p = p
-            if looksWrong(p.meaning, reader: reader, hanOnlyOk: true) { p.meaning = "" }
+            if drop(p.meaning, nil, true) { p.meaning = "" }
             return p
         }
         e.etymologyRelatives = e.etymologyRelatives?.map { w in
             var w = w
-            if looksWrong(w.note, reader: reader, hanOnlyOk: true) { w.note = "" }
+            if drop(w.note, nil, true) { w.note = "" }
             return w
         }
         e.kanjiBreakdown = e.kanjiBreakdown?.map { k in
             var k = k
-            if looksWrong(k.meaning, reader: reader, hanOnlyOk: true) { k.meaning = "" }
+            if drop(k.meaning, nil, true) { k.meaning = "" }
             return k
         }
         e.conjugation = e.conjugation?.map { r in
             var r = r
-            if looksWrong(r.form, reader: reader, hanOnlyOk: true) { r.form = "" }
+            if drop(r.form, nil, true) { r.form = "" }
             return r
         }
         e.counters = e.counters?.map { c in
             var c = c
-            if looksWrong(c.note, reader: reader, hanOnlyOk: true) { c.note = "" }
+            if drop(c.note, nil, true) { c.note = "" }
             return c
         }
         let notes: [WritableKeyPath<WordExtras, String?>] = [\.mnemonic, \.taiwanNote, \.pronunciationTips, \.studyTips,
                                                               \.etymology, \.trivia, \.usageNote, \.synonymDiff, \.usageContext, \.radicals,
                                                               \.cultureNote, \.japanNote]
-        for kp in notes where looksWrong(e[keyPath: kp], reader: reader) {
+        for kp in notes where drop(e[keyPath: kp], nil, false) {
             e[keyPath: kp] = nil
         }
         // Japanese-card notes cite the word's kana unquoted (「は↘し＝頭高型」): judge them without kana.
         let kanaCiting: [WritableKeyPath<WordExtras, String?>] = [\.pitchAccent, \.politeness, \.wordOrigin]
         for kp in kanaCiting {
             let t = String((e[keyPath: kp] ?? "").unicodeScalars.filter { !LanguageRules.isKana($0.value) }.map(Character.init))
-            if looksWrong(t, reader: reader) { e[keyPath: kp] = nil }
+            if drop(t, nil, false) { e[keyPath: kp] = nil }
         }
         return e
     }

@@ -118,6 +118,8 @@ struct SettingsView: View {
         .confirmationDialog(L("サインアウトしますか？"), isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button(L("サインアウト"), role: .destructive) { auth.signOut() }
                 .accessibilityIdentifier("settings.signOut.confirm")
+            // Without it the system adds its own "Cancel" in the iPhone's language, not the app's.
+            Button(L("キャンセル"), role: .cancel) {}
         }
     }
 

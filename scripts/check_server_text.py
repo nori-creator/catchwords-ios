@@ -15,9 +15,10 @@ import re
 import sys
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "ios", "CatchWords")
-FIELDS = r"(meaningJa|feedbackJa|questionJa|bodyJa|ja|note|exampleTranslation|scene|reason|distinction|meaning|form)"
-USE = re.compile(r"(Text\(|accessibilityHint\(|accessibilityLabel\(|meaning:\s|label:\s)[^\n]*?\b([A-Za-z_][\w?.()]*?)\." + FIELDS + r"\b")
-FILTERS = ("ReaderLanguage.", "L10n.readerSafe", "readable(")
+# `place` / `locationName`: a place name saved at capture time is in the language of that moment (2026-10-20).
+FIELDS = r"(meaningJa|feedbackJa|questionJa|bodyJa|ja|note|exampleTranslation|scene|reason|distinction|meaning|form|place|locationName)"
+USE = re.compile(r"(Text\(|Label\(|accessibilityHint\(|accessibilityLabel\(|meaning:\s|label:\s|content\.(?:title|subtitle|body)\s*=)[^\n]*?\b([A-Za-z_][\w?.()]*?)\." + FIELDS + r"\b")
+FILTERS = ("ReaderLanguage.", "L10n.readerSafe", "readable(", "LocationService.shownPlace", "LocalizedPlaceText(")
 RESOLVED = re.compile(r"(^|[^\w])(word\??|\.word\??)$")
 # Loop variables over the resolved word's extras — only on the pages that draw them.
 EXTRAS_PAGES = {"Views/WordDetailView.swift", "Views/AnswerPanel.swift"}
@@ -25,7 +26,11 @@ EXTRAS_VARS = re.compile(r"(^|[^\w])(ex|chunk|r|m|k|c|p|st|row|extras\??)$")
 SKIP = {"Views/UIPreview.swift"}
 
 problems = []
-for path in sorted(glob.glob(os.path.join(ROOT, "Views", "**", "*.swift"), recursive=True)):
+# The screens, and the notifications (their text is shown by the system, outside the screens).
+PATHS = glob.glob(os.path.join(ROOT, "Views", "**", "*.swift"), recursive=True) + [
+    os.path.join(ROOT, "Services", "ReminderService.swift"),
+]
+for path in sorted(PATHS):
     rel = os.path.relpath(path, ROOT)
     if rel in SKIP:
         continue

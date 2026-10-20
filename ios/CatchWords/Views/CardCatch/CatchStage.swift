@@ -565,12 +565,12 @@ struct Star4: Shape {
 struct CatchDexChip: View {
     let label: String?
     var scale: CGFloat = 1
-    /// The blue capsule's word: NEW for a new word, 「再会 N回目」 for a re-encounter.
+    /// The blue capsule's word: 「初ゲット」 for a new word, 「再会 N回目」 for a re-encounter.
     var badge: String? = nil
 
     var body: some View {
         HStack(spacing: 6 * scale) {
-            Text(verbatim: badge ?? "NEW")
+            Text(badge ?? L("初ゲット"))
                 .font(.system(size: 9.5 * scale, weight: .heavy))
                 .tracking(0.8 * scale)
                 .foregroundStyle(.white)
@@ -594,7 +594,7 @@ enum CatchDexInfo {
         let lang = NativeAPI.targetLanguage
         guard let item = DexCatalog.item(headword: headword, lang: lang) else { return nil }
         let no = DexNumbering.preview(headword: headword, stickers: stickers, lang: lang, uid: SupabaseClient.shared.userId)
-        return "No.\(String(format: "%03d", no)) · \(DexCatalog.label(item.category))"
+        return "\(L("No.\(String(format: "%03d", no))")) · \(DexCatalog.label(item.category))"
     }
 }
 

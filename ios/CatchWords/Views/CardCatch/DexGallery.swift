@@ -178,7 +178,7 @@ private struct DexSlotView: View {
     }
 
     private var noText: some View {
-        Text(slot.no.map { "No.\(String(format: "%03d", $0))" } ?? "No.---")
+        Text(L("No.\(slot.no.map { String(format: "%03d", $0) } ?? "---")"))
             .font(.system(size: 9.5, weight: .bold))
             .tracking(0.38)
             .foregroundStyle(DexInk.no)
@@ -546,7 +546,7 @@ private struct DexNewBadge: View {
     @State private var shown = false
 
     var body: some View {
-        Text(verbatim: "NEW")
+        Text(L("初ゲット"))
             .font(.system(size: 9, weight: .heavy))
             .tracking(0.7)
             .foregroundStyle(.white)

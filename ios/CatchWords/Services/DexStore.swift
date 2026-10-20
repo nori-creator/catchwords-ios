@@ -1045,7 +1045,13 @@ final class DexStore {
             "example_sentence": text("example_sentence", card.exampleSentence),
             "example_translation": text("example_translation", card.exampleTranslation),
         ]
-        if let extras = raw?["extras"], case .object = extras { word["extras"] = extras.foundation }
+        // The meaning and notes are this reader's (the candidate's and the card's are written in the display language):
+        // marked so (`explain_lang`), the shared row's rule (`ReaderLanguage.sharedTextIsFor`) shows them to this reader
+        // while the word is shown from these fields, and a server without its receipts stores the right mark.
+        var extras: [String: Any] = [:]
+        if let e = raw?["extras"], case .object = e, let obj = e.foundation as? [String: Any] { extras = obj }
+        if ((extras["explain_lang"] as? String) ?? "").isEmpty { extras["explain_lang"] = L10n.lang }
+        word["extras"] = extras
         // The word's exam level is not used on iOS (owner 2026-10-03). The server's own value from `generateCard`
         // is handed back untouched when there is one: without it saveSticker would store its default "TOCFL-2"
         // (stickers.functions.ts SaveStickerInput), which is wrong for English and Japanese words.
@@ -1080,6 +1086,8 @@ final class DexStore {
         var w = fields
         w["id"] = id
         w["language"] = language ?? NativeAPI.targetLanguage
+        // The headword stands in for a missing meaning only in what is sent (`wordFields`): never shown as the meaning.
+        if (w["meaning_ja"] as? String) == (w["headword"] as? String) { w["meaning_ja"] = "" }
         return (try? JSONSerialization.data(withJSONObject: w)).flatMap { try? JSONDecoder().decode(Word.self, from: $0) }
     }
 

@@ -226,6 +226,11 @@ struct ForgettingCurveSheet: View {
                     }
                 }
         }
+        // VoiceOver reads the chart as one element in the display language (each mark's own label would be the
+        // plotted values' names — "date", "s", "future" — in English).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("記憶の曲線"))
+        .accessibilityValue(L("今日 \(Int(d.today.value))%"))
         .chartXSelection(value: $scrubDate)
         .onChange(of: scrubDate) { _, new in
             // A light tick each time the finger crosses into another day.
