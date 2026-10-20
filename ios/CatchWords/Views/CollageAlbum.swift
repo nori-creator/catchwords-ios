@@ -585,24 +585,16 @@ struct AlbumPhoto: View {
     /// The picture the album shows for a catch (設定 › ホームに表示する写真).
     nonisolated static func path(for s: Sticker) -> String? { s.homePath }
 
-    /// The cut-out is shown by default and this word's is about to be made (`CutoutBackfill`): wait for it.
-    static func waitsForCutout(_ s: Sticker) -> Bool {
-        // A re-encounter's page: its cut-out was made with the catch (none = the photo), never by the backfill.
-        if DexStore.isEncounterAlbumEntry(s.id) { return false }
-        let pref = UserDefaults.standard.string(forKey: Sticker.homePhotoKey) ?? "auto"
-        let wantsCutout = pref == "auto" || (pref == "selfie" && s.selfieImageUrl == nil)
-        return wantsCutout && s.cutoutImageUrl == nil && CutoutBackfill.shared.awaitsCutout(s)
+    var body: some View {
+        picture
+            // A cut-out made on this phone (`CutoutBackfill`) fades in over the photo shown until then, rather than
+            // swapping in at once (owner 2026-10-14: 「元の画像が一瞬表示されて、すぐ切り抜きになる」).
+            .animation(.easeInOut(duration: 0.45), value: sticker.cutoutImageUrl)
     }
 
-    var body: some View {
+    @ViewBuilder private var picture: some View {
         let path = sticker.homePath
-        if Self.waitsForCutout(sticker) {
-            // Its cut-out is being made on this phone right now: a soft blank until it comes, never the photo first.
-            RoundedRectangle(cornerRadius: min(width, height) * 0.18, style: .continuous)
-                .fill(Color(hex: 0x33291F, opacity: 0.05))
-                .frame(width: width, height: height)
-                .allowsHitTesting(false)
-        } else if let path, path == sticker.selfieImageUrl, SelfieCutouts.shared.state(for: path) != .noPerson {
+        if let path, path == sticker.selfieImageUrl, SelfieCutouts.shared.state(for: path) != .noPerson {
             // A selfie: its people and what they hold, cut out like the other stickers (made on this phone).
             SelfieAlbumCutout(path: path, width: width, height: height, lifted: lifted)
         } else if let path, path == sticker.cutoutImageUrl {
