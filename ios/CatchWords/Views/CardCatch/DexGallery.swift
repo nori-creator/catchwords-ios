@@ -119,10 +119,44 @@ private struct DexCategoryCard: View {
         .padding(.bottom, 14)
         .background(Theme.card, in: .rect(cornerRadius: 22, style: .circular))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .circular).stroke(DexInk.border, lineWidth: 1))
-        // 0 6px 18px −12px rgba(20,50,90,.25)
-        .background(RoundedRectangle(cornerRadius: 22, style: .circular).fill(Color.rgba(20, 50, 90, 0.25))
-            .padding(12).offset(y: 6).blur(radius: 9))
+        // 0 6px 18px −12px rgba(20,50,90,.25): a picture drawn once, stretched to the card (it was a blur pass per
+        // card on every frame the gallery moved — the landing's shake, owner 2026-10-20: the add to 図鑑 stuttered).
+        .background {
+            DexCardShadow.image
+                .resizable(capInsets: DexCardShadow.capInsets)
+                .padding(-(DexCardShadow.pad - 12))
+                .offset(y: 6)
+                .allowsHitTesting(false)
+        }
     }
+}
+
+/// The category card's soft shadow (the card inset 12, blurred 9 — `DexCategoryCard`), drawn once.
+enum DexCardShadow {
+    /// The blur's reach round the inset card (3 radii).
+    static let pad: CGFloat = 28
+    private static let corner: CGFloat = 22
+    static var capInsets: EdgeInsets {
+        let c = pad + corner + 2
+        return EdgeInsets(top: c, leading: c, bottom: c, trailing: c)
+    }
+
+    static let image: Image = {
+        let inner = CGSize(width: 2 * corner + 40, height: 2 * corner + 40)
+        let size = CGSize(width: inner.width + 2 * pad, height: inner.height + 2 * pad)
+        let picture = UIGraphicsImageRenderer(size: size).image { r in
+            let cg = r.cgContext
+            // Only the shadow is drawn: the shape sits one width to the left, its shadow thrown back into the picture.
+            // Core Graphics' blur is about twice SwiftUI's radius.
+            cg.setShadow(offset: CGSize(width: size.width, height: 0), blur: 18,
+                         color: UIColor(red: 20 / 255, green: 50 / 255, blue: 90 / 255, alpha: 0.25).cgColor)
+            cg.addPath(UIBezierPath(roundedRect: CGRect(x: pad - size.width, y: pad, width: inner.width, height: inner.height),
+                                    cornerRadius: corner).cgPath)
+            cg.setFillColor(UIColor.black.cgColor)
+            cg.fillPath()
+        }
+        return Image(uiImage: picture)
+    }()
 }
 
 /// `.slot`: the square `.sart` (radius 16), `.no` (9.5 pt 700) and `.nm` (13 pt 800; `.nm.q` for shadows).
@@ -552,15 +586,24 @@ private struct DexAnticipTint: View {
     let start: Double
     let impact: Double?
 
+    /// The tint is full: the timeline stops redrawing.
+    @State private var done = false
+
     var body: some View {
-        TimelineView(.animation) { _ in
-            let end = impact ?? start + 0.52
+        let end = impact ?? start + 0.52
+        TimelineView(.animation(minimumInterval: nil, paused: done)) { _ in
             let an = Film6.seg(CCClock.now, start, max(start + 0.05, end))
             DexSilhouette(item: item, color: Theme.primaryBright)
                 .opacity(0.55 * an)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+        .task(id: end) {
+            done = false
+            let wait = end - CCClock.now + 0.05
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            if !Task.isCancelled { done = true }
+        }
     }
 }
 

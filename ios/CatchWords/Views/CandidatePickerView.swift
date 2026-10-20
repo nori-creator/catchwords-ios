@@ -35,6 +35,9 @@ struct CandidatePickerView: View {
     @State private var flow: ChooseFlow?
     /// The photo melting into the app's page under the choose screen.
     @State private var melt = false
+    /// The choose screen's page covers the photo entirely: the photo (blurred, scaled) and the scan stop being drawn
+    /// under it — the blur ran on every frame of the floating sticker though nothing of it showed.
+    @State private var covered = false
     /// The photo stage on screen (global): where each thing's sticker lifts from.
     @State private var stageFrame: CGRect = .zero
     /// DEBUG previews: open the first thing with several ways to say it once the tags are up.
@@ -231,7 +234,7 @@ struct CandidatePickerView: View {
                         .allowsHitTesting(false)
                 }
                 if let scan = vm.scan, let photo = vm.photo {
-                    CatchScanOverlay(scan: scan, photo: photo.size, reduceMotion: reduceMotion)
+                    CatchScanOverlay(scan: scan, photo: photo.size, reduceMotion: reduceMotion, hidden: covered)
                         .frame(width: size.width, height: size.height)
                         // On the tap the outlines fade out in .5 s (the film's v8 note).
                         .opacity(flow == nil ? 1 : 0)
@@ -247,6 +250,13 @@ struct CandidatePickerView: View {
             .blur(radius: melt ? 15 : 0)
             .brightness(melt ? 0.06 : 0)
             .scaleEffect(melt ? 1.08 : 1, anchor: meltAnchor)
+            .opacity(covered ? 0 : 1)
+            .task(id: melt) {
+                // The page is opaque 0.6 s after the tap (`CatchChooseOverlay`: page 0.05 → 0.6 s).
+                guard melt else { covered = false; return }
+                try? await Task.sleep(for: .milliseconds(700))
+                if !Task.isCancelled, melt, flow != nil { covered = true }
+            }
             .contentShape(.rect)
             .onTapGesture {
                 UITestTrace.log("stage.tap")

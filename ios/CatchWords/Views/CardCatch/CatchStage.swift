@@ -243,6 +243,64 @@ nonisolated enum StickerDisplay {
         cache.setObject(small, forKey: cut)
         return small
     }
+
+    /// The sticker's white border, drawn once: the border is twelve white copies of the cut-out round it
+    /// (`CatchStickerArt`), drawn every frame while the sticker grows its border, stands on the stage and flies into the
+    /// 図鑑 — here they are one picture, scaled with the border's width.
+    final class Bordered: @unchecked Sendable {
+        /// The white copies (the cut-out itself is drawn over them).
+        let ring: UIImage
+        /// The border's full width as a fraction of the cut-out's width and height (the ring is larger by it each side).
+        let padX: CGFloat, padY: CGFloat
+        init(ring: UIImage, padX: CGFloat, padY: CGFloat) { self.ring = ring; self.padX = padX; self.padY = padY }
+    }
+
+    private static let bordered = NSCache<UIImage, Bordered>()
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var making: Set<ObjectIdentifier> = []
+
+    /// The bordered sticker when it is made; else nil, and it is made off the main thread (the next frame has it).
+    static func borderedIfReady(_ cut: UIImage) -> Bordered? {
+        if let hit = bordered.object(forKey: cut) { return hit }
+        let id = ObjectIdentifier(cut)
+        lock.lock()
+        let start = making.insert(id).inserted
+        lock.unlock()
+        if start {
+            Task.detached(priority: .userInitiated) {
+                _ = makeBordered(cut)
+                lock.lock()
+                making.remove(id)
+                lock.unlock()
+            }
+        }
+        return nil
+    }
+
+    /// Makes (once) the bordered sticker: off the main thread.
+    @discardableResult
+    static func makeBordered(_ cut: UIImage) -> Bordered {
+        if let hit = bordered.object(forKey: cut) { return hit }
+        let src = image(cut)
+        let w = src.size.width * src.scale, h = src.size.height * src.scale
+        // `CatchStickerArt`: the copies sit 4% of the sticker's shorter side out, twelve round a circle.
+        let e = (0.04 * min(w, h)).rounded(.up)
+        let format = ImageTools.standardFormat()
+        let made = UIGraphicsImageRenderer(size: CGSize(width: w + 2 * e, height: h + 2 * e), format: format).image { ctx in
+            let cg = ctx.cgContext
+            for i in 0..<12 {
+                let a = CGFloat(i) / 12 * 2 * .pi
+                src.draw(in: CGRect(x: e + cos(a) * e, y: e + sin(a) * e, width: w, height: h))
+            }
+            // The copies in white (`.renderingMode(.template)` + white): their alpha kept.
+            cg.setBlendMode(.sourceIn)
+            cg.setFillColor(UIColor.white.cgColor)
+            cg.fill(CGRect(x: 0, y: 0, width: w + 2 * e, height: h + 2 * e))
+        }
+        let b = Bordered(ring: made, padX: e / max(1, w), padY: e / max(1, h))
+        bordered.setObject(b, forKey: cut)
+        return b
+    }
 }
 
 /// The thing as a sticker (film `sticker()`): its cut-out, a white die-cut border that grows in (`border` 0 → 1),
@@ -276,7 +334,33 @@ struct CatchStickerArt: View {
         .accessibilityHidden(true)
     }
 
+    @ViewBuilder
     private func cutout(_ full: UIImage) -> some View {
+        // The border as one picture, as wide as `border` says (the twelve copies sat that much nearer).
+        if border > 0.001, let b = StickerDisplay.borderedIfReady(full) {
+            let fitted = Film6.fit(aspect: full.size.width / max(1, full.size.height), in: size)
+            let grow = CGFloat(min(1, border))
+            ZStack {
+                Image(uiImage: b.ring)
+                    .resizable()
+                    .frame(width: fitted.width * (1 + 2 * b.padX * grow), height: fitted.height * (1 + 2 * b.padY * grow))
+                    .opacity(min(1, border * 1.6))
+                Image(uiImage: StickerDisplay.image(full))
+                    .resizable()
+                    .frame(width: fitted.width, height: fitted.height)
+                if (sheen > 0 && sheen < 1) || (holo > 0 && holo < 1) {
+                    sweep(sheen, holo)
+                        .frame(width: fitted.width, height: fitted.height)
+                        .mask { Image(uiImage: StickerDisplay.image(full)).resizable().scaledToFit() }
+                }
+            }
+            .frame(width: size.width, height: size.height)
+        } else {
+            drawnCutout(full)
+        }
+    }
+
+    private func drawnCutout(_ full: UIImage) -> some View {
         let cut = StickerDisplay.image(full)
         let edge = max(2, min(size.width, size.height) * 0.04) * CGFloat(border)
         return ZStack {
@@ -342,6 +426,119 @@ struct CatchStickerArt: View {
 
 // MARK: - The stage
 
+/// The stage's still light (the wall, the key light, the aura in the thing's colour, the pool on the floor and the
+/// grain — `CatchStageCanvas`), drawn once as two pictures: at rest and at the catch's swell. The canvas filled five
+/// screen-sized gradients and blended the grain over them on every frame of the GET moment (owner 2026-10-20: 「限界
+/// まで滑らかなアニメーション」); the swell is the second picture faded in over the first.
+nonisolated enum StageBackdrop {
+    final class Pair: @unchecked Sendable {
+        let rest: UIImage, swell: UIImage
+        init(rest: UIImage, swell: UIImage) { self.rest = rest; self.swell = swell }
+    }
+
+    private static let cache = NSCache<NSString, Pair>()
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var making: Set<String> = []
+
+    private static func key(_ size: CGSize, _ scale: CGFloat, _ p: StagePalette) -> String {
+        "\(Int(size.width))x\(Int(size.height))@\(scale) \(p.glow.r),\(p.glow.g),\(p.glow.b) \(p.glow2.r),\(p.glow2.g),\(p.glow2.b)"
+    }
+
+    /// The pictures when made; else nil, and they are made off the main thread (the canvas draws meanwhile).
+    static func ifReady(size: CGSize, scale: CGFloat, palette: StagePalette) -> Pair? {
+        guard size.width > 1, size.height > 1 else { return nil }
+        let k = key(size, scale, palette)
+        if let hit = cache.object(forKey: k as NSString) { return hit }
+        lock.lock()
+        let start = making.insert(k).inserted
+        lock.unlock()
+        if start {
+            Task.detached(priority: .userInitiated) {
+                let pair = Pair(rest: draw(size: size, scale: scale, palette: palette, swell: 0),
+                                swell: draw(size: size, scale: scale, palette: palette, swell: 1))
+                cache.setObject(pair, forKey: k as NSString)
+                lock.lock()
+                making.remove(k)
+                lock.unlock()
+            }
+        }
+        return nil
+    }
+
+    private static func rgb(_ hex: UInt32, _ a: CGFloat = 1) -> CGColor {
+        CGColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: a)
+    }
+
+    private static func rgb(_ c: StagePalette.RGB, _ a: CGFloat) -> CGColor {
+        CGColor(srgbRed: CGFloat(c.r / 255), green: CGFloat(c.g / 255), blue: CGFloat(c.b / 255), alpha: a)
+    }
+
+    private static func gradient(_ stops: [(CGColor, CGFloat)]) -> CGGradient? {
+        CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: stops.map(\.0) as CFArray, locations: stops.map(\.1))
+    }
+
+    /// `CatchStageCanvas`'s still layers at `swell` 0 or 1 (the same gradients, centres and radii).
+    static func draw(size: CGSize, scale: CGFloat, palette: StagePalette, swell: Double) -> UIImage {
+        let format = ImageTools.standardFormat(scale: scale, opaque: true)
+        return UIGraphicsImageRenderer(size: size, format: format).image { r in
+            let ctx = r.cgContext
+            let W = size.width, H = size.height, k = W / 1080, cx = W / 2
+            let sw = CGFloat(swell)
+            if let wall = gradient([(rgb(0xE6EEFB), 0), (rgb(0xF1F6FE), 0.22), (rgb(0xFBFCFF), 0.42), (rgb(0xF6F8FC), 0.54),
+                                    (rgb(0xE9EEF6), 0.585), (rgb(0xEDF1F8), 0.62), (rgb(0xE8EDF5), 0.8), (rgb(0xDFE6F0), 1)]) {
+                ctx.drawLinearGradient(wall, start: .zero, end: CGPoint(x: 0, y: H), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+            }
+            let white = { (a: CGFloat) in CGColor(srgbRed: 1, green: 1, blue: 1, alpha: a) }
+            if let key = gradient([(white(0.85 + 0.15 * sw), 0), (white(0.35), 0.55), (white(0), 1)]) {
+                let c = CGPoint(x: cx, y: Film6.y(930, H))
+                ctx.drawRadialGradient(key, startCenter: c, startRadius: 0, endCenter: c, endRadius: 760 * k, options: [])
+            }
+            if let aura = gradient([(rgb(palette.glow, 0.5 + 0.2 * sw), 0), (rgb(palette.glow2, 0.22), 0.6), (rgb(palette.glow2, 0), 1)]) {
+                let c = CGPoint(x: cx, y: Film6.y(1010, H))
+                ctx.drawRadialGradient(aura, startCenter: c, startRadius: 0, endCenter: c, endRadius: (520 + 60 * sw) * k, options: [])
+            }
+            // the pool of light on the floor, squashed to a fifth of its height
+            ctx.saveGState()
+            ctx.translateBy(x: cx, y: Film6.y(Film6.floorY + 10, H))
+            ctx.scaleBy(x: 1, y: 0.2)
+            let r1 = 640 * k
+            ctx.addEllipse(in: CGRect(x: -r1, y: -r1, width: 2 * r1, height: 2 * r1))
+            ctx.clip()
+            if let pool = gradient([(white(0.95), 0), (white(0.45), 0.5), (white(0), 1)]) {
+                ctx.drawRadialGradient(pool, startCenter: .zero, startRadius: 0, endCenter: .zero, endRadius: (600 + 40 * sw) * k, options: [])
+            }
+            if let bounce = gradient([(rgb(palette.glow, 0.45), 0), (rgb(palette.glow, 0), 1)]) {
+                ctx.drawRadialGradient(bounce, startCenter: .zero, startRadius: 0, endCenter: .zero, endRadius: 300 * k, options: [])
+            }
+            ctx.restoreGState()
+            // the grain, so the soft gradients never band
+            if let grain = grainTile {
+                ctx.saveGState()
+                ctx.setBlendMode(.overlay)
+                ctx.setAlpha(0.045)
+                ctx.draw(grain, in: CGRect(x: 0, y: 0, width: 64, height: 64), byTiling: true)
+                ctx.restoreGState()
+            }
+        }
+    }
+
+    /// The canvas's grain tile (128 px, drawn at 64 pt).
+    static let grainTile: CGImage? = {
+        let n = 128
+        var px = [UInt8](repeating: 255, count: n * n * 4)
+        var seed: UInt32 = 0x9E3779B9
+        for i in 0..<(n * n) {
+            seed = seed &* 1_664_525 &+ 1_013_904_223
+            let v = UInt8(128 + Int((seed >> 24) & 0xFF) * 90 / 255 - 45)
+            px[i * 4] = v; px[i * 4 + 1] = v; px[i * 4 + 2] = v
+        }
+        guard let provider = CGDataProvider(data: Data(px) as CFData) else { return nil }
+        return CGImage(width: n, height: n, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: n * 4,
+                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                       provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+    }()
+}
+
 /// The lit stage of the catch (film `getStage`): the wall curving into the floor, the key light behind the piece, an
 /// aura in the thing's own colour, the pool of light on the floor, two rings running out across the floor at the catch
 /// and motes drifting up in the light. `tc`: seconds since the choice (the catch beat); `live`: the clock (the motes).
@@ -379,13 +576,32 @@ struct CatchStageCanvas: View {
         return Image(decorative: cg, scale: 2)
     }()
 
+    @Environment(\.displayScale) private var displayScale
+
     var body: some View {
+        GeometryReader { geo in
+            let backdrop = StageBackdrop.ifReady(size: geo.size, scale: displayScale, palette: palette)
+            let swell = calm ? 0 : sin(.pi * Film6.seg(tc, Film6.catchT - 0.05, Film6.catchT + 0.95))
+            ZStack {
+                if let backdrop, alpha > 0.001 {
+                    Image(uiImage: backdrop.rest).resizable().opacity(alpha)
+                    if swell > 0.001 { Image(uiImage: backdrop.swell).resizable().opacity(alpha * swell) }
+                }
+                canvas(drawsStill: backdrop == nil)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// The light that moves (the catch's rings, the motes) — and the still light too until `StageBackdrop` has drawn it.
+    private func canvas(drawsStill: Bool) -> some View {
         Canvas { ctx, size in
             guard alpha > 0.001 else { return }
             ctx.opacity = alpha
             let W = size.width, H = size.height, k = W / 1080
             let rect = CGRect(origin: .zero, size: size)
             let swell = calm ? 0 : sin(.pi * Film6.seg(tc, Film6.catchT - 0.05, Film6.catchT + 0.95))
+            if drawsStill {
             ctx.fill(Path(rect), with: .linearGradient(Gradient(stops: Self.wall), startPoint: .zero, endPoint: CGPoint(x: 0, y: H)))
             // the key light on the wall behind the piece
             ctx.fill(Path(rect), with: .radialGradient(Gradient(stops: [
@@ -418,6 +634,7 @@ struct CatchStageCanvas: View {
             grain.opacity = alpha * 0.045
             grain.blendMode = .overlay
             grain.fill(Path(rect), with: .tiledImage(Self.grain))
+            }
             guard !calm else { return }
             // the catch: two rings run out across the floor
             for (d, a0) in [(0.0, 1.0), (0.14, 0.55)] {
@@ -453,7 +670,6 @@ struct CatchStageCanvas: View {
                 ]), center: p, startRadius: 0, endRadius: r))
             }
         }
-        .allowsHitTesting(false)
     }
 }
 
@@ -531,24 +747,23 @@ struct CatchStageScene: View {
         let lift = max(0, Double((floorPt - bottom) / H) * Film6.canvasH) + 6
         // the soft shadow that follows the floating sticker
         let pose = Film6.clamp(Film6.seg(sinceTap, 0.05, 0.4))
-        Ellipse()
-            .fill(Color(hex: 0x0F2850))
-            .frame(width: p.size.width * 1.05, height: max(2, p.size.height * 0.09))
-            .blur(radius: 16 * k)
+        // The blurred ellipses are a soft elliptical gradient as large as the blur reaches (no blur pass every frame).
+        SoftEllipse(color: Color(hex: 0x0F2850), size: CGSize(width: p.size.width * 1.05, height: max(2, p.size.height * 0.09)),
+                    blur: 16 * k)
             .opacity(0.2 * (sinceChoice == nil ? pose : 1) * (1 - stageA * 0.6))
             .position(x: p.center.x, y: p.still.y + p.size.height * 0.5 + p.size.height * 0.1)
         if stageA > 0.001 {
             let sa = stageA * Film6.clamp(1 - lift / 160) * 0.42
             if sa > 0.005 {
-                Ellipse()
-                    .fill(Color(hex: 0x2B3A52))
-                    .frame(width: max(2, p.size.width * 0.9 * CGFloat(1 - lift / 600)), height: max(2, 40 * k * p.size.height / Film6.y(586, H)))
-                    .blur(radius: CGFloat(10 + lift * 0.18) * k)
+                SoftEllipse(color: Color(hex: 0x2B3A52),
+                            size: CGSize(width: max(2, p.size.width * 0.9 * CGFloat(1 - lift / 600)), height: max(2, 40 * k * p.size.height / Film6.y(586, H))),
+                            blur: CGFloat(10 + lift * 0.18) * k)
                     .opacity(sa)
                     .position(x: p.center.x, y: floorPt + 4 * k)
             }
             if lift < 120 {
                 let band = 190 * k
+                // The faint reflection (16% at most): drawn from the same pictures as the sticker, without its 0.6 pt blur.
                 CatchStickerArt(cut: cut, fallback: fallback, size: p.size, border: 1)
                     .scaleEffect(x: 1, y: -1)
                     .position(x: p.center.x, y: 2 * floorPt - p.center.y + 4 * k)
@@ -558,10 +773,34 @@ struct CatchStageScene: View {
                             .frame(width: W, height: band)
                             .offset(y: floorPt + 2 * k)
                     }
-                    .blur(radius: 0.6)
                     .opacity(stageA * 0.16 * Film6.clamp(1 - lift / 120))
             }
         }
+    }
+}
+
+/// An ellipse blurred by `blur` (the Gaussian's radius), drawn as an elliptical gradient over the area the blur reaches:
+/// the same soft shadow without a blur pass on every frame.
+struct SoftEllipse: View {
+    let color: Color
+    let size: CGSize
+    let blur: CGFloat
+
+    var body: some View {
+        // The blur spreads about 2.5 radii past the edge; the stops follow a Gaussian edge (an erf profile).
+        let reach = blur * 2.5
+        let w = size.width + 2 * reach, h = size.height + 2 * reach
+        let inner = Double(min(size.width, size.height) / max(1, min(w, h)))
+        let core = min(1, Double(min(size.width, size.height)) / max(1, Double(blur) * 2.2))
+        EllipticalGradient(stops: [
+            .init(color: color.opacity(core), location: 0),
+            .init(color: color.opacity(core * 0.92), location: inner * 0.5),
+            .init(color: color.opacity(core * 0.5), location: inner + (1 - inner) * 0.3),
+            .init(color: color.opacity(core * 0.16), location: inner + (1 - inner) * 0.6),
+            .init(color: color.opacity(0), location: 1),
+        ], center: .center)
+        .frame(width: w, height: h)
+        .allowsHitTesting(false)
     }
 }
 

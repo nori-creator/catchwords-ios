@@ -40,6 +40,26 @@ struct CatchChooseOverlay: View {
     /// A word typed in the field under the card.
     var onSearch: ((String) -> Void)? = nil
 
+    /// The card has come in and stands still (`settleCard`): its timeline stops until a choice, new rows or closing.
+    @State private var cardStill = false
+
+    private func closing(_ now: Double) -> Double { closingAt.map { Film6.seg(now - $0, 0, 0.3) } ?? 0 }
+
+    private var stillKey: String { "\(tappedAt)|\(chosenAt ?? -1)|\(closingAt ?? -1)|\(rowsAt ?? -1)|\(words.count)" }
+
+    /// Lets the card's timeline stop once everything on it has come in (`chooser`, `rows`: the header by 0.7 s, the card
+    /// by 0.82 s, the rows by 0.9 + 0.07 s each, the line under it by 1.1 s after the tap; new rows by 0.32 + 0.07 s each).
+    private func settleCard() async {
+        cardStill = false
+        guard chosenAt == nil, closingAt == nil else { return }
+        let rowsEnd = (rowsAt.map { $0 + 0.32 } ?? tappedAt + 0.9) + 0.07 * Double(words.count)
+        let end = max(tappedAt + 1.15, rowsEnd) + 0.1
+        let wait = end - CCClock.now
+        if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+        guard !Task.isCancelled else { return }
+        cardStill = true
+    }
+
     @State private var typed: String = ""
     @FocusState private var typing: Bool
     /// The field comes in with the card's rows.
@@ -56,30 +76,37 @@ struct CatchChooseOverlay: View {
             GeometryReader { geo in
                 let size = geo.size
                 let o = geo.frame(in: .global).origin
-                TimelineView(.animation) { _ in
-                    let now = CCClock.now
-                    let tD = now - tappedAt
-                    let hold = hasCard ? Film6.handoff : Film6.handoffSingle
-                    let tc = chosenAt.map { min(now - $0, hold) }
-                    let page = calm ? Film6.clamp(tD / 0.2) : Film6.inOutCubic(Film6.seg(tD, 0.05, 0.6))
-                    let closing = closingAt.map { Film6.seg(now - $0, 0, 0.3) } ?? 0
-                    ZStack(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) {
+                    TimelineView(.animation) { _ in
+                        let now = CCClock.now
+                        let tD = now - tappedAt
+                        let hold = hasCard ? Film6.handoff : Film6.handoffSingle
+                        let tc = chosenAt.map { min(now - $0, hold) }
+                        let page = calm ? Film6.clamp(tD / 0.2) : Film6.inOutCubic(Film6.seg(tD, 0.05, 0.6))
                         CatchStageScene(size: size, cut: cut, fallback: fallback, palette: palette,
                                         start: start.map { $0.offsetBy(dx: -o.x, dy: -o.y) },
                                         sinceTap: calm ? 99 : tD, sinceChoice: tc, live: now, page: page, calm: calm)
-                        // Taps beside the card go nowhere (the photo's words under it are put away).
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .frame(width: size.width, height: size.height)
-                        if hasCard {
-                            chooser(now: now, tD: tD, size: size)
+                            .opacity(1 - closing(now))
+                    }
+                    // Taps beside the card go nowhere (the photo's words under it are put away).
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .frame(width: size.width, height: size.height)
+                    if hasCard {
+                        // The card is drawn every frame only while it moves (coming in, a choice, closing): it was
+                        // built again every frame while it stood still under the floating sticker (owner 2026-10-20:
+                        // 「限界まで滑らかなアニメーション」).
+                        TimelineView(.animation(minimumInterval: nil, paused: cardStill)) { _ in
+                            let now = CCClock.now
+                            chooser(now: now, tD: now - tappedAt, size: size)
+                                .opacity(1 - closing(now))
                         }
                     }
-                    .frame(width: size.width, height: size.height, alignment: .topLeading)
-                    .opacity(1 - closing)
                 }
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
             }
             .ignoresSafeArea()
+            .task(id: stillKey) { await settleCard() }
 
             if hasCard, chosenAt == nil, closingAt == nil {
                 VStack {

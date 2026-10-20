@@ -62,7 +62,14 @@ enum SaveOutcome {
 @Observable
 final class DexStore {
     /// Every change also goes to the copy kept on this phone (`scheduleSnapshot`): the next launch shows it at once.
-    var stickers: [Sticker] = []
+    var stickers: [Sticker] = [] {
+        didSet { stickersVersion &+= 1 }
+    }
+    /// Counts every change of `stickers` (the headword index below is rebuilt after one).
+    @ObservationIgnored private var stickersVersion = 0
+    /// The stickers by normalised headword, oldest first, for `dexPictures` — every square of the gallery looked
+    /// through every sticker on each update (several a second during a landing, owner 2026-10-20: stutter).
+    @ObservationIgnored private var headwordIndex: (version: Int, lang: String, map: [String: [Sticker]])?
     var isLoading: Bool = false
     var hasLoaded: Bool = false
     var loadError: String?
@@ -593,9 +600,7 @@ final class DexStore {
     /// just recorded on this phone comes before all of them (`freshEncounters`).
     func dexPictures(for sticker: Sticker) -> [DexPicture] {
         let key = DexCatalog.norm(sticker.word?.headword ?? "", lang: language)
-        let others = key.isEmpty ? [] : stickers.filter {
-            $0.id != sticker.id && DexCatalog.norm($0.word?.headword ?? "", lang: language) == key
-        }.sorted { $0.takenAt < $1.takenAt }
+        let others = key.isEmpty ? [] : (stickersByHeadword()[key] ?? []).filter { $0.id != sticker.id }
         var out: [DexPicture] = []
         for s in [sticker] + others {
             if let p = freshEncounters[s.id], !out.contains(where: { $0.path == p.path }) { out.append(p) }
@@ -607,6 +612,19 @@ final class DexStore {
             }
         }
         return Array(out.prefix(8))
+    }
+
+    private func stickersByHeadword() -> [String: [Sticker]] {
+        let lang = language
+        if let c = headwordIndex, c.version == stickersVersion, c.lang == lang { return c.map }
+        var map: [String: [Sticker]] = [:]
+        for s in stickers {
+            let k = DexCatalog.norm(s.word?.headword ?? "", lang: lang)
+            if !k.isEmpty { map[k, default: []].append(s) }
+        }
+        for k in map.keys { map[k]?.sort { $0.takenAt < $1.takenAt } }
+        headwordIndex = (stickersVersion, lang, map)
+        return map
     }
 
     /// A word's own dex picture: the cut-out, else the photo, else its internet stand-in — skipping a file the

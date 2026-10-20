@@ -209,7 +209,7 @@ final class CaptureViewModel {
                     let built = await Task.detached(priority: .userInitiated) {
                         let built = CatchObject.withCuts(planned, masks: masks, photoSize: size)
                         // The copies the sticker draws, made here rather than on the main thread at the tap.
-                        for o in built { if let c = o.cut { _ = StickerDisplay.image(c) } }
+                        for o in built { if let c = o.cut { StickerDisplay.makeBordered(c) } }
                         return built
                     }.value
                     guard token == runToken else { return }
@@ -446,6 +446,7 @@ final class CaptureViewModel {
                     made = await CutoutService.liftSubject(from: photo, near: object.anchor)
                     guard !Task.isCancelled else { return }
                 }
+                if let made { await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(made) }.value }
                 isCutting = false
                 if let box = rendered?.box { pickedBox = box }
                 if let made { withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { cutout = made } }
@@ -529,6 +530,8 @@ final class CaptureViewModel {
         isCutting = true
         cutoutTask = Task {
             let lifted = await CutoutService.liftSubject(from: photo, near: point)
+            // The sticker's drawn copies, made here and not on the main thread in the middle of the GET moment.
+            if let lifted { await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(lifted) }.value }
             guard !Task.isCancelled else { return }
             isCutting = false
             if let lifted {
