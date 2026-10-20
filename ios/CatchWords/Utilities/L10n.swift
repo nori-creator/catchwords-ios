@@ -49,6 +49,7 @@ nonisolated enum L10n {
         let c = normalize(code)
         lang = c
         UserDefaults.standard.set(c, forKey: storageKey)
+        followInSystemScreens(c)
     }
 
     /// Signing out / account deleted: forget the chosen language, exactly like a fresh install, so the
@@ -56,7 +57,23 @@ nonisolated enum L10n {
     /// with its profile on sign-in).
     static func resetToDevice() {
         UserDefaults.standard.removeObject(forKey: storageKey)
+        UserDefaults.standard.removeObject(forKey: appleLanguagesKey)
         lang = deviceDefault
+    }
+
+    /// The app's own language list, which iOS reads at launch (the same setting as iPhone Settings › CatchWords ›
+    /// Language).
+    private static let appleLanguagesKey = "AppleLanguages"
+
+    /// The text iOS draws inside the app — the camera / location / photo permission questions (InfoPlist.strings),
+    /// the photo picker, the Sign in with Apple button — follows the app's language list, not `L10n.lang`.
+    /// Writing the display language there makes them speak it too from the next launch (owner 2026-10-20: 「決して
+    /// 言語が混ざらないようにして」). The UI tests pass the list as a launch argument, which wins over this.
+    private static func followInSystemScreens(_ code: String) {
+        let id = language(code).lproj
+        let defaults = UserDefaults.standard
+        if (defaults.array(forKey: appleLanguagesKey) as? [String])?.first == id { return }
+        defaults.set([id], forKey: appleLanguagesKey)
     }
 
     /// A listed code as it is, another by its language part ("zh" → zh-TW, "es-MX" → es); unknown → ja.
