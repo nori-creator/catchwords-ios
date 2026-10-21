@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		C0FFEE0000000000000000AD /* CatchWordsWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C0FFEE0000000000000000A1 /* CatchWordsWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C0FFEE00000000000000AD01 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFEE00000000000000AD02 /* GoogleMobileAds */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +102,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0FFEE00000000000000AD01 /* GoogleMobileAds in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -174,6 +176,7 @@
 			);
 			name = CatchWords;
 			packageProductDependencies = (
+				C0FFEE00000000000000AD02 /* GoogleMobileAds */,
 			);
 			productName = CatchWords;
 			productReference = 105FC57A2E9EAD3100EA8BCF /* CatchWords.app */;
@@ -287,6 +290,9 @@
 				vi,
 			);
 			mainGroup = 105FC5712E9EAD3100EA8BCF;
+			packageReferences = (
+				C0FFEE00000000000000AD03 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+			);
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 105FC57B2E9EAD3100EA8BCF /* Products */;
@@ -514,6 +520,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				CODE_SIGN_ENTITLEMENTS = CatchWords/CatchWords.entitlements;
+				INFOPLIST_FILE = "CatchWords-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CatchWords;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -554,6 +561,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				CODE_SIGN_ENTITLEMENTS = CatchWords/CatchWords.entitlements;
+				INFOPLIST_FILE = "CatchWords-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CatchWords;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -776,6 +784,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C0FFEE00000000000000AD03 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 13.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C0FFEE00000000000000AD02 /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0FFEE00000000000000AD03 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 105FC5722E9EAD3100EA8BCF /* Project object */;
 }

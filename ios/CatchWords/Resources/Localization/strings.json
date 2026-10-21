@@ -8664,5 +8664,47 @@
   "es": "Puedes hacer {1} fotos al día.",
   "ko": "하루 {1}회 찍을 수 있어요.",
   "vi": "Bạn chụp được {1} lần mỗi ngày."
+ },
+ "広告を見て1回ふやす": {
+  "en": "Watch an ad for 1 more",
+  "zh-TW": "看廣告多拍 1 次",
+  "es": "Ver un anuncio para 1 más",
+  "ko": "광고 보고 1회 더 받기",
+  "vi": "Xem quảng cáo để thêm 1 lượt"
+ },
+ "広告を読み込んでいます…": {
+  "en": "Loading the ad…",
+  "zh-TW": "正在載入廣告…",
+  "es": "Cargando el anuncio…",
+  "ko": "광고를 불러오는 중…",
+  "vi": "Đang tải quảng cáo…"
+ },
+ "今日はあと{1}回ふやせます": {
+  "en": "You can add {1} more today",
+  "zh-TW": "今天還能再增加 {1} 次",
+  "es": "Hoy puedes añadir {1} más",
+  "ko": "오늘 {1}회 더 늘릴 수 있어요",
+  "vi": "Hôm nay bạn còn thêm được {1} lượt"
+ },
+ "今は広告がありません。しばらくしてからお試しください。": {
+  "en": "No ad is available right now. Please try again later.",
+  "zh-TW": "目前沒有可播放的廣告，請稍後再試。",
+  "es": "Ahora no hay anuncios disponibles. Inténtalo más tarde.",
+  "ko": "지금은 광고가 없어요. 잠시 후 다시 시도해 주세요.",
+  "vi": "Hiện chưa có quảng cáo. Vui lòng thử lại sau."
+ },
+ "1回ふえました": {
+  "en": "You got 1 more",
+  "zh-TW": "多了 1 次",
+  "es": "Tienes 1 más",
+  "ko": "1회 늘었어요",
+  "vi": "Đã thêm 1 lượt"
+ },
+ "広告のプライバシー設定": {
+  "en": "Ad privacy choices",
+  "zh-TW": "廣告隱私設定",
+  "es": "Privacidad de anuncios",
+  "ko": "광고 개인정보 설정",
+  "vi": "Quyền riêng tư quảng cáo"
  }
 }

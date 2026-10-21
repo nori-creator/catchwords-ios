@@ -154,6 +154,12 @@ struct CaptureView: View {
             }
         }
         .onAppear { takePendingRequest() }
+        // The rewarded ad is loaded ahead once the day's last free catch is near (`CatchLimitSheet`).
+        .task(id: plan.remainingToday) {
+            if PlanStore.catchLimitEnabled, !plan.isPro, plan.remainingToday <= 1, plan.canEarnBonus {
+                RewardedAds.shared.prepare()
+            }
+        }
         .onChange(of: router.openPending) { _, _ in takePendingRequest() }
         .sheet(isPresented: $showPending) {
             PendingListView { item in
