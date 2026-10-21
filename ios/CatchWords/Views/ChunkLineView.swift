@@ -130,7 +130,7 @@ struct ChunkLineView: View {
     @ViewBuilder
     private func parts(scale: CGFloat) -> some View {
         ForEach(Array(shown.enumerated()), id: \.offset) { i, part in
-            HStack(spacing: 4) {
+            HStack(spacing: 6 * scale) {
                 if i > 0 {
                     Text("+")
                         .scaledFont(size: (size == .large ? 15 : 12) * scale, weight: .bold)
@@ -195,7 +195,9 @@ struct ChunkLineView: View {
             }
             // Darker ink on the light page, lighter on the dark one (mixing with black vanished in dark mode).
             .foregroundStyle(ink)
-            .padding(.horizontal, (big ? 12 : 10) * scale)
+            // The word itself has no box, so no room inside one either: the ＋ beside it stands as far from its characters
+            // as from the next part's box (owner 2026-10-21: 「＋の位置が不自然。単語と単語の間にバランスよく」).
+            .padding(.horizontal, isHead ? 0 : (big ? 12 : 10) * scale)
             .padding(.vertical, reading == nil && side == nil ? 0 : 4)
             .frame(minHeight: big ? 48 : 34)
             // The word itself is its text and reading only, in its colour — no box (owner 2026-10-20: 「該当の単語は枠で
