@@ -101,7 +101,7 @@ final class RewardedAds: NSObject {
 
     /// Privacy options form (Google's consent): offered in Settings when the learner's region needs one.
     var privacyOptionsRequired: Bool {
-        ConsentInformation.shared.privacyOptionsRequirementStatus == .required
+        Self.enabled && ConsentInformation.shared.privacyOptionsRequirementStatus == .required
     }
 
     func presentPrivacyOptions() {
