@@ -4890,5 +4890,25 @@
  "状態を変えられませんでした": {
   "en": "Couldn’t change the status",
   "zh-TW": "無法變更狀態"
+ },
+ "今日のキャッチはここまでです": {
+  "en": "That’s all your catches for today",
+  "zh-TW": "今天的捕捉次數已用完"
+ },
+ "明日はまた{1}回撮れます。": {
+  "en": "Tomorrow you can take {1} photos again.",
+  "zh-TW": "明天又可以拍 {1} 次。"
+ },
+ "図鑑の単語の復習は、いつでも何回でもできます。": {
+  "en": "You can review the words in your Collection any time, as often as you like.",
+  "zh-TW": "圖鑑裡的單字隨時都能複習，次數不限。"
+ },
+ "はじめの{1}日間は1日{2}回、そのあとは1日{3}回撮れます。": {
+  "en": "For your first {1} days you can take {2} photos a day, then {3} a day.",
+  "zh-TW": "前 {1} 天每天可以拍 {2} 次，之後每天 {3} 次。"
+ },
+ "1日{1}回撮れます。": {
+  "en": "You can take {1} photos a day.",
+  "zh-TW": "每天可以拍 {1} 次。"
  }
 }

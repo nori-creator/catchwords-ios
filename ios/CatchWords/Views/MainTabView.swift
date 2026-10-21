@@ -37,6 +37,13 @@ final class AppRouter {
     var landing: CatchLandingController?
     var detailSticker: Sticker?
     var showPaywall: Bool = false
+    /// Today's free catches (`CatchLimitSheet`): opened when they run out, or from the camera's counter.
+    var showCatchLimit: Bool = false
+
+    /// No catch left today: the paywall once Pro is sold, until then the limit sheet (come back tomorrow).
+    func showLimitReached() {
+        if PlanStore.paywallEnabled { showPaywall = true } else { showCatchLimit = true }
+    }
     /// Home's 「解析待ち」 banner: open the camera with its waiting list showing.
     var openPending: Bool = false
     /// True while the camera "machine" (live preview / selfie / analyzing) fills the screen.
@@ -264,6 +271,10 @@ struct MainTabView: View {
         .fullScreenCover(isPresented: $router.showPaywall) {
             PaywallView()
                 .statusBarTone(.automatic)
+        }
+        .sheet(isPresented: $router.showCatchLimit) {
+            CatchLimitSheet()
+                .presentationDetents([.medium])
         }
     }
 
