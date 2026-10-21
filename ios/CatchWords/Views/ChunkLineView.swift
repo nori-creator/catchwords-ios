@@ -80,7 +80,7 @@ struct ChunkLineView: View {
                     oneLine(scales, 2)
                     oneLine(scales, 3)
                     oneLine(scales, 4)
-                    FlowRow(spacing: 4) { parts(scale: scales.last ?? 1) }
+                    FlowRow(spacing: 4, alignment: .chunkText) { parts(scale: scales.last ?? 1) }
                 }
                 if !translation.isEmpty {
                     Text(translation)
@@ -123,40 +123,26 @@ struct ChunkLineView: View {
 
     /// The chunk on one line at the `k`-th size of `scales` (the smallest when there are fewer).
     private func oneLine(_ scales: [CGFloat], _ k: Int) -> some View {
-        HStack(spacing: 4) { parts(scale: scales[min(k, scales.count - 1)]) }
+        HStack(alignment: .chunkText, spacing: 4) { parts(scale: scales[min(k, scales.count - 1)]) }
             .fixedSize(horizontal: true, vertical: false)
     }
 
+    /// Each ＋ and every block stand on the middle of the characters (`.chunkText`), not on the middle of a block —
+    /// a reading over the text makes its block taller upwards, which pushed the ＋ above the characters (owner
+    /// 2026-10-21: 「チャンクのプラスは漢字の高さに合わせて」) and a block without one out of line with the rest.
     @ViewBuilder
     private func parts(scale: CGFloat) -> some View {
-        let drop = plusDrop(scale: scale)
         ForEach(Array(shown.enumerated()), id: \.offset) { i, part in
-            HStack(spacing: 6 * scale) {
+            HStack(alignment: .chunkText, spacing: 6 * scale) {
                 if i > 0 {
                     Text("+")
                         .scaledFont(size: (size == .large ? 15 : 12) * scale, weight: .bold)
                         .foregroundStyle(Theme.muted.opacity(0.45))
-                        // At the characters' height, not the middle of reading + characters (owner 2026-10-21:
-                        // 「チャンクのプラスは漢字の高さに合わせて」).
-                        .offset(y: drop)
                         .accessibilityHidden(true)
                 }
                 block(i, part, scale: scale)
             }
         }
-    }
-
-    /// How far the ＋ moves down so it sits level with the characters: a block with its reading line over the text is
-    /// centred on reading + text, so the text's middle is half a reading line (and the 1 pt gap) below the block's.
-    /// Zhuyin beside the characters adds no line, so then nothing.
-    private func plusDrop(scale: CGFloat) -> CGFloat {
-        let overText = shown.contains {
-            Self.sideZhuyin(for: $0, target: target, pref: readingPref) == nil
-                && Self.reading(for: $0, target: target, pref: readingPref) != nil
-        }
-        guard overText else { return 0 }
-        let readingSize = AppTypeScale.scaled((size == .large ? 10.5 : 9) * scale, for: dynamicTypeSize)
-        return (UIFont.systemFont(ofSize: readingSize, weight: .medium).lineHeight + 1) / 2
     }
 
     private func block(_ i: Int, _ part: ChunkPart, scale: CGFloat) -> some View {
@@ -209,6 +195,7 @@ struct ChunkLineView: View {
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                     }
                 }
+                .alignmentGuide(.chunkText) { $0[VerticalAlignment.center] }
             }
             // Darker ink on the light page, lighter on the dark one (mixing with black vanished in dark mode).
             .foregroundStyle(ink)
@@ -275,4 +262,12 @@ struct ChunkLineView: View {
         .padding(.horizontal, 6)
         .background(Theme.secondary.opacity(0.8), in: .rect(cornerRadius: 14, style: .continuous))
     }
+}
+
+private extension VerticalAlignment {
+    /// The middle of a chunk block's characters (below its reading, when one sits over them).
+    nonisolated enum ChunkText: AlignmentID {
+        static func defaultValue(in d: ViewDimensions) -> CGFloat { d[VerticalAlignment.center] }
+    }
+    nonisolated static let chunkText = VerticalAlignment(ChunkText.self)
 }
