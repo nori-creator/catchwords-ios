@@ -132,7 +132,9 @@ nonisolated enum L10n {
     /// is written in the display language — a known server sentence is translated, anything else in
     /// another language is replaced by `fallback`, so a message never mixes languages on screen.
     static func readerSafe(_ text: String, fallback: String) -> String {
+        // The server puts a machine code in front of some sentences (「AI_DAILY_CAP 1日の利用上限…」): never shown.
         let s = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"^[A-Z]+_[A-Z0-9_]+\s+"#, with: "", options: .regularExpression)
         if s.isEmpty { return fallback }
         if isOwnText(s) { return s }  // the app's own sentence, already in this language
         if let t = translation(s), lang != "ja" { return t }

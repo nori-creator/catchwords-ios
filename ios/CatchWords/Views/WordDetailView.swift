@@ -1164,8 +1164,8 @@ struct WordDetailView: View {
     private static func itemTitle(_ item: String?) -> String {
         switch item {
         case "pronunciation": L("発音・読み")
-        case "pos": L("品詞")
-        case let key?: CardSection(rawValue: key)?.title ?? key
+        // No part of speech on iOS (owner 2026-10-20), and an item the app does not know is never shown by its key.
+        case let key?: CardSection(rawValue: key)?.title ?? L("項目")
         default: L("項目")
         }
     }

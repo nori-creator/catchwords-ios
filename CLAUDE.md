@@ -12,3 +12,9 @@
 - 表示言語は `ios/Localization/languages.json` の一覧だけが正（足し方は `docs/adding-a-display-language.md`）。
 - **言語を混ぜない**（2026-10-20「決して言語が混ざらないようにして」）: 規則は `docs/language-rules.md`。共有の単語の行の
   意味・訳・解説は、その行の言語の印（`explain_lang`）の読者にだけ出す（R23）。
+
+## 製品の範囲
+
+- **本物は iOS 版だけ**（2026-10-21「ios版だけが本物、WEB版はテストたから気にしなくていい」）。Web 版の画面の不具合は
+  直さない。ただしサーバの関数（`nori-creator/Lovable-catch-words-app` の `src/lib`）は iOS が呼ぶので、そこは直す。
+- **学習言語は台湾華語（zh-TW）だけ**（同日「学習言語は台湾華語だけ」）。英語・日本語を学ぶ場合のための直しはしない。
