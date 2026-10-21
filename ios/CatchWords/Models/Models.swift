@@ -553,7 +553,7 @@ nonisolated struct Sticker: Codable, Sendable, Identifiable, Hashable {
     /// 自撮りか選べるように」).
     var homePath: String? {
         if heroRole != nil, let own = heroPath { return own }
-        switch UserDefaults.standard.string(forKey: Self.homePhotoKey) ?? "auto" {
+        return switch UserDefaults.standard.string(forKey: Self.homePhotoKey) ?? "auto" {
         case "object": objectImageUrl ?? cutoutImageUrl ?? selfieImageUrl ?? placeholderImageUrl
         case "selfie": selfieImageUrl ?? cutoutImageUrl ?? objectImageUrl ?? placeholderImageUrl
         default: cutoutImageUrl ?? objectImageUrl ?? selfieImageUrl ?? placeholderImageUrl
