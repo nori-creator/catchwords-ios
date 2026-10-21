@@ -85,7 +85,7 @@ struct HeroPhotoPickerSheet: View {
                 Text(L("表示する写真"))
                     .scaledFont(size: 22, weight: .bold)
                     .foregroundStyle(Theme.foreground)
-                Text(L("単語の詳細で、この写真を表紙にします。"))
+                Text(L("単語の詳細とホームのアルバムで、この写真を使います。"))
                     .scaledFont(size: 13)
                     .foregroundStyle(Theme.muted)
             }
@@ -94,6 +94,21 @@ struct HeroPhotoPickerSheet: View {
                     tile(option)
                 }
             }
+            // Back on the album after its ✕ (owner 2026-10-21: 「バツで消して完了を押すと、ホームにもう一度表示し直す方法がない」).
+            Toggle(isOn: Binding(get: { !dex.albumHidden.contains(sticker.id) },
+                                 set: { show in
+                                     Task {
+                                         let ok = await dex.setAlbumHidden(sticker.id, hidden: !show)
+                                         if !ok { failure = L("保存できませんでした。通信を確かめてください。") }
+                                     }
+                                 })) {
+                Text(L("ホームのアルバムに出す"))
+                    .scaledFont(size: 16, weight: .semibold)
+                    .foregroundStyle(Theme.foreground)
+            }
+            .tint(Theme.primary)
+            .frame(minHeight: 44)
+            .accessibilityIdentifier("hero.showOnHome")
             if let failure {
                 Label(failure, systemImage: "exclamationmark.triangle.fill")
                     .scaledFont(size: 13, weight: .medium)

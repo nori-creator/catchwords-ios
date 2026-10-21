@@ -159,7 +159,10 @@ struct ChunkLineView: View {
             let side = Self.sideZhuyin(for: part, target: target, pref: readingPref)
             // Pinyin (or a reading that does not pair one syllable per character) stays one line over the block.
             let reading = side == nil ? Self.reading(for: part, target: target, pref: readingPref) : nil
-            let ink = kind.ink.mix(with: colorScheme == .dark ? .white : .black, by: big ? 0.3 : 0.25)
+            // The word itself in the examples' blue (`WordHighlight`: owner 2026-10-21 「チャンクの該当の単語の色を例文の
+            // 該当の単語の青色にして」); the other parts in their kind's colour.
+            let ink = isHead ? Theme.primaryInk
+                : kind.ink.mix(with: colorScheme == .dark ? .white : .black, by: big ? 0.3 : 0.25)
             VStack(spacing: 1) {
                 // The token's reading, small, over its text (server chunk tokens, 2026-10-15); none on older cards.
                 if let reading {
