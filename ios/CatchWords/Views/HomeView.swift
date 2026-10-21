@@ -11,6 +11,8 @@ struct HomeView: View {
     @State private var memorialHidden = false
     /// True while a day's photos are being rearranged: the screen holds still under the fingers and 「完了」 shows.
     @State private var albumEditing = false
+    /// The photos taken off the album, in a sheet (「外した写真」 beside 「完了」).
+    @State private var showingHidden = false
     /// 「完了」 pressed: the board being rearranged saves and stops.
     @State private var finishEditing = 0
     /// The calendar (header button): a day picked there scrolls the album to it; the other days stay above and
@@ -121,23 +123,53 @@ struct HomeView: View {
         // Rearranging the album ends with 「完了」 (web: a fixed button above the tab bar), wherever the board is.
         .overlay(alignment: .bottom) {
             if albumEditing {
-                Button {
-                    Haptics.impact(.light)
-                    finishEditing += 1
-                } label: {
-                    Label(L("完了"), systemImage: "checkmark")
-                        .scaledFont(size: 17, weight: .bold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 28)
-                        .frame(minHeight: 52)
-                        .background(Theme.primary, in: Capsule())
-                        .shadow(color: Theme.primary.opacity(0.4), radius: 14, y: 6)
+                HStack(spacing: 10) {
+                    // The photos taken off with ✕, to put back while rearranging (owner 2026-10-21: after 「完了」 there
+                    // was no way back — the tray at the album's end was out of sight).
+                    if dex.albumHiddenCount > 0 {
+                        Button {
+                            Haptics.selection()
+                            showingHidden = true
+                        } label: {
+                            Label(L("外した写真 \(dex.albumHiddenCount)"), systemImage: "eye.slash")
+                                .scaledFont(size: 15, weight: .semibold)
+                                .foregroundStyle(Theme.foreground)
+                                .padding(.horizontal, 18)
+                                .frame(minHeight: 52)
+                                .background(Theme.card, in: Capsule())
+                                .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
+                                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                        }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityIdentifier("home.album.hidden")
+                    }
+                    Button {
+                        Haptics.impact(.light)
+                        finishEditing += 1
+                    } label: {
+                        Label(L("完了"), systemImage: "checkmark")
+                            .scaledFont(size: 17, weight: .bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 28)
+                            .frame(minHeight: 52)
+                            .background(Theme.primary, in: Capsule())
+                            .shadow(color: Theme.primary.opacity(0.4), radius: 14, y: 6)
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityIdentifier("home.album.done")
                 }
-                .buttonStyle(PressableStyle())
                 .padding(.bottom, 84)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityIdentifier("home.album.done")
             }
+        }
+        .sheet(isPresented: $showingHidden) {
+            ScrollView {
+                AlbumHiddenTray(startOpen: true)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 24)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .overlay(alignment: .bottom) {
             if let id = dex.albumUndo {
@@ -418,8 +450,11 @@ struct AlbumUndoBar: View {
 /// Web `album-hidden-tray`: photos taken off the album, each with 「戻す」. Collapsed by default.
 struct AlbumHiddenTray: View {
     @Environment(DexStore.self) private var dex
-    @State private var open = false
+    @State private var open: Bool
     @State private var failed = false
+
+    /// `startOpen`: the list shown at once (the sheet opened from 「外した写真」 while rearranging).
+    init(startOpen: Bool = false) { _open = State(initialValue: startOpen) }
 
     private var hidden: [Sticker] { (dex.stickers + dex.albumEncounters).filter { dex.albumHidden.contains($0.id) } }
 

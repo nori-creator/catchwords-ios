@@ -1237,11 +1237,12 @@ struct WordDetailView: View {
                             // than the headword's blue is needed (owner 2026-10-20).
                             let said = m.word.hasPrefix("一") ? m.word : "一" + m.word  // l10n-ignore (target word)
                             let reading = m.word.hasPrefix("一") ? m.zhuyin : m.zhuyin.map { "ㄧ " + $0 }  // l10n-ignore (target word)
+                            let pinyin = m.word.hasPrefix("一") ? m.pinyin : m.pinyin.map { "yī " + $0 }  // l10n-ignore (target word)
                             ViewThatFits(in: .horizontal) {
-                                measureLine(said, reading: reading, size: 26)
-                                measureLine(said, reading: reading, size: 22)
-                                measureLine(said, reading: reading, size: 18)
-                                measureLine(said, reading: reading, size: 15)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 26)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 22)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 18)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 15)
                             }
                             if let n = m.note, !n.isEmpty {
                                 Text(n).scaledFont(size: 15).foregroundStyle(Theme.muted).lineSpacing(4)
@@ -1259,11 +1260,11 @@ struct WordDetailView: View {
     }
 
     /// 「一份」 and the word it counts, side by side on one line, each with its reading as the headword draws it.
-    private func measureLine(_ said: String, reading: String?, size: CGFloat) -> some View {
+    private func measureLine(_ said: String, reading: String?, pinyin: String?, size: CGFloat) -> some View {
         // Both at one size, so the characters and their readings stand on the same lines (owner 2026-10-20: the
         // smaller noun's characters and pinyin sat lower — 「高さがずれて、違和感がある」); weight and colour tell them apart.
         HStack(alignment: .bottom, spacing: size * 0.2) {
-            ZhuyinWordView(headword: said, zhuyin: reading, size: size, weight: .heavy, language: "zh-TW")
+            ZhuyinWordView(headword: said, zhuyin: reading, size: size, weight: .heavy, pinyin: pinyin, language: "zh-TW")
             ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: size, weight: .regular,
                            color: Theme.muted, pinyin: word?.pinyin, language: "zh-TW")
         }

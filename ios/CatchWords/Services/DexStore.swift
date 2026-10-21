@@ -245,6 +245,8 @@ final class DexStore {
     /// The photos the home album shows (the ones taken off the album stay in the dex only).
     /// Re-encounter photos are pages too, on the day they were met (`albumEncounters`).
     var albumStickers: [Sticker] { (stickers + albumEncounters).filter { !albumHidden.contains($0.id) } }
+    /// How many of this account's photos are off the album (the ones still in the dex or met again).
+    var albumHiddenCount: Int { (stickers + albumEncounters).filter { albumHidden.contains($0.id) }.count }
 
     /// True when this headword is already in the dex (scan "取得済み").
     func owns(headword: String) -> Bool { stickers.contains { $0.word?.headword == headword } }

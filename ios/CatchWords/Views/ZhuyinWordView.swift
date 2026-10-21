@@ -24,9 +24,15 @@ nonisolated enum ZhuyinLayout {
         return set
     }()
 
+    /// A reading as zhuyin: the character 一 written for the letter ㄧ (cards say 「一 ㄎㄜ」 for 一棵 — owner 2026-10-21:
+    /// the reading then fell under the characters instead of beside them) becomes the letter.
+    static func normalized(_ zhuyin: String?) -> String? {
+        zhuyin.map { $0.replacingOccurrences(of: "一", with: "ㄧ") }  // l10n-ignore (target word)
+    }
+
     static func pair(_ headword: String, _ zhuyin: String?) -> [ZhuyinUnit]? {
         let word = headword.trimmingCharacters(in: .whitespaces)
-        guard let reading = zhuyin?.trimmingCharacters(in: .whitespaces), !word.isEmpty, !reading.isEmpty else { return nil }
+        guard let reading = normalized(zhuyin)?.trimmingCharacters(in: .whitespaces), !word.isEmpty, !reading.isEmpty else { return nil }
         let syllables = reading.split(whereSeparator: { $0.isWhitespace }).map(String.init)
         let chars = Array(word)
         let hanCount = chars.filter(isHan).count
@@ -68,7 +74,7 @@ nonisolated enum PinyinLayout {
         let chars = Array(headword.trimmingCharacters(in: .whitespaces))
         let han = chars.filter(ZhuyinLayout.isHan).count
         guard han > 0 else { return nil }
-        let spelled = PinyinZhuyin.pinyin(fromZhuyin: zhuyin, want: han)?.split(separator: " ").map(String.init)
+        let spelled = PinyinZhuyin.pinyin(fromZhuyin: ZhuyinLayout.normalized(zhuyin), want: han)?.split(separator: " ").map(String.init)
         let own = (pinyin ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard let syllables = spelled?.count == han ? spelled : PinyinZhuyin.syllables(ofPinyin: own, want: han)
         else { return nil }

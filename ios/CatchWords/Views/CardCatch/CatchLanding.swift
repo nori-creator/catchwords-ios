@@ -166,7 +166,8 @@ extension CatchLandingController {
         play(.c6DexOpen)
         await wait(motion.sleep(300))
         var waited = motion.sleep(300)
-        while !roomReady && waited < 1.2 {
+        // The gallery scrolls until the square has reported where it is (`DexView.bringInView`, about 1.5 s at most).
+        while !roomReady && waited < 2.4 {
             await wait(0.016)
             waited += 0.016
         }

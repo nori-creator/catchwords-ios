@@ -445,6 +445,10 @@ final class CaptureViewModel {
                     DevLog.shared.add("cutout", "\(word.headword): no cut-out from the photo's masks, lifting near its tag")
                     made = await CutoutService.liftSubject(from: photo, near: object.anchor)
                     guard !Task.isCancelled else { return }
+                    if made == nil {
+                        DevLog.shared.add("cutout", "\(word.headword): nothing lifted, cut out as a rounded shape round its box")
+                        made = StickerCrop.shaped(photo, box: rendered?.box ?? object.box)
+                    }
                 }
                 if let made { await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(made) }.value }
                 isCutting = false
@@ -456,7 +460,7 @@ final class CaptureViewModel {
             // instance when it has one, else the AI's point), so the sticker is the thing the tag was on. A mask always —
             // never a rectangle of the photo (owner 2026-10-16); nothing found leaves the catch without a cut-out.
             if object != nil { DevLog.shared.add("cutout", "\(word.headword): no cut-out from the photo's masks, lifting near its tag") }
-            startCutout(near: object?.anchor)
+            startCutout(near: object?.anchor, box: object?.box)
         }
         isCheckingOwned = true
         loadDetails(for: word)
@@ -524,12 +528,19 @@ final class CaptureViewModel {
     /// Cut-out mode: cutting starts the moment a word is tapped, never delays the celebration,
     /// and is awaited only right before saving (capture.tsx: 図鑑に入れる前に切り抜きが揃っていること).
     /// `point`: 0–1 of the photo, top-left origin (nil = the main subject).
-    private func startCutout(near point: CGPoint?) {
+    /// The cut-out under the tag; when nothing is lifted, the photo round `box` (the whole photo without one) cut out as
+    /// a rounded shape — every catch is a sticker, the photo kept as it is only when the learner picks it (owner
+    /// 2026-10-21).
+    private func startCutout(near point: CGPoint?, box: CGRect? = nil) {
         guard let photo, cutout == nil else { return }
         cutoutTask?.cancel()
         isCutting = true
         cutoutTask = Task {
-            let lifted = await CutoutService.liftSubject(from: photo, near: point)
+            var lifted = await CutoutService.liftSubject(from: photo, near: point)
+            if lifted == nil, !Task.isCancelled {
+                DevLog.shared.add("cutout", "nothing lifted, cut out as a rounded shape round its box")
+                lifted = StickerCrop.shaped(photo, box: box)
+            }
             // The sticker's drawn copies, made here and not on the main thread in the middle of the GET moment.
             if let lifted { await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(lifted) }.value }
             guard !Task.isCancelled else { return }

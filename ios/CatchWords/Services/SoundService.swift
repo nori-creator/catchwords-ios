@@ -17,12 +17,9 @@ enum SFX: String, CaseIterable {
     case ponBack = "pon-bubble-back"
     // The card-catch prototype's synthesized SFX (docs/prototype/cardcatch-src.html `SFX`), rendered offline by
     // scripts/render_cardcatch_sfx.py. The candidate and light sounds reuse the pop and the twinkle (owner 2026-10-04).
-    case ccShutter = "cc-shutter"
-    // Shutter candidates (owner 2026-10-20: 「シャッター音の案を考えて」 — the shutter's low thump stood out), compared
-    // in 開発者の試し; rendered by scripts/render_cardcatch_sfx.py.
+    // The shutter: B of the candidates compared in 開発者の試し (owner 2026-10-20: 「シャッター音の案を考えて」 — the old
+    // shutter's low thump stood out; 2026-10-21: 「シャッター音はBにして」).
     case ccShutterLight = "cc-shutter-light"
-    case ccShutterSoft = "cc-shutter-soft"
-    case ccShutterDigital = "cc-shutter-digital"
     case ccTick = "cc-tick"
     case ccScanStart = "cc-scan-start"
     case ccFound = "cc-found"
@@ -68,11 +65,8 @@ enum SFX: String, CaseIterable {
         case .ponBack: 0.8
         // Rendered at the prototype's loudness relative to the pon (same 0.9); two files were turned down
         // in rendering to avoid clipping and get that back here (render report: ×2.803 and ×1.640; cc-land ×1.590).
-        case .ccShutter: 0.9 * 2.803
         // Turned down in rendering ×2.610 and ×2.435; the digital one peaks 8 dB lower and is brought up part way.
         case .ccShutterLight: 0.9 * 2.610
-        case .ccShutterSoft: 0.9 * 2.435
-        case .ccShutterDigital: 0.9 * 1.8
         case .ccReveal: 0.9 * 1.640
         case .ccLand: 0.9 * 1.590
         case .ccTick, .ccScanStart, .ccFound, .ccPop, .ccTwinkle: 0.9
@@ -303,13 +297,12 @@ final class SoundService {
         ticks.play(.slide, volume: SFX.slide.gain * 0.8 * levelMultiplier)
     }
 
-    /// The camera's shutter: the sound picked in 開発者の試し (`DevChoices.shutterSFX`), from the tick engine (read
-    /// ahead: no file is opened at the tap). Only where the system's own shutter sound is off (`CameraService
+    /// The camera's shutter: B, a light two-stage click (owner 2026-10-21, picked from four in 開発者の試し), from the
+    /// tick engine (read ahead: no file is opened at the tap). Only where the system's own shutter sound is off (`CameraService
     /// .systemShutterSound`): in Japan the system's click is required and the app's came on top of it (owner
     /// 2026-10-20: 「日本のiPadだとipadでもなってるから２重になってる」).
     func shutter() {
-        let sfx = DevChoices.shutterSFX
-        ticks.play(sfx, volume: sfx.gain * levelMultiplier)
+        ticks.play(.ccShutterLight, volume: SFX.ccShutterLight.gain * levelMultiplier)
     }
 
     /// Readies the tick engine before a wheel or a timeline can tick (its first tick must not be lost).
@@ -318,7 +311,7 @@ final class SoundService {
     /// Reads the tick engine's sounds off the main thread (once, after launch).
     func prepareTicks() async { await ticks.prepare() }
 
-    private let ticks = TickEngine(sounds: [.c6PickTick3, .slide] + DevChoices.shutterChoices.map(\.sfx))
+    private let ticks = TickEngine(sounds: [.c6PickTick3, .slide, .ccShutterLight])
 
     func startAnalyzeLoop() {
         let level = levelMultiplier

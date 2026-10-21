@@ -331,8 +331,8 @@ struct SettingsView: View {
     @AppStorage(DevChoices.tabBarKey) private var tabBarVariant: String = DevChoices.tabBarDefault
 
     /// 開発者の試し (owner 2026-10-15): the camera tab's look to compare on the device — the original one, shipped, or
-    /// B, kept for a later release (owner 2026-10-16) — and the camera's shutter sound, A–D (owner 2026-10-20). The 設定
-    /// sound (A) and the app's own wheel were decided (owner 2026-10-20) and left the trials.
+    /// B, kept for a later release (owner 2026-10-16). The 設定 sound (A), the app's own wheel (owner 2026-10-20) and the
+    /// shutter sound (B, owner 2026-10-21) were decided and left the trials.
     private var developerTrials: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(L("開発者の試し（端末で比べて選ぶ）")).scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
@@ -341,20 +341,8 @@ struct SettingsView: View {
                         selection: Binding(get: { tabBarVariant == DevChoices.tabBarRaised ? DevChoices.tabBarRaised : DevChoices.tabBarDefault },
                                            set: { tabBarVariant = $0 }))
                 .accessibilityIdentifier("settings.dev.tabbar")
-            // The camera's shutter, A–D (owner 2026-10-20). Heard here even where the system's own click is required.
-            label(L("カメラのシャッター音"))
-            ChoicePills(options: DevChoices.shutterChoices.map { (value: $0.value, label: $0.label) },
-                        sounds: false,
-                        selection: Binding(get: { DevChoices.shutterChoices.contains { $0.value == shutterSound } ? shutterSound : DevChoices.shutterDefault },
-                                           set: { v in
-                                               shutterSound = v
-                                               SoundService.shared.shutter()   // heard at once, to compare
-                                           }))
-                .accessibilityIdentifier("settings.dev.shutter")
         }
     }
-
-    @AppStorage(DevChoices.shutterKey) private var shutterSound: String = DevChoices.shutterDefault
 
     private func devRow(icon: String, title: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
