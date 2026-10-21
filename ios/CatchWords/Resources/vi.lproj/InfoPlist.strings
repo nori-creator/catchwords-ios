@@ -1,0 +1,5 @@
+/* Mô tả quyền truy cập (tiếng Việt) */
+"NSCameraUsageDescription" = "CatchWords dùng camera để chụp những đồ vật xung quanh bạn và lưu chúng vào bộ sưu tập dưới dạng từ của ngôn ngữ bạn đang học, cũng như để chụp ảnh selfie đính kèm vào từ.";
+"NSLocationWhenInUseUsageDescription" = "CatchWords ghi lại tên nơi bạn chụp ảnh để bạn nhớ từ cùng với khoảnh khắc đó. Khi bật nhắc nhở theo địa điểm, ứng dụng cũng dùng vị trí của bạn để báo cho bạn khi bạn đến gần nơi đã bắt được từ.";
+"NSPhotoLibraryAddUsageDescription" = "CatchWords cũng lưu ảnh bạn chụp vào ứng dụng Ảnh.";
+"NSPhotoLibraryUsageDescription" = "CatchWords dùng hình ảnh trong thư viện ảnh của bạn để tìm từ.";

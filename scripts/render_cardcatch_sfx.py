@@ -225,6 +225,22 @@ def shutter(b):
     osc(b, "sine", 90, .05, .08, .12)
 
 
+def shutter_light(b):  # owner 2026-10-20 「シャッター音の案」: no low thump — a two-stage "ka-sha" of bright clicks
+    nz(b, 0, .018, kind="highpass", f0=4000, peak=.55)
+    nz(b, .045, .03, kind="bandpass", f0=3200, q=1.5, peak=.4)
+    osc(b, "triangle", 1400, 0, .025, .05)
+
+
+def shutter_soft(b):  # a soft "pop" with a short click on top
+    nz(b, 0, .015, kind="highpass", f0=3500, peak=.35)
+    osc(b, "sine", 900, 0, .08, .16, slide=1700)
+
+
+def shutter_digital(b):  # a short digital "pi-pip"
+    osc(b, "sine", 2400, 0, .045, .1)
+    osc(b, "sine", 3200, .06, .05, .08)
+
+
 def tick(b):
     osc(b, "sine", 2100, 0, .05, .08)
     osc(b, "triangle", 1050, 0, .07, .05)
@@ -296,6 +312,9 @@ def land(b):  # SFX.land: a word fills its dex slot
 
 SOUNDS = [
     ("cc-shutter", shutter, 1.6),
+    ("cc-shutter-light", shutter_light, 1.2),
+    ("cc-shutter-soft", shutter_soft, 1.2),
+    ("cc-shutter-digital", shutter_digital, 1.2),
     ("cc-tick", tick, 1.4),
     ("cc-scan-start", scan_start, 4.0),
     ("cc-found", found, 2.6),

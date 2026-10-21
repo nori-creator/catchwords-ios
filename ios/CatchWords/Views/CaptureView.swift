@@ -94,6 +94,8 @@ struct CaptureView: View {
         .onAppear {
             LocationService.shared.requestPermissionIfNeeded()
             syncChrome()
+            SoundService.shared.warmTicks()   // the shutter plays from the tick engine
+            SoundService.shared.prepareCatchSounds()
         }
         .onDisappear {
             UITestTrace.log("capture.disappear step=\(vm.step)")
@@ -389,7 +391,10 @@ struct CaptureView: View {
                     withAnimation(.snappy) { camera.setZoom(z) }
                     baseZoom = camera.zoom
                 } label: {
-                    Text(isOn && abs(camera.zoom - z) > 0.05 ? String(format: "%.1f×", camera.zoom) : "\(Int(z))×")
+                    // The display language's decimal mark (1.5× · 1,5×).
+                    Text(isOn && abs(camera.zoom - z) > 0.05
+                         ? "\(Double(camera.zoom).formatted(.number.precision(.fractionLength(1)).locale(L10n.locale)))×"
+                         : "\(Int(z))×")
                         .font(.system(size: 12, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(isOn ? Theme.gold : .white.opacity(0.85))
@@ -485,6 +490,11 @@ struct CaptureView: View {
         return await camera.capture()
     }
 
+    /// The app's shutter, unless the system's own click plays (and may not be silenced) on this device.
+    private func shutterSound() {
+        if demoCamera || !camera.systemShutterSound { SoundService.shared.shutter() }
+    }
+
     private func shoot() {
         if vm.step == .selfie {
             // With the timer on, the shutter starts the count; a second press stops it.
@@ -495,6 +505,7 @@ struct CaptureView: View {
             }
             selfieCountdown.start(selfieTimer) {
                 guard vm.step == .selfie else { return }
+                shutterSound()
                 flash()
                 Task { vm.finishSelfie(await capturePhoto()) }
             }
@@ -502,7 +513,7 @@ struct CaptureView: View {
         }
         guard plan.canCatch else { router.showLimitReached(); return }
         // The shutter sound, the white flash, the shutter and viewfinder hide.
-        SoundService.shared.playLayered(.ccShutter)
+        shutterSound()
         let shotAt = CCClock.now
         shotFlash = shotAt
         shooting = true
@@ -956,7 +967,7 @@ struct PendingListView: View {
                                         .scaledFont(size: 15, weight: .semibold)
                                         .foregroundStyle(Theme.primaryInk)
                                 }
-                                Text(item.createdAt, format: .dateTime.month().day().hour().minute())
+                                Text(item.createdAt, format: .dateTime.month().day().hour().minute().locale(L10n.locale))
                                     .scaledFont(size: item.isUnsaved ? 12 : 15, weight: item.isUnsaved ? .regular : .semibold)
                                     .foregroundStyle(item.isUnsaved ? Theme.muted : Theme.foreground)
                                 Text(L10n.readerSafe(item.reason, fallback: L("解析待ちの写真"))).scaledFont(size: 12).foregroundStyle(Theme.muted).lineLimit(2)

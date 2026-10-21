@@ -78,22 +78,6 @@ enum AppTypeScale {
         }
     }
 
-    /// The same choice as a SwiftUI text style, for `Font.custom(_:size:relativeTo:)` (AppFont.hand).
-    static func fontTextStyle(for size: CGFloat) -> Font.TextStyle {
-        switch size {
-        case ..<12: .caption2
-        case ..<13: .caption
-        case ..<15: .footnote
-        case ..<16: .subheadline
-        case ..<17: .callout
-        case ..<20: .body
-        case ..<22: .title3
-        case ..<28: .title2
-        case ..<34: .title
-        default: .largeTitle
-        }
-    }
-
     static func category(for size: DynamicTypeSize) -> UIContentSizeCategory {
         switch size {
         case .xSmall: .extraSmall

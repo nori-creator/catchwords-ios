@@ -80,7 +80,9 @@ struct CatchCelebrationView: View {
         ZStack {
             GeometryReader { geo in
                 let size = geo.size
-                TimelineView(.animation) { _ in
+                // Once the word flies into the 図鑑, the 図鑑's page rises over this screen: it stops being redrawn
+                // under it (it went on for the 0.6 s the camera screen stays, under the landing).
+                TimelineView(.animation(minimumInterval: nil, paused: router.landing != nil && !CatchDrawing.legacy)) { _ in
                     let now = CCClock.now
                     let tc = time(now)
                     ZStack(alignment: .topLeading) {
@@ -113,7 +115,7 @@ struct CatchCelebrationView: View {
 
             GeometryReader { geo in
                 let size = geo.size
-                TimelineView(.animation) { _ in
+                TimelineView(.animation(minimumInterval: nil, paused: router.landing != nil && !CatchDrawing.legacy)) { _ in
                     wordLine(time(CCClock.now), size)
                 }
             }
@@ -272,10 +274,11 @@ struct CatchCelebrationView: View {
     }
 
     /// The card's meaning once it arrives (reader language, scrubbed), else the candidate's. A re-encounter: the
-    /// meaning the word has in the dex.
+    /// meaning the word has in the dex — the dex's own, already chosen for this reader (`ReaderLanguage.resolve`).
+    /// `checkOwnedWord` sends the shared row's meaning, written in whoever made the card first's language.
     private func meaning(_ c: Candidate) -> String {
-        if let again {
-            let own = ReaderLanguage.gloss(ReaderLanguage.shown(again.meaningJa))
+        if let again, let resolved = dex.sticker(id: again.stickerId)?.word?.meaningJa {
+            let own = ReaderLanguage.gloss(ReaderLanguage.shown(resolved))
             if !own.isEmpty { return own }
         }
         let m = vm.details?.raw?["meaning_ja"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -285,7 +288,7 @@ struct CatchCelebrationView: View {
     /// 「この言葉、{date}に{place}でゲットしています。」 (web cap.reencBefore + reencAt/reencOn + reencAfter).
     static func metLine(_ owned: OwnedWord) -> String {
         let date = owned.takenDate.map { $0.formatted(Date.FormatStyle(date: .long, time: .omitted).locale(L10n.locale)) } ?? ""
-        if let place = owned.locationName, !place.isEmpty {
+        if let place = LocationService.shownPlace(owned.locationName) {
             return L("この言葉、\(date)に\(place)でゲットしています。")
         }
         return L("この言葉、\(date)にゲットしています。")

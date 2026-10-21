@@ -1,10 +1,12 @@
 import Foundation
 
-/// The language-mixing rules in one place (docs/language-rules.md, rules R1–R9).
+/// The language-mixing rules in one place (docs/language-rules.md, rules R1–R9, R22).
 ///
-/// This file has no dependencies on purpose: CI compiles it on its own with the case table
+/// This file depends only on the display-language list (`ios/Shared/DisplayLanguages.swift`, generated from
+/// `ios/Localization/languages.json`): CI compiles the two on their own with the case table
 /// `ios/LanguageRules/cases.json` and fails the build if any rule gives a different answer
-/// (`ios/LanguageRules/main.swift`). When a mixed-language bug is found, its text goes into that
+/// (`ios/LanguageRules/main.swift`). A reader's rules follow the script its language is written in, so a newly
+/// listed language in a script below needs no new code here. When a mixed-language bug is found, its text goes into that
 /// table first, then this file is changed until every case passes — so the rules only get stricter.
 nonisolated enum LanguageRules {
     // MARK: Scripts
@@ -13,6 +15,8 @@ nonisolated enum LanguageRules {
     static func isHan(_ v: UInt32) -> Bool { (0x3400...0x4DBF).contains(v) || (0x4E00...0x9FFF).contains(v) || (0xF900...0xFAFF).contains(v) || v == 0x3005 }
     static func isHangul(_ v: UInt32) -> Bool { (0xAC00...0xD7AF).contains(v) || (0x1100...0x11FF).contains(v) }
     static func isLatin(_ v: UInt32) -> Bool { (0x41...0x5A).contains(v) || (0x61...0x7A).contains(v) || (0xC0...0x24F).contains(v) }
+    /// Latin letters with two marks (Vietnamese ạ ầ ở ữ …): Latin in counts, never in a headword.
+    static func isLatinExtended(_ v: UInt32) -> Bool { (0x1E00...0x1EFF).contains(v) }
 
     struct Counts { var kana = 0, han = 0, hangul = 0, latin = 0; var cjk: Int { kana + han + hangul } }
 
@@ -20,20 +24,23 @@ nonisolated enum LanguageRules {
         var c = Counts()
         for u in s.unicodeScalars {
             let v = u.value
-            if isKana(v) { c.kana += 1 } else if isHan(v) { c.han += 1 } else if isHangul(v) { c.hangul += 1 } else if isLatin(v) { c.latin += 1 }
+            if isKana(v) { c.kana += 1 } else if isHan(v) { c.han += 1 } else if isHangul(v) { c.hangul += 1 } else if isLatin(v) || isLatinExtended(v) { c.latin += 1 }
         }
         return c
     }
 
     // MARK: R3–R6 — explanation text for a reader
 
-    /// Whether a meaning, translation or note does NOT look written in `reader` (ja / en / zh-TW).
+    /// Whether a meaning, translation or note does NOT look written in `reader` (any display language).
     /// - R3: a copy of the source sentence is wrong in every language.
-    /// - R4 ja: a run of ≥5 Han with no kana is Chinese (unless `hanOnlyOk`, for short meanings such
+    /// - R4 ja (kana script): a run of ≥5 Han with no kana is Chinese (unless `hanOnlyOk`, for short meanings such
     ///   as 鉄板焼 or 故宮博物院); a Latin-only sentence is English.
-    /// - R5 zh-TW: kana that makes up a real part of the text is Japanese (one quoted kana word is fine);
-    ///   a Latin-only sentence is English.
-    /// - R6 en: more CJK than Latin is not English (a Chinese headword inside English is fine).
+    /// - R5 zh-TW (Han script): kana that makes up a real part of the text is Japanese (one quoted kana word is
+    ///   fine); a Latin-only sentence is English.
+    /// - R6 en and every Latin-script reader: more CJK than Latin is not theirs (a Chinese headword inside is fine).
+    /// - R22 Latin-script readers: a text that clearly reads as another listed Latin-script language (its own words
+    ///   and letters: "the … of", "de … que", "của … là") is not theirs.
+    /// - R22 ko (Hangul script): no Hangul at all, or Han / kana outweighing it, is not Korean.
     /// Anything unclear is kept — a right translation is never dropped.
     static func looksWrong(_ text: String?, reader: String, source: String? = nil, hanOnlyOk: Bool = false) -> Bool {
         let s = (text ?? "").filter { !$0.isWhitespace }
@@ -47,22 +54,61 @@ nonisolated enum LanguageRules {
         let c = counts(judged)
         let latinWords = (text ?? "").split(whereSeparator: { !($0.isASCII && $0.isLetter) }).filter { $0.count >= 2 }.count
         let mostlyLatin = c.latin >= 5 && c.latin > c.cjk * 3 && latinWords >= 2
-        switch reader {
-        case "ja":
+        switch DisplayLanguages.find(reader)?.script {
+        case .kana:
             if !hanOnlyOk, judged.count >= 5, c.kana == 0, c.latin == 0, c.hangul == 0, c.han > 0 { return true }
             if c.han == 0, c.kana == 0, c.latin >= 5 { return true }
             if c.hangul > 0, c.hangul >= c.kana + c.han { return true }
             return mostlyLatin
-        case "zh-TW":
+        case .han:
             if c.kana >= 2, c.kana * 3 >= c.han { return true }
             if c.han == 0, c.latin >= 5 { return true }
             if c.hangul > 0, c.hangul >= c.han { return true }
             return mostlyLatin
-        case "en":
-            return c.cjk >= 2 && c.cjk > c.latin
-        default:
+        case .latin:
+            if c.cjk >= 2, c.cjk > c.latin { return true }
+            // Words need their spaces: the quoted parts are left out of the text as it was written.
+            let words = unquoted(text ?? "")
+            if let other = latinLanguage(of: words.isEmpty ? (text ?? "") : words), other != reader { return true }
+            return false
+        case .hangul:
+            // Japanese: kana that makes up a real part of the text.
+            if c.kana >= 2, c.kana * 2 >= c.hangul { return true }
+            if c.hangul == 0 { return c.han + c.kana > 0 || mostlyLatin || c.latin >= 5 }
+            // Chinese with a Korean word in it.
+            return c.han + c.kana > c.hangul * 2
+        case nil:
             return false
         }
+    }
+
+    // MARK: R22 — telling Latin-script languages apart
+
+    /// The listed Latin-script language `text` clearly reads as, or nil when it is unclear. Each word that is one of a
+    /// language's own words, and each of its own letters (đ ơ ư, ñ), counts for that language; the answer needs two
+    /// counts and twice as many as any other language. A short meaning with nothing distinctive ("bus stop",
+    /// "cam") is unclear.
+    static func latinLanguage(of text: String) -> String? {
+        let latin = DisplayLanguages.all.filter { $0.script == .latin }
+        guard latin.count > 1 else { return nil }
+        let lower = text.lowercased()
+        let words = lower.split { !$0.isLetter }.map(String.init)
+        var scores: [String: Int] = [:]
+        for l in latin {
+            var n = words.filter { l.markerWords.contains($0) }.count
+            if !l.markerLetters.isEmpty { n += lower.filter { l.markerLetters.contains($0) }.count }
+            scores[l.code] = n
+        }
+        let ranked = scores.sorted { $0.value > $1.value }
+        guard let top = ranked.first, top.value >= 2 else { return nil }
+        let second = ranked.dropFirst().first?.value ?? 0
+        return top.value >= second * 2 ? top.key : nil
+    }
+
+    /// Whether two display languages are written in the same script (their text cannot be told apart by script alone).
+    static func sameScript(_ a: String, _ b: String) -> Bool {
+        guard let x = DisplayLanguages.find(a)?.script, let y = DisplayLanguages.find(b)?.script else { return false }
+        return x == y
     }
 
     /// The text without its quoted parts (「…」, 『…』, “…”, "…").
@@ -86,14 +132,16 @@ nonisolated enum LanguageRules {
 
     /// Whether outside text may be shown as it is on a screen in `code`. Only human-written text in
     /// that language passes: Japanese with kana on a ja screen; Chinese (Han, no kana, not mostly Latin)
-    /// on a zh-TW screen. Raw English, codes (PGRST116) and anything else never show on any screen —
+    /// on a zh-TW screen; Korean (Hangul, no kana, not mostly Han or Latin) on a ko screen. Raw Latin-script text
+    /// (English or any other), codes (PGRST116) and anything else never show on any screen —
     /// they are translated from a known sentence or replaced by the screen's own message (G2).
     static func readsAs(_ text: String, _ code: String) -> Bool {
         let c = counts(text)
-        switch code {
-        case "ja": return c.kana > 0 && c.latin <= (c.kana + c.han) * 3
-        case "zh-TW": return c.han > 0 && c.kana == 0 && c.latin * 3 < c.han
-        default: return false
+        switch DisplayLanguages.find(code)?.script {
+        case .kana: return c.kana > 0 && c.latin <= (c.kana + c.han) * 3
+        case .han: return c.han > 0 && c.kana == 0 && c.hangul == 0 && c.latin * 3 < c.han
+        case .hangul: return c.hangul > 0 && c.kana == 0 && c.han <= c.hangul && c.latin * 3 < c.hangul
+        case .latin, nil: return false
         }
     }
 
@@ -261,7 +309,7 @@ nonisolated enum LanguageRules {
             guard !s.isEmpty else { return false }
             for u in s.unicodeScalars {
                 let v = u.value
-                if isKana(v) || isLatin(v) || isHangul(v) || (0x0400...0x04FF).contains(v) { return false }
+                if isKana(v) || isLatin(v) || isLatinExtended(v) || isHangul(v) || (0x0400...0x04FF).contains(v) { return false }
             }
             if s.contains(where: { japaneseOnlyKanji.contains($0) }) { return false }
             return s.unicodeScalars.contains { isHan($0.value) || $0.value == 0x3007 }

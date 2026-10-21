@@ -57,7 +57,7 @@ nonisolated struct WidgetWord: Codable, Sendable, Hashable {
 
 /// What the app last told the widgets.
 nonisolated struct WidgetSnapshot: Codable, Sendable, Hashable {
-    /// The app's display language: "ja", "en" or "zh-TW".
+    /// The app's display language (a code of ios/Localization/languages.json).
     var lang: String
     /// Today's word first, then the next days' (so the widget still changes at midnight without the app).
     var words: [WidgetWord]
@@ -92,6 +92,6 @@ nonisolated struct ReviewActivityAttributes: ActivityAttributes {
         var correct: Int
     }
 
-    /// The app's display language when the session started ("ja", "en", "zh-TW").
+    /// The app's display language when the session started (a code of ios/Localization/languages.json).
     var lang: String
 }

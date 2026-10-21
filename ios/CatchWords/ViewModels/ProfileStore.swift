@@ -4,7 +4,15 @@ import SwiftUI
 @Observable
 final class ProfileStore {
     var displayName: String = ""
-    var avatarURL: String?
+    /// Kept on this phone for the account (`avatarKey`): the home header shows the photo from the first frame instead
+    /// of after the profile's read (owner 2026-10-20: the avatar came in late).
+    var avatarURL: String? {
+        didSet {
+            guard let uid = client.userId, avatarURL != oldValue else { return }
+            UserDefaults.standard.set(avatarURL, forKey: Self.avatarKey(uid))
+        }
+    }
+    private static func avatarKey(_ uid: String) -> String { "profile.avatarURL.\(uid)" }
     var nativeLanguage: String = "ja"
     var targetLanguage: String = "zh-TW" {
         didSet { NativeAPI.targetLanguage = ["en", "ja"].contains(targetLanguage) ? targetLanguage : "zh-TW" }
@@ -28,10 +36,12 @@ final class ProfileStore {
 
     private let client = SupabaseClient.shared
 
+    /// "TOCFL Level n" is common notation, the same on every display language (owner 2026-10-20).
     static let levelOptions: [(value: String, label: String)] = (1...6).map { ("TOCFL-\($0)", "TOCFL Level \($0)") }
     static let cefrOptions: [(value: String, label: String)] = ["A1", "A2", "B1", "B2", "C1", "C2"].map { ($0, "CEFR \($0)") }
-    // Language names in their own language (an autonym never changes with the display language).
-    static let nativeOptions: [(value: String, label: String)] = [("ja", "日本語"), ("en", "English"), ("zh-TW", "繁體中文")]  // l10n-ignore (autonyms)
+    // Language names in their own language (an autonym never changes with the display language): every display
+    // language in languages.json, in its order.
+    static let nativeOptions: [(value: String, label: String)] = DisplayLanguages.all.map { ($0.code, $0.autonym) }
     /// Every learning language the app can teach. Only 繁體字（台灣） is offered for now (owner 2026-10-11: 「学習言語は
     /// とりあえず英語はコードを隠して、繁體字(台灣)に絞って。名前も変更して」): English and Japanese stay in the code,
     /// hidden (`offeredTargets`). The name is the web's (`settings.langZhTw`).
@@ -44,10 +54,11 @@ final class ProfileStore {
         allTargetOptions.filter { offeredTargets.contains($0.value) }
     }
     /// The choices for someone learning `current`: the offered ones, plus `current` itself when it is a hidden one
-    /// (an account that already learns English keeps seeing — and can keep — its own language). Never the display
-    /// language (the two are never the same, as in onboarding), so the 設定 row and its wheel agree on the count.
+    /// (an account that already learns English keeps seeing — and can keep — its own language). The display language
+    /// may be one of them (owner 2026-10-20: 繁體字（台灣） as the display language while learning it), so the 設定 row
+    /// and its wheel agree on the count.
     static func targetChoices(current: String) -> [(value: String, label: String)] {
-        allTargetOptions.filter { (offeredTargets.contains($0.value) || $0.value == current) && $0.value != L10n.lang }
+        allTargetOptions.filter { offeredTargets.contains($0.value) || $0.value == current }
     }
     /// The learning language's name as the 設定 row shows it.
     static func targetLabel(_ code: String) -> String {
@@ -75,6 +86,7 @@ final class ProfileStore {
 
     func load() async {
         guard let uid = client.userId else { isLoaded = true; return }
+        if avatarURL == nil { avatarURL = UserDefaults.standard.string(forKey: Self.avatarKey(uid)) }
         let row = await client.myProfileRow(uid: uid)
         // Signed out (or into another account), or cancelled, while reading: this answer is not for the
         // account on screen now — touch nothing (isLoaded / loadFailed included); its own load fills them.
@@ -94,10 +106,25 @@ final class ProfileStore {
         guard row.keys.contains("target_language") else { return }
         nativeLanguage = row["native_language"] as? String ?? "ja"
         ReaderLanguage.native = (row["native_language"] as? String).map { L10n.normalize($0) }
-        // The display language follows the account (set on the web or another device too).
-        if let ui = row["ui_language"] as? String, !ui.isEmpty {
-            L10n.set(ui)
-            nativeLanguage = L10n.lang
+        // What the server writes explanations in (an empty value is its default, Japanese).
+        let rawUi = (row["ui_language"] as? String) ?? ""
+        let serverUi = L10n.normalize(rawUi)
+        ReaderLanguage.serverLang = serverUi
+        // The display language follows the account (set on the web or another device too) — except a language chosen
+        // on this device that has not reached the account yet: in iPhone Settings › CatchWords › Language, or before
+        // this account's first-run setup. A new account's row starts with the server's default, Japanese: taking it
+        // switched an English or Spanish iPhone's app to Japanese before the setup's language step (and the AI wrote the
+        // first catch in Japanese).
+        if let local = L10n.chosenInSettings ?? (onboarded ? nil : L10n.lang), local != serverUi {
+            L10n.chosenInSettings = nil
+            nativeLanguage = local
+            await Self.syncLanguageToServer()
+        } else {
+            L10n.chosenInSettings = nil
+            if !rawUi.isEmpty {
+                L10n.set(serverUi)
+                nativeLanguage = L10n.lang
+            }
         }
         targetLanguage = row["target_language"] as? String ?? "zh-TW"
         if let v = row["current_level"] as? String, !v.isEmpty { currentLevel = v }
@@ -123,6 +150,18 @@ final class ProfileStore {
 
     /// Saves profile columns. True when the server kept them (設定 then says 「保存しました」).
     @discardableResult
+    /// The screen's display language sent to the account when it has not reached it (a save that failed or is still
+    /// on its way, a language chosen in iPhone Settings, a new account): the server writes every candidate, card and
+    /// explanation in the saved one. Called before the AI is asked; nothing when they agree or the profile is not read.
+    static func syncLanguageToServer() async {
+        let client = SupabaseClient.shared
+        let lang = L10n.lang
+        guard let uid = client.userId, let server = ReaderLanguage.serverLang, server != lang else { return }
+        let body: [String: Any] = ["ui_language": lang, "updated_at": SupabaseDate.string(Date())]
+        guard (try? await client.rest("PATCH", "profiles?id=eq.\(uid)", body: body)) != nil, L10n.lang == lang else { return }
+        ReaderLanguage.serverLang = lang
+    }
+
     func update(_ fields: [String: Any]) async -> Bool {
         guard let uid = client.userId else { return false }
         var body = fields
@@ -130,6 +169,7 @@ final class ProfileStore {
         do {
             _ = try await client.rest("PATCH", "profiles?id=eq.\(uid)", body: body)
             message = nil
+            if let ui = fields["ui_language"] as? String { ReaderLanguage.serverLang = L10n.normalize(ui) }
             return true
         } catch {
             message = L("保存できませんでした。通信を確かめてください。")
@@ -207,19 +247,38 @@ final class ProfileStore {
 struct AvatarView: View {
     let url: String?
     var size: CGFloat = 40
+    /// The photo, from memory at once when it is there (`ImageCache`, keyed by its URL), else from the phone's copy or
+    /// the network. AsyncImage fetched it again on every appearance, so the home header showed an empty circle first.
+    @State private var image: UIImage?
+
+    init(url: String?, size: CGFloat = 40) {
+        self.url = url
+        self.size = size
+        _image = State(initialValue: url.flatMap { ImageCache.shared.image(for: $0, maxPixel: Self.pixels(size)) })
+    }
+
+    private static func pixels(_ size: CGFloat) -> Int? { ImageCache.pixelStep(forPoints: size) }
 
     var body: some View {
         Circle()
             .fill(Theme.secondary)
             .frame(width: size, height: size)
             .overlay {
-                if let url, let u = URL(string: url) {
-                    AsyncImage(url: u) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.clear
+                if let url, URL(string: url) != nil {
+                    Group {
+                        if let image {
+                            Image(uiImage: image).resizable().scaledToFill()
+                        } else {
+                            Color.clear
+                        }
                     }
                     .allowsHitTesting(false)
+                    .task(id: url) {
+                        guard let u = URL(string: url) else { return }
+                        let px = Self.pixels(size)
+                        if let hit = ImageCache.shared.image(for: url, maxPixel: px) { image = hit; return }
+                        image = await ImageCache.shared.load(url: u, key: url, maxPixel: px)
+                    }
                 } else {
                     Image(systemName: "person.fill").font(.system(size: size * 0.45)).foregroundStyle(Theme.muted)
                 }

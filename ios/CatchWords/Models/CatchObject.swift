@@ -61,24 +61,47 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
     /// AI's point, the middle of the AI's own rough box, which often lies beside the thing, between its parts or on
     /// what stands in front of it, while the outline drawn round the thing (the same instance) was right.
     static func build(candidates: [Candidate], masks: InstanceMasks?, photoSize: CGSize) -> [CatchObject] {
+        let planned = plan(candidates: candidates, masks: masks, photoSize: photoSize)
+        return withCuts(planned, masks: masks, photoSize: photoSize)
+    }
+
+    /// The things of a photo placed (their Vision piece and their tag's place) before their cut-outs are rendered.
+    struct Planned: @unchecked Sendable {
+        let list: [[Candidate]]
+        let things: [CatchPlan.Thing]
+        let plans: [CatchPlan.Placement]
+        /// Each thing without its cut-out yet: its tag can go up (`withCuts` adds the cut-outs).
+        let objects: [CatchObject]
+    }
+
+    /// The first half of `build`: where each thing is and where its tag goes. The cut-outs (`withCuts`) can run Vision
+    /// again on crops and render full-size masked images — seconds on an iPad with a few touching things — and the
+    /// tags waited for them (owner 2026-10-20: 「単語にタグが出るのが遅くなってる」).
+    static func plan(candidates: [Candidate], masks: InstanceMasks?, photoSize: CGSize) -> Planned {
         let list = groups(candidates)
         let things = plannedThings(list)
-        let points = things.map(\.point)
-        let own = things.map(\.own)
-        let boxes = things.map(\.box)
         // Which piece of the mask is each thing, and where its tag goes (`CatchPlan`, on a copy of the label mask).
         let copy = masks?.labelMaskCopy()
         let plans = CatchPlan.plan(things: things, mask: copy?.mask ?? [], width: copy?.width ?? 0, height: copy?.height ?? 0,
                                    colours: masks?.colourGrid())
-        let rendered = masks?.render(plans, boxes: things.indices.map { own[$0] ? boxes[$0] : nil }, points: points)
-        return list.enumerated().map { (i, words) -> CatchObject in
-            let plan = plans[i]
+        let objects = list.enumerated().map { (i, words) -> CatchObject in
+            let plan = plans[i], t = things[i]
+            let box = (t.own ? t.box : nil) ?? fallbackBox(at: plan.anchor, photoSize: photoSize)
+            return CatchObject(id: i, words: words, point: t.own ? t.point : plan.anchor, box: box,
+                               anchor: plan.anchor, cut: nil, instance: plan.label, positioned: t.own, cutNote: plan.note)
+        }
+        return Planned(list: list, things: things, plans: plans, objects: objects)
+    }
+
+    /// The second half of `build`: each thing with its cut-out (and the cut-out's own box). Heavy: off the main thread.
+    static func withCuts(_ p: Planned, masks: InstanceMasks?, photoSize: CGSize) -> [CatchObject] {
+        let points = p.things.map(\.point)
+        let rendered = masks?.render(p.plans, boxes: p.things.map { $0.own ? $0.box : nil }, points: points)
+        return p.objects.enumerated().map { (i, o) -> CatchObject in
             let made = rendered?[i]
             let cut = made?.cut
-            let box = cut?.box ?? (own[i] ? boxes[i] : nil) ?? fallbackBox(at: plan.anchor, photoSize: photoSize)
-            return CatchObject(id: i, words: words, point: own[i] ? points[i] : plan.anchor, box: box,
-                               anchor: plan.anchor, cut: cut?.image, instance: plan.label, positioned: own[i],
-                               cutNote: made?.note ?? plan.note)
+            return CatchObject(id: o.id, words: o.words, point: o.point, box: cut?.box ?? o.box, anchor: o.anchor,
+                               cut: cut?.image, instance: o.instance, positioned: o.positioned, cutNote: made?.note ?? o.cutNote)
         }
     }
 

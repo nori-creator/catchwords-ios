@@ -608,9 +608,11 @@ struct QuizCard: View {
         let ms = Int(Date().timeIntervalSince(started) * 1000)
         let ok = c.headword == correctHead
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { picked = c.headword }
+        // The right word is read out either way (owner 2026-10-20: 「正解の時も不正解の時も発音して」): after a miss it is
+        // the word to remember.
+        SoundService.shared.speak(correctHead)
         if ok {
             Haptics.correct()
-            SoundService.shared.speak(correctHead)
         } else {
             Haptics.wrong()
             Task {

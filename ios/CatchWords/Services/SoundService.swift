@@ -18,6 +18,11 @@ enum SFX: String, CaseIterable {
     // The card-catch prototype's synthesized SFX (docs/prototype/cardcatch-src.html `SFX`), rendered offline by
     // scripts/render_cardcatch_sfx.py. The candidate and light sounds reuse the pop and the twinkle (owner 2026-10-04).
     case ccShutter = "cc-shutter"
+    // Shutter candidates (owner 2026-10-20: 「シャッター音の案を考えて」 — the shutter's low thump stood out), compared
+    // in 開発者の試し; rendered by scripts/render_cardcatch_sfx.py.
+    case ccShutterLight = "cc-shutter-light"
+    case ccShutterSoft = "cc-shutter-soft"
+    case ccShutterDigital = "cc-shutter-digital"
     case ccTick = "cc-tick"
     case ccScanStart = "cc-scan-start"
     case ccFound = "cc-found"
@@ -64,6 +69,10 @@ enum SFX: String, CaseIterable {
         // Rendered at the prototype's loudness relative to the pon (same 0.9); two files were turned down
         // in rendering to avoid clipping and get that back here (render report: ×2.803 and ×1.640; cc-land ×1.590).
         case .ccShutter: 0.9 * 2.803
+        // Turned down in rendering ×2.610 and ×2.435; the digital one peaks 8 dB lower and is brought up part way.
+        case .ccShutterLight: 0.9 * 2.610
+        case .ccShutterSoft: 0.9 * 2.435
+        case .ccShutterDigital: 0.9 * 1.8
         case .ccReveal: 0.9 * 1.640
         case .ccLand: 0.9 * 1.590
         case .ccTick, .ccScanStart, .ccFound, .ccPop, .ccTwinkle: 0.9
@@ -197,21 +206,63 @@ final class SoundService {
         player.play()
     }
 
-    /// Plays `sfx` on a fresh player so it can overlap an earlier play of the same sound (the prototype's
-    /// pops come 130 ms apart and each rings out). Same level rules as `play`.
+    /// Plays `sfx` so it can overlap an earlier play of the same sound (the prototype's pops come 130 ms apart and
+    /// each rings out): on a player of its own that is not playing, from a few kept ready per sound. Same level rules
+    /// as `play`. A new player used to be made from the file on every call, on the main thread, in the middle of the
+    /// catch's animations (owner 2026-10-20: the add to 図鑑 stuttered).
     func playLayered(_ sfx: SFX, volume: Float = 1) {
         let level = levelMultiplier
-        guard level > 0,
-              let url = Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension),
-              let player = try? AVAudioPlayer(contentsOf: url) else { return }
-        layered.removeAll { !$0.isPlaying }
+        guard level > 0 else { return }
+        var pool = pools[sfx] ?? []
+        let player: AVAudioPlayer
+        if let free = pool.first(where: { !$0.isPlaying }) {
+            player = free
+        } else if pool.count < 4,
+                  let url = Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension),
+                  let made = try? AVAudioPlayer(contentsOf: url) {
+            pool.append(made)
+            pools[sfx] = pool
+            player = made
+        } else if let oldest = pool.first {
+            player = oldest
+            player.stop()
+        } else {
+            return
+        }
         player.currentTime = sfx.offset
         player.volume = min(1, sfx.gain * volume * level)
         player.play()
-        layered.append(player)
     }
 
-    private var layered: [AVAudioPlayer] = []
+    /// `playLayered`'s players, a few per sound.
+    private var pools: [SFX: [AVAudioPlayer]] = [:]
+
+    /// Players made off the main thread, handed back to it.
+    nonisolated private struct Made: @unchecked Sendable {
+        let players: [Int: AVAudioPlayer]
+    }
+
+    /// The catch's sounds made ready behind the camera (it opens long before they play): a player each, made and
+    /// prepared off the main thread.
+    func prepareCatchSounds() {
+        let list: [SFX] = [.ccPop, .c6Choose, .c6StagePad, .c6CatchJingle, .c6Riser, .c6DexOpen, .c6LandImpact, .c6NewBadge,
+                           .c6Tick1, .c6Tick2, .c6Tick3, .c6Refill, .c6GoalOneMore]
+        let todo = list.filter { (pools[$0] ?? []).isEmpty }
+        let urls = todo.map { Bundle.main.url(forResource: $0.rawValue, withExtension: $0.fileExtension) }
+        guard !todo.isEmpty else { return }
+        Task {
+            let made = await Task.detached(priority: .utility) { () -> Made in
+                var out: [Int: AVAudioPlayer] = [:]
+                for (i, url) in urls.enumerated() {
+                    guard let url, let p = try? AVAudioPlayer(contentsOf: url) else { continue }
+                    p.prepareToPlay()
+                    out[i] = p
+                }
+                return Made(players: out)
+            }.value
+            for (i, p) in made.players where (pools[todo[i]] ?? []).isEmpty { pools[todo[i]] = [p] }
+        }
+    }
 
     /// A page opening (dex, word detail, tab) or going back: the bubble pon plus its matching tap.
     /// The sound follows the sound level ("off" is silent); the tap follows the vibration switch.
@@ -225,16 +276,49 @@ final class SoundService {
         /// A word passing the reading line of the Collection map's timeline while scrolling: the bubble tick (owner
         /// 2026-10-16: the Settings pick tick 3, not the map-scroll one).
         case timeline
+        /// A row of a 設定 wheel crossing its centre line (owner 2026-10-20: the system wheel's click came late and the
+        /// first scroll was silent; the app's own wheel ticks with the same pick tick 3).
+        case wheel
     }
 
     /// The small tick for `kind`, on the same rules as every SFX — the sound level (控えめ / しっかり / オフ) scales it.
-    /// A tick restarts the one before it (a fast scroll never piles them up). The Settings choices and wheels play no
-    /// sound of the app's own (owner 2026-10-16: the wheel's own click is the only one, never two at once).
+    /// Played by the tick engine (`TickEngine`): it starts at once, every time, however fast they come.
     func tick(_ kind: Tick) {
         switch kind {
-        case .timeline: play(.c6PickTick3)
+        case .timeline: ticks.play(.c6PickTick3, volume: SFX.c6PickTick3.gain * levelMultiplier)
+        case .wheel: ticks.play(.c6PickTick3, volume: SFX.c6PickTick3.gain * levelMultiplier)
         }
     }
+
+    /// A choice made in 設定 (a pill, a switch): the pick tick (candidate A, chosen by the owner 2026-10-20), a little
+    /// softer when a switch is turned off. Owner 2026-10-20: 「設定のボタンを押して、またはスライドして設定を変更した
+    /// ときに効果音が鳴るようにして」.
+    func settingChanged(on: Bool = true) {
+        ticks.play(.c6PickTick3, volume: SFX.c6PickTick3.gain * levelMultiplier * (on ? 1 : 0.75))
+    }
+
+    /// A card of the slide dex reaching the middle (web `el-gallery-slide`, gain 0.8): from the tick engine, which
+    /// starts it at once — the restarted player answered late and could stall a frame of the swipe.
+    func slide() {
+        ticks.play(.slide, volume: SFX.slide.gain * 0.8 * levelMultiplier)
+    }
+
+    /// The camera's shutter: the sound picked in 開発者の試し (`DevChoices.shutterSFX`), from the tick engine (read
+    /// ahead: no file is opened at the tap). Only where the system's own shutter sound is off (`CameraService
+    /// .systemShutterSound`): in Japan the system's click is required and the app's came on top of it (owner
+    /// 2026-10-20: 「日本のiPadだとipadでもなってるから２重になってる」).
+    func shutter() {
+        let sfx = DevChoices.shutterSFX
+        ticks.play(sfx, volume: sfx.gain * levelMultiplier)
+    }
+
+    /// Readies the tick engine before a wheel or a timeline can tick (its first tick must not be lost).
+    func warmTicks() { ticks.warm() }
+
+    /// Reads the tick engine's sounds off the main thread (once, after launch).
+    func prepareTicks() async { await ticks.prepare() }
+
+    private let ticks = TickEngine(sounds: [.c6PickTick3, .slide] + DevChoices.shutterChoices.map(\.sfx))
 
     func startAnalyzeLoop() {
         let level = levelMultiplier
@@ -444,5 +528,121 @@ final class SoundService {
                 return lhs.identifier < rhs.identifier
             }
         return voices.first ?? AVSpeechSynthesisVoice(language: lang)
+    }
+}
+
+
+/// Short UI sounds that can come many times a second (a wheel's rows, the map's timeline, a 設定 choice): an audio engine
+/// kept running with each sound already decoded, and a few voices per sound so quick ticks overlap instead of cutting
+/// each other off. An `AVAudioPlayer` restarted for every tick (stop, rewind, play) started late and unevenly, and the
+/// first one after a while could be lost.
+final class TickEngine {
+    private let engine = AVAudioEngine()
+    private let sounds: [SFX]
+    private var voices: [SFX: [AVAudioPlayerNode]] = [:]
+    private var buffers: [SFX: AVAudioPCMBuffer] = [:]
+    private var next: [SFX: Int] = [:]
+    private var built = false
+
+    init(sounds: [SFX]) {
+        var seen = Set<SFX>()
+        self.sounds = sounds.filter { seen.insert($0).inserted }
+    }
+
+    /// Pauses the engine after a few quiet seconds (a running engine keeps the audio hardware awake); `warm` starts it
+    /// again.
+    private var idle: Task<Void, Never>?
+
+    /// The decoded sounds, handed from the thread that read them (nothing touches them there afterwards).
+    nonisolated private struct Decoded: @unchecked Sendable {
+        let buffers: [Int: AVAudioPCMBuffer]
+    }
+
+    /// Each sound's file and how far into it it starts (`SFX.offset`), read on the main actor.
+    private var files: [(url: URL, offset: TimeInterval)] {
+        sounds.map { sfx in
+            (Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension) ?? URL(fileURLWithPath: "/dev/null"),
+             sfx.offset)
+        }
+    }
+
+    nonisolated private static func decode(_ files: [(url: URL, offset: TimeInterval)]) -> Decoded {
+        var out: [Int: AVAudioPCMBuffer] = [:]
+        for (i, f) in files.enumerated() {
+            guard let file = try? AVAudioFile(forReading: f.url) else { continue }
+            let skip = AVAudioFramePosition(f.offset * file.processingFormat.sampleRate)
+            if skip > 0, skip < file.length { file.framePosition = skip }
+            let frames = AVAudioFrameCount(file.length - file.framePosition)
+            guard frames > 0,
+                  let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames),
+                  (try? file.read(into: buffer)) != nil else { continue }
+            out[i] = buffer
+        }
+        return Decoded(buffers: out)
+    }
+
+    private func attach(_ decoded: Decoded) {
+        guard !built else { return }
+        built = true
+        for (i, sfx) in sounds.enumerated() {
+            guard let buffer = decoded.buffers[i] else { continue }
+            buffers[sfx] = buffer
+            voices[sfx] = (0..<3).map { _ in
+                let node = AVAudioPlayerNode()
+                engine.attach(node)
+                engine.connect(node, to: engine.mainMixerNode, format: buffer.format)
+                return node
+            }
+        }
+        engine.prepare()
+    }
+
+    /// Reads the sounds off the main thread, ahead of time (after launch): opening the slide dex or 設定 then only
+    /// starts the engine. Decoding them there, on the main thread, added to the first 図鑑's opening (DexOpenTests,
+    /// 2026-10-20).
+    func prepare() async {
+        guard !built else { return }
+        let files = self.files
+        let decoded = await Task.detached(priority: .utility) { Self.decode(files) }.value
+        attach(decoded)
+    }
+
+    /// Starts the engine (again after an interruption or a quiet spell stopped it). Sounds not read yet are read off the
+    /// main thread first — a screen readying its ticks as it appears must not decode them there (owner 2026-10-20: the
+    /// add to 図鑑 stuttered) — unless one is to be played right now (`decodeNow`).
+    func warm(decodeNow: Bool = false) {
+        idle?.cancel()
+        idle = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled else { return }
+            self?.engine.pause()
+        }
+        if !built {
+            guard decodeNow else {
+                Task { [weak self] in
+                    await self?.prepare()
+                    guard let self, !self.engine.isRunning else { return }
+                    try? self.engine.start()
+                }
+                return
+            }
+            attach(Self.decode(files))
+        }
+        guard !engine.isRunning else { return }
+        try? engine.start()
+    }
+
+    /// `volume` already carries the sound level; 0 plays nothing.
+    func play(_ sfx: SFX, volume: Float) {
+        guard volume > 0 else { return }
+        warm(decodeNow: true)
+        guard engine.isRunning, let buffer = buffers[sfx], let nodes = voices[sfx], !nodes.isEmpty else { return }
+        let i = (next[sfx] ?? 0) % nodes.count
+        next[sfx] = i + 1
+        let node = nodes[i]
+        node.stop()
+        node.volume = min(1, volume)
+        node.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+        node.play()
     }
 }

@@ -35,6 +35,9 @@ struct CandidatePickerView: View {
     @State private var flow: ChooseFlow?
     /// The photo melting into the app's page under the choose screen.
     @State private var melt = false
+    /// The choose screen is up: the scan's outlines (faded out on the tap) stop being redrawn under it. The photo stays
+    /// drawn: it shows through the page behind the sticker (the CI's before/after films, 2026-10-20).
+    @State private var covered = false
     /// The photo stage on screen (global): where each thing's sticker lifts from.
     @State private var stageFrame: CGRect = .zero
     /// DEBUG previews: open the first thing with several ways to say it once the tags are up.
@@ -87,9 +90,11 @@ struct CandidatePickerView: View {
         var chosen: Int?
         var closingAt: Double?
         let start: CGRect?
-        let cut: UIImage?
+        /// The thing's cut-out; filled in when it is rendered after the choose screen opened (the tags go up first).
+        var cut: UIImage?
         let fallback: UIImage?
-        let palette: StagePalette
+        /// The stage's colours: from the cut-out, or from the photo's crop until the cut-out comes.
+        var palette: StagePalette
         let dexLabel: String?
     }
 
@@ -149,6 +154,17 @@ struct CandidatePickerView: View {
         .task(id: autoOpen) { await openForPreview() }
         // A typed word's lookup brought words: the choose screen lists them (never straight on to the catch).
         .onChange(of: vm.typedRound) { _, _ in openTyped() }
+        // The photo's cut-outs came after the tags (`CatchObject.withCuts`): an open choose screen lifting the photo's
+        // crop takes the thing's cut-out, and the stage's colours are taken from it as they were when the cut-out came
+        // first (the crop's background tinted the stage).
+        .onChange(of: vm.objects.filter { $0.cut != nil }.map(\.id)) { _, _ in
+            guard var f = flow, f.cut == nil, f.chosenAt == nil, f.closingAt == nil, !f.typed,
+                  let id = f.anchor?.id, let cut = vm.objects.first(where: { $0.id == id })?.cut else { return }
+            f.cut = cut
+            f.palette = StagePalette.make(from: cut)
+            vm.stagePalette = f.palette
+            flow = f
+        }
         .onAppear {
             if reduceMotion {
                 appeared = true
@@ -213,7 +229,7 @@ struct CandidatePickerView: View {
             let placedTags = placed(in: size)
             let _ = UITestTrace.log(traceStage(size, placedTags))
             ZStack(alignment: .topLeading) {
-                if let photo = vm.photo {
+                if let photo = vm.shownPhoto ?? vm.photo {
                     Image(uiImage: photo)
                         .resizable()
                         .scaledToFill()
@@ -222,7 +238,7 @@ struct CandidatePickerView: View {
                         .allowsHitTesting(false)
                 }
                 if let scan = vm.scan, let photo = vm.photo {
-                    CatchScanOverlay(scan: scan, photo: photo.size, reduceMotion: reduceMotion)
+                    CatchScanOverlay(scan: scan, photo: photo.size, reduceMotion: reduceMotion, hidden: covered)
                         .frame(width: size.width, height: size.height)
                         // On the tap the outlines fade out in .5 s (the film's v8 note).
                         .opacity(flow == nil ? 1 : 0)
@@ -238,6 +254,11 @@ struct CandidatePickerView: View {
             .blur(radius: melt ? 15 : 0)
             .brightness(melt ? 0.06 : 0)
             .scaleEffect(melt ? 1.08 : 1, anchor: meltAnchor)
+            .task(id: melt) {
+                guard melt, !CatchDrawing.legacy else { covered = false; return }
+                try? await Task.sleep(for: .milliseconds(700))
+                if !Task.isCancelled, melt, flow != nil { covered = true }
+            }
             .contentShape(.rect)
             .onTapGesture {
                 UITestTrace.log("stage.tap")
@@ -306,7 +327,7 @@ struct CandidatePickerView: View {
     static func tagLabel(_ words: [Candidate]) -> (text: String, isName: Bool) {
         guard let main = words.first else { return ("", false) }
         let label = ReaderLanguage.shown(main.objectLabel, words.lazy.map(\.objectLabel).first { !$0.isEmpty })
-        if !label.isEmpty { return (ReaderLanguage.gloss(label, limit: L10n.lang == "en" ? 24 : 12), true) }
+        if !label.isEmpty { return (ReaderLanguage.gloss(label, limit: L10n.current.glossLimit), true) }
         let name = readerName(main)
         if !name.isEmpty { return (name, true) }
         let category = main.categoryKey ?? words.lazy.compactMap(\.categoryKey).first
@@ -318,7 +339,7 @@ struct CandidatePickerView: View {
     private static func readerName(_ c: Candidate) -> String {
         let meaning = ReaderLanguage.shown(c.meaningJa)
         guard !meaning.isEmpty else { return "" }
-        return ReaderLanguage.gloss(firstGloss(meaning), limit: L10n.lang == "en" ? 24 : 12)
+        return ReaderLanguage.gloss(firstGloss(meaning), limit: L10n.current.glossLimit)
     }
 
     /// The first of the meanings listed in `meaning` (「下着、パンツ」 → 下着, "underwear; briefs" → underwear), never

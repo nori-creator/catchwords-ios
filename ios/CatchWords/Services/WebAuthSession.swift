@@ -20,7 +20,10 @@ final class WebAuthSession: NSObject, ASWebAuthenticationPresentationContextProv
     /// Opens the bridge for `provider` ("google" / "apple") and returns the callback URL.
     func signIn(provider: String, state: String) async throws -> URL {
         var comps = URLComponents(url: AppConfig.webBaseURL.appendingPathComponent("native-auth"), resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "provider", value: provider), URLQueryItem(name: "state", value: state)]
+        // `lang`: the sheet is a fresh browser each time (no saved web language), so the bridge page is told the app's
+        // display language (web `sanitizeNativeLang`; a language the web has no screens for shows in English).
+        comps.queryItems = [URLQueryItem(name: "provider", value: provider), URLQueryItem(name: "state", value: state),
+                            URLQueryItem(name: "lang", value: L10n.lang)]
         guard let url = comps.url else { throw Failure.failed }
         return try await withCheckedThrowingContinuation { cont in
             let s = ASWebAuthenticationSession(url: url, callback: .customScheme(AppConfig.authCallbackScheme)) { callback, error in
