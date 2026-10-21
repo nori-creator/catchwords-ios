@@ -237,6 +237,41 @@ describe("runAiAttempts hedging (追いかけ)", () => {
     ]);
   });
 
+  it("asks the primary again at the hedge delay when it gave an unusable reply and the fallback is slow", async () => {
+    // 撮影の候補（2026-10-20）: 1番手の形が崩れ、2番手が詰まった回は 15 秒待って失敗していた。
+    vi.useFakeTimers();
+    let calls = 0;
+    const primaryRun = vi.fn(
+      () =>
+        new Promise<string>((resolve, reject) => {
+          calls++;
+          if (calls === 1) setTimeout(() => reject(new Error("BAD_SHAPE")), 2_000);
+          else setTimeout(() => resolve("primary again"), 2_500);
+        }),
+    );
+    const backup = hangs();
+    const pending = runAiAttempts(
+      [
+        { label: "a", timeoutMs: 12_000, run: primaryRun },
+        { label: "b", timeoutMs: 9_000, run: backup.run },
+        { label: "a", timeoutMs: 6_000, run: primaryRun },
+      ],
+      {
+        hedgeAfterMs: 3_000,
+        isUnusableReply: (e) => e instanceof Error && e.message === "BAD_SHAPE",
+      },
+    );
+    await vi.advanceTimersByTimeAsync(5_500);
+    const result = await pending;
+    expect(result).toMatchObject({ value: "primary again", via: "a", ms: 5_500 });
+    expect(backup.seen[0].aborted).toBe(true);
+    expect(result.attempts.map((a) => [a.label, a.outcome, a.startMs])).toEqual([
+      ["a", "unusable", 0],
+      ["b", "cancelled", 2_000],
+      ["a", "ok", 3_000],
+    ]);
+  });
+
   it("keeps the primary's answer when it arrives first after the hedge started", async () => {
     vi.useFakeTimers();
     const primary = answersAfter(7_000, "primary");

@@ -295,8 +295,16 @@ async function recordCandidateReceipts(
   });
 }
 
-/** 撮った後の候補: 1回ごとの締め切り（1番手・2番手）。画面の待ちは 20 秒。 */
-const SUGGEST_ATTEMPT_TIMEOUTS = [18_000, 13_000];
+/**
+ * 撮った後の候補: 1回ごとの締め切り（1番手・2番手・1番手のやり直し）。画面の待ちは 20 秒（iOS は 25 秒）。
+ *
+ * 2026-10-20 に短くした（前は 18 秒・13 秒）。直近 14 日の実測（`ai_runs` の `capture_suggest`、141 回）:
+ * - 1番手 gemini-3.5-flash-lite が答えた回は中央値 2.4 秒・90% で 3.1 秒・最長 5.4 秒。
+ * - 2番手 gemini-2.5-flash が答えた回は中央値 4.9 秒・90% で 6.9 秒・最長 8.4 秒。
+ * - 1番手の返事の形が崩れた回（1.9 秒）に、2番手が 13 秒の締め切りまで答えず、15.2 秒待って失敗していた。
+ * 最悪の待ちは 3（追いかけ）+ 9 = 12 秒。全部だめな時のやり直し（下の3番手）を入れても 18 秒で、画面より先に終わる。
+ */
+const SUGGEST_ATTEMPT_TIMEOUTS = [12_000, 9_000, 6_000];
 /**
  * 1番手がこの時間までに答えなければ2番手を並べる（`AI_HEDGE_AFTER_MS` で変更、`0` で止める）。
  * 3 秒（オーナー決定 2026-10-11）。1番手 gemini-3.5-flash-lite の AI 時間は、2026-10-11 の実測で
@@ -695,14 +703,19 @@ export const suggestWords = createServerFn({ method: "POST" })
      * **1番手が遅い時は2番手を並べて追いかける**（`ai-attempts.ts`、チュートリアルと同じ）。
      * 前は1回の呼び出しに締め切りが無く、AI SDK が黙って2回まで再送していた（詰まった
      * 相手を画面の 20 秒まで待ち続け、画面は「通信に時間がかかっています」）。いまは
-     * 1番手 18 秒・2番手 13 秒の締め切りで、1番手が 3 秒（`SUGGEST_HEDGE_AFTER_MS`）答えなければ
-     * 2番手を並べる。最悪 3 + 13 = 16 秒で、画面の 20 秒より先に理由つきで終わる。
+     * 1番手 12 秒・2番手 9 秒の締め切りで（`SUGGEST_ATTEMPT_TIMEOUTS`）、1番手が 3 秒
+     * （`SUGGEST_HEDGE_AFTER_MS`）答えなければ2番手を並べる。
      * 枠の確保は上の1回だけ。形の崩れた返事は「使えない返事」として、もう片方を待つ。
+     *
+     * **3番手は1番手のやり直し**（2026-10-20）。1番手がすぐ落ちた回（形の崩れ・通信の失敗）は、その場で
+     * 2番手を始め、3 秒の追いかけで1番手をもう1回並べる。1番手は 2〜3 秒で答えるので、遅い2番手を待ち
+     * 続けるより早い（前は2番手が詰まると 15 秒待って失敗した）。並べるのは最大2つのまま。
      */
+    const targets = chain.length > 0 ? [...chain, chain[0]] : chain;
     let outcome: Awaited<ReturnType<typeof runAiAttempts<z.infer<typeof SuggestionSchema>>>>;
     try {
       outcome = await runAiAttempts(
-        chain.map((target, i) => ({
+        targets.map((target, i) => ({
           label: target.label,
           timeoutMs: SUGGEST_ATTEMPT_TIMEOUTS[Math.min(i, SUGGEST_ATTEMPT_TIMEOUTS.length - 1)],
           run: async (signal: AbortSignal) => {
