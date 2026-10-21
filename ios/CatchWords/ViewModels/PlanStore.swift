@@ -15,8 +15,14 @@ final class PlanStore {
     static let welcomeDays = 7
     /// Extra catches a learner can earn in a day (a rewarded ad: `grantBonusCatch`).
     static let maxBonusPerDay = 2
-    /// On since 2026-10-21 (owner decision above). Off under `-uiDemo` (the UI tests catch many times a day).
-    static var catchLimitEnabled: Bool { !DemoBackend.isOn }
+    /// On since 2026-10-21 (owner decision above). Off under `-uiDemo` (DEBUG only: the UI tests catch many times a day).
+    static var catchLimitEnabled: Bool {
+        #if DEBUG
+        return !DemoBackend.isOn
+        #else
+        return true
+        #endif
+    }
     /// The first App Store version is free only: no "Upgrade to Pro", no purchase / restore buttons
     /// (the products are not set up in App Store Connect and the server does not check Apple purchases
     /// yet). Flip together with `catchLimitEnabled` when Pro launches; the StoreKit code stays as is.
