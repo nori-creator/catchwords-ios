@@ -27,7 +27,7 @@ nonisolated enum ZhuyinLayout {
     /// A reading as zhuyin: the character 一 written for the letter ㄧ (cards say 「一 ㄎㄜ」 for 一棵 — owner 2026-10-21:
     /// the reading then fell under the characters instead of beside them) becomes the letter.
     static func normalized(_ zhuyin: String?) -> String? {
-        zhuyin.map { $0.replacingOccurrences(of: "一", with: "ㄧ") }
+        zhuyin.map { $0.replacingOccurrences(of: "一", with: "ㄧ") }  // l10n-ignore (target word)
     }
 
     static func pair(_ headword: String, _ zhuyin: String?) -> [ZhuyinUnit]? {
