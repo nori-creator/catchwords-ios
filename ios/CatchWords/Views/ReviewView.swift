@@ -404,26 +404,56 @@ struct MemoryBar: View {
 /// Simple wrapping row.
 struct FlowRow: Layout {
     var spacing: CGFloat = 14
+    /// The line the views of one row stand on (a chunk: the middle of its characters); nil = their tops.
+    var alignment: VerticalAlignment? = nil
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxW = proposal.width ?? .infinity
-        var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0
-        for v in subviews {
-            let s = v.sizeThatFits(.unspecified)
-            if x + s.width > maxW, x > 0 { x = 0; y += rowH + 8; rowH = 0 }
-            x += s.width + spacing
-            rowH = max(rowH, s.height)
-        }
-        return CGSize(width: maxW == .infinity ? x : maxW, height: y + rowH)
+        let lines = rows(subviews, maxW: maxW)
+        let heights = lines.map { metrics($0, subviews).height }
+        let widest = lines.map { line in
+            line.reduce(0) { w, i in w + subviews[i].sizeThatFits(.unspecified).width + spacing }
+        }.max() ?? 0
+        return CGSize(width: maxW == .infinity ? widest : maxW,
+                      height: heights.reduce(0, +) + 8 * CGFloat(max(0, lines.count - 1)))
     }
+
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, rowH: CGFloat = 0
-        for v in subviews {
-            let s = v.sizeThatFits(.unspecified)
-            if x + s.width > bounds.maxX, x > bounds.minX { x = bounds.minX; y += rowH + 8; rowH = 0 }
-            v.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
-            x += s.width + spacing
-            rowH = max(rowH, s.height)
+        var y = bounds.minY
+        for row in rows(subviews, maxW: bounds.width) {
+            let (height, line) = metrics(row, subviews)
+            var x = bounds.minX
+            for i in row {
+                let v = subviews[i]
+                let s = v.sizeThatFits(.unspecified)
+                let drop = alignment.map { line - v.dimensions(in: .unspecified)[$0] } ?? 0
+                v.place(at: CGPoint(x: x, y: y + drop), proposal: .unspecified)
+                x += s.width + spacing
+            }
+            y += height + 8
         }
+    }
+
+    /// The views of each row, in order: a view goes to the next row when it would pass the edge.
+    private nonisolated func rows(_ subviews: Subviews, maxW: CGFloat) -> [[Int]] {
+        var rows: [[Int]] = [[]]
+        var x: CGFloat = 0
+        for i in subviews.indices {
+            let w = subviews[i].sizeThatFits(.unspecified).width
+            if x + w > maxW, x > 0 { rows.append([]); x = 0 }
+            rows[rows.count - 1].append(i)
+            x += w + spacing
+        }
+        return rows
+    }
+
+    /// A row's height, and how far below its top the views' `alignment` line runs (0 without one).
+    private nonisolated func metrics(_ row: [Int], _ subviews: Subviews) -> (height: CGFloat, line: CGFloat) {
+        let dims = row.map { subviews[$0].dimensions(in: .unspecified) }
+        guard let alignment else { return (dims.map(\.height).max() ?? 0, 0) }
+        let above = dims.map { $0[alignment] }.max() ?? 0
+        let below = dims.map { $0.height - $0[alignment] }.max() ?? 0
+        return (above + below, above)
     }
 }
 

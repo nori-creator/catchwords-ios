@@ -483,6 +483,11 @@ struct AlbumHiddenTray: View {
                             VStack(spacing: 6) {
                                 AlbumPhoto(sticker: s, width: 84, height: 84)
                                 Text(s.word?.headword ?? "").scaledFont(size: 12, weight: .semibold).lineLimit(1)
+                                // The day it was caught (owner 2026-10-21: 「戻すところの単語のそれぞれに日にちを書いて」).
+                                Text(JPDate.monthDay(s.takenAt))
+                                    .scaledFont(size: 11, monospacedDigit: true)
+                                    .foregroundStyle(Color(hex: 0x33291F).opacity(0.6))
+                                    .lineLimit(1)
                                 Button(L("戻す")) {
                                     Haptics.selection()
                                     Task {
