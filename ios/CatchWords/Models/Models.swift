@@ -468,6 +468,8 @@ nonisolated struct CounterWord: Codable, Sendable, Hashable {
 nonisolated struct MeasureWord: Codable, Sendable, Hashable {
     var word: String
     var zhuyin: String?
+    /// Sent with the card (`yī kē`): shown when the learner reads pinyin (it was not read, so the zhuyin showed).
+    var pinyin: String?
     var note: String?
 }
 
