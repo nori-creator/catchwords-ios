@@ -8622,5 +8622,26 @@
   "es": "Se quitó del álbum",
   "ko": "앨범에서 뺐어요",
   "vi": "Đã gỡ khỏi album"
+ },
+ "外した写真 {1}": {
+  "en": "Removed photos {1}",
+  "zh-TW": "移除的照片 {1}",
+  "es": "Fotos quitadas {1}",
+  "ko": "뺀 사진 {1}",
+  "vi": "Ảnh đã gỡ {1}"
+ },
+ "ホームのアルバムに出す": {
+  "en": "Show on the Home album",
+  "zh-TW": "顯示在首頁相簿",
+  "es": "Mostrar en el álbum de Inicio",
+  "ko": "홈 앨범에 표시",
+  "vi": "Hiện trong album Trang chủ"
+ },
+ "単語の詳細とホームのアルバムで、この写真を使います。": {
+  "en": "This picture is used on the word's page and on the Home album.",
+  "zh-TW": "單字詳細頁和首頁相簿會使用這張照片。",
+  "es": "Esta imagen se usa en la página de la palabra y en el álbum de Inicio.",
+  "ko": "단어 상세와 홈 앨범에서 이 사진을 사용해요.",
+  "vi": "Ảnh này được dùng ở trang từ và trong album Trang chủ."
  }
 }
