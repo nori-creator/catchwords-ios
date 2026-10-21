@@ -80,7 +80,7 @@ struct ChunkLineView: View {
                     oneLine(scales, 2)
                     oneLine(scales, 3)
                     oneLine(scales, 4)
-                    FlowRow(spacing: 4) { parts(scale: scales.last ?? 1) }
+                    FlowRow(spacing: 4, alignment: .chunkText) { parts(scale: scales.last ?? 1) }
                 }
                 if !translation.isEmpty {
                     Text(translation)
@@ -123,14 +123,17 @@ struct ChunkLineView: View {
 
     /// The chunk on one line at the `k`-th size of `scales` (the smallest when there are fewer).
     private func oneLine(_ scales: [CGFloat], _ k: Int) -> some View {
-        HStack(spacing: 4) { parts(scale: scales[min(k, scales.count - 1)]) }
+        HStack(alignment: .chunkText, spacing: 4) { parts(scale: scales[min(k, scales.count - 1)]) }
             .fixedSize(horizontal: true, vertical: false)
     }
 
+    /// Each ＋ and every block stand on the middle of the characters (`.chunkText`), not on the middle of a block —
+    /// a reading over the text makes its block taller upwards, which pushed the ＋ above the characters (owner
+    /// 2026-10-21: 「チャンクのプラスは漢字の高さに合わせて」) and a block without one out of line with the rest.
     @ViewBuilder
     private func parts(scale: CGFloat) -> some View {
         ForEach(Array(shown.enumerated()), id: \.offset) { i, part in
-            HStack(spacing: 4) {
+            HStack(alignment: .chunkText, spacing: 6 * scale) {
                 if i > 0 {
                     Text("+")
                         .scaledFont(size: (size == .large ? 15 : 12) * scale, weight: .bold)
@@ -192,10 +195,13 @@ struct ChunkLineView: View {
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                     }
                 }
+                .alignmentGuide(.chunkText) { $0[VerticalAlignment.center] }
             }
             // Darker ink on the light page, lighter on the dark one (mixing with black vanished in dark mode).
             .foregroundStyle(ink)
-            .padding(.horizontal, (big ? 12 : 10) * scale)
+            // The word itself has no box, so no room inside one either: the ＋ beside it stands as far from its characters
+            // as from the next part's box (owner 2026-10-21: 「＋の位置が不自然。単語と単語の間にバランスよく」).
+            .padding(.horizontal, isHead ? 0 : (big ? 12 : 10) * scale)
             .padding(.vertical, reading == nil && side == nil ? 0 : 4)
             .frame(minHeight: big ? 48 : 34)
             // The word itself is its text and reading only, in its colour — no box (owner 2026-10-20: 「該当の単語は枠で
@@ -256,4 +262,12 @@ struct ChunkLineView: View {
         .padding(.horizontal, 6)
         .background(Theme.secondary.opacity(0.8), in: .rect(cornerRadius: 14, style: .continuous))
     }
+}
+
+private extension VerticalAlignment {
+    /// The middle of a chunk block's characters (below its reading, when one sits over them).
+    nonisolated enum ChunkText: AlignmentID {
+        static func defaultValue(in d: ViewDimensions) -> CGFloat { d[VerticalAlignment.center] }
+    }
+    nonisolated static let chunkText = VerticalAlignment(ChunkText.self)
 }
