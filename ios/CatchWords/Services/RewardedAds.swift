@@ -63,7 +63,7 @@ final class RewardedAds: NSObject {
                 }
                 if !self.started {
                     self.started = true
-                    MobileAds.shared.start()
+                    _ = await MobileAds.shared.start()
                 }
                 self.load()
             }
