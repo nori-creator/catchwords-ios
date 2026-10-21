@@ -129,17 +129,34 @@ struct ChunkLineView: View {
 
     @ViewBuilder
     private func parts(scale: CGFloat) -> some View {
+        let drop = plusDrop(scale: scale)
         ForEach(Array(shown.enumerated()), id: \.offset) { i, part in
             HStack(spacing: 6 * scale) {
                 if i > 0 {
                     Text("+")
                         .scaledFont(size: (size == .large ? 15 : 12) * scale, weight: .bold)
                         .foregroundStyle(Theme.muted.opacity(0.45))
+                        // At the characters' height, not the middle of reading + characters (owner 2026-10-21:
+                        // 「チャンクのプラスは漢字の高さに合わせて」).
+                        .offset(y: drop)
                         .accessibilityHidden(true)
                 }
                 block(i, part, scale: scale)
             }
         }
+    }
+
+    /// How far the ＋ moves down so it sits level with the characters: a block with its reading line over the text is
+    /// centred on reading + text, so the text's middle is half a reading line (and the 1 pt gap) below the block's.
+    /// Zhuyin beside the characters adds no line, so then nothing.
+    private func plusDrop(scale: CGFloat) -> CGFloat {
+        let overText = shown.contains {
+            Self.sideZhuyin(for: $0, target: target, pref: readingPref) == nil
+                && Self.reading(for: $0, target: target, pref: readingPref) != nil
+        }
+        guard overText else { return 0 }
+        let readingSize = AppTypeScale.scaled((size == .large ? 10.5 : 9) * scale, for: dynamicTypeSize)
+        return (UIFont.systemFont(ofSize: readingSize, weight: .medium).lineHeight + 1) / 2
     }
 
     private func block(_ i: Int, _ part: ChunkPart, scale: CGFloat) -> some View {
