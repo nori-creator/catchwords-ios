@@ -97,8 +97,8 @@ function readingsOf(char: string, simp: string): Syllable[] {
   return [...raw].map(one).filter((s): s is Syllable => s !== null);
 }
 
-/** 台湾の表で決まる位置（位置 → 読み）。語の表を先に、字の表で残りを埋める。 */
-function taiwanPositions(chars: readonly string[]): Map<number, Syllable> {
+/** 台湾の表で決まる位置（位置 → 読み）。語の表を先に、字の表で残りを埋める。例文の読み（`sentence-readings.server.ts`）でも使う。 */
+export function taiwanPositions(chars: readonly string[]): Map<number, Syllable> {
   const fixed = new Map<number, Syllable>();
   const text = chars.join("");
   for (const [word, reading] of Object.entries(TW_WORDS)) {

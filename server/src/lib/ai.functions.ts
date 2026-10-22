@@ -49,7 +49,7 @@ import {
 import { looksLikeTargetLanguage } from "./text-language";
 import { explanationKey } from "./word-explanation";
 import { mergeIntoReaderExplanation, readReaderExplanation } from "./word-explanation.functions";
-import { mayWriteSharedReaderText } from "./shared-word-guard";
+import { claimSharedRowLanguage, mayWriteSharedReaderText } from "./shared-word-guard";
 import { fitSuggestionsToReader, fitsReaderMeaning, fitsReaderNote } from "./first-catch-meaning";
 import { worldExampleRule, sharedExampleSourceRule } from "./example-sources";
 import {
@@ -1414,8 +1414,8 @@ ${examplesRule}
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
 
-チャンク分解の共通ルール: parts/chunks は {text: ${cardProfile.promptName}のパーツ, pos: 役割} の配列。
-pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
+チャンク分解の共通ルール: parts/chunks は {text: ${cardProfile.promptName}のパーツ, pos: 品詞} の配列。
+${cardProfile.chunkPrompt.posRule}
 「${data.headword}」自体は必ずどれかのパーツとして含める。${NO_PLUS_PART_RULE}
 
 ${
@@ -2493,6 +2493,8 @@ type SectionProposal = {
    * その人の言語の解説の行（`readerKey`）に書く（`readerPatch`）。
    */
   sharedWritable: boolean;
+  /** 作り直す前の共有の行（目印を付けるかを決める — `claimSharedRowLanguage`）。 */
+  sharedRow: Parameters<typeof claimSharedRowLanguage>[1];
   readerKey: { explainLang: string; l1: string };
   readerPatch: Parameters<typeof mergeIntoReaderExplanation>[3];
 };
@@ -3129,6 +3131,7 @@ async function runSectionRegen(
         headword: word.headword as string,
         language: (word.language as string | null) ?? null,
         sharedWritable,
+        sharedRow: word as SectionProposal["sharedRow"],
         readerKey,
         readerPatch: readerPatch(),
       },
@@ -3168,9 +3171,16 @@ async function runSectionRegen(
         ),
       )
     : merged;
+  // まだ読む人の言語の文が無い行に書く時は、目印もその人の言語にする（目印の無い行は日本語の行と読まれる）。
   const { error: upErr } = await supabaseAdmin
     .from("words")
-    .update({ ...baseUpdate, extras: latest as never } as never)
+    .update(
+      claimSharedRowLanguage(
+        { ...baseUpdate, extras: latest },
+        word as Parameters<typeof claimSharedRowLanguage>[1],
+        readerKey.explainLang,
+      ) as never,
+    )
     .eq("id", data.word_id);
   if (upErr) throw new Error(upErr.message);
   await persistLabel();
@@ -3404,7 +3414,13 @@ async function fixReportedWordItemImpl(
   }
   const { error: upErr } = await supabaseAdmin
     .from("words")
-    .update({ ...proposal.baseUpdate, extras: proposal.merged as never } as never)
+    .update(
+      claimSharedRowLanguage(
+        { ...proposal.baseUpdate, extras: proposal.merged },
+        proposal.sharedRow,
+        proposal.readerKey.explainLang,
+      ) as never,
+    )
     .eq("id", p.wordId);
   if (upErr) throw new Error(upErr.message);
   return { fixed: true, by: verdict.by, item };

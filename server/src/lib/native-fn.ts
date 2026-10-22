@@ -48,6 +48,7 @@ const adminUsers = () => import("./admin-users.functions");
 const metrics = () => import("./metrics.functions");
 const betaMetrics = () => import("./beta-metrics.functions");
 const reports = () => import("./reports.functions");
+const sentenceReadings = () => import("./sentence-readings.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -63,6 +64,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   logCandidatePick: from(candidatePick, "logCandidatePick"),
   generateCard: from(ai, "generateCard"),
   generatePhraseCard: from(ai, "generatePhraseCard"),
+  // 例文の字ごとの読み（AI は呼ばない。`sentence-readings.functions.ts`）
+  readSentences: from(sentenceReadings, "readSentences"),
   regenerateCardSection: from(ai, "regenerateCardSection"),
   reportAndFixSection: from(ai, "reportAndFixSection"),
   // スキャン
