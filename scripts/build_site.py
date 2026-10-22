@@ -141,6 +141,9 @@ def build() -> None:
     shutil.copy(SRC / "lang.js", OUT / "assets" / "lang.js")
     (OUT / "CNAME").write_text(DOMAIN + "\n")
     (OUT / ".nojekyll").write_text("")
+    # AdMob checks app-ads.txt at the root of the developer website listed in App Store Connect
+    # (pub- is the AdMob publisher ID, the same as monetization.adsensePublisherId; f08c47fec0942fa0 is Google's).
+    (OUT / "app-ads.txt").write_text("google.com, pub-5322226492885516, DIRECT, f08c47fec0942fa0\n")
     # The labelled photos the admin AI test fetches (AdminAIStats.swift: webBaseURL + /ai-test/photos/…).
     shutil.copytree(ROOT / "server" / "public" / "ai-test", OUT / "ai-test")
 
