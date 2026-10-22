@@ -47,7 +47,7 @@ enum AppConfig {
     /// Google sign-in straight with Google (`GoogleSignIn.swift`): the iOS OAuth client of the Google Cloud
     /// project (a public ID, not a secret). Google's sheet then names the app instead of the Supabase address,
     /// and the ID token goes to Supabase like Apple's. Empty: Google goes through Supabase's page as before.
-    nonisolated static let googleIOSClientID = ""
+    nonisolated static let googleIOSClientID = "706889927548-a370c7kkfm8u9ggqlht30mg35lj7t0n3.apps.googleusercontent.com"
     /// Apple sign-in straight from the device (Supabase `grant_type=id_token`): the system sheet, no web page.
     /// The project's Apple provider lists this app's bundle id. (Off while the app ran on Lovable Cloud, which
     /// did not let the bundle id be registered.)
