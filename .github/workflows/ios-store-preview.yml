@@ -5,7 +5,7 @@
 #   2. 時計などの表示を 9:41・電池満タンにそろえる。
 #   3. 案 A（docs/app-store/preview/README.md）の場面を、日本語と英語の表示で 1 本ずつ画面録画する。
 #      撮影〜タグは名前が 6.0 秒後に届く回（scanslow。オーナー 2026-10-22「名前の遅い回の録画を使って」）。
-#      アプリは見本のモード（-uiDemo）の時だけ、鳴らした音と時刻を trace に書く（SoundService.trace）。録画には音が
+#      アプリは見本のモード（-uiDemo）で -traceSounds YES を渡した時だけ、鳴らした音と時刻を trace に書く（SoundService.trace）。録画には音が
 #      入らないので、その時刻にアプリと同じ音のファイルを重ねる（v6・v10 の効果音。オーナー 2026-10-22）。
 #   4. 録画を ci-previews ブランチの runs/store-preview/ に置く（Claude が字幕と音を重ねて書き出す）。
 #
@@ -13,12 +13,10 @@
 #       GPU を使わないので、実機よりコマ落ちが多い。審査に出す本番の動画は、実機の画面収録で作る。
 name: iOS store preview（App Store の動画の素材）
 
+# 手で動かす時だけ（Actions → iOS store preview → Run workflow）。録り直すと音と絵のずれが変わるので、
+# docs/app-store/preview/edl-*.json の sound_offset を合わせ直す。
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/ios-store-preview.yml
-      - ios/CatchWords/Services/SoundService.swift
 
 concurrency:
   group: ios-store-preview
@@ -96,7 +94,7 @@ jobs:
               REC=$!
               sleep 1
               python3 -c 'import time; print("%.3f" % time.time())' > "$OUT/${name}-${lang}.launch"
-              xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "${name}${sfx}" -uiDemo zh-TW >/dev/null || echo "::warning::${name}${sfx} を開けませんでした"
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "${name}${sfx}" -uiDemo zh-TW -traceSounds YES >/dev/null || echo "::warning::${name}${sfx} を開けませんでした"
               sleep "$secs"
               kill -INT $REC; wait $REC
               cp "$TRACE" "$OUT/${name}-${lang}.trace.txt" 2>/dev/null || echo "::warning::${name}-${lang} の trace がありません"

@@ -34,8 +34,10 @@ App Store の「App プレビュー」（ストアの画面で流れる 15〜30 
 
 - **下書き**: GitHub の `iOS store preview` ワークフロー（`.github/workflows/ios-store-preview.yml`）が、
   シミュレーターでアプリの見本画面を日本語と英語で録画して、ci-previews の `runs/store-preview/` に置く。
-  アプリは見本のモードの時だけ、鳴らした音と時刻を trace に書く（`SoundService.trace`）。録画には音が入らないので、
+  アプリは見本のモードで `-traceSounds YES` を渡した時だけ、鳴らした音と時刻を trace に書く（`SoundService.trace`）。録画には音が入らないので、
   その時刻に同じ音のファイルを重ねる。シミュレーターは GPU を使わないので、コマ落ちが多い。
+- 録画は手で動かした時だけ撮る（GitHub の Actions →「iOS store preview」→「Run workflow」）。いまの `edl-*.json` は
+  ci-previews の `runs/store-preview/`（COMMIT 219709577）の録画に合わせてある。録り直したら、切る位置と `sound_offset` を合わせ直す。
 - **本番**: 実機の画面収録（審査に出すビルド）。シミュレーターの録画は、審査には出さない。
 
 ### 2. 切り方と字幕を決める

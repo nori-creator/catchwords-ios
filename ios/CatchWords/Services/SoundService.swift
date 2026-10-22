@@ -262,12 +262,20 @@ final class SoundService {
 
     /// A page opening (dex, word detail, tab) or going back: the bubble pon plus its matching tap.
     /// The sound follows the sound level ("off" is silent); the tap follows the vibration switch.
-    /// The UI tests' trace (`-uiDemo` only, a no-op elsewhere): each sound with the wall-clock time it is asked for, so
-    /// CI's screen recordings (which carry no sound) can be given the app's own sounds at the same moments — the App
-    /// Store preview's footage (`.github/workflows/ios-store-preview.yml`).
+    /// The UI tests' trace (DEBUG with `-uiDemo` and `-traceSounds YES` only, a no-op elsewhere): each sound with the
+    /// wall-clock time it is asked for, so CI's screen recordings (which carry no sound) can be given the app's own
+    /// sounds at the same moments — the App Store preview's footage (`.github/workflows/ios-store-preview.yml`). Off
+    /// unless asked, so every other run plays its sounds exactly as before.
     nonisolated static func trace(_ name: String, _ volume: Float, _ text: String = "") {
+        #if DEBUG
+        guard traceSounds else { return }
         UITestTrace.log(String(format: "sfx %.3f %@ %.3f", Date().timeIntervalSince1970, name, volume) + (text.isEmpty ? "" : " " + text))
+        #endif
     }
+
+    #if DEBUG
+    nonisolated private static let traceSounds = UserDefaults.standard.bool(forKey: "traceSounds")
+    #endif
 
     func pon(open: Bool) {
         play(open ? .ponOpen : .ponBack)
