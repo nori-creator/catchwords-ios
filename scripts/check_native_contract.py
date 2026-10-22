@@ -41,6 +41,9 @@ PENDING_WEB_DEPLOY = {
     # published they answer 404: the settings screen keeps the per-feature list and the cost card says so.
     # recordAiConsent / getAiConsent (AI consent, docs/web-changes/ 0003) are on the web now.
     # Add an entry here as "name": "where the web patch is" when iOS calls a function ahead of its deploy.
+    # The readings of every character of the example sentences (Views/WordExampleCards.swift, Services/SentenceReadings.swift):
+    # until the web has it, the sentences are shown without readings as before.
+    "readSentences": "nori-creator/Lovable-catch-words-app (branch claude/ios-catchwords-bugs-nsaei3)",
     # storeAppleAuthCode (Sign in with Apple revocation, audit R7-03) is on the web's main now.
     # The developer "AI settings" (admin*, docs/admin-ai-api.md) are on the web's main now (PR #168).
     # Speed and accuracy by model, the fixed-photo test and the candidate rank log are on the web's main now

@@ -123,7 +123,10 @@ struct AnswerPanel: View {
                     if !example.isEmpty {
                         WordExampleCard(sentence: example, translation: word?.exampleTranslation,
                                         scene: ReaderLanguage.shown(word?.extras?.shownExampleScene(for: example), source: example),
-                                        headword: headword)
+                                        headword: headword,
+                                        known: SentenceReadings.known(headword: headword, pinyin: word?.pinyin,
+                                                                      chunks: word?.extras?.usageChunks ?? []),
+                                        language: learningLang)
                     }
                 }
                 .padding(.vertical, 2)

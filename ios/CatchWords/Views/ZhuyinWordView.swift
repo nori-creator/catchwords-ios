@@ -255,20 +255,99 @@ struct ZhuyinWordView: View {
     }
 
     private func column(_ u: ZhuyinUnit, size: CGFloat) -> some View {
-        let s = reading(size * 0.3, floor: 7)
-        return HStack(alignment: .bottom, spacing: 0) {
+        ZhuyinColumn(unit: u, size: reading(size * 0.3, floor: 7), color: readingColor)
+    }
+}
+
+/// One character's zhuyin, stacked to the right of it: its symbols top to bottom, the tone mark beside the last, the
+/// neutral tone's dot on top (`size`: the symbols' size, 0.3 of the character's).
+struct ZhuyinColumn: View {
+    let unit: ZhuyinUnit
+    let size: CGFloat
+    var color: Color = Theme.muted
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 0) {
             VStack(spacing: 0) {
-                if u.neutral {
-                    Text("˙").font(.system(size: s)).frame(height: s * 1.02)
+                if unit.neutral {
+                    Text("˙").font(.system(size: size)).frame(height: size * 1.02)
                 }
-                ForEach(Array(u.body.enumerated()), id: \.offset) { _, sym in
-                    Text(sym).font(.system(size: s)).frame(height: s * 1.02)
+                ForEach(Array(unit.body.enumerated()), id: \.offset) { _, sym in
+                    Text(sym).font(.system(size: size)).frame(height: size * 1.02)
                 }
             }
-            Text(u.tone.isEmpty ? " " : u.tone)
-                .font(.system(size: s))
-                .frame(width: s * 0.55, height: s * 1.02)
+            Text(unit.tone.isEmpty ? " " : unit.tone)
+                .font(.system(size: size))
+                .frame(width: size * 0.55, height: size * 1.02)
         }
-        .foregroundStyle(readingColor)
+        .foregroundStyle(color)
+    }
+}
+
+/// An example sentence with the reading of every character (owner 2026-10-22: 「例文の漢字にピンインまたは注音をすべて
+/// 書いて、書き方、大きさはアプリ内の書き方に統一して」), drawn as the headword is (`ZhuyinWordView`): zhuyin stacked
+/// to the right of each character, or pinyin centred over it (設定 › 発音表記), in the same proportions to the character
+/// (0.3 and 0.36, with the word page's smallest sizes). The sentence wraps between characters like a paragraph; the
+/// learned word keeps its blue (`WordHighlight`).
+struct SentenceRuby: View {
+    let units: [SentenceUnit]
+    let headword: String
+    /// The characters' size.
+    let size: CGFloat
+    @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
+
+    var body: some View {
+        let marked = Self.marked(units.map(\.char), headword: headword)
+        let pinyin = readingPref == "pinyin"
+        FlowRow(spacing: size * (pinyin ? 0.05 : 0.06), alignment: .center) {
+            ForEach(Array(units.enumerated()), id: \.offset) { i, u in
+                unit(u, marked: marked.contains(i), pinyin: pinyin)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(units.map(\.char).joined())
+    }
+
+    @ViewBuilder
+    private func unit(_ u: SentenceUnit, marked: Bool, pinyin: Bool) -> some View {
+        let char = Text(u.char)
+            .font(.system(size: size, weight: marked ? .semibold : .regular))
+            .foregroundStyle(marked ? Theme.primaryInk : Theme.foreground)
+        if pinyin {
+            VStack(spacing: 0) {
+                // The reading line keeps its height over punctuation, so every character stands on one baseline.
+                Text(u.pinyin ?? " ")
+                    .font(.system(size: max(9, size * 0.36), weight: .medium))
+                    .foregroundStyle(marked ? Theme.primaryInk.opacity(0.8) : Theme.muted)
+                    .lineLimit(1)
+                    .fixedSize()
+                char
+            }
+        } else if let z = u.zhuyin, let column = ZhuyinLayout.pair(u.char, z)?.first, column.hasReading {
+            HStack(alignment: .center, spacing: size * 0.03) {
+                char
+                ZhuyinColumn(unit: column, size: max(7, size * 0.3),
+                             color: marked ? Theme.primaryInk.opacity(0.8) : Theme.muted)
+            }
+        } else {
+            char
+        }
+    }
+
+    /// The places of the learned word's characters in the sentence.
+    nonisolated static func marked(_ chars: [String], headword: String) -> Set<Int> {
+        let word = headword.map(String.init)
+        guard !word.isEmpty, word.count <= chars.count else { return [] }
+        var out = Set<Int>()
+        var i = 0
+        while i + word.count <= chars.count {
+            if Array(chars[i..<(i + word.count)]) == word {
+                out.formUnion(i..<(i + word.count))
+                i += word.count
+            } else {
+                i += 1
+            }
+        }
+        return out
     }
 }
