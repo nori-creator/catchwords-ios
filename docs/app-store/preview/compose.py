@@ -55,7 +55,8 @@ def trace_events(base):
 def main(edl_file, footage, out):
     edl = json.load(open(edl_file))
     lang, segs = edl['lang'], edl['segments']
-    duration = sum(s['out'] - s['in'] for s in segs)
+    seglen = lambda s: s['out'] - s['in'] + s.get('hold', 0)
+    duration = sum(seglen(s) for s in segs)
     assert 15 <= duration <= 30, f'{duration:.2f} s: App previews are 15–30 s'
     work = tempfile.mkdtemp(prefix='preview-')
     try:
@@ -88,7 +89,8 @@ def main(edl_file, footage, out):
         for i, s in enumerate(segs):
             p = os.path.join(work, f'cut{i}.mp4')
             run('ffmpeg', '-v', 'error', '-y', '-ss', str(s['in']), '-to', str(s['out']), '-i', os.path.join(footage, s['src'] + '.mp4'),
-                '-vf', f"fps={FPS},scale={FRAME['w']}:{FRAME['h']}:flags=lanczos,setsar=1", '-an', '-c:v', 'libx264', '-crf', '12', '-preset', 'fast', p)
+                '-vf', f"fps={FPS},scale={FRAME['w']}:{FRAME['h']}:flags=lanczos,setsar=1"
+                       + (f",tpad=stop_mode=clone:stop_duration={s['hold']}" if s.get('hold') else ''), '-an', '-c:v', 'libx264', '-crf', '12', '-preset', 'fast', p)
             parts.append(p)
         open(os.path.join(work, 'cuts.txt'), 'w').write(''.join(f"file '{p}'\n" for p in parts))
         footage_mp4 = os.path.join(work, 'footage.mp4')
@@ -103,10 +105,13 @@ def main(edl_file, footage, out):
         # 3. The sound: the app's files at the traced moments, mapped through the cuts.
         mix = np.zeros((int(duration * SR) + SR, 2), dtype=np.float32)
         cache, t_out, loops = {}, 0.0, []
-        calib = edl.get('sound_offset', 0.0)   # recording start → its first frame (seconds), checked on a known frame
         for s in segs:
-            for (t, name, vol) in trace_events(os.path.join(footage, s['src'])):
-                t -= calib
+            # Recording start → its first frame (seconds): differs per recording, set by matching a sound to its frame.
+            calib = s.get('sound_offset', edl.get('sound_offset', 0.0))
+            events = [(t - calib, n, v) for (t, n, v) in trace_events(os.path.join(footage, s['src']))]
+            # Sounds the trace missed (the first scan's scan-start comes before the sound engine is up), in video time.
+            events += [(e['t'], e['name'], e.get('volume', 0.405)) for e in s.get('extra_sounds', [])]
+            for (t, name, vol) in events:
                 if not (s['in'] <= t < s['out']):
                     continue
                 at = t_out + (t - s['in'])
@@ -124,7 +129,7 @@ def main(edl_file, footage, out):
                 a = int(at * SR); n = min(len(x), len(mix) - a)
                 if n > 0:
                     mix[a:a + n] += x[:n] * vol
-            t_out += s['out'] - s['in']
+            t_out += seglen(s)
         loop = sound_file('el-analyze-loop')
         if loop:
             x = decode(loop)
@@ -141,7 +146,7 @@ def main(edl_file, footage, out):
                 mix[i0:i1] += tiled * env[:, None] * .5
         mix = mix[:int(duration * SR)]
         peak = float(np.abs(mix).max() or 1)
-        mix *= min(1.0, 0.89 / peak)        # about -1 dBFS at most; never louder than the app plays them
+        mix *= 0.71 / peak                  # the whole mix to a -3 dBFS peak: the sounds keep the app's balance
         wav = os.path.join(work, 'mix.wav')
         import wave
         with wave.open(wav, 'wb') as w:
