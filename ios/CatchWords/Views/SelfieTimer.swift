@@ -50,6 +50,8 @@ final class SelfieCountdown {
 /// The timer button beside the selfie shutter: a menu of off / 3 / 5 / 10 seconds. Lit gold while a timer is set.
 struct SelfieTimerMenu: View {
     @Binding var seconds: Int
+    /// The menu was tapped open (the catch's selfie clears its words then).
+    var onOpen: () -> Void = {}
 
     var body: some View {
         Menu {
@@ -73,6 +75,7 @@ struct SelfieTimerMenu: View {
             .foregroundStyle(seconds == 0 ? .white : Theme.gold)
             .frame(minWidth: 56)
         }
+        .simultaneousGesture(TapGesture().onEnded { onOpen() })
         .onChange(of: seconds) { _, _ in Haptics.selection() }
         .accessibilityLabel(L("タイマー"))
         .accessibilityValue(SelfieTimer.label(seconds))

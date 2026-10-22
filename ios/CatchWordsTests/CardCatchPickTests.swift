@@ -277,6 +277,29 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(plans[0].anchor.y, things[0].point.y, accuracy: 1e-9)
     }
 
+    /// Owner 2026-10-22: an oven behind a sauce bottle got its tag on the bottle (the middle of the AI's box round the
+    /// oven lay on the bottle, and Vision's mask has no piece for the oven behind it).
+    func testAThingBehindAnotherGetsItsTagOnItsOwnVisiblePart() {
+        // 100 × 133 (portrait): the bottle in the middle (x 30–69, y 10–124); the oven is not in the mask.
+        let m = mask(100, 133) { x, y in (30..<70).contains(x) && (10..<125).contains(y) ? 1 : 0 }
+        let bottleBox = CGRect(x: 0.28, y: 0.06, width: 0.44, height: 0.9)
+        let ovenBox = CGRect(x: 0, y: 0.03, width: 1, height: 0.5)
+        let things = [
+            CatchPlan.Thing(point: CGPoint(x: bottleBox.midX, y: bottleBox.midY), box: bottleBox, own: true),
+            CatchPlan.Thing(point: CGPoint(x: ovenBox.midX, y: ovenBox.midY), box: ovenBox, own: true),
+        ]
+        XCTAssertEqual(m[Int(ovenBox.midY * 133) * 100 + Int(ovenBox.midX * 100)], 1, "the oven's box middle is on the bottle")
+        let plans = CatchPlan.plan(things: things, mask: m, width: 100, height: 133)
+        XCTAssertEqual(plans[1].cut, .noMask)
+        let oven = plans[1].anchor, bottle = plans[0].anchor
+        XCTAssertTrue(ovenBox.contains(oven), "oven tag \(oven) outside its box")
+        let gx = min(99, Int(oven.x * 100)), gy = min(132, Int(oven.y * 133))
+        XCTAssertEqual(m[gy * 100 + gx], 0, "oven tag \(oven) is on the bottle")
+        XCTAssertTrue(oven.x < 0.25 || oven.x > 0.75, "oven tag \(oven) too close to the bottle")
+        XCTAssertTrue(CGRect(x: 0.3, y: 10.0 / 133, width: 0.4, height: 115.0 / 133).contains(bottle), "bottle tag \(bottle) off the bottle")
+        XCTAssertNotNil(plans[1].note)
+    }
+
     func testAPortraitCameraPhotoIsReadUpright() {
         // The iPad's photo lies in the file on its side (4032 × 3024, EXIF `.right`); the app draws it upright before
         // Vision and the upload, so the server's [x, y] and the masks are both of the 3024 × 4032 portrait picture.

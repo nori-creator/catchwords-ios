@@ -205,6 +205,28 @@ nonisolated enum CatchPlan {
                              sharedWith: rivals)
         }
 
+        // A thing with no mask of its own whose tag would sit on another thing: the tag goes on the part of its own box
+        // that no other thing covers (owner 2026-10-22: 「オーブンの単語のタグの配置が間違ってる…何回もこのタグの配置の
+        // エラー発生してる」 — the oven stood behind a sauce bottle; the middle of the AI's box round the oven lay on the
+        // bottle, and Vision's mask has no piece for what stands behind, so the oven's tag sat on the bottle. The same
+        // with a table under a tissue box).
+        let kept: [Keep] = hasMask ? out.map { pixels(of: $0.cut, mask: mask, width: w, height: h) } : []
+        func others(than i: Int) -> Keep {
+            var bits = [UInt8](repeating: 0, count: w * h)
+            for j in kept.indices where j != i {
+                for k in 0..<(w * h) where kept[j].bits[k] != 0 { bits[k] = 1 }
+            }
+            return Keep(width: w, height: h, bits: bits)
+        }
+        if hasMask {
+            for i in out.indices where out[i].cut == .noMask {
+                guard let box = boxes[i],
+                      let spot = clearAnchor(out[i].anchor, box: box, others: others(than: i), width: w, height: h)
+                else { continue }
+                out[i].anchor = spot
+                out[i].note = (out[i].note.map { $0 + "; " } ?? "") + "tag moved off the thing in front of it"
+            }
+        }
         // Things still without a place of their own: a spot of their own, clear of the placed ones.
         let spare = things.indices.filter { !things[$0].own && out[$0].label == nil }
         let placed = things.indices.filter { !spare.contains($0) }.map { out[$0].anchor }
@@ -215,7 +237,11 @@ nonisolated enum CatchPlan {
         for j in out.indices {
             for i in 0..<j where hypot(out[i].anchor.x - out[j].anchor.x, out[i].anchor.y - out[j].anchor.y) < 0.05 {
                 guard let b = boxes[j] else { continue }
-                let centre = CGPoint(x: b.midX, y: b.midY)
+                var centre = CGPoint(x: b.midX, y: b.midY)
+                // Not onto another thing either (the middle of a box round a thing behind another).
+                if hasMask, let clear = clearAnchor(centre, box: b, others: others(than: j), width: w, height: h) {
+                    centre = clear
+                }
                 if hypot(centre.x - out[i].anchor.x, centre.y - out[i].anchor.y) >= 0.05 {
                     out[j].anchor = centre
                     out[j].note = (out[j].note.map { $0 + "; " } ?? "") + "tag moved off thing \(i + 1)'s tag"
@@ -482,6 +508,60 @@ nonisolated enum CatchPlan {
             }
         }
         return any ? CatchAnchor.anchors(mask: part, width: w, height: h)[1] : nil
+    }
+
+    // MARK: A tag clear of the other things
+
+    /// The mask pixels a placement's cut keeps, on the plan's grid (none for `.noMask`).
+    static func pixels(of cut: Cut, mask: [UInt8], width w: Int, height h: Int) -> Keep {
+        var bits = [UInt8](repeating: 0, count: w * h)
+        switch cut {
+        case .instance(let l):
+            for i in 0..<(w * h) where Int(mask[i]) == l { bits[i] = 1 }
+        case .union(let ls):
+            let on = Set(ls)
+            for i in 0..<(w * h) where on.contains(Int(mask[i])) { bits[i] = 1 }
+        case .part(_, let keep):
+            if keep.bits.count == bits.count { bits = keep.bits }
+        case .noMask:
+            break
+        }
+        return Keep(width: w, height: h, bits: bits)
+    }
+
+    /// Nothing of another thing this close to a tag's place (a share of the mask's longer side): the place is clear.
+    static let clearance = 0.03
+    /// The free part of the box must be at least this share of the box to take the tag.
+    static let freeShare = 0.04
+
+    /// Where the tag of a thing goes when `point` lies on (or within `clearance` of) another thing's pixels (`others`):
+    /// the deepest point of the part of `box` that no other thing covers (`CatchAnchor` on that part — the visible part
+    /// of a thing behind another). nil = the point is clear already, or the box has too little free part.
+    static func clearAnchor(_ point: CGPoint, box: CGRect, others: Keep, width w: Int, height h: Int) -> CGPoint? {
+        guard w > 0, h > 0, others.bits.count >= w * h else { return nil }
+        let px = min(w - 1, max(0, Int(point.x * CGFloat(w))))
+        let py = min(h - 1, max(0, Int(point.y * CGFloat(h))))
+        let r = max(1, Int((Double(max(w, h)) * clearance).rounded()))
+        var near = false
+        for y in max(0, py - r)...min(h - 1, py + r) where !near {
+            for x in max(0, px - r)...min(w - 1, px + r) where others.bits[y * w + x] != 0 {
+                near = true
+                break
+            }
+        }
+        guard near else { return nil }
+        let g = grid(box, width: w, height: h)
+        guard g.x1 > g.x0, g.y1 > g.y0 else { return nil }
+        var free = [UInt8](repeating: 0, count: w * h)
+        var count = 0
+        for y in g.y0..<g.y1 {
+            for x in g.x0..<g.x1 where others.bits[y * w + x] == 0 {
+                free[y * w + x] = 1
+                count += 1
+            }
+        }
+        guard Double(count) >= freeShare * Double((g.x1 - g.x0) * (g.y1 - g.y0)) else { return nil }
+        return CatchAnchor.anchors(mask: free, width: w, height: h)[1]
     }
 
     // MARK: Pieces that reach the box
