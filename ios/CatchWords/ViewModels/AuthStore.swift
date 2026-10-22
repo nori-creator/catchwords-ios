@@ -94,15 +94,38 @@ final class AuthStore {
         awaitingConfirmation = false
         defer { isBusy = false }
         do {
-            let url = try await web.signIn(provider: provider, codeChallenge: PKCE.challenge(for: verifier))
-            switch AuthCallback.parse(url) {
-            case .code(let code):
-                try await client.exchangeOAuthCode(code, verifier: verifier)
-            case .error(let detail):
-                DevLog.shared.add("auth", "\(provider): \(detail)")
-                throw WebAuthSession.Failure.failed
-            case nil:
-                throw APIError.message(L("ログインの応答が正しくありません。もう一度お試しください。"))
+            let googleID = AppConfig.googleIOSClientID
+            if provider == "google", !googleID.isEmpty {
+                // Straight with Google (`GoogleSignIn`): Google's sheet names the app, not the Supabase address.
+                let nonce = GoogleSignIn.makeNonce()
+                guard let authorize = GoogleSignIn.authorizeURL(
+                    clientID: googleID, codeChallenge: PKCE.challenge(for: verifier),
+                    hashedNonce: GoogleSignIn.sha256Hex(nonce)
+                ), let scheme = GoogleSignIn.redirectScheme(clientID: googleID) else { throw WebAuthSession.Failure.failed }
+                let url = try await web.open(authorize, callbackScheme: scheme)
+                switch GoogleSignIn.parse(url, clientID: googleID) {
+                case .code(let code):
+                    let tokens = try await GoogleSignIn.exchange(code: code, verifier: verifier, clientID: googleID)
+                    try await client.signInWithIdToken(
+                        provider: "google", idToken: tokens.idToken, nonce: nonce, accessToken: tokens.accessToken
+                    )
+                case .error(let detail):
+                    DevLog.shared.add("auth", "google: \(detail)")
+                    throw WebAuthSession.Failure.failed
+                case nil:
+                    throw APIError.message(L("ログインの応答が正しくありません。もう一度お試しください。"))
+                }
+            } else {
+                let url = try await web.signIn(provider: provider, codeChallenge: PKCE.challenge(for: verifier))
+                switch AuthCallback.parse(url) {
+                case .code(let code):
+                    try await client.exchangeOAuthCode(code, verifier: verifier)
+                case .error(let detail):
+                    DevLog.shared.add("auth", "\(provider): \(detail)")
+                    throw WebAuthSession.Failure.failed
+                case nil:
+                    throw APIError.message(L("ログインの応答が正しくありません。もう一度お試しください。"))
+                }
             }
             isGuest = false
             phase = .signedIn
@@ -111,6 +134,10 @@ final class AuthStore {
             // closed the sheet
         } catch WebAuthSession.Failure.failed {
             errorMessage = provider == "apple" ? L("Appleでのログインに失敗しました。") : L("Googleでのログインに失敗しました。")
+            Haptics.warning()
+        } catch let refused as GoogleSignIn.TokenError {
+            DevLog.shared.add("auth", "google token: \(refused.detail)")
+            errorMessage = L("Googleでのログインに失敗しました。")
             Haptics.warning()
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? L("エラーが発生しました。")

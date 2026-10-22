@@ -106,10 +106,16 @@ final class SupabaseClient {
     }
 
     func signInWithApple(idToken: String, nonce: String) async throws {
-        let json = try await authRequest(
-            path: "token?grant_type=id_token",
-            body: ["provider": "apple", "id_token": idToken, "nonce": nonce]
-        )
+        try await signInWithIdToken(provider: "apple", idToken: idToken, nonce: nonce)
+    }
+
+    /// Signs in with an OpenID Connect ID token from Apple or Google (`grant_type=id_token`). The token's
+    /// audience must be one of the provider's client IDs in the project's Auth settings; `nonce` is the raw
+    /// nonce whose SHA-256 went to the provider.
+    func signInWithIdToken(provider: String, idToken: String, nonce: String, accessToken: String? = nil) async throws {
+        var body = ["provider": provider, "id_token": idToken, "nonce": nonce]
+        if let accessToken { body["access_token"] = accessToken }
+        let json = try await authRequest(path: "token?grant_type=id_token", body: body)
         try storeSession(json)
     }
 

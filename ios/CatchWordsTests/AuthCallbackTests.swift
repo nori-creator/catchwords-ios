@@ -46,6 +46,52 @@ final class AuthCallbackTests: XCTestCase {
         XCTAssertNil(AuthCallback.parse(URL(string: "catchwords://auth-callback")!))
     }
 
+    // Google straight with Google (`GoogleSignIn`, 2026-10-22).
+    private let googleID = "123-abc.apps.googleusercontent.com"
+
+    func testGoogleSendsTheIOSClientBackToItsReversedID() {
+        XCTAssertEqual(GoogleSignIn.redirectScheme(clientID: googleID), "com.googleusercontent.apps.123-abc")
+        XCTAssertEqual(GoogleSignIn.redirectURI(clientID: googleID), "com.googleusercontent.apps.123-abc:/oauth2redirect")
+        XCTAssertNil(GoogleSignIn.redirectScheme(clientID: "not-a-client-id"))
+        XCTAssertNil(GoogleSignIn.redirectScheme(clientID: ".apps.googleusercontent.com"))
+    }
+
+    func testTheGoogleSignInURL() throws {
+        let url = try XCTUnwrap(GoogleSignIn.authorizeURL(clientID: googleID, codeChallenge: "abc", hashedNonce: "n1"))
+        XCTAssertEqual(url.host(), "accounts.google.com")
+        let items = Dictionary(uniqueKeysWithValues: (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? [])
+            .map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(items["client_id"], googleID)
+        XCTAssertEqual(items["redirect_uri"], "com.googleusercontent.apps.123-abc:/oauth2redirect")
+        XCTAssertEqual(items["response_type"], "code")
+        XCTAssertEqual(items["scope"], "openid email profile")
+        XCTAssertEqual(items["code_challenge"], "abc")
+        XCTAssertEqual(items["code_challenge_method"], "S256")
+        XCTAssertEqual(items["nonce"], "n1")
+    }
+
+    func testWhatGoogleHandsBack() {
+        XCTAssertEqual(GoogleSignIn.parse(URL(string: "com.googleusercontent.apps.123-abc:/oauth2redirect?code=4/xy&scope=email")!,
+                                          clientID: googleID), .code("4/xy"))
+        XCTAssertEqual(GoogleSignIn.parse(URL(string: "com.googleusercontent.apps.123-abc:/oauth2redirect?error=access_denied")!,
+                                          clientID: googleID), .error("access_denied"))
+        XCTAssertNil(GoogleSignIn.parse(URL(string: "catchwords://auth-callback?code=xyz")!, clientID: googleID))
+    }
+
+    func testTheGoogleTokenFormKeepsPlusSigns() throws {
+        let body = try XCTUnwrap(GoogleSignIn.tokenRequestBody(code: "4/a+b", verifier: "v", clientID: googleID))
+        let text = try XCTUnwrap(String(data: body, encoding: .utf8))
+        XCTAssertTrue(text.contains("grant_type=authorization_code"))
+        XCTAssertTrue(text.contains("code=4/a%2Bb"))
+        XCTAssertTrue(text.contains("client_id=\(googleID)"))
+        XCTAssertFalse(text.contains("client_secret"))
+    }
+
+    func testTheNonceGoesToGoogleHashed() {
+        // SHA-256 of "abc", hex (FIPS 180-2 example): what Supabase compares the token's nonce with.
+        XCTAssertEqual(GoogleSignIn.sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    }
+
     func testTheServerFunctionsAreOnOurSupabase() {
         XCTAssertEqual(AppConfig.nativeFunctionURL.absoluteString,
                        "https://libwmvpoqvxfxbjgqnuj.supabase.co/functions/v1/native-fn")

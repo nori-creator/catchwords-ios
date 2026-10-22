@@ -23,8 +23,13 @@ final class WebAuthSession: NSObject, ASWebAuthenticationPresentationContextProv
     /// `codeChallenge` is `PKCE.challenge(for: verifier)`.
     func signIn(provider: String, codeChallenge: String) async throws -> URL {
         guard let url = Self.authorizeURL(provider: provider, codeChallenge: codeChallenge) else { throw Failure.failed }
-        return try await withCheckedThrowingContinuation { cont in
-            let s = ASWebAuthenticationSession(url: url, callback: .customScheme(AppConfig.authCallbackScheme)) { callback, error in
+        return try await open(url, callbackScheme: AppConfig.authCallbackScheme)
+    }
+
+    /// Opens `url` in the sheet and returns the URL it is sent back to on `callbackScheme`.
+    func open(_ url: URL, callbackScheme: String) async throws -> URL {
+        try await withCheckedThrowingContinuation { cont in
+            let s = ASWebAuthenticationSession(url: url, callback: .customScheme(callbackScheme)) { callback, error in
                 Task { @MainActor in
                     self.session = nil
                     if let callback {
