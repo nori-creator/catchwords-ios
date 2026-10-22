@@ -451,8 +451,9 @@ def sticker(cam, page_top, book_root, png, crop):
     sc.frame_set(F_LAND)
     land_m = hinge.matrix_world @ ON_COVER
     land_loc, land_q = land_m.to_translation(), land_m.to_quaternion()
-    lift_loc = start_loc + Vector((0.0, -0.05, 0.075))
-    mid_loc = (lift_loc + land_loc) / 2 + Vector((0, -0.06, 0.07))
+    # ピントの面（マグカップの距離）から離れないように、手前へは出さず、少し奥へ持ち上げる
+    lift_loc = start_loc + Vector((0.0, 0.05, 0.075))
+    mid_loc = (lift_loc + land_loc) / 2 + Vector((0, 0.0, 0.07))
     keys += [
         (F_LIFT, lift_loc, start_q.slerp(land_q, 0.15), 0.95),
         ((F_LIFT + F_LAND) // 2, mid_loc, start_q.slerp(land_q, 0.65), 0.95 * 0.5 + land_scale * 0.5),
