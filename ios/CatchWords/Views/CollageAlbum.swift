@@ -446,7 +446,10 @@ struct WordTag: View {
     /// (owner 2026-10-20: 「単語の詳細の見出しの大きさのバランスにして」 — at 15 pt the reading's 9 pt minimum made it as
     /// big as the characters). 20 pt keeps the reading legible; an English word, with no reading, stays at 15 pt.
     var size: CGFloat? = nil
-    private var textSize: CGFloat { size ?? (NativeAPI.targetLanguage == "en" ? 15 : 20) }
+    /// The word's language (nil = the learner's learning language): the first-run guide's stickers are Mandarin
+    /// before the account's learning language is saved.
+    var language: String? = nil
+    private var textSize: CGFloat { size ?? ((language ?? NativeAPI.targetLanguage) == "en" ? 15 : 20) }
 
     /// The tag's height without a reading at 15 pt (the album keeps half of it under the photo).
     static let height: CGFloat = 28
@@ -455,7 +458,8 @@ struct WordTag: View {
 
     var body: some View {
         ZhuyinWordView(headword: text, zhuyin: zhuyin, size: textSize, weight: .bold, color: Self.ink,
-                       readingColor: Self.ink.opacity(0.75), pinyin: pinyin, proportionalReading: true)
+                       readingColor: Self.ink.opacity(0.75), pinyin: pinyin, language: language,
+                       proportionalReading: true)
             .padding(.horizontal, 12)
             .padding(.vertical, 2)
             .frame(minHeight: Self.height * min(textSize, 15) / 15)

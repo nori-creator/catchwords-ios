@@ -105,32 +105,48 @@ struct OnboardingView: View {
 
     // MARK: - Intro
 
+    /// The opening (owner 2026-10-22: no longer the web's photo prints): the welcome screen's mark and name, the four
+    /// stickers dropping onto the page, what the app does in three steps, then 「はじめる」.
     private var intro: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                LogoMark(size: 40)
-                Text("CatchWords").scaledFont(size: 26, weight: .heavy).foregroundStyle(Theme.foreground)
+                WelcomeLogo(size: 34)
+                Text(verbatim: "CatchWords")
+                    .font(.system(size: 23, weight: .bold))
+                    .tracking(-0.4)
+                    .foregroundStyle(Theme.foreground)
+                Spacer(minLength: 0)
             }
-            .padding(.top, 24)
-            Spacer(minLength: 12)
-            IntroBouquet(labels: targetLanguage == "en" ? ["coffee", "flower", "cat", "sea"] : targetLanguage == "ja" ? ["コーヒー", "花", "猫", "海"] : ["咖啡", "花", "貓", "海"])  // l10n-ignore (target words)
-                .frame(maxHeight: 420)
-                .padding(.horizontal, 24)
-            Spacer(minLength: 12)
-            Text(L("見つけたものが、\nあなたのことばになる。"))
-                .scaledFont(size: 24)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Color(hex: 0x33291F))
-                .padding(.bottom, 24)
-            VStack(spacing: 10) {
-                PrimaryButton(title: L("はじめる"), icon: "arrow.right", sheen: true) { go(.questions, step: 0) }
+            .frame(height: 44)
+            .padding(.horizontal, 24)
+            .padding(.top, 4)
+            OnboardingStickerCluster()
+                .frame(minHeight: 180, maxHeight: 400)
+                .padding(.horizontal, 20)
+                .layoutPriority(-1)
+            VStack(spacing: 14) {
+                Text(L("見つけたものが、\nあなたのことばになる。"))
+                    .scaledFont(size: 26, weight: .heavy)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Theme.foreground)
+                    .lineSpacing(2)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                OnboardingHowItWorks()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+            .padding(.bottom, 20)
+            VStack(spacing: 6) {
+                PrimaryButton(title: L("はじめる"), icon: "arrow.right", sheen: true) { go(.questions, step: Self.questionSteps[0]) }
                 Button(L("アカウントをお持ちの方はログイン")) { finishToLogin() }
                     .scaledFont(size: 15, weight: .medium)
                     .foregroundStyle(Theme.primaryInk)
-                    .frame(minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
             .padding(.horizontal, 24)
-            .padding(.bottom, 20)
+            .padding(.bottom, 12)
         }
     }
 
@@ -161,7 +177,9 @@ struct OnboardingView: View {
                     .padding(.vertical, 20)
             }
             .scrollBounceBehavior(.basedOnSize)
-            PrimaryButton(title: L("次へ"), icon: "arrow.right") {
+            // Goals and interests are optional: with nothing chosen the button says so (「スキップ」) instead of looking
+            // like it cannot be pressed.
+            PrimaryButton(title: nothingPicked ? L("スキップ") : L("次へ"), icon: "arrow.right") {
                 if let i = Self.questionSteps.firstIndex(of: step), i + 1 < Self.questionSteps.count {
                     go(.questions, step: Self.questionSteps[i + 1])
                 } else {
@@ -171,6 +189,10 @@ struct OnboardingView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
         }
+    }
+
+    private var nothingPicked: Bool {
+        (step == 3 && goals.isEmpty) || (step == 4 && interests.isEmpty)
     }
 
     private var questionTitle: String {
@@ -222,7 +244,7 @@ struct OnboardingView: View {
                                 .scaledFont(size: 18, weight: .bold)
                                 .foregroundStyle(minutes == m ? .white : Theme.foreground)
                                 .frame(maxWidth: .infinity, minHeight: 58)
-                                .background(minutes == m ? AnyShapeStyle(Theme.brandGradient) : AnyShapeStyle(Color.white), in: .rect(cornerRadius: 16))
+                                .background(minutes == m ? AnyShapeStyle(Theme.brandGradient) : AnyShapeStyle(Theme.card), in: .rect(cornerRadius: 16))
                                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(minutes == m ? .clear : Theme.border))
                         }
                         .buttonStyle(PressableStyle())
@@ -262,6 +284,7 @@ struct OnboardingView: View {
             progressHeader(index: Self.questionSteps.count + 1) { go(.questions, step: Self.questionSteps.last ?? 4, back: true) }
             Text(L("学習の通知を\n設定しますか？"))
                 .scaledFont(size: 28, weight: .heavy)
+                .foregroundStyle(Theme.foreground)
                 .padding(.horizontal, 24).padding(.top, 20)
             Text(L("次の画面で通知を許可するか選べます。あとから設定で変更できます。"))
                 .scaledFont(size: 14).foregroundStyle(Theme.muted)
@@ -287,22 +310,31 @@ struct OnboardingView: View {
 
     // MARK: - Ready
 
+    /// The last screen: the stickers again, and what comes next (one real photo, about a minute), so the guide that
+    /// follows on the real screens is no surprise.
     private var ready: some View {
         VStack(spacing: 0) {
             progressHeader(index: Self.totalSteps) { go(.notifications, step: 0, back: true) }
-            Spacer()
-            OnboardingPrint(name: "first_catch_ready", label: targetLanguage == "en" ? "sea" : "海", ratio: 1)  // l10n-ignore (target word)
-                .frame(width: 230)
-                .rotationEffect(.degrees(-3))
-                .shadow(color: .black.opacity(0.15), radius: 18, y: 10)
-            Text(L("最初の発見は、もうすぐ。"))
-                .scaledFont(size: 18).foregroundStyle(Theme.muted).padding(.top, 18)
-            Text(L("準備ができました！"))
-                .scaledFont(size: 30, weight: .heavy).padding(.top, 26)
-            Text(L("まずはアプリを見て回って、\n気になるものをひとつ撮ってみましょう。"))
-                .scaledFont(size: 15).foregroundStyle(Theme.muted)
-                .multilineTextAlignment(.center).padding(.top, 10)
-            Spacer()
+            OnboardingStickerCluster(compact: true)
+                .frame(minHeight: 160, maxHeight: 300)
+                .padding(.horizontal, 48)
+                .padding(.top, 8)
+                .layoutPriority(-1)
+            VStack(spacing: 12) {
+                Text(L("準備ができました！"))
+                    .scaledFont(size: 30, weight: .heavy)
+                    .foregroundStyle(Theme.foreground)
+                    .accessibilityAddTraits(.isHeader)
+                Text(L("このあと、1枚撮って図鑑に入れるまでを一緒に試します（約1分）。"))
+                    .scaledFont(size: 15)
+                    .foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                OnboardingHowItWorks(still: true)
+                    .padding(.top, 4)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
             if let saveError {
                 Text(saveError).font(.footnote).foregroundStyle(Theme.destructive)
                     .multilineTextAlignment(.center)
@@ -320,20 +352,23 @@ struct OnboardingView: View {
     private func progressHeader(index: Int, back: @escaping () -> Void) -> some View {
         HStack(spacing: 14) {
             Button(action: back) {
-                Image(systemName: "arrow.left").font(.system(size: 18, weight: .semibold))
+                Image(systemName: "chevron.left").font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Theme.foreground)
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel(L("戻る"))
-            GeometryReader { geo in
-                Capsule().fill(Theme.secondary)
-                    .overlay(alignment: .leading) {
-                        Capsule().fill(Theme.brandGradient).frame(width: geo.size.width * CGFloat(index) / CGFloat(Self.totalSteps))
-                    }
+            // One segment per screen: where the learner is and how much is left, at a glance.
+            HStack(spacing: 5) {
+                ForEach(1...Self.totalSteps, id: \.self) { i in
+                    Capsule()
+                        .fill(i <= index ? AnyShapeStyle(Theme.brandGradient) : AnyShapeStyle(Theme.secondary))
+                        .frame(height: i == index ? 8 : 6)
+                }
             }
             .frame(height: 8)
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: index)
-            Text("\(index) / \(Self.totalSteps)").font(AppFont.mono(13, weight: .semibold)).foregroundStyle(Theme.muted)
+            .animation(.spring(response: 0.5, dampingFraction: 0.75), value: index)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "\(index) / \(Self.totalSteps)"))
             Button { showMenu = true } label: {
                 Image(systemName: "gearshape").font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.muted).frame(width: 44, height: 44)
@@ -552,15 +587,17 @@ private struct ChoiceRow: View {
             }
             .padding(.horizontal, 14)
             .frame(minHeight: 70)
-            .background(.white, in: .rect(cornerRadius: 18))
+            .background(Theme.card, in: .rect(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(isOn ? Theme.primary : Theme.border, lineWidth: isOn ? 2 : 1))
             .shadow(color: isOn ? Theme.primary.opacity(0.15) : .clear, radius: 10, y: 4)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isOn)
         }
         .buttonStyle(PressableStyle())
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 
+/// An interest as a sticker on a card: chosen, the sticker hops up and the card takes the blue border and a check.
 private struct InterestTile: View {
     let id: String
     let label: String
@@ -572,51 +609,44 @@ private struct InterestTile: View {
             Haptics.selection()
             action()
         } label: {
-            OnboardingPrint(name: "first_catch_interest_\(id)", label: label, ratio: 1)
-                .overlay(alignment: .topTrailing) {
-                    if isOn {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 22)).foregroundStyle(.white, Theme.primary)
-                            .padding(4)
-                            .transition(.scale.combined(with: .opacity))
+            VStack(spacing: 6) {
+                Group {
+                    if let img = OnboardingSticker.image(id) {
+                        Image(uiImage: img).resizable().interpolation(.high).scaledToFit()
+                    } else {
+                        Color.clear
                     }
                 }
-                .scaleEffect(isOn ? 0.96 : 1)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(isOn ? Theme.primary : .clear, lineWidth: 3))
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isOn)
+                .frame(height: 72)
+                .shadow(color: Color(hex: 0x1C4A80).opacity(isOn ? 0.24 : 0.12), radius: isOn ? 8 : 4, y: isOn ? 6 : 3)
+                .rotationEffect(.degrees(isOn ? -4 : 0))
+                .scaleEffect(isOn ? 1.08 : 1)
+                .offset(y: isOn ? -3 : 0)
+                Text(label)
+                    .scaledFont(size: 13, weight: .semibold)
+                    .foregroundStyle(isOn ? Theme.primaryInk : Theme.foreground)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .padding(.horizontal, 6)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity)
+            .background(isOn ? Theme.accent.opacity(0.6) : Theme.card, in: .rect(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(isOn ? Theme.primary : Theme.border, lineWidth: isOn ? 2 : 1))
+            .overlay(alignment: .topTrailing) {
+                if isOn {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20)).foregroundStyle(.white, Theme.primary)
+                        .padding(5)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.32, dampingFraction: 0.6), value: isOn)
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(label)
         .accessibilityAddTraits(isOn ? .isSelected : [])
-    }
-}
-
-/// Album-style print (white paper + word in the bottom margin), photo kept at its own ratio.
-struct OnboardingPrint: View {
-    let name: String
-    let label: String
-    let ratio: CGFloat
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Color(hex: 0xEEE8DC)
-                .aspectRatio(1 / ratio, contentMode: .fit)
-                .overlay {
-                    if let img = OnboardingImage.load(name) {
-                        Image(uiImage: img).resizable().aspectRatio(contentMode: .fill).allowsHitTesting(false)
-                    }
-                }
-                .clipped()
-            Text(label)
-                .scaledFont(size: 15)
-                .foregroundStyle(Color(hex: 0x33291F))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .padding([.horizontal, .top], 6)
-        .padding(.bottom, 8)
-        .background(Color(hex: 0xFFFDF8))
-        .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
     }
 }
 
@@ -628,38 +658,5 @@ enum OnboardingImage {
               let img = UIImage(contentsOfFile: path) else { return nil }
         cache[name] = img
         return img
-    }
-}
-
-/// Welcome "bouquet" layout (DEFAULT_WELCOME_LAYOUT = C): cat in front, flower and sea tilted
-/// symmetrically either side, coffee standing at the back centre.
-private struct IntroBouquet: View {
-    let labels: [String]
-    @State private var appeared: Bool = false
-    @Environment(\.appReduceMotion) private var reduceMotion
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            ZStack {
-                print("first_catch_cafe", labels[0], 1.5, width: w * 0.40, x: 0, y: -geo.size.height * 0.16, angle: 0, delay: 0)
-                print("first_catch_flower", labels[1], 1, width: w * 0.40, x: -w * 0.28, y: geo.size.height * 0.02, angle: -8, delay: 0.08)
-                print("first_catch_ready", labels[3], 1, width: w * 0.40, x: w * 0.28, y: geo.size.height * 0.02, angle: 8, delay: 0.16)
-                print("first_catch_cat", labels[2], 1, width: w * 0.46, x: 0, y: geo.size.height * 0.2, angle: -2, delay: 0.24)
-            }
-            .frame(width: w, height: geo.size.height)
-        }
-        .onAppear {
-            withAnimation(reduceMotion ? .none : .spring(response: 0.8, dampingFraction: 0.75)) { appeared = true }
-        }
-    }
-
-    private func print(_ name: String, _ label: String, _ ratio: CGFloat, width: CGFloat, x: CGFloat, y: CGFloat, angle: Double, delay: Double) -> some View {
-        OnboardingPrint(name: name, label: label, ratio: ratio)
-            .frame(width: width)
-            .rotationEffect(.degrees(appeared ? angle : 0))
-            .offset(x: x, y: appeared ? y : y + 40)
-            .opacity(appeared ? 1 : 0)
-            .animation(reduceMotion ? .none : .spring(response: 0.8, dampingFraction: 0.75).delay(delay), value: appeared)
     }
 }

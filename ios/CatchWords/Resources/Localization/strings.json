@@ -8643,5 +8643,33 @@
   "es": "Esta imagen se usa en la página de la palabra y en el álbum de Inicio.",
   "ko": "단어 상세와 홈 앨범에서 이 사진을 사용해요.",
   "vi": "Ảnh này được dùng ở trang từ và trong album Trang chủ."
+ },
+ "ステッカーに": {
+  "en": "Sticker",
+  "zh-TW": "做成貼紙",
+  "es": "Sticker",
+  "ko": "스티커로",
+  "vi": "Nhãn dán"
+ },
+ "このあと、1枚撮って図鑑に入れるまでを一緒に試します（約1分）。": {
+  "en": "Next, we'll take one photo together and add it to your collection (about 1 minute).",
+  "zh-TW": "接下來，我們會一起拍一張照片並放進圖鑑（約1分鐘）。",
+  "es": "Ahora haremos juntos una foto y la añadiremos a tu colección (1 minuto aprox.).",
+  "ko": "이제 함께 사진 한 장을 찍어 도감에 넣어 볼게요(약 1분).",
+  "vi": "Tiếp theo, chúng ta sẽ cùng chụp một tấm ảnh và thêm vào bộ sưu tập (khoảng 1 phút)."
+ },
+ "案内を終えますか？": {
+  "en": "End the guide?",
+  "zh-TW": "要結束導覽嗎？",
+  "es": "¿Terminar la guía?",
+  "ko": "안내를 종료할까요?",
+  "vi": "Kết thúc hướng dẫn?"
+ },
+ "撮った写真と単語は、そのまま残ります。": {
+  "en": "Your photos and words stay as they are.",
+  "zh-TW": "拍好的照片和單字會保留下來。",
+  "es": "Tus fotos y palabras se conservan.",
+  "ko": "찍은 사진과 단어는 그대로 남아요.",
+  "vi": "Ảnh và từ bạn đã chụp vẫn được giữ nguyên."
  }
 }

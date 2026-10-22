@@ -58,16 +58,19 @@ enum TourStep: String, Equatable {
         }
     }
 
-    var stepLabel: String? {
+    /// 5 つの段のどこにいるか（札の点で見せる）。撮る段の途中（撮る・選ぶ・発音・追加）も 2 のまま。
+    var phase: Int? {
         switch self {
-        case .home: "1 / 5"
-        case .tapCamera: "2 / 5"
-        case .dexTypes, .dexOpen: "3 / 5"
-        case .word: "4 / 5"
-        case .review: "5 / 5"
-        default: nil
+        case .home: 1
+        case .tapCamera, .shoot, .pick, .detail, .peel, .added: 2
+        case .dexTypes, .dexOpen: 3
+        case .word: 4
+        case .review, .reviewPick, .reviewNext: 5
+        case .off, .complete: nil
         }
     }
+
+    static let phaseCount = 5
 
     /// Spotlight の `interactive`: 光っている所だけ押せる。false なら「次へ」で進む。
     var isInteractive: Bool {
@@ -169,6 +172,13 @@ struct TourLayer: View {
                         .scaleEffect(pulse ? 1.03 : 1)
                         .position(x: hole.midX, y: hole.midY)
                         .allowsHitTesting(false)
+                    // 押す所: 指が軽くたたく動きと、広がる輪。どこを押せばよいか、読まなくても分かるように。
+                    if step.isInteractive {
+                        TourTapHint(animate: !reduceMotion)
+                            .position(x: hole.midX, y: hole.midY)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                    }
                 }
                 let cardOnTop = (hole?.midY ?? geo.size.height) > geo.size.height * 0.5
                 if showsCard {
@@ -202,6 +212,9 @@ struct TourCoachCard: View {
     let onNext: () -> Void
     let onSkip: () -> Void
 
+    /// 「案内を終える」は一度確かめる（押し間違いで案内が消えると、戻す方法が無い）。
+    @State private var confirmSkip: Bool = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
@@ -209,10 +222,8 @@ struct TourCoachCard: View {
                     Text(title).scaledFont(size: 18, weight: .heavy).foregroundStyle(Theme.foreground)
                 }
                 Spacer()
-                if let label = step.stepLabel {
-                    Text(label).font(AppFont.mono(12, weight: .semibold)).foregroundStyle(Theme.primaryInk)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Theme.primary.opacity(0.1), in: Capsule())
+                if let phase = step.phase {
+                    TourPhaseDots(phase: phase)
                 }
             }
             Text(step.text)
@@ -220,10 +231,16 @@ struct TourCoachCard: View {
                 .foregroundStyle(Theme.foreground.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Button(L("案内を終える"), action: onSkip)
+                Button(L("案内を終える")) { confirmSkip = true }
                     .scaledFont(size: 13, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .frame(minHeight: 44)
+                    .confirmationDialog(L("案内を終えますか？"), isPresented: $confirmSkip, titleVisibility: .visible) {
+                        Button(L("案内を終える"), role: .destructive, action: onSkip)
+                        Button(L("続ける"), role: .cancel) {}
+                    } message: {
+                        Text(L("撮った写真と単語は、そのまま残ります。"))
+                    }
                 Spacer()
                 if let next = step.nextLabel {
                     Button {
@@ -250,8 +267,62 @@ struct TourCoachCard: View {
         .padding(.bottom, 8)
         .background(Theme.card, in: .rect(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(.asymmetric(insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 12)),
+                                removal: .opacity))
         .id(step)
+    }
+}
+
+/// Five dots: the guide's parts done (filled), the one now (a longer bar), the ones to come (pale).
+private struct TourPhaseDots: View {
+    let phase: Int
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(1...TourStep.phaseCount, id: \.self) { i in
+                Capsule()
+                    .fill(i <= phase ? Theme.primary : Theme.primary.opacity(0.18))
+                    .frame(width: i == phase ? 16 : 6, height: 6)
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: phase)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: "\(phase) / \(TourStep.phaseCount)"))
+    }
+}
+
+/// A finger that taps the lit place, with a ring spreading from it at each tap (still with reduced motion).
+private struct TourTapHint: View {
+    let animate: Bool
+
+    var body: some View {
+        if animate {
+            TimelineView(.animation) { context in
+                let t = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
+                // 0–0.25 指が下りる、0.25 でたたく、そのあと輪が広がって消える
+                let press = t < 0.25 ? t / 0.25 : max(0, 1 - (t - 0.25) / 0.2)
+                let ring = t < 0.25 ? 0 : min(1, (t - 0.25) / 0.6)
+                ZStack {
+                    Circle()
+                        .stroke(.white, lineWidth: 3)
+                        .frame(width: 30 + 46 * ring, height: 30 + 46 * ring)
+                        .opacity(t < 0.25 ? 0 : (1 - ring) * 0.9)
+                    hand
+                        .scaleEffect(1 - 0.12 * press)
+                        .offset(x: 14, y: 22 - 6 * press)
+                }
+            }
+        } else {
+            hand.offset(x: 14, y: 22)
+        }
+    }
+
+    private var hand: some View {
+        Image(systemName: "hand.point.up.left.fill")
+            .font(.system(size: 34))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
+            .accessibilityHidden(true)
     }
 }
 
@@ -263,6 +334,7 @@ struct TourCompleteView: View {
     @Environment(DexStore.self) private var dex
     @Environment(\.appReduceMotion) private var reduceMotion
     @State private var burst: Bool = false
+    @State private var floating: Bool = false
 
     private static let confetti: [Color] = [Theme.primary, Color(hex: 0xF5B83D), Color(hex: 0xFF7A8A), Color(hex: 0x4FC3A1)]
 
@@ -288,23 +360,24 @@ struct TourCompleteView: View {
                             .offset(x: burst ? cos(angle) * 150 : 0, y: burst ? sin(angle) * 150 : 0)
                             .opacity(burst ? 0.9 : 0)
                     }
+                    // 撮った物を切り抜いたステッカーとして（白いふちは、切り抜きの形を白でずらして重ねて描く）。
                     let path = sticker?.heroPath
-                    Color.white
-                        .frame(width: 220, height: 220)
-                        .overlay {
-                            StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
-                                .padding(10)
-                                .allowsHitTesting(false)
+                    VStack(spacing: -12) {
+                        StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
+                            .frame(width: 210, height: 210)
+                            .modifier(WhiteDieCut(width: 5))
+                            .shadow(color: Color(hex: 0x1C4A80).opacity(0.22), radius: 16, y: 10)
+                            .allowsHitTesting(false)
+                        if let head = sticker?.word?.headword {
+                            WordTag(text: head, zhuyin: sticker?.word?.readingZhuyin, pinyin: sticker?.word?.pinyin,
+                                    tilt: -4, size: 26)
                         }
-                        .clipShape(.rect(cornerRadius: 28, style: .continuous))
-                        .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
-                        .rotationEffect(.degrees(-3))
-                        .scaleEffect(burst ? 1 : 0.8)
+                    }
+                    .rotationEffect(.degrees(burst ? -3 : -14))
+                    .scaleEffect(burst ? 1 : 0.6)
+                    .offset(y: floating ? -6 : 0)
                 }
-                .frame(height: 320)
-                if let head = sticker?.word?.headword {
-                    Text(head).scaledFont(size: 30, weight: .bold).foregroundStyle(Theme.foreground)
-                }
+                .frame(height: 340)
                 Spacer()
                 PrimaryButton(title: L("はじめる"), icon: "arrow.right", sheen: true, action: onDone)
                     .padding(.horizontal, 24)
@@ -316,8 +389,23 @@ struct TourCompleteView: View {
             SoundService.shared.play(.sting)
             if reduceMotion { burst = true } else {
                 withAnimation(.spring(response: 0.7, dampingFraction: 0.6)) { burst = true }
+                withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true).delay(0.8)) { floating = true }
             }
         }
+    }
+}
+
+/// A white die-cut border round a cut-out: the picture's shape repeated in white a little off-centre in eight
+/// directions (shadows with no blur), under the picture.
+struct WhiteDieCut: ViewModifier {
+    let width: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .shadow(color: .white, radius: 0, x: width, y: 0)
+            .shadow(color: .white, radius: 0, x: -width, y: 0)
+            .shadow(color: .white, radius: 0, x: 0, y: width)
+            .shadow(color: .white, radius: 0, x: 0, y: -width)
     }
 }
 
