@@ -53,9 +53,18 @@ const result = await esbuild.build({
     ].join("\n"),
   },
   legalComments: "none",
+  // Supabase refuses a function over 5 MB (the unminified bundle was 5.17 MB). Minified, with names kept so
+  // error messages and stack traces still say which function failed.
+  minify: true,
+  keepNames: true,
   metafile: true,
   logLevel: "warning",
 });
 
 const bytes = Object.values(result.metafile.outputs).reduce((sum, o) => sum + o.bytes, 0);
 console.log(`native-fn bundle: ${(bytes / 1e6).toFixed(2)} MB → ${path.relative(process.cwd(), out)}`);
+// Leave room under Supabase's 5 MB deploy limit (index.ts is uploaded beside it).
+if (bytes > 4.5e6) {
+  console.error("native-fn bundle is over 4.5 MB; Supabase refuses a function over 5 MB.");
+  process.exit(1);
+}
