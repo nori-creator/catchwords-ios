@@ -1,0 +1,186 @@
+<!doctype html>
+<!--
+  App Store の製品ページのヘッダー（21:9、3840×1646、10 秒でループ）の動きの層。
+  Blender の 3D の絵（frames/f0000.png〜、1920 幅）を 2 倍にして敷き、その上に、アプリの撮影演出 v10
+  （docs/design/catch-concepts）と同じ見た目の、枠のカチッ・光のペン・タグ、最後に一言を描く。
+  ?lang=ja|en で一言とタグの意味の言語を切り替える（1 本の動画に 1 つの言語だけ。中国語は学ぶ単語だけ）。
+  ?f=<コマ> でそのコマを描く。render.js が 1 コマずつ呼ぶ。
+-->
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'Inter'; font-weight: 500; src: url('fonts/Inter-500.ttf'); }
+  @font-face { font-family: 'Inter'; font-weight: 800; src: url('fonts/Inter-800.ttf'); }
+  @font-face { font-family: 'Noto Sans JP'; font-weight: 100 900; src: url('fonts/NotoSansJP-sub.ttf'); }
+  @font-face { font-family: 'Noto Sans TC'; font-weight: 100 900; src: url('fonts/NotoSansTC-sub.ttf'); }
+  html, body { margin: 0; background: #000; }
+  canvas { display: block; }
+</style>
+<canvas id="c" width="3840" height="1646"></canvas>
+<script>
+const W = 3840, H = 1646, FPS = 30, N = 300;
+const q = new URLSearchParams(location.search), LANG = q.get('lang') || 'ja';
+const COPY = {
+  ja: { line: '撮れば、中国語のことばに。', mean: 'マグカップ', font: '"Noto Sans JP"' },
+  en: { line: 'Snap it. Learn it in Chinese.', mean: 'mug', font: 'Inter' },
+}[LANG];
+const WORD = '馬克杯';                                     // 台湾華語のマグカップ（學習の単語。どの言語の版でも同じ）
+const FONT_TC = '"Noto Sans TC"';
+const NAVY = '#1F2F57', BLUE2 = '#2A9BFF', INK = '#0B121A', MUTED = '#5C646F', LOCKED = '#6CC8FF';
+const PT = 2.1;                                           // アプリの 1px（1080 幅の画面）→ この絵
+
+// 時刻（秒）。scene.py のコマと同じ（F_PEEL=120 → 4.0 s、F_LAND=166、F_CLOSE 終わり=198）
+const T = { brIn: 1.0, brMove: 1.26, lock: 1.8, penDur: 1.0, tag: 2.95, peel: 4.0, land: 166 / 30, closed: 198 / 30,
+            lineIn: 6.85, lineOut: 9.05 };
+
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x)), lerp = (a, b, u) => a + (b - a) * u;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const E = {
+  outCubic: x => 1 - (1 - x) ** 3, inOutCubic: x => x < .5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2,
+  inOutSine: x => -(Math.cos(Math.PI * x) - 1) / 2, outBack: (x, s = 1.7) => 1 + (s + 1) * (x - 1) ** 3 + s * (x - 1) ** 2,
+};
+function bezierEase(x1, y1, x2, y2) {                    // CSS の cubic-bezier（アプリの枠の動き）
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = t => ((ax * t + bx) * t + cx) * t, Y = t => ((ay * t + by) * t + cy) * t, dX = t => (3 * ax * t + 2 * bx) * t + cx;
+  return x => { if (x <= 0) return 0; if (x >= 1) return 1; let t = x; for (let i = 0; i < 8; i++) { const d = dX(t); if (Math.abs(d) < 1e-6) break; t -= (X(t) - x) / d; } return Y(clamp(t)); };
+}
+const mv = bezierEase(.3, 1.3, .5, 1);
+const font = (w, s, f) => ctx.font = `${w} ${s}px ${f}`;
+const measure = (s, w, size, f) => { ctx.save(); font(w, size, f); const m = ctx.measureText(s).width; ctx.restore(); return m; };
+function text(s, x, y, { w = 500, size = 40, f = COPY.font, color = INK, alpha = 1, align = 'center' } = {}) {
+  if (alpha <= 0) return; ctx.save(); ctx.globalAlpha *= alpha; font(w, size, f); ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(s, x, y); ctx.restore();
+}
+
+let OUT = [], PTS = [], BG = null;
+const outlineAt = f => OUT[f] || OUT[120];
+function boxOf(o) { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const [x, y] of o) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } return [x0, y0, x1, y1]; }
+
+// ---------- 枠（アプリの v8〜v10: 角だけの枠。真ん中に出て、物へ移り、カチッと止まって青に） ----------
+const SAFE = [1097, 493, 2743, 1154];                    // 21:9 の、どの端末でも見える真ん中（第三者が Apple の型紙から読んだ値）
+function corner(x, y, sx, sy, arm, r) {
+  ctx.moveTo(x, y + sy * arm); ctx.lineTo(x, y + sy * r); ctx.arcTo(x, y, x + sx * r, y, r); ctx.lineTo(x + sx * arm, y);
+}
+function bracket(t, f) {
+  if (t < T.brIn) return;
+  const pad = 30 * PT, b = boxOf(outlineAt(f)), to = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+  const a = mv(seg(t, T.brIn, T.brIn + .26)) * (1 - seg(t, T.lock + T.penDur, T.lock + T.penDur + .3));
+  if (a <= 0) return;
+  const u = mv(seg(t, T.brMove, T.brMove + .54)), R = SAFE.map((v, j) => lerp(v, to[j], u)), locked = t >= T.lock;
+  const sq = locked ? 1 - .06 * (1 - Math.abs(1 - 2 * seg(t, T.lock, T.lock + .26))) : 1;
+  const cx = (R[0] + R[2]) / 2, cy = (R[1] + R[3]) / 2;
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(cx, cy); ctx.scale(sq, sq); ctx.translate(-cx, -cy);
+  ctx.lineWidth = 3 * PT; ctx.lineJoin = 'round'; ctx.strokeStyle = locked ? LOCKED : '#fff';
+  ctx.shadowColor = 'rgba(100,224,255,0.9)'; ctx.shadowBlur = 6 * PT;
+  const arm = 19 * PT * 1.6, r = 12 * PT;
+  ctx.beginPath(); corner(R[0], R[1], 1, 1, arm, r); corner(R[2], R[1], -1, 1, arm, r); corner(R[0], R[3], 1, -1, arm, r); corner(R[2], R[3], -1, -1, arm, r); ctx.stroke();
+  ctx.restore();
+}
+
+// ---------- 光のペン（W2/v9: 大きい光の点が輪郭を一筆で描く。曲がり角でゆっくり） ----------
+function headFrac(t) {                                    // 0..1 どこまで描いたか（アプリと同じ acos のゆるみ）
+  const u = seg(t, T.lock, T.lock + T.penDur); return Math.acos(1 - 2 * u) / Math.PI;
+}
+function glowDot(x, y, r, a, rgb = '160,215,255') {
+  if (a <= .01) return; ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(.28, `rgba(${rgb},${.6 * a})`); g.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
+const OL = document.createElement('canvas'); OL.width = W; OL.height = H; const olx = OL.getContext('2d');
+function outline(t, f) {
+  if (t < T.lock) return;
+  const o = outlineAt(f), n = o.length, h = headFrac(t) * n;
+  // 名前が出た後はアプリの選ぶ画面と同じくゆっくり脈打ち、はがれる時に消える
+  let A = 1; if (t > T.tag) { const p = ((t - T.tag) % 2) / 2; A = p < .5 ? lerp(1, .55, E.inOutSine(p * 2)) : lerp(.55, 1, E.inOutSine(p * 2 - 1)); }
+  A *= 1 - seg(t, T.peel + .05, T.peel + .4); if (A <= .005) return;
+  olx.clearRect(0, 0, W, H);
+  olx.beginPath(); const last = Math.min(n, Math.floor(h));
+  for (let i = 0; i <= last; i++) { const p = o[i % n]; i ? olx.lineTo(p[0], p[1]) : olx.moveTo(p[0], p[1]); }
+  if (h < n) { const fr = h - last, p = o[last % n], q2 = o[(last + 1) % n]; olx.lineTo(lerp(p[0], q2[0], fr), lerp(p[1], q2[1], fr)); }
+  const [x0, y0, x1, y1] = boxOf(o), g = olx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, '#BFE8FF'); g.addColorStop(.5, '#9CC8FF'); g.addColorStop(1, '#CFE3FF');
+  olx.lineWidth = 2.2 * PT; olx.lineJoin = olx.lineCap = 'round'; olx.strokeStyle = g; olx.stroke();
+  ctx.save(); ctx.globalAlpha = A;
+  ctx.filter = `drop-shadow(0 0 ${5 * PT}px rgba(140,200,255,0.95)) drop-shadow(0 0 ${16 * PT}px rgba(40,120,255,0.6))`;
+  ctx.drawImage(OL, 0, 0); ctx.restore();
+  if (t < T.lock + T.penDur + .25) {                      // ペンの先
+    const p = h >= n ? o[0] : (() => { const i = Math.floor(h), fr = h - i, a = o[i % n], b = o[(i + 1) % n]; return [lerp(a[0], b[0], fr), lerp(a[1], b[1], fr)]; })();
+    glowDot(p[0], p[1], 34 * PT, 1 - seg(t, T.lock + T.penDur, T.lock + T.penDur + .25));
+  }
+}
+// はがれる瞬間: 白い縁がひと回り光る（ステッカーになった合図）
+function peelFlash(t, f) {
+  const u = seg(t, T.peel - .02, T.peel + .35); if (u <= 0 || u >= 1) return;
+  const o = outlineAt(f); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.sin(u * Math.PI) * .8;
+  ctx.beginPath(); o.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
+  ctx.lineWidth = 6 * PT; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.filter = `blur(${4 * PT}px)`; ctx.stroke(); ctx.restore();
+}
+
+// ---------- タグ（アプリのタグ: 白いガラスのカプセル、青い点と単語、下に意味） ----------
+function tag(t, f) {
+  const PT = 1.8;                                         // タグは少し小さく（上の端をセーフエリアに収める）
+  const a =E.outCubic(seg(t, T.tag, T.tag + .25)) * (1 - seg(t, T.peel - .15, T.peel + .1)); if (a <= 0) return;
+  const o = outlineAt(f), b = boxOf(o), ax = (b[0] + b[2]) / 2 - 18 * PT, ay = b[1] - 6 * PT;   // 物の上の点（取っ手の分だけ左）
+  const size = 46 * PT, dot = 13 * PT, wWord = measure(WORD, 800, size, FONT_TC) + dot * 2 + 14 * PT, wMean = measure(COPY.mean, 500, 28 * PT, COPY.font);
+  const w = Math.max(wWord, wMean) + 64 * PT, h = 112 * PT, x = ax - w / 2, y = ay - 30 * PT - h;
+  const pop = E.outBack(seg(t, T.tag, T.tag + .35), 2.0), s = .6 + .4 * pop;
+  // 物の上の白い点と、短い軸
+  ctx.save(); ctx.globalAlpha = a; ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 10 * PT; ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(ax, ay, 11 * PT, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 3 * PT; ctx.beginPath(); ctx.moveTo(ax, ay - 12 * PT); ctx.lineTo(ax, ay - 30 * PT); ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(ax, y + h); ctx.scale(s, s); ctx.translate(-ax, -(y + h));
+  ctx.save(); ctx.shadowColor = 'rgba(20,30,60,0.22)'; ctx.shadowBlur = 40 * PT; ctx.shadowOffsetY = 12 * PT;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill(); ctx.restore();
+  const gg = ctx.createLinearGradient(0, y, 0, y + h); gg.addColorStop(0, 'rgba(255,255,255,0.5)'); gg.addColorStop(.55, 'rgba(255,255,255,0)');
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fillStyle = gg; ctx.fill();
+  ctx.lineWidth = 2 * PT; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.stroke();
+  const reveal = seg(t, T.tag + .05, T.tag + .65), Y = y + h / 2;
+  let xx = ax - wWord / 2;
+  const dp = E.outBack(clamp(reveal * 3), 2.2);
+  if (dp > 0) { ctx.fillStyle = BLUE2; ctx.beginPath(); ctx.arc(xx + dot, Y - 16 * PT, dot * dp, 0, Math.PI * 2); ctx.fill(); }
+  xx += dot * 2 + 14 * PT;
+  [...WORD].forEach((ch, i, arr) => {
+    const p = E.outBack(clamp((reveal * (arr.length + 2) - i) / 2.2), 1.6), wch = measure(ch, 800, size, FONT_TC);
+    if (p > 0) text(ch, xx + wch / 2, Y + (1 - p) * 26 * PT, { w: 800, size, f: FONT_TC, color: INK, alpha: clamp(p * 1.4) });
+    xx += wch;
+  });
+  text(COPY.mean, ax, Y + 38 * PT, { w: 500, size: 28 * PT, color: MUTED, alpha: E.outCubic(seg(reveal, .45, 1)) });
+  ctx.restore();
+}
+
+// ---------- 本に入った合図: 表紙に貼り付いた所で小さい光がはじける ----------
+function sparkle(t, f) {
+  const u = seg(t, T.land - .02, T.land + .55); if (u <= 0 || u >= 1) return;
+  const p = PTS[Math.round(T.land * FPS)].cover, x = p[0] * W, y = p[1] * H;
+  glowDot(x, y, lerp(20, 130, E.outCubic(u)) * PT * .6, (1 - u) * .9);
+  for (let k = 0; k < 6; k++) {
+    const ang = -Math.PI / 2 + (k - 2.5) * .55, r = lerp(30, 150, E.outCubic(u)) * PT * .7;
+    glowDot(x + Math.cos(ang) * r, y + Math.sin(ang) * r * .8, 9 * PT, (1 - u) * .85);
+  }
+}
+
+// ---------- 一言（本が閉じた後、真ん中に。読める時間は約 2 秒） ----------
+function line(t) {
+  const a = E.outCubic(seg(t, T.lineIn, T.lineIn + .55)) * (1 - E.inOutCubic(seg(t, T.lineOut, T.lineOut + .55)));
+  if (a <= 0) return;
+  const size = LANG === 'ja' ? 118 : 112, y = 640 + (1 - E.outCubic(seg(t, T.lineIn, T.lineIn + .7))) * 26;
+  ctx.save(); ctx.globalAlpha = a; font(800, size, COPY.font);
+  ctx.shadowColor = 'rgba(255,248,236,0.9)'; ctx.shadowBlur = 36; ctx.fillStyle = NAVY; ctx.textAlign = 'center';
+  if (LANG === 'en') ctx.letterSpacing = '-1px';
+  ctx.fillText(COPY.line, W / 2, y); ctx.restore();
+}
+
+function draw(f, safe = false) {
+  const t = f / FPS;
+  ctx.save(); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(BG, 0, 0, W, H); ctx.restore();
+  outline(t, f); bracket(t, f); peelFlash(t, f); tag(t, f); sparkle(t, f); line(t);
+  if (safe) { ctx.save(); ctx.strokeStyle = 'rgba(255,0,0,0.8)'; ctx.lineWidth = 4; ctx.setLineDash([20, 14]); ctx.strokeRect(SAFE[0], SAFE[1], SAFE[2] - SAFE[0], SAFE[3] - SAFE[1]); ctx.restore(); }
+}
+const loadImg = src => new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = src; });
+window.renderFrame = async (f, safe) => { BG = await loadImg(`frames/f${String(f).padStart(4, '0')}.png`); draw(f, safe); };
+window.ready = (async () => {
+  [OUT, PTS] = await Promise.all([fetch('data/outlines.json').then(r => r.json()), fetch('data/points.json').then(r => r.json())]);
+  await document.fonts.load(`800 40px ${FONT_TC}`, WORD); await document.fonts.load(`800 40px ${COPY.font}`, COPY.line); await document.fonts.load(`500 40px ${COPY.font}`, COPY.mean);
+  if (q.has('f')) await window.renderFrame(+q.get('f'), q.has('safe'));
+  return true;
+})();
+</script>
