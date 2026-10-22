@@ -53,7 +53,7 @@ struct AppInfoView: View {
                 AdminRow(label: L("管理者"), value: AdminAccess.shared.isAdmin ? L("はい") : L("いいえ"))
             }
             Section(L("サーバ")) {
-                AdminRow(label: L("Web版"), value: AppConfig.webBaseURL.host() ?? AppConfig.webBaseURL.absoluteString)
+                AdminRow(label: L("サイト"), value: AppConfig.webBaseURL.host() ?? AppConfig.webBaseURL.absoluteString)
                 AdminRow(label: L("データベース"), value: URL(string: AppConfig.supabaseURL)?.host() ?? AppConfig.supabaseURL)
                 AdminRow(label: L("AI の状態"), value: aiStatus)
             }

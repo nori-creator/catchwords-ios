@@ -1,0 +1,48 @@
+# https://catchwords.app — the app's public pages (privacy, terms, 特定商取引法, support, password reset)
+#
+# The pages are built from site/src by scripts/build_site.py and published with GitHub Pages.
+# Every push / PR builds them (so a broken page shows up here); only main publishes.
+# One-time setup by the owner (docs/backend/README.md): Settings → Pages → Source: GitHub Actions,
+# custom domain catchwords.app, and the DNS records at Cloudflare.
+name: Site（catchwords.app）
+
+on:
+  push:
+    paths: ["site/**", "scripts/build_site.py", "ios/CatchWords/AppConfig.swift", ".github/workflows/site.yml"]
+  pull_request:
+    paths: ["site/**", "scripts/build_site.py", "ios/CatchWords/AppConfig.swift", ".github/workflows/site.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: 頁を作る
+        run: python3 scripts/build_site.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/public
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
