@@ -18,6 +18,9 @@ enum CaptureStep: Equatable {
 final class CaptureViewModel {
     var step: CaptureStep = .camera
     var photo: UIImage?
+    /// The photo at the size the words screen shows it (made off the main thread): the full 12 MP picture was drawn —
+    /// and blurred when the choose screen melts it — every frame of the choose screen (owner 2026-10-20: stutter).
+    var shownPhoto: UIImage?
     var selfie: UIImage?
     var candidates: [Candidate] = []
     /// The words found for what was typed ("違う単語を入力"), the everyday one first: the choose screen lists them
@@ -81,6 +84,12 @@ final class CaptureViewModel {
     /// runToken: "cancel" only discards stale results; in-flight work is never killed mid-save.
     private var runToken: Int = 0
     private var cutoutTask: Task<Void, Never>?
+    /// The photo's cut-outs being rendered after its tags went up (`CatchObject.withCuts`).
+    private var cutsTask: Task<Void, Never>?
+    /// The cut-out of each thing the photo's masks left without one (-1: the photo's main subject), for this photo —
+    /// started when its choose screen opens, so that screen lifts the same sticker as the GET moment (owner 2026-10-22:
+    /// 「単語の候補の画像が切り抜きになってない。新しい言葉をキャッチはちゃんと切り抜きになってる」).
+    @ObservationIgnored private var liftedCuts: [Int: Task<(cut: UIImage?, box: CGRect?), Never>] = [:]
     private var detailsTask: Task<CardDetails?, Never>?
     /// Cards already being generated for this photo, by headword.
     private var detailsCache: [String: Task<CardDetails?, Never>] = [:]
@@ -114,6 +123,12 @@ final class CaptureViewModel {
         isCheckingOwned = false
         isLoadingDetails = false
         photo = image
+        shownPhoto = nil
+        Task {
+            let small = await Task.detached(priority: .userInitiated) { ImageTools.resized(image, maxSide: 2048, opaque: true) }.value
+            guard token == runToken else { return }
+            shownPhoto = small
+        }
         selfie = nil
         candidates = []
         typedCandidates = []
@@ -124,6 +139,9 @@ final class CaptureViewModel {
         detailsCache = [:]
         dropUploads()
         cutoutTask?.cancel()
+        cutsTask?.cancel()
+        cutsTask = nil
+        dropLiftedCuts()
         isCutting = false
         cutout = nil
         detectOutcome = nil
@@ -181,23 +199,36 @@ final class CaptureViewModel {
                 guard token == runToken else { return }
                 let masks = await masksTask?.value
                 let size = image.size
-                let built = await Task.detached(priority: .userInitiated) {
-                    CatchObject.build(candidates: found, masks: masks, photoSize: size)
+                // The tags go up as soon as each thing is placed; the cut-outs are rendered behind them (owner
+                // 2026-10-20: the tags came later since the cut-outs, rendered first, got heavier on 10-16).
+                let planned = await Task.detached(priority: .userInitiated) {
+                    CatchObject.plan(candidates: found, masks: masks, photoSize: size)
                 }.value
                 guard token == runToken else { return }
-                objects = built
-                // Things the server gave no place (or the same place twice) went to free Vision instances or spots of
-                // their own instead of the middle; the developer log says which (owner 2026-10-15).
-                if let note = CatchObject.placementNote(built) { DevLog.shared.add("tags", note) }
-                // Every thing's point and box as sent, its Vision instance, its cut and its tag's place (owner
-                // 2026-10-16: two tags stacked on one thing and a rectangle saved as the cut-out — now it can be read
-                // back from the developer log which it was).
-                for line in CatchObject.traceLines(built, photo: size, orientation: image.imageOrientation.rawValue) {
-                    DevLog.shared.add("tags", line)
-                }
-                scan?.setNames(built, at: Date())
+                objects = planned.objects
+                scan?.setNames(planned.objects, at: Date())
                 detectOutcome = .success(found)
                 prefetchOwnedChecks(found)
+                let orientation = image.imageOrientation.rawValue
+                cutsTask = Task {
+                    let built = await Task.detached(priority: .userInitiated) {
+                        let built = CatchObject.withCuts(planned, masks: masks, photoSize: size)
+                        // The copies the sticker draws, made here rather than on the main thread at the tap.
+                        for o in built { if let c = o.cut { StickerDisplay.makeBordered(c) } }
+                        return built
+                    }.value
+                    guard token == runToken else { return }
+                    objects = built
+                    // Things the server gave no place (or the same place twice) went to free Vision instances or spots
+                    // of their own instead of the middle; the developer log says which (owner 2026-10-15).
+                    if let note = CatchObject.placementNote(built) { DevLog.shared.add("tags", note) }
+                    // Every thing's point and box as sent, its Vision instance, its cut and its tag's place (owner
+                    // 2026-10-16: two tags stacked on one thing and a rectangle saved as the cut-out — now it can be
+                    // read back from the developer log which it was).
+                    for line in CatchObject.traceLines(built, photo: size, orientation: orientation) {
+                        DevLog.shared.add("tags", line)
+                    }
+                }
             } catch {
                 guard token == runToken else { return }
                 detectOutcome = .failure(error)
@@ -406,11 +437,18 @@ final class CaptureViewModel {
         if let cut = object?.cut {
             cutout = cut
         } else {
-            // No cut-out for this object (or a typed word): lift the subject under its tag (`anchor`: inside its Vision
-            // instance when it has one, else the AI's point), so the sticker is the thing the tag was on. A mask always —
-            // never a rectangle of the photo (owner 2026-10-16); nothing found leaves the catch without a cut-out.
-            if object != nil { DevLog.shared.add("cutout", "\(word.headword): no cut-out from the photo's masks, lifting near its tag") }
-            startCutout(near: object?.anchor)
+            // Tapped before the photo's cut-outs were rendered (the tags go up first), or a thing they left without
+            // one, or a typed word: the cut-out its choose screen already started (`liftedCut`), never a rectangle of
+            // the photo (owner 2026-10-16).
+            isCutting = true
+            let lifting = liftedCut(for: object)
+            cutoutTask = Task {
+                let made = await lifting.value
+                guard !Task.isCancelled else { return }
+                isCutting = false
+                if let box = made.box { pickedBox = box }
+                if let cut = made.cut { withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { cutout = cut } }
+            }
         }
         isCheckingOwned = true
         loadDetails(for: word)
@@ -477,19 +515,42 @@ final class CaptureViewModel {
 
     /// Cut-out mode: cutting starts the moment a word is tapped, never delays the celebration,
     /// and is awaited only right before saving (capture.tsx: 図鑑に入れる前に切り抜きが揃っていること).
-    /// `point`: 0–1 of the photo, top-left origin (nil = the main subject).
-    private func startCutout(near point: CGPoint?) {
-        guard let photo, cutout == nil else { return }
-        cutoutTask?.cancel()
-        isCutting = true
-        cutoutTask = Task {
-            let lifted = await CutoutService.liftSubject(from: photo, near: point)
-            guard !Task.isCancelled else { return }
-            isCutting = false
-            if let lifted {
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { cutout = lifted }
+    /// The thing's cut-out (nil: the photo's main subject, for a word typed under the photo): the one rendered from the
+    /// photo's masks (waited for while they are still being rendered), else the subject lifted under its tag (`anchor`:
+    /// inside its Vision instance when it has one, else the AI's point), else the photo round its box (the whole photo
+    /// without one) cut out as a rounded shape — every catch is a sticker, the photo kept as it is only when the learner
+    /// picks it (owner 2026-10-21). `box`: where the cut-out came from, when the masks placed the thing again.
+    /// Started once per thing for this photo: the choose screen and the GET moment show the same sticker.
+    func liftedCut(for object: CatchObject?) -> Task<(cut: UIImage?, box: CGRect?), Never> {
+        let key = object?.id ?? -1
+        if let running = liftedCuts[key] { return running }
+        let photo = self.photo
+        let pending = object == nil ? nil : cutsTask
+        let name = object?.words.first?.headword ?? "the photo"
+        let task = Task { () -> (cut: UIImage?, box: CGRect?) in
+            await pending?.value
+            let rendered = object.flatMap { o in objects.first { $0.id == o.id } }
+            if let cut = rendered?.cut { return (cut, rendered?.box) }
+            guard let photo, !Task.isCancelled else { return (nil, nil) }
+            DevLog.shared.add("cutout", "\(name): no cut-out from the photo's masks, lifting near its tag")
+            var made = await CutoutService.liftSubject(from: photo, near: object?.anchor)
+            guard !Task.isCancelled else { return (nil, nil) }
+            if made == nil {
+                DevLog.shared.add("cutout", "\(name): nothing lifted, cut out as a rounded shape round its box")
+                made = StickerCrop.shaped(photo, box: rendered?.box ?? object?.box)
             }
+            // The sticker's drawn copies, made here and not on the main thread in the middle of the GET moment.
+            if let made { await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(made) }.value }
+            return (made, rendered?.box)
         }
+        liftedCuts[key] = task
+        return task
+    }
+
+    /// A new photo: the cut-outs lifted for the last one are dropped.
+    private func dropLiftedCuts() {
+        for task in liftedCuts.values { task.cancel() }
+        liftedCuts = [:]
     }
 
     /// The sticker while there is no cut-out: the photo round the picked thing (a typed word: the whole photo).
@@ -638,6 +699,7 @@ final class CaptureViewModel {
     func reset() {
         runToken += 1
         cutoutTask?.cancel()
+        dropLiftedCuts()
         isCutting = false
         masksTask?.cancel()
         masksTask = nil
@@ -649,6 +711,7 @@ final class CaptureViewModel {
         }
         pendingId = nil
         photo = nil
+        shownPhoto = nil
         selfie = nil
         candidates = []
         typedCandidates = []

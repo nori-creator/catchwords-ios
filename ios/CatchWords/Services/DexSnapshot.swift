@@ -45,7 +45,7 @@ nonisolated enum DexSnapshot {
             try c.encode(SupabaseDate.string(date))
         }
         guard let data = try? encoder.encode(payload) else { return }
-        try? data.write(to: file(uid: uid, lang: lang, reader: reader), options: [.atomic, .completeFileProtection])
+        try? data.write(to: file(uid: uid, lang: lang, reader: reader), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
     static func load(uid: String, lang: String, reader: String) -> Payload? {

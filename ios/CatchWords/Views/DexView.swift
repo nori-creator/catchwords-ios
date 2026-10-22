@@ -78,7 +78,14 @@ struct DexView: View {
     @Environment(AppRouter.self) private var router
 
     /// The slide dex first (owner 2026-10-16: 「図鑑を開いたらスライドの図鑑」); a landing still opens the gallery.
-    @State private var mode: DexMode = .cover
+    @State private var mode: DexMode
+
+    /// A catch landing opens straight on the gallery: built first as the slide dex and switched on appearing, the
+    /// landing paid for the cover flow (and its sound engine starting) as the page rose (owner 2026-10-20: the add to
+    /// 図鑑 stuttered).
+    init(startInGallery: Bool = false) {
+        _mode = State(initialValue: startInGallery ? .grid : .cover)
+    }
     /// One of the dex's 20 categories (DexCatalog), or nil for all.
     @State private var categoryFilter: Int?
     @State private var dayFilter: Date?
@@ -564,9 +571,7 @@ struct DexView: View {
                 guard focus?.id != id else { return }
                 focus = DexGalleryFocus(id: id, fillStart: nil)
                 Task {
-                    await scroll(to: id, proxy: proxy)
-                    // one more frame so the square reports where it is before the star leaves
-                    try? await Task.sleep(for: .milliseconds(32))
+                    await bringInView(id, for: l, proxy: proxy)
                     l.roomReady = true
                 }
             } else if galleryHold?.stickerId != id {
@@ -577,12 +582,9 @@ struct DexView: View {
                 let anchor = room ? id : roomAnchor(for: id)
                 Task {
                     await scroll(to: anchor, proxy: proxy, word: id)
-                    if room {
-                        try? await Task.sleep(for: .milliseconds(32))
-                        l.roomReady = true
-                    } else {
-                        await makeRoom(for: l)
-                    }
+                    if !room { await makeRoom(for: l) }
+                    await bringInView(id, for: l, proxy: proxy)
+                    l.roomReady = true
                 }
             }
         } else if router.landing == nil, let id = router.landingStickerId {
@@ -620,15 +622,27 @@ struct DexView: View {
     private func makeRoom(for l: CatchLandingController) async {
         try? await Task.sleep(for: .milliseconds(300))
         guard router.landing === l, l.fillStart == nil,
-              let hold = galleryHold, hold.stickerId == l.stickerId, !hold.room else {
-            l.roomReady = true
-            return
-        }
+              let hold = galleryHold, hold.stickerId == l.stickerId, !hold.room else { return }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
             galleryHold = DexBook.Hold(stickerId: hold.stickerId, room: true)
-        } completion: {
-            l.roomReady = true
         }
+        // the squares have moved one to the right (the spring settles in about half a second)
+        try? await Task.sleep(for: .milliseconds(500))
+    }
+
+    /// Scrolls until the landing's square has reported where it is on screen (`CatchLandingController.target`), so
+    /// the star never leaves before. The gallery is lazy: a category far down (植物・花 is the 17th) was not built
+    /// when the first scroll landed short, its square never reported, and the sticker flew to a fixed point on an
+    /// empty part of the page (owner 2026-10-21: 聖誕樹). Tries for about 1.5 s at most.
+    private func bringInView(_ id: String, for l: CatchLandingController, proxy: ScrollViewProxy) async {
+        for _ in 0..<12 {
+            guard router.landing === l else { return }
+            await scroll(to: id, proxy: proxy)
+            // a frame or two for the square to be built and report its frame
+            try? await Task.sleep(for: .milliseconds(120))
+            if let t = l.target, t.maxY > 0, t.minY < l.screen.height { return }
+        }
+        UITestTrace.log("dex landing: square \(id) not on screen after scrolling")
     }
 
     /// The square a landing goes to. A re-encounter's sticker may not be the one its word's square stands for (one

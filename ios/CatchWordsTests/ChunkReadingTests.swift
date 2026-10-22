@@ -129,4 +129,25 @@ final class ChunkReadingTests: XCTestCase {
         XCTAssertEqual(ChunkLineView.fitScales(base: 15), [1], "a compact chunk is at 15 pt already: it only wraps")
         XCTAssertEqual(ChunkLineView.fitScales(base: 40).last ?? 0, 0.8, accuracy: 0.001)
     }
+
+    /// The colour of each server POS (owner 2026-10-22: 「品詞をより高い精度に」): 助詞 (Ptc) and 接続詞 (Conj) were drawn
+    /// as 名詞, and the old cards' role C (接続・介詞) as 状態動詞.
+    func testEachPartOfSpeechHasItsColour() {
+        XCTAssertEqual(ChunkKind(pos: "Prep"), .particle, "用 in 用＋湯匙＋吃飯 (教育部 [介], TBCL Prep)")
+        XCTAssertEqual(ChunkKind(pos: "Ptc"), .particle, "的・了・嗎・把")
+        XCTAssertEqual(ChunkKind(pos: "Conj"), .particle)
+        XCTAssertEqual(ChunkKind(pos: "C"), .particle, "the old role code 接続・介詞, as on the web")
+        XCTAssertEqual(ChunkKind(pos: "Det"), .particle)
+        XCTAssertEqual(ChunkKind(pos: "V"), .verb)
+        XCTAssertEqual(ChunkKind(pos: "Vi"), .verb)
+        XCTAssertEqual(ChunkKind(pos: "V-sep"), .verb)
+        XCTAssertEqual(ChunkKind(pos: "Vaux"), .verb)
+        XCTAssertEqual(ChunkKind(pos: "Vs"), .stative)
+        XCTAssertEqual(ChunkKind(pos: "Vs-attr"), .stative)
+        XCTAssertEqual(ChunkKind(pos: "Vst"), .stative)
+        XCTAssertEqual(ChunkKind(pos: "Adv"), .adverb)
+        XCTAssertEqual(ChunkKind(pos: "N"), .noun)
+        XCTAssertEqual(ChunkKind(pos: "S"), .noun, "the old role code 主語")
+        XCTAssertEqual(ChunkKind(pos: "O"), .noun, "the old role code 目的語")
+    }
 }

@@ -20,7 +20,8 @@ nonisolated enum ReaderLanguage {
     /// A new explanation asked for now would be written in `lang`. Not while the screen's language has not reached the
     /// server (the save failed or is still on its way): the server would write it in the old language, under the old
     /// key, and the word page would ask again on every opening (one AI card each time).
-    static func serverWritesIn(_ lang: String) -> Bool { serverLang.map { $0 == lang } ?? true }
+    /// Unknown (never read, never saved) counts as not yet: the server's default is ja.
+    static func serverWritesIn(_ lang: String) -> Bool { serverLang == lang }
 
     /// web `readerL1`: the display language when it differs from the learning language, else the old
     /// native language, else the first allowed choice. The choices are the display languages (web `L1_ORDER`, the

@@ -62,7 +62,14 @@ enum SaveOutcome {
 @Observable
 final class DexStore {
     /// Every change also goes to the copy kept on this phone (`scheduleSnapshot`): the next launch shows it at once.
-    var stickers: [Sticker] = []
+    var stickers: [Sticker] = [] {
+        didSet { stickersVersion &+= 1 }
+    }
+    /// Counts every change of `stickers` (the headword index below is rebuilt after one).
+    @ObservationIgnored private var stickersVersion = 0
+    /// The stickers by normalised headword, oldest first, for `dexPictures` — every square of the gallery looked
+    /// through every sticker on each update (several a second during a landing, owner 2026-10-20: stutter).
+    @ObservationIgnored private var headwordIndex: (version: Int, lang: String, map: [String: [Sticker]])?
     var isLoading: Bool = false
     var hasLoaded: Bool = false
     var loadError: String?
@@ -183,8 +190,12 @@ final class DexStore {
             loadError = nil
             hasLoaded = true
             UITestTrace.once("dex read from the server", "words=\(stickers.count)")
-            // The cut-outs still missing (every picture is cut out, owner 2026-10-11) start now: the home album waits
-            // for the ones about to be made, so they are not held back by the reviews' read.
+            // Kept on this phone at once (the next launch shows these rows from its first frame), not only once the
+            // reviews and every link are read — an app sent away before that left no snapshot (owner 2026-10-20:
+            // Home's photos took 20 s to show at launch).
+            scheduleSnapshot()
+            // The cut-outs still missing (every picture is cut out, owner 2026-10-11), behind the album: its photos
+            // show at once and fade into their cut-outs as they are made.
             CutoutBackfill.shared.start(dex: self)
             await loadReviews()
             await signing.value
@@ -234,6 +245,8 @@ final class DexStore {
     /// The photos the home album shows (the ones taken off the album stay in the dex only).
     /// Re-encounter photos are pages too, on the day they were met (`albumEncounters`).
     var albumStickers: [Sticker] { (stickers + albumEncounters).filter { !albumHidden.contains($0.id) } }
+    /// How many of this account's photos are off the album (the ones still in the dex or met again).
+    var albumHiddenCount: Int { (stickers + albumEncounters).filter { albumHidden.contains($0.id) }.count }
 
     /// True when this headword is already in the dex (scan "取得済み").
     func owns(headword: String) -> Bool { stickers.contains { $0.word?.headword == headword } }
@@ -307,6 +320,8 @@ final class DexStore {
     @ObservationIgnored private var signTask: Task<Void, Never>?
     /// The last time a link was made again because it failed (at most once every 2 minutes per path).
     @ObservationIgnored private var forcedAt: [String: Date] = [:]
+    /// Paths whose link failed and is being made again: the new link replaces the old one (`applySigned`).
+    @ObservationIgnored private var forced: Set<String> = []
     private static let linkLifetime: TimeInterval = 5 * 3600
 
     /// Signs the paths (and their thumbnails) in batches of 100 pairs, in the order given (the first batch holds the
@@ -350,8 +365,21 @@ final class DexStore {
 
     private func applySigned(_ map: [String: URL], for chunk: [String]) {
         let now = Date()
-        signed.merge(map) { _, new in new }
-        for p in chunk where map[p] != nil { signedAt[p] = now }
+        // A link still fresh is kept: the same path signed twice at once (the dex read and a picture on screen asking)
+        // swapped its URL, and a picture's download is keyed on its URL — it started over (`StickerImage`). A link
+        // asked for because it failed (`forced`) is always replaced.
+        for (key, url) in map {
+            let base = key.hasSuffix(Self.thumbSuffix) ? String(key.dropLast(Self.thumbSuffix.count)) : key
+            if signed[key] != nil, !forced.contains(base), let at = signedAt[base], now.timeIntervalSince(at) < Self.linkLifetime {
+                continue
+            }
+            signed[key] = url
+        }
+        for p in chunk where map[p] != nil {
+            if forced.remove(p) != nil || signedAt[p].map({ now.timeIntervalSince($0) >= Self.linkLifetime }) ?? true {
+                signedAt[p] = now
+            }
+        }
         let gone = chunk.filter { map[$0] == nil && map[$0 + Self.thumbSuffix] == nil }
         if !gone.isEmpty { missingPaths.formUnion(gone) }
         let back = chunk.filter { map[$0] != nil && missingPaths.contains($0) }
@@ -365,6 +393,7 @@ final class DexStore {
         if force {
             if let last = forcedAt[path], Date().timeIntervalSince(last) < 120 { return }
             forcedAt[path] = Date()
+            forced.insert(path)
         } else if signed[path] != nil, let at = signedAt[path], Date().timeIntervalSince(at) < Self.linkLifetime {
             return
         }
@@ -573,9 +602,7 @@ final class DexStore {
     /// just recorded on this phone comes before all of them (`freshEncounters`).
     func dexPictures(for sticker: Sticker) -> [DexPicture] {
         let key = DexCatalog.norm(sticker.word?.headword ?? "", lang: language)
-        let others = key.isEmpty ? [] : stickers.filter {
-            $0.id != sticker.id && DexCatalog.norm($0.word?.headword ?? "", lang: language) == key
-        }.sorted { $0.takenAt < $1.takenAt }
+        let others = key.isEmpty ? [] : (stickersByHeadword()[key] ?? []).filter { $0.id != sticker.id }
         var out: [DexPicture] = []
         for s in [sticker] + others {
             if let p = freshEncounters[s.id], !out.contains(where: { $0.path == p.path }) { out.append(p) }
@@ -587,6 +614,19 @@ final class DexStore {
             }
         }
         return Array(out.prefix(8))
+    }
+
+    private func stickersByHeadword() -> [String: [Sticker]] {
+        let lang = language
+        if let c = headwordIndex, c.version == stickersVersion, c.lang == lang { return c.map }
+        var map: [String: [Sticker]] = [:]
+        for s in stickers {
+            let k = DexCatalog.norm(s.word?.headword ?? "", lang: lang)
+            if !k.isEmpty { map[k, default: []].append(s) }
+        }
+        for k in map.keys { map[k]?.sort { $0.takenAt < $1.takenAt } }
+        headwordIndex = (stickersVersion, lang, map)
+        return map
     }
 
     /// A word's own dex picture: the cut-out, else the photo, else its internet stand-in — skipping a file the
@@ -1524,6 +1564,10 @@ final class DexStore {
 
     /// Photos taken off the home album. They stay in the dex; only the album page skips them.
     var albumHidden: Set<String> = []
+
+    /// The photo just taken off the album with ✕: Home offers 「元に戻す」 for a few seconds (owner 2026-10-20: 「ホームの
+    /// 画像をバツで消した時に戻す方法がない」 — the tray at the album's end was out of sight).
+    var albumUndo: String?
 
     /// The ones the server holds (the rest of `albumHidden` is kept on this phone only).
     @ObservationIgnored private var serverAlbumHidden: Set<String> = []

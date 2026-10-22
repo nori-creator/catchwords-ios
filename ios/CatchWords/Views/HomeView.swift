@@ -11,11 +11,15 @@ struct HomeView: View {
     @State private var memorialHidden = false
     /// True while a day's photos are being rearranged: the screen holds still under the fingers and 「完了」 shows.
     @State private var albumEditing = false
+    /// The photos taken off the album, in a sheet (「外した写真」 beside 「完了」).
+    @State private var showingHidden = false
     /// 「完了」 pressed: the board being rearranged saves and stops.
     @State private var finishEditing = 0
     /// The calendar (header button): a day picked there scrolls the album to it; the other days stay above and
     /// below it (owner 2026-10-14: 「カレンダーの日付を押すとその日の欄が見えるように。スクロールしてほかの日にも移動できる」).
     @State private var calendarOpen = false
+    /// The calendar's closing pon was played at the tap (× or a picked day), not again when the sheet is gone.
+    @State private var calendarPonned = false
     @State private var calendarDay: Date?
     @State private var jumpCount = 0
     /// Moves the page while a photo is carried to the screen's top or bottom edge (`AlbumAutoScroll`).
@@ -119,23 +123,71 @@ struct HomeView: View {
         // Rearranging the album ends with 「完了」 (web: a fixed button above the tab bar), wherever the board is.
         .overlay(alignment: .bottom) {
             if albumEditing {
-                Button {
-                    Haptics.impact(.light)
-                    finishEditing += 1
-                } label: {
-                    Label(L("完了"), systemImage: "checkmark")
-                        .scaledFont(size: 17, weight: .bold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 28)
-                        .frame(minHeight: 52)
-                        .background(Theme.primary, in: Capsule())
-                        .shadow(color: Theme.primary.opacity(0.4), radius: 14, y: 6)
+                HStack(spacing: 10) {
+                    // The photos taken off with ✕, to put back while rearranging (owner 2026-10-21: after 「完了」 there
+                    // was no way back — the tray at the album's end was out of sight).
+                    if dex.albumHiddenCount > 0 {
+                        Button {
+                            Haptics.selection()
+                            showingHidden = true
+                        } label: {
+                            Label(L("外した写真 \(dex.albumHiddenCount)"), systemImage: "eye.slash")
+                                .scaledFont(size: 15, weight: .semibold)
+                                .foregroundStyle(Theme.foreground)
+                                .padding(.horizontal, 18)
+                                .frame(minHeight: 52)
+                                .background(Theme.card, in: Capsule())
+                                .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
+                                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                        }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityIdentifier("home.album.hidden")
+                    }
+                    Button {
+                        Haptics.impact(.light)
+                        finishEditing += 1
+                    } label: {
+                        Label(L("完了"), systemImage: "checkmark")
+                            .scaledFont(size: 17, weight: .bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 28)
+                            .frame(minHeight: 52)
+                            .background(Theme.primary, in: Capsule())
+                            .shadow(color: Theme.primary.opacity(0.4), radius: 14, y: 6)
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityIdentifier("home.album.done")
                 }
-                .buttonStyle(PressableStyle())
                 .padding(.bottom, 84)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                .accessibilityIdentifier("home.album.done")
             }
+        }
+        .sheet(isPresented: $showingHidden) {
+            ScrollView {
+                AlbumHiddenTray(startOpen: true)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 24)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .overlay(alignment: .bottom) {
+            if let id = dex.albumUndo {
+                AlbumUndoBar {
+                    withAnimation(.snappy) { dex.albumUndo = nil }
+                    Haptics.selection()
+                    Task { await dex.setAlbumHidden(id, hidden: false) }
+                }
+                .padding(.bottom, 110)   // above the tab bar
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .task(id: dex.albumUndo) {
+            // Offered for 5 seconds; the tray at the album's end still has the photo after that.
+            guard dex.albumUndo != nil else { return }
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappy) { dex.albumUndo = nil }
         }
         .fullScreenCover(item: Binding(get: { memorialOpen.map(MemorialDay.init) }, set: { memorialOpen = $0?.n })) { m in
             MemorialAlbumView(n: m.n, words: dex.stickers.count, picks: Milestone.highlights(dex.stickers)) { s in
@@ -150,9 +202,10 @@ struct HomeView: View {
             if let start = profile.createdAt { await Milestone.scheduleNotification(start: start) }
         }
         .sheet(isPresented: $calendarOpen, onDismiss: {
-            // Closed (×, a swipe down, a day picked): the same pon back as a word's page closing (owner 2026-10-20). A
-            // word opened from it pons open instead.
-            if router.detailSticker == nil { SoundService.shared.pon(open: false) }
+            // Closed by a swipe down: the same pon back as a word's page closing (owner 2026-10-20), as it ends. × and a
+            // picked day pon at the tap (`closeCalendar`); a word opened from it pons open instead.
+            if !calendarPonned && router.detailSticker == nil { SoundService.shared.pon(open: false) }
+            calendarPonned = false
         }) {
             NavigationStack {
                 ScrollView {
@@ -161,14 +214,14 @@ struct HomeView: View {
                         router.detailSticker = dex.albumOwner(s)
                     }) { picked in
                         calendarDay = picked
-                        calendarOpen = false
+                        closeCalendar()
                         jumpCount += 1
                     }
                     .padding(.horizontal, 16)
                 }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { calendarOpen = false } label: { Image(systemName: "xmark") }
+                        Button { closeCalendar() } label: { Image(systemName: "xmark") }
                             .accessibilityLabel(L("閉じる"))
                     }
                 }
@@ -187,6 +240,14 @@ struct HomeView: View {
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(32)
         }
+    }
+
+    /// × or a picked day: the closing pon at the tap — waiting for the sheet to finish sliding away made it late
+    /// (owner 2026-10-20 「バツボタンを押したらちょうど鳴るように」).
+    private func closeCalendar() {
+        SoundService.shared.pon(open: false)
+        calendarPonned = true
+        calendarOpen = false
     }
 
     private var header: some View {
@@ -361,11 +422,39 @@ struct HomeAlbum: View {
     }
 }
 
+/// Right after a photo is taken off the album: 「写真をアルバムから外しました」 with 「元に戻す」.
+struct AlbumUndoBar: View {
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Text(L("写真をアルバムから外しました"))
+                .scaledFont(size: 14, weight: .medium)
+                .foregroundStyle(.white)
+            Button(action: onUndo) {
+                Text(L("元に戻す"))
+                    .scaledFont(size: 14, weight: .bold)
+                    .foregroundStyle(Theme.primaryBright)
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("home.albumUndo")
+        }
+        .padding(.leading, 18)
+        .padding(.trailing, 14)
+        .background(Theme.toastInk.opacity(0.9), in: Capsule())
+    }
+}
+
 /// Web `album-hidden-tray`: photos taken off the album, each with 「戻す」. Collapsed by default.
 struct AlbumHiddenTray: View {
     @Environment(DexStore.self) private var dex
-    @State private var open = false
+    @State private var open: Bool
     @State private var failed = false
+
+    /// `startOpen`: the list shown at once (the sheet opened from 「外した写真」 while rearranging).
+    init(startOpen: Bool = false) { _open = State(initialValue: startOpen) }
 
     private var hidden: [Sticker] { (dex.stickers + dex.albumEncounters).filter { dex.albumHidden.contains($0.id) } }
 
@@ -394,6 +483,11 @@ struct AlbumHiddenTray: View {
                             VStack(spacing: 6) {
                                 AlbumPhoto(sticker: s, width: 84, height: 84)
                                 Text(s.word?.headword ?? "").scaledFont(size: 12, weight: .semibold).lineLimit(1)
+                                // The day it was caught (owner 2026-10-21: 「戻すところの単語のそれぞれに日にちを書いて」).
+                                Text(JPDate.monthDay(s.takenAt))
+                                    .scaledFont(size: 11, monospacedDigit: true)
+                                    .foregroundStyle(Color(hex: 0x33291F).opacity(0.6))
+                                    .lineLimit(1)
                                 Button(L("戻す")) {
                                     Haptics.selection()
                                     Task {

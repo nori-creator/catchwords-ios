@@ -11,6 +11,9 @@ struct SectionsPanel: View {
                 Text(L("表示する項目と順番"))
                     .scaledFont(size: 13, weight: .semibold)
                     .foregroundStyle(Theme.muted)
+                    // Long in es / ko / vi: one line, a little smaller, next to the reset button.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                 Spacer()
                 Button(L("既定に戻す")) {
                     Haptics.selection()
@@ -18,6 +21,8 @@ struct SectionsPanel: View {
                 }
                 .scaledFont(size: 13, weight: .semibold)
                 .foregroundStyle(Theme.primaryInk)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
                 .frame(minHeight: 44)
             }
             .padding(.horizontal, 16)

@@ -41,6 +41,8 @@ PENDING_WEB_DEPLOY = {
     # published they answer 404: the settings screen keeps the per-feature list and the cost card says so.
     # recordAiConsent / getAiConsent (AI consent, docs/web-changes/ 0003) are on the web now.
     # Add an entry here as "name": "where the web patch is" when iOS calls a function ahead of its deploy.
+    # readSentences (the readings of every character of the example sentences, Services/SentenceReadings.swift) is on the
+    # web's main now (PR #194). Until the web is published it answers 404 and the sentences are shown without readings.
     # storeAppleAuthCode (Sign in with Apple revocation, audit R7-03) is on the web's main now.
     # The developer "AI settings" (admin*, docs/admin-ai-api.md) are on the web's main now (PR #168).
     # Speed and accuracy by model, the fixed-photo test and the candidate rank log are on the web's main now

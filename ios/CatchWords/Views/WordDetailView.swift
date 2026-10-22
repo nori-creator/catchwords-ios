@@ -993,7 +993,10 @@ struct WordDetailView: View {
     private func sectionBody(_ s: CardSection) -> some View {
         switch s {
         case .meaning: meaningCard
-        case .example: WordExamplesCard(examples: examples, headword: headword)
+        case .example:
+            WordExamplesCard(examples: examples, headword: headword,
+                             known: SentenceReadings.known(headword: headword, pinyin: word?.pinyin, chunks: chunks),
+                             language: learningLang)
         case .examplesExtra, .webImages, .pronunciationTips, .mnemonic, .etymology: EmptyView()
         case .usageChunks: chunkCard(chunks)
         case .measureWords: measureCard(measures)
@@ -1164,8 +1167,8 @@ struct WordDetailView: View {
     private static func itemTitle(_ item: String?) -> String {
         switch item {
         case "pronunciation": L("発音・読み")
-        case "pos": L("品詞")
-        case let key?: CardSection(rawValue: key)?.title ?? key
+        // No part of speech on iOS (owner 2026-10-20), and an item the app does not know is never shown by its key.
+        case let key?: CardSection(rawValue: key)?.title ?? L("項目")
         default: L("項目")
         }
     }
@@ -1233,15 +1236,16 @@ struct WordDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             // Shown as it is said, with the word itself: 一 + the measure word + the noun (「一份蛋糕」),
                             // on one line — a step smaller when it is long, never wrapped (owner 2026-10-20). The measure
-                            // word leads; the noun is smaller, lighter and grey, so no colour other than the headword's blue
-                            // is needed (owner 2026-10-20).
+                            // word leads in black and heavy; the noun beside it is grey and regular, so no colour other
+                            // than the headword's blue is needed (owner 2026-10-20).
                             let said = m.word.hasPrefix("一") ? m.word : "一" + m.word  // l10n-ignore (target word)
                             let reading = m.word.hasPrefix("一") ? m.zhuyin : m.zhuyin.map { "ㄧ " + $0 }  // l10n-ignore (target word)
+                            let pinyin = m.word.hasPrefix("一") ? m.pinyin : m.pinyin.map { "yī " + $0 }  // l10n-ignore (target word)
                             ViewThatFits(in: .horizontal) {
-                                measureLine(said, reading: reading, size: 26)
-                                measureLine(said, reading: reading, size: 22)
-                                measureLine(said, reading: reading, size: 18)
-                                measureLine(said, reading: reading, size: 15)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 26)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 22)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 18)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 15)
                             }
                             if let n = m.note, !n.isEmpty {
                                 Text(n).scaledFont(size: 15).foregroundStyle(Theme.muted).lineSpacing(4)
@@ -1259,10 +1263,12 @@ struct WordDetailView: View {
     }
 
     /// 「一份」 and the word it counts, side by side on one line, each with its reading as the headword draws it.
-    private func measureLine(_ said: String, reading: String?, size: CGFloat) -> some View {
+    private func measureLine(_ said: String, reading: String?, pinyin: String?, size: CGFloat) -> some View {
+        // Both at one size, so the characters and their readings stand on the same lines (owner 2026-10-20: the
+        // smaller noun's characters and pinyin sat lower — 「高さがずれて、違和感がある」); weight and colour tell them apart.
         HStack(alignment: .bottom, spacing: size * 0.2) {
-            ZhuyinWordView(headword: said, zhuyin: reading, size: size, weight: .heavy, language: "zh-TW")
-            ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: size * 0.8, weight: .regular,
+            ZhuyinWordView(headword: said, zhuyin: reading, size: size, weight: .heavy, pinyin: pinyin, language: "zh-TW")
+            ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: size, weight: .regular,
                            color: Theme.muted, pinyin: word?.pinyin, language: "zh-TW")
         }
         .fixedSize()
@@ -1904,10 +1910,13 @@ enum ChunkKind: CaseIterable, Hashable {
     init(pos: String) {
         let p = pos.uppercased()
         if p.hasPrefix("ADV") || p == "D" { self = .adverb }
-        // Japanese particles (を・に・が) and English prepositions / articles: the glue between the words.
-        else if ["P", "PART", "PREP", "DET", "ART"].contains(p) || p.contains("助詞") || p.contains("前置") { self = .particle }  // l10n-ignore (matching server POS)
-        else if p.hasPrefix("VS") || p == "A" || p == "C" || p.contains("形容") || p.contains("状態") { self = .stative }  // l10n-ignore (matching server POS)
-        else if p.hasPrefix("V") || p.contains("動") { self = .verb }  // l10n-ignore (matching server POS)
+        // Japanese particles (を・に・が) and English prepositions / articles: the glue between the words. Mandarin's
+        // 助詞 (Ptc: 的・了・嗎・把) and 接続詞 (Conj) too, and the old cards' role C (接続・介詞) as on the web
+        // (`pos.ts`) — they fell through to 名詞 and 状態動詞 (owner 2026-10-22: 「品詞をより高い精度に」).
+        else if ["P", "PART", "PREP", "DET", "ART", "PTC", "CONJ", "C"].contains(p)
+                    || p.contains("助詞") || p.contains("前置") || p.contains("接続") { self = .particle }  // l10n-ignore (matching server POS)
+        else if p.hasPrefix("VS") || p == "A" || p.hasPrefix("ADJ") || p.contains("形容") || p.contains("状態") { self = .stative }  // l10n-ignore (matching server POS)
+        else if p.hasPrefix("V") || p == "AUX" || p.contains("動") { self = .verb }  // l10n-ignore (matching server POS)
         else { self = .noun }
     }
 

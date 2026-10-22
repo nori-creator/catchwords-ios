@@ -12,34 +12,38 @@ final class CutoutBackfill {
     @ObservationIgnored private var task: Task<Void, Never>?
     /// Words being cut out right now (the word page asks too when it opens one without a cut-out).
     @ObservationIgnored private var running: Set<String> = []
-    /// Words of this run still to be cut out. The home album waits for their cut-out instead of showing the photo
-    /// first and swapping it a moment later (owner 2026-10-14: 「元の画像が一瞬表示されて、すぐ切り抜きになる」).
-    private(set) var queued: Set<String> = []
-    /// True once the first run of this launch is planned (or 8 s after launch, so a dex that cannot be read never
-    /// keeps the album waiting). Before that, every photo still without a cut-out waits.
-    private(set) var planned = false
     @ObservationIgnored private var triedCache: (uid: String, ids: Set<String>)?
 
-    private init() {
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(8))
-            self?.planned = true
-        }
-    }
+    // The home album no longer waits for these cut-outs: it showed a blank for every word without one until the dex
+    // was read (up to 8 s) and then for up to 40 words cut out one after another — the newest at the top of Home — and
+    // a cut-out that failed was queued, and waited for, on every launch (owner 2026-10-20: 「ホームの画像が表示されるまでに
+    // 20秒くらいかかってる」). The photo shows at once and fades into its cut-out when it is made (`AlbumPhoto`).
 
-    /// The home album should wait for this word's cut-out (it is about to be made) rather than draw its photo.
-    func awaitsCutout(_ s: Sticker) -> Bool {
-        guard Self.needsCutout(s) else { return false }
-        if planned { return queued.contains(s.id) }
-        guard let uid = SupabaseClient.shared.userId else { return false }
-        return !tried(uid).contains(s.id)
-    }
+    private init() {}
 
     private func tried(_ uid: String) -> Set<String> {
         if let c = triedCache, c.uid == uid { return c.ids }
         let ids = Set(UserDefaults.standard.stringArray(forKey: Self.triedKey(uid)) ?? [])
         triedCache = (uid, ids)
         return ids
+    }
+
+    /// Words whose cut-out failed (no photo, upload refused…), with when: not tried again for a day.
+    private static func failedKey(_ uid: String) -> String { "cutout.failed.\(uid)" }
+    private static let retryAfter: TimeInterval = 24 * 3600
+
+    private func recentlyFailed(_ uid: String) -> Set<String> {
+        let all = UserDefaults.standard.dictionary(forKey: Self.failedKey(uid)) as? [String: Date] ?? [:]
+        let now = Date()
+        return Set(all.filter { now.timeIntervalSince($0.value) < Self.retryAfter }.keys)
+    }
+
+    private func noteFailed(_ id: String, uid: String) {
+        var all = UserDefaults.standard.dictionary(forKey: Self.failedKey(uid)) as? [String: Date] ?? [:]
+        let now = Date()
+        all = all.filter { now.timeIntervalSince($0.value) < Self.retryAfter }
+        all[id] = now
+        UserDefaults.standard.set(all, forKey: Self.failedKey(uid))
     }
 
     enum Outcome { case made, noSubject, failed }
@@ -57,28 +61,30 @@ final class CutoutBackfill {
     /// Starts working through the words without a cut-out (after a dex read). Does nothing while a run is going.
     func start(dex: DexStore) {
         guard task == nil else { return }
-        guard let uid = SupabaseClient.shared.userId else { planned = true; return }
+        guard let uid = SupabaseClient.shared.userId else { return }
         let tried = tried(uid)
-        let todo = dex.stickers.filter { Self.needsCutout($0) && !tried.contains($0.id) }.prefix(Self.perRun).map(\.id)
-        queued = Set(todo)
-        planned = true
+        let failed = recentlyFailed(uid)
+        let todo = dex.stickers.filter { Self.needsCutout($0) && !tried.contains($0.id) && !failed.contains($0.id) }
+            .prefix(Self.perRun).map(\.id)
         guard !todo.isEmpty else { return }
         task = Task(priority: .utility) { [weak self] in
+            // The pictures on screen load first (they share the network with the photos fetched here).
+            try? await Task.sleep(for: .seconds(4))
             var noSubject = tried
             for id in todo {
                 guard let self, !Task.isCancelled, SupabaseClient.shared.userId == uid else { break }
                 // The word may have changed meanwhile (a cut-out attached elsewhere, the word deleted).
-                guard let current = dex.sticker(id: id), Self.needsCutout(current) else { self.queued.remove(id); continue }
-                if await self.make(for: current, dex: dex) == .noSubject {
+                guard let current = dex.sticker(id: id), Self.needsCutout(current) else { continue }
+                switch await self.make(for: current, dex: dex) {
+                case .noSubject:
                     noSubject.insert(id)
                     UserDefaults.standard.set(Array(noSubject), forKey: Self.triedKey(uid))
                     self.triedCache = (uid, noSubject)
+                case .failed: self.noteFailed(id, uid: uid)
+                case .made: break
                 }
-                // Done either way: the album shows the cut-out, or the photo when none could be made.
-                self.queued.remove(id)
                 try? await Task.sleep(for: .milliseconds(150))
             }
-            self?.queued = []
             self?.task = nil
         }
     }
@@ -88,7 +94,6 @@ final class CutoutBackfill {
         task?.cancel()
         task = nil
         running = []
-        queued = []
         triedCache = nil
     }
 

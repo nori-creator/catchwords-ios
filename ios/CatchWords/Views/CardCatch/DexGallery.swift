@@ -119,10 +119,44 @@ private struct DexCategoryCard: View {
         .padding(.bottom, 14)
         .background(Theme.card, in: .rect(cornerRadius: 22, style: .circular))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .circular).stroke(DexInk.border, lineWidth: 1))
-        // 0 6px 18px −12px rgba(20,50,90,.25)
-        .background(RoundedRectangle(cornerRadius: 22, style: .circular).fill(Color.rgba(20, 50, 90, 0.25))
-            .padding(12).offset(y: 6).blur(radius: 9))
+        // 0 6px 18px −12px rgba(20,50,90,.25): a picture drawn once, stretched to the card (it was a blur pass per
+        // card on every frame the gallery moved — the landing's shake, owner 2026-10-20: the add to 図鑑 stuttered).
+        .background {
+            DexCardShadow.image
+                .resizable(capInsets: DexCardShadow.capInsets)
+                .padding(-(DexCardShadow.pad - 12))
+                .offset(y: 6)
+                .allowsHitTesting(false)
+        }
     }
+}
+
+/// The category card's soft shadow (the card inset 12, blurred 9 — `DexCategoryCard`), drawn once.
+enum DexCardShadow {
+    /// The blur's reach round the inset card (3 radii).
+    static let pad: CGFloat = 28
+    private static let corner: CGFloat = 22
+    static var capInsets: EdgeInsets {
+        let c = pad + corner + 2
+        return EdgeInsets(top: c, leading: c, bottom: c, trailing: c)
+    }
+
+    static let image: Image = {
+        let inner = CGSize(width: 2 * corner + 40, height: 2 * corner + 40)
+        let size = CGSize(width: inner.width + 2 * pad, height: inner.height + 2 * pad)
+        let picture = UIGraphicsImageRenderer(size: size).image { r in
+            let cg = r.cgContext
+            // Only the shadow is drawn: the shape sits one width to the left, its shadow thrown back into the picture.
+            // Core Graphics' blur is about twice SwiftUI's radius.
+            cg.setShadow(offset: CGSize(width: size.width, height: 0), blur: 18,
+                         color: UIColor(red: 20 / 255, green: 50 / 255, blue: 90 / 255, alpha: 0.25).cgColor)
+            cg.addPath(UIBezierPath(roundedRect: CGRect(x: pad - size.width, y: pad, width: inner.width, height: inner.height),
+                                    cornerRadius: corner).cgPath)
+            cg.setFillColor(UIColor.black.cgColor)
+            cg.fillPath()
+        }
+        return Image(uiImage: picture)
+    }()
 }
 
 /// `.slot`: the square `.sart` (radius 16), `.no` (9.5 pt 700) and `.nm` (13 pt 800; `.nm.q` for shadows).
@@ -411,10 +445,30 @@ struct DexSilhouette: View {
     /// in that lookup on the iPhone simulator, after this warm-up had read them through UIKit).
     nonisolated static func warmUp() {
         for item in DexCatalog.allItems {
-            if UIImage(named: "dexsil-\(item.id)") != nil { continue }
+            if art(item) != nil { continue }
             _ = symbolImage(item)
         }
     }
+
+    /// The item's drawn art (`dexsil-<id>` in the asset catalog), looked up once: the lookup ran on every body — every
+    /// frame of the landing's tint (owner 2026-10-20: the add to 図鑑 stuttered) — and a miss is never cached by UIKit.
+    /// Kept as a plain bitmap like the symbols: SwiftUI draws a catalog `UIImage` by looking its name up in the catalog
+    /// again (vector first) on the main thread — the first 図鑑 still stalled 9.6 s in that lookup with the symbols
+    /// already bitmaps (DexOpenTests on c85804b, iPad, 2026-10-20).
+    nonisolated static func art(_ item: DexItem) -> UIImage? {
+        symbolsLock.lock()
+        let known = arts[item.id]
+        symbolsLock.unlock()
+        if let known { return known }
+        let found = UIImage(named: "dexsil-\(item.id)").flatMap { rasterized($0, side: 160) }
+        symbolsLock.lock()
+        arts[item.id] = .some(found)
+        symbolsLock.unlock()
+        return found
+    }
+
+    /// `art` per item id: the image, or nil for "none" (only under `symbolsLock`).
+    private nonisolated(unsafe) static var arts: [String: UIImage?] = [:]
 
     /// Read from the warm-up's thread and the main thread: only under `symbolsLock`.
     private nonisolated(unsafe) static var symbols: [String: UIImage] = [:]
@@ -427,21 +481,42 @@ struct DexSilhouette: View {
         let kept = symbols[sf]
         symbolsLock.unlock()
         if let kept { return kept }
-        // Large enough to stay sharp at the biggest shadow; drawn smaller as a vector.
-        let config = UIImage.SymbolConfiguration(pointSize: 160)
-        guard let image = UIImage(systemName: sf + ".fill", withConfiguration: config)
-                ?? UIImage(systemName: sf, withConfiguration: config) else { return nil }
+        let config = UIImage.SymbolConfiguration(pointSize: 60)
+        guard let symbol = UIImage(systemName: sf + ".fill", withConfiguration: config)
+                ?? UIImage(systemName: sf, withConfiguration: config),
+              let image = rasterized(symbol, side: 180) else { return nil }
         symbolsLock.lock()
         symbols[sf] = image
         symbolsLock.unlock()
         return image
     }
 
+    /// The shape as a plain bitmap (its alpha only, `side` px on its longer side: a shadow is drawn at most about
+    /// 60 pt): SwiftUI draws a symbol or catalog `UIImage` by looking it up in its catalog again, on the main
+    /// thread — the first 図鑑 still spent 13 s in that lookup with the symbols kept as `UIImage`s (DexOpenTests on
+    /// ffa9b08, 2026-10-20). A bitmap is only drawn.
+    nonisolated private static func rasterized(_ symbol: UIImage, side: CGFloat) -> UIImage? {
+        let s = symbol.size
+        guard s.width > 0, s.height > 0 else { return nil }
+        let k = side / max(s.width, s.height)
+        let w = max(1, Int((s.width * k).rounded())), h = max(1, Int((s.height * k).rounded()))
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w, space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue) else { return nil }
+        // UIKit's drawing: top-left origin, in the bitmap's pixels.
+        ctx.translateBy(x: 0, y: CGFloat(h))
+        ctx.scaleBy(x: k, y: -k)
+        UIGraphicsPushContext(ctx)
+        symbol.withTintColor(.black, renderingMode: .alwaysOriginal).draw(in: CGRect(origin: .zero, size: s))
+        UIGraphicsPopContext()
+        guard let cg = ctx.makeImage() else { return nil }
+        return UIImage(cgImage: cg, scale: 3, orientation: .up).withRenderingMode(.alwaysTemplate)
+    }
+
     var body: some View {
         GeometryReader { g in
             let s = min(g.size.width, g.size.height) * 0.72
             Group {
-                if let art = UIImage(named: "dexsil-\(item.id)") {
+                if let art = Self.art(item) {
                     Image(uiImage: art).renderingMode(.template).resizable().scaledToFit()
                 } else if let symbol = Self.symbolImage(item) {
                     Image(uiImage: symbol).renderingMode(.template).resizable().scaledToFit()
@@ -536,15 +611,24 @@ private struct DexAnticipTint: View {
     let start: Double
     let impact: Double?
 
+    /// The tint is full: the timeline stops redrawing.
+    @State private var done = false
+
     var body: some View {
-        TimelineView(.animation) { _ in
-            let end = impact ?? start + 0.52
+        let end = impact ?? start + 0.52
+        TimelineView(.animation(minimumInterval: nil, paused: done)) { _ in
             let an = Film6.seg(CCClock.now, start, max(start + 0.05, end))
             DexSilhouette(item: item, color: Theme.primaryBright)
                 .opacity(0.55 * an)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+        .task(id: end) {
+            done = false
+            let wait = end - CCClock.now + 0.05
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            if !Task.isCancelled { done = true }
+        }
     }
 }
 

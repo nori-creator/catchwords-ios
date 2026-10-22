@@ -11,32 +11,14 @@ nonisolated enum DevChoices {
     static let tabBarKey = "dev.tabbar.choice.v2"
     static let tabBarDefault = "original"
     static let tabBarRaised = "b"
-    /// The keys of the earlier trials (the old tab-bar choice and the two sound choices), removed at launch.
-    static let retiredKeys = ["dev.tabbar.variant", "dev.sfx.timeline", "dev.sfx.picker"]
+    /// The keys of the earlier trials (the old tab-bar choice, the sound choices, the 設定 wheel and the shutter —
+    /// decided, owner 2026-10-20: sound A and the app's own wheel; 2026-10-21: shutter B), removed at launch.
+    static let retiredKeys = ["dev.tabbar.variant", "dev.sfx.timeline", "dev.sfx.picker", "dev.sfx.settings", "dev.settings.wheel",
+                              "dev.sfx.shutter"]
 
     static var tabBar: String {
         UserDefaults.standard.string(forKey: tabBarKey) == tabBarRaised ? tabBarRaised : tabBarDefault
     }
-
-    /// The sound of a choice made in 設定 (owner 2026-10-20: 「最適な音を複数提案して」), compared on the device from
-    /// 設定 › 開発者 › 開発者の試し. The one picked there plays for everyone on this device; "pick" until then.
-    static let settingsSoundKey = "dev.sfx.settings"
-    @MainActor static let settingsSoundChoices: [(value: String, sfx: SFX, label: String)] = [
-        ("pick", .c6PickTick3, "A"), ("pop", .ccPop, "B"), ("choose", .c6Choose, "C"), ("tick", .ccTick, "D"),
-    ]
-    @MainActor static var settingsSound: String {
-        let v = UserDefaults.standard.string(forKey: settingsSoundKey) ?? "pick"
-        return settingsSoundChoices.contains { $0.value == v } ? v : "pick"
-    }
-    @MainActor static var settingsSoundSFX: SFX {
-        settingsSoundChoices.first { $0.value == settingsSound }?.sfx ?? .c6PickTick3
-    }
-
-    /// The 設定 wheels: the app's own (`TickWheel`, ticking every row, the default) or the system wheel, to compare on
-    /// the device (owner 2026-10-20). The system one only for a signed-in developer who picked it.
-    static let wheelKey = "dev.settings.wheel"
-    static let wheelApp = "app"
-    static let wheelSystem = "system"
 
     /// The simulator previews (`-uiPreview tabbar-b`) draw a developer's choice without an account behind them.
     nonisolated(unsafe) static var previewing = false

@@ -468,6 +468,8 @@ nonisolated struct CounterWord: Codable, Sendable, Hashable {
 nonisolated struct MeasureWord: Codable, Sendable, Hashable {
     var word: String
     var zhuyin: String?
+    /// Sent with the card (`yī kē`): shown when the learner reads pinyin (it was not read, so the zhuyin showed).
+    var pinyin: String?
     var note: String?
 }
 
@@ -545,10 +547,13 @@ nonisolated struct Sticker: Codable, Sendable, Identifiable, Hashable {
     /// 設定 › ホームに表示する写真 (`"object"` / `"cutout"` / `"selfie"`; never chosen = `"auto"` = the cut-out).
     static let homePhotoKey = "photo.pref"
 
-    /// The picture the home album shows: the kind chosen in 設定 › ホームに表示する写真, each falling back to what the
-    /// word has (owner 2026-10-11: 「ホームで表示する画像の種類は設定から元の画像か、切り抜きか、自撮りか選べるように」).
+    /// The picture the home album shows: the word's own choice (`hero_role`, 表示する写真 on its page — owner 2026-10-21:
+    /// 「ホームに出す絵を選ぶ」, e.g. the photo for a light on a ceiling), else the kind chosen in 設定 › ホームに表示する写真,
+    /// each falling back to what the word has (owner 2026-10-11: 「ホームで表示する画像の種類は設定から元の画像か、切り抜きか、
+    /// 自撮りか選べるように」).
     var homePath: String? {
-        switch UserDefaults.standard.string(forKey: Self.homePhotoKey) ?? "auto" {
+        if heroRole != nil, let own = heroPath { return own }
+        return switch UserDefaults.standard.string(forKey: Self.homePhotoKey) ?? "auto" {
         case "object": objectImageUrl ?? cutoutImageUrl ?? selfieImageUrl ?? placeholderImageUrl
         case "selfie": selfieImageUrl ?? cutoutImageUrl ?? objectImageUrl ?? placeholderImageUrl
         default: cutoutImageUrl ?? objectImageUrl ?? selfieImageUrl ?? placeholderImageUrl

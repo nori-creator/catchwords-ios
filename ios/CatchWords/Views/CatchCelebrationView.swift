@@ -80,7 +80,9 @@ struct CatchCelebrationView: View {
         ZStack {
             GeometryReader { geo in
                 let size = geo.size
-                TimelineView(.animation) { _ in
+                // Once the word flies into the 図鑑, the 図鑑's page rises over this screen: it stops being redrawn
+                // under it (it went on for the 0.6 s the camera screen stays, under the landing).
+                TimelineView(.animation(minimumInterval: nil, paused: router.landing != nil && !CatchDrawing.legacy)) { _ in
                     let now = CCClock.now
                     let tc = time(now)
                     ZStack(alignment: .topLeading) {
@@ -113,7 +115,7 @@ struct CatchCelebrationView: View {
 
             GeometryReader { geo in
                 let size = geo.size
-                TimelineView(.animation) { _ in
+                TimelineView(.animation(minimumInterval: nil, paused: router.landing != nil && !CatchDrawing.legacy)) { _ in
                     wordLine(time(CCClock.now), size)
                 }
             }
