@@ -27,6 +27,8 @@ nonisolated extension DemoDatabase {
         case "getScanContext": result = scanContext()
         case "searchImageCandidates": result = ["candidates": imageCandidates(query: DJ.str(data["query"]) ?? "")]
         case "regenerateCardSection": result = ["ok": false, "filled": false]
+        // The web's dictionary is not in the demo: no readings, so the example sentences stay as they are.
+        case "readSentences": result = ["readings": [Any]()]
         case "reportAndFixSection":
             let item = DJ.str(data["item"]) ?? "auto"
             if item == "auto" {

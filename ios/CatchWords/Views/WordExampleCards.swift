@@ -24,10 +24,12 @@ struct WordExampleCard: View {
     let translation: String?
     var scene: String = ""
     let headword: String
+    var known: [SentenceReadings.Known] = []
+    var language: String = NativeAPI.targetLanguage
 
     var body: some View {
         WordExamplesCard(examples: [ExampleItem(sentence: sentence, translation: translation, scene: scene.isEmpty ? nil : scene)],
-                         headword: headword)
+                         headword: headword, known: known, language: language)
     }
 }
 
@@ -37,14 +39,26 @@ struct WordExampleCard: View {
 struct WordExamplesCard: View {
     let examples: [ExampleItem]
     let headword: String
+    /// The words the card already reads (`SentenceReadings.known`): they win over the dictionary in the sentences.
+    var known: [SentenceReadings.Known] = []
+    /// The word's learning language: only a Mandarin sentence gets readings.
+    var language: String = NativeAPI.targetLanguage
+    /// Every sentence's reading of each character (owner 2026-10-22: 「例文の漢字にピンインまたは注音をすべて書いて」).
+    @State private var readings: [String: [SentenceUnit]] = [:]
 
     var body: some View {
         SectionCard(title: L("例文"), icon: "text.quote") {
             VStack(spacing: 10) {
                 ForEach(Array(examples.enumerated()), id: \.offset) { _, ex in
-                    ExampleBlock(example: ex, headword: headword)
+                    ExampleBlock(example: ex, headword: headword,
+                                 units: readings[ex.sentence] ?? (language.hasPrefix("zh") ? SentenceReadings.shared.cached(ex.sentence) : nil))
                 }
             }
+        }
+        .task(id: examples.map(\.sentence)) {
+            guard language.hasPrefix("zh") else { return }
+            let found = await SentenceReadings.shared.load(examples.map(\.sentence), known: known)
+            withAnimation(.easeOut(duration: 0.2)) { readings = found }
         }
     }
 }
@@ -53,16 +67,25 @@ struct WordExamplesCard: View {
 struct ExampleBlock: View {
     let example: ExampleItem
     let headword: String
+    /// The reading of each character (`SentenceReadings`); nil: the sentence alone (not read yet, or not Mandarin).
+    var units: [SentenceUnit]? = nil
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 10) {
                 if let scene = example.scene, !scene.isEmpty { SceneTag(text: scene) }
-                Text(WordHighlight.marked(example.sentence, headword: headword))
-                    .scaledFont(size: 19)
-                    .foregroundStyle(Theme.foreground)
-                    .lineSpacing(8)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let units, !units.isEmpty {
+                    SentenceRuby(units: units, headword: headword, size: AppTypeScale.scaled(19, for: dynamicTypeSize))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("example.sentence")
+                } else {
+                    Text(WordHighlight.marked(example.sentence, headword: headword))
+                        .scaledFont(size: 19)
+                        .foregroundStyle(Theme.foreground)
+                        .lineSpacing(8)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let t = example.translation, !t.isEmpty {
                     Text(t).scaledFont(size: 14).foregroundStyle(Theme.muted).lineSpacing(6)
                         .fixedSize(horizontal: false, vertical: true)

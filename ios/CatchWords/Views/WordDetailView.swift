@@ -993,7 +993,10 @@ struct WordDetailView: View {
     private func sectionBody(_ s: CardSection) -> some View {
         switch s {
         case .meaning: meaningCard
-        case .example: WordExamplesCard(examples: examples, headword: headword)
+        case .example:
+            WordExamplesCard(examples: examples, headword: headword,
+                             known: SentenceReadings.known(headword: headword, pinyin: word?.pinyin, chunks: chunks),
+                             language: learningLang)
         case .examplesExtra, .webImages, .pronunciationTips, .mnemonic, .etymology: EmptyView()
         case .usageChunks: chunkCard(chunks)
         case .measureWords: measureCard(measures)
@@ -1907,10 +1910,13 @@ enum ChunkKind: CaseIterable, Hashable {
     init(pos: String) {
         let p = pos.uppercased()
         if p.hasPrefix("ADV") || p == "D" { self = .adverb }
-        // Japanese particles (を・に・が) and English prepositions / articles: the glue between the words.
-        else if ["P", "PART", "PREP", "DET", "ART"].contains(p) || p.contains("助詞") || p.contains("前置") { self = .particle }  // l10n-ignore (matching server POS)
-        else if p.hasPrefix("VS") || p == "A" || p == "C" || p.contains("形容") || p.contains("状態") { self = .stative }  // l10n-ignore (matching server POS)
-        else if p.hasPrefix("V") || p.contains("動") { self = .verb }  // l10n-ignore (matching server POS)
+        // Japanese particles (を・に・が) and English prepositions / articles: the glue between the words. Mandarin's
+        // 助詞 (Ptc: 的・了・嗎・把) and 接続詞 (Conj) too, and the old cards' role C (接続・介詞) as on the web
+        // (`pos.ts`) — they fell through to 名詞 and 状態動詞 (owner 2026-10-22: 「品詞をより高い精度に」).
+        else if ["P", "PART", "PREP", "DET", "ART", "PTC", "CONJ", "C"].contains(p)
+                    || p.contains("助詞") || p.contains("前置") || p.contains("接続") { self = .particle }  // l10n-ignore (matching server POS)
+        else if p.hasPrefix("VS") || p == "A" || p.hasPrefix("ADJ") || p.contains("形容") || p.contains("状態") { self = .stative }  // l10n-ignore (matching server POS)
+        else if p.hasPrefix("V") || p == "AUX" || p.contains("動") { self = .verb }  // l10n-ignore (matching server POS)
         else { self = .noun }
     }
 
