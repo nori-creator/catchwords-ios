@@ -207,6 +207,32 @@ nonisolated struct StagePalette: Equatable, Sendable {
 /// The photo cropped round a thing (orientation-safe), for the sticker while its cut-out is not ready.
 enum StickerCrop {
     /// `box`: 0–1 of the photo (nil = the whole photo), widened by 8% each side.
+    /// The last resort when no mask was found for the thing (owner 2026-10-21: 「切り抜かないのは苦肉の策として例外」 —
+    /// Vision does not see a light on a ceiling as a thing): the photo round its box cut out as a rounded shape, with
+    /// a transparent outside, so it is still a sticker (its white border is drawn round it like any cut-out). nil
+    /// without a photo. `box`: normalized, top-left origin; nil = the whole photo.
+    static func shaped(_ photo: UIImage?, box: CGRect?) -> UIImage? {
+        guard let photo else { return nil }
+        let size = photo.size
+        var r = CGRect(origin: .zero, size: size)
+        if let b = box, b.width > 0.01, b.height > 0.01 {
+            r = CGRect(x: b.minX * size.width, y: b.minY * size.height, width: b.width * size.width, height: b.height * size.height)
+            r = r.insetBy(dx: -r.width * 0.04, dy: -r.height * 0.04).intersection(CGRect(origin: .zero, size: size))
+        }
+        guard r.width > 4, r.height > 4 else { return nil }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = false
+        let side = min(r.width, 900)
+        let out = CGSize(width: side, height: side * r.height / r.width)
+        let k = out.width / r.width
+        return UIGraphicsImageRenderer(size: out, format: format).image { _ in
+            let corner = min(out.width, out.height) * 0.2
+            UIBezierPath(roundedRect: CGRect(origin: .zero, size: out), cornerRadius: corner).addClip()
+            photo.draw(in: CGRect(x: -r.minX * k, y: -r.minY * k, width: size.width * k, height: size.height * k))
+        }
+    }
+
     static func image(_ photo: UIImage?, box: CGRect?) -> UIImage? {
         guard let photo else { return nil }
         guard let b = box, b.width > 0.01, b.height > 0.01 else { return photo }
