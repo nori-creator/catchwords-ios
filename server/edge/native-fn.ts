@@ -7,15 +7,10 @@
  * Only the functions listed in `NATIVE_FNS` can be called, and each checks the caller itself
  * (`requireSupabaseAuth`); the AI keys stay in this function's secrets and are never returned.
  */
-import process from "node:process";
 import { runWithRequest } from "../shims/tanstack-start-server";
 import { NATIVE_FNS, publicMessage, statusForError } from "@/lib/native-fn";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
-
-// The server code reads the publishable key under the web app's name; the Edge runtime provides it as
-// SUPABASE_ANON_KEY.
-process.env.SUPABASE_PUBLISHABLE_KEY ||= process.env.SUPABASE_ANON_KEY ?? "";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
