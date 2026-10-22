@@ -301,13 +301,63 @@ Claude が次を行います。
 
 ---
 
+## 手順10. catchwords.app を GitHub Pages につなぐ（20分。ドメインを買った後）
+
+**目的**: 規約・プライバシーポリシー・特定商取引法の表記・サポート・パスワード再設定の頁を、自分のドメインで公開する。
+頁の中身は `site/src` にあり、PR #46 を `main` に入れると GitHub が自動で公開する（`.github/workflows/site.yml`）。
+
+**順番が大事**: 先に GitHub 側でドメインを登録してから、Cloudflare の DNS を書く（逆にすると、他人に頁を置かれる隙ができる）。
+
+### 10-1. GitHub で Pages を有効にする
+1. https://github.com/nori-creator/rork-catchwords-728/settings/pages を開く
+2. **Build and deployment** の **Source** を **GitHub Actions** にする
+3. **Custom domain** に `catchwords.app` と入れて **Save**
+   （まだ頁を公開していないので、確認の表示が赤でもよい）
+
+### 10-2. ドメインが自分の物だと GitHub に証明する（乗っ取り防止）
+1. https://github.com/settings/pages を開く（リポジトリではなく、自分のアカウントの設定）
+2. **Add a domain** → `catchwords.app` → **Add domain**
+3. 表示された **TXT レコード**（名前 `_github-pages-challenge-nori-creator`、値は長い文字列）を控える
+4. 10-3 で Cloudflare に入れた後、この画面に戻って **Verify** を押す
+
+### 10-3. Cloudflare の DNS を書く
+1. Cloudflare → `catchwords.app` → 左の **DNS** → **Records**
+2. 最初から入っている A / AAAA / CNAME のレコードがあれば消す
+3. **Add record** で次を1行ずつ足す。**Proxy status は全部「DNS only」（灰色の雲）**にする
+
+   | Type | Name | Content |
+   |---|---|---|
+   | A | `@` | `185.199.108.153` |
+   | A | `@` | `185.199.109.153` |
+   | A | `@` | `185.199.110.153` |
+   | A | `@` | `185.199.111.153` |
+   | AAAA | `@` | `2606:50c0:8000::153` |
+   | AAAA | `@` | `2606:50c0:8001::153` |
+   | AAAA | `@` | `2606:50c0:8002::153` |
+   | AAAA | `@` | `2606:50c0:8003::153` |
+   | CNAME | `www` | `nori-creator.github.io` |
+   | TXT | 10-2 で控えた名前 | 10-2 で控えた値 |
+
+4. 10-2 の画面で **Verify**
+
+### 10-4. Supabase に新しい頁の住所を教える
+1. https://supabase.com/dashboard/project/libwmvpoqvxfxbjgqnuj/auth/url-configuration
+2. **Site URL** を `https://catchwords.app` にして保存
+3. **Redirect URLs** に `https://catchwords.app/reset-password` を足す（`catchwords://auth-callback` は残す）
+
+### 10-5. 公開の後（PR #46 を `main` に入れた後）
+1. https://github.com/nori-creator/rork-catchwords-728/settings/pages で **Enforce HTTPS** にチェック
+   （証明書の準備に数分〜1日かかる。チェックできるようになるまで待つ）
+2. https://catchwords.app/privacy が開けば完了
+
+---
+
 ## この後の予定（今はまだ何もしなくてよい）
 
 | 段階 | 内容 | オーナーの作業 |
 |---|---|---|
 | データの移行 | Lovable にある単語・辞書・あなたのカードと写真を、新しい Supabase へ移す | Lovable の書き出し（Export）を1回。**Claude が道具を用意してから**行う |
-| 独自ドメイン | `catchwords.app` のような自分の住所を取る | ドメインの購入（年 2,000〜4,000 円程度。種類で変わる） |
-| 規約・サポートの頁 | 独自ドメインの上に、規約・プライバシーポリシー・サポート・パスワード再設定の頁を置く（GitHub Pages、無料） | 文面の確認 |
+| 規約・サポートの頁 | `catchwords.app` に置く頁は `site/src` にできている（手順10） | 文面の確認 |
 | 確認メールの送り元 | パスワード再設定などのメールを、独自ドメインから送る | メール送信サービス（Resend など、少量は無料）の登録 |
 | 公開の準備 | Supabase を Pro に切り替え、新しい版を審査に出す | 支払いの設定、App Store Connect の URL の書き換え |
 | Lovable を止める | 新しい版が公開されてから | Lovable Cloud の停止、古い AI の鍵の無効化 |
