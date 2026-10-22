@@ -1,0 +1,123 @@
+# App Store のプレビュー動画（アプリプレビュー）の素材を撮る
+#
+# 何をするか:
+#   1. GitHub の Mac で iOS アプリ（Debug）を組み立て、6.9 インチの iPhone（Pro Max）のシミュレーターで動かす。
+#   2. 時計などの表示を 9:41・電池満タンにそろえる。
+#   3. 案 A（docs/app-store/preview/README.md）の場面を、日本語と英語の表示で 1 本ずつ画面録画する。
+#      撮影〜タグは名前が 6.0 秒後に届く回（scanslow。オーナー 2026-10-22「名前の遅い回の録画を使って」）。
+#   4. 録画を ci-previews ブランチの runs/store-preview/ に置く（Claude が字幕と音を重ねて書き出す）。
+#
+# 限界: シミュレーターではカメラと Vision が動かないので、アプリの見本の写真（UIPreview.swift）で動く。音は録れない。
+#       GPU を使わないので、実機よりコマ落ちが多い。審査に出す本番の動画は、実機の画面収録で作る。
+name: iOS store preview（App Store の動画の素材）
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/ios-store-preview.yml
+
+concurrency:
+  group: ios-store-preview
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 6.9 インチの iPhone（Pro Max）のシミュレーターを起動する
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          runtimes = sorted((k for k in d if "iOS" in k), reverse=True)
+          for rt in runtimes:
+              phones = [x for x in d[rt] if x["name"].startswith("iPhone") and "Pro Max" in x["name"]]
+              phones = phones or [x for x in d[rt] if x["name"].startswith("iPhone") and "Pro" in x["name"]]
+              if phones:
+                  print(phones[-1]["udid"]); break
+          ')
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl list devices | grep "$UDID"
+          xcrun simctl boot "$UDID" || true
+
+      - name: シミュレーター用に組み立てる
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project CatchWords.xcodeproj \
+            -target CatchWords \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            SYMROOT="$RUNNER_TEMP/build" \
+            | tee "$RUNNER_TEMP/build.log" | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; exit 1; }
+
+      - name: 案 A の場面を日本語と英語で録画する
+        run: |
+          set +e -uo pipefail
+          OUT="$RUNNER_TEMP/store-preview"
+          mkdir -p "$OUT"
+          UDID=$(cat "$RUNNER_TEMP/udid")
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+          # 1 回目の起動は遅いので、録る前に一度開いて閉じる。
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview tabbar -uiDemo zh-TW >/dev/null; sleep 6
+          for lang in ja en; do
+            sfx=""; [ "$lang" = en ] && sfx="-en"
+            # 場面 秒数: 撮影〜タグ（名前は 6.0 秒後）、言い方を選ぶ、GET、図鑑への着地、単語ページ、復習の答え、ホーム
+            for spec in "scanslow 12" "variants 8" "get 8" "landing 9" "detail 6" "answer 5" "home-again 6"; do
+              set -- $spec
+              name=$1; secs=$2
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+              sleep 1
+              xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/${name}-${lang}.mp4" &
+              REC=$!
+              sleep 1
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "${name}${sfx}" -uiDemo zh-TW >/dev/null || echo "::warning::${name}${sfx} を開けませんでした"
+              sleep "$secs"
+              kill -INT $REC; wait $REC
+            done
+          done
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+          ls -la "$OUT"
+
+      - name: 録画を ci-previews ブランチの runs/store-preview/ に置く
+        if: always()
+        run: |
+          set -uo pipefail
+          SRC="$RUNNER_TEMP/store-preview"
+          [ -d "$SRC" ] || exit 0
+          DIR="runs/store-preview"
+          publish() {
+            DEST="$RUNNER_TEMP/previews-branch-$1"
+            rm -rf "$DEST"
+            git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" || return 1
+            cd "$DEST"
+            git sparse-checkout set --no-cone "/$DIR/" || return 1
+            git checkout --quiet ci-previews || return 1
+            rm -rf "$DIR" && mkdir -p "$DIR"
+            cp "$SRC"/*.mp4 "$DIR"/ 2>/dev/null || true
+            echo "${{ github.sha }}" > "$DIR/COMMIT"
+            git add -A
+            git -c user.name="ios-store-preview" -c user.email="ios-store-preview@users.noreply.github.com" commit --quiet -m "store preview footage @ ${{ github.sha }}" || return 0
+            git push --quiet origin ci-previews
+          }
+          for i in 1 2 3; do
+            ( publish "$i" ) && exit 0
+            sleep $((i * 5))
+          done
+          echo "::warning::ci-previews に置けませんでした"
