@@ -1,0 +1,103 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<!-- The preview's layers drawn over and under the footage, one frame at a time (render_overlay.js).
+     ?mode=bg: the stage behind the framed footage (one picture). ?mode=fg: captions, tap rings and the end card. -->
+<style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<link rel="stylesheet" href="fonts.css">
+</head><body>
+<canvas id="c" width="886" height="1920"></canvas>
+<script>
+const W = 886, H = 1920;
+// Where the footage sits ("枠あり", owner 2026-10-22): the recording shrunk into a rounded frame, the captions above it.
+const FRAME = { x: 93, y: 360, w: 700, h: 1522, r: 56 };
+const CAP_Y = 196;
+const INK = '#152033', MUTED = '#5b6678', GLOW = '#6CC8FF';
+const ctx = document.getElementById('c').getContext('2d');
+const Q = new URLSearchParams(location.search);
+
+// The app's own curves (ios/CatchWords/Views/CardCatch/CCTiming.swift, CatchScan.swift, CatchStage.swift).
+function bezier(x1, y1, x2, y2) {
+  const bx = t => { const u = 1 - t; return 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t; };
+  const by = t => { const u = 1 - t; return 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t; };
+  return x => { if (x <= 0) return 0; if (x >= 1) return 1; let lo = 0, hi = 1, t = x; for (let i = 0; i < 40; i++) { const v = bx(t); if (Math.abs(v - x) < 1e-6) break; if (v < x) lo = t; else hi = t; t = (lo + hi) / 2; } return by(t); };
+}
+const BRACKET = bezier(.3, 1.3, .5, 1);      // the scan's bracket sliding onto a thing and clicking there (0.54 s)
+const EASE = bezier(.25, .1, .25, 1), IN_OUT = bezier(.42, 0, .58, 1);
+const outBack = (x, s) => { x = Math.min(1, Math.max(0, x)); const c3 = s + 1; return 1 + c3 * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2); };
+const seg = (t, a, b) => Math.min(1, Math.max(0, (t - a) / (b - a)));
+const FONT = l => l === 'en' ? 'Inter, "Noto Sans JP", sans-serif' : '"Noto Sans JP", Inter, sans-serif';
+
+function drawBG() {
+  const g = ctx.createRadialGradient(W / 2, 0, 0, W / 2, 0, H * .9);
+  g.addColorStop(0, '#FFFFFF'); g.addColorStop(.45, '#E8F2FF'); g.addColorStop(1, '#D3E6FF');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.shadowColor = 'rgba(20,60,140,0.28)'; ctx.shadowBlur = 60; ctx.shadowOffsetY = 18;
+  ctx.fillStyle = '#0B1A33'; ctx.beginPath(); ctx.roundRect(FRAME.x, FRAME.y, FRAME.w, FRAME.h, FRAME.r); ctx.fill(); ctx.restore();
+}
+
+// A caption: rises 16 px and grows from .94 over 0.54 s on the bracket's curve, the glow line under it runs out
+// 0.12 s later over 0.6 s; it fades in 0.25 s at the end (the GET texts' fade).
+function caption(t, c, lang) {
+  const a = seg(t, c.t0, c.t0 + .25) * (1 - seg(t, c.t1 - .25, c.t1)); if (a <= 0) return;
+  const k = BRACKET(seg(t, c.t0, c.t0 + .54));
+  const lines = c.text.split('\n'), size = lang === 'en' ? 56 : 62, lh = size * 1.3;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.translate(W / 2, CAP_Y + (1 - k) * 16); const s = .94 + .06 * k; ctx.scale(s, s);
+  ctx.font = `700 ${size}px ${FONT(lang)}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK;
+  const y0 = -(lines.length - 1) * lh / 2 - 8;
+  let wMax = 0;
+  lines.forEach((l, i) => { ctx.fillText(l, 0, y0 + i * lh); wMax = Math.max(wMax, ctx.measureText(l).width); });
+  const pen = IN_OUT(seg(t, c.t0 + .12, c.t0 + .72)), lw = Math.min(wMax, 520) * .6 * pen;
+  if (lw > 0) {
+    const ly = y0 + (lines.length - 1) * lh + size * .78;
+    ctx.shadowColor = 'rgba(100,224,255,0.9)'; ctx.shadowBlur = 12; ctx.fillStyle = GLOW;
+    ctx.beginPath(); ctx.roundRect(-lw / 2, ly, lw, 5, 2.5); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// A tap: the white ring of the concept films, at the touch, 0.35 s (the screen recording shows no touches).
+function tap(t, p, src) {
+  const u = seg(t, p.t - .05, p.t + .35); if (u <= 0 || u >= 1) return;
+  const x = FRAME.x + p.x / src.w * FRAME.w, y = FRAME.y + p.y / src.h * FRAME.h;
+  const r = 30 * (1 + .6 * EASE(u)), a = (1 - u) * .95;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 5; ctx.strokeStyle = '#FFFFFF'; ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 8; ctx.stroke();
+  ctx.restore();
+}
+
+// The end card over the blurred last screen: the icon pops like 「新しいことばをキャッチ！」 (.6 → 1, back 2.6),
+// the name and the subtitle rise after it.
+let ICON = null;
+function endCard(t, e, lang) {
+  if (t < e.t0) return;
+  const hp = seg(t, e.t0 + .2, e.t0 + .6), k = .6 + .4 * outBack(hp, 2.6);
+  const cx = W / 2, cy = 800, s = 240;
+  ctx.save(); ctx.globalAlpha = Math.min(1, hp * 4); ctx.translate(cx, cy); ctx.scale(k, k);
+  ctx.shadowColor = 'rgba(20,60,140,0.3)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 14;
+  ctx.beginPath(); ctx.roundRect(-s / 2, -s / 2, s, s, s * .2237); ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.clip(); if (ICON) ctx.drawImage(ICON, -s / 2, -s / 2, s, s);
+  ctx.restore();
+  const tp = EASE(seg(t, e.t0 + .45, e.t0 + .8));
+  ctx.save(); ctx.globalAlpha = tp; ctx.translate(0, (1 - tp) * 14); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = INK; ctx.font = `800 84px ${FONT('en')}`; ctx.fillText('CatchWords', cx, cy + 230);
+  ctx.fillStyle = MUTED; ctx.font = `600 ${lang === 'en' ? 40 : 42}px ${FONT(lang)}`; ctx.fillText(e.subtitle, cx, cy + 318);
+  ctx.restore();
+}
+
+window.ready = (async () => {
+  await document.fonts.load('700 62px "Noto Sans JP"', 'あア漢'); await document.fonts.load('700 56px Inter', 'A');
+  await document.fonts.load('800 84px Inter', 'C'); await document.fonts.ready;
+  if (Q.get('icon')) { ICON = new Image(); ICON.src = Q.get('icon'); await ICON.decode(); }
+  return true;
+})();
+window.renderFrame = (t, spec) => {
+  ctx.clearRect(0, 0, W, H);
+  if (spec.mode === 'bg') return drawBG();
+  for (const c of spec.captions) caption(t, c, spec.lang);
+  for (const p of spec.taps) tap(t, p, spec.src);
+  if (spec.end) endCard(t, spec.end, spec.lang);
+};
+</script>
+</body></html>
