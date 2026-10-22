@@ -156,7 +156,9 @@ final class ProfileStore {
     static func syncLanguageToServer() async {
         let client = SupabaseClient.shared
         let lang = L10n.lang
-        guard let uid = client.userId, let server = ReaderLanguage.serverLang, server != lang else { return }
+        // Not read yet (the profile read failed, or the camera was opened before it came back): the screen's language is
+        // the one the explanation must be in, so it is written too — the server's default is ja.
+        guard let uid = client.userId, ReaderLanguage.serverLang != lang else { return }
         let body: [String: Any] = ["ui_language": lang, "updated_at": SupabaseDate.string(Date())]
         guard (try? await client.rest("PATCH", "profiles?id=eq.\(uid)", body: body)) != nil, L10n.lang == lang else { return }
         ReaderLanguage.serverLang = lang
