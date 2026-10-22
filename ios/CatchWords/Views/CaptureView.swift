@@ -22,6 +22,8 @@ struct CaptureView: View {
     /// The selfie's self-timer (0 = off), shared with the word page's selfie camera.
     @AppStorage(SelfieTimer.storageKey) private var selfieTimer: Int = 0
     @State private var selfieCountdown = SelfieCountdown()
+    /// The selfie step's words have gone and スキップ sits small in the corner (`selfieChrome`).
+    @State private var selfieCompact: Bool = false
     @Environment(\.appReduceMotion) private var reduceMotion
     /// The shutter flash (`#flash` 0 → 1 at 12% → 0, 480 ms ease-out), above every screen.
     @State private var shotFlash: Double?
@@ -104,6 +106,15 @@ struct CaptureView: View {
             router.cameraImmersive = true
             router.tabBarHidden = false
         }
+        .task(id: vm.step == .selfie) {
+            // Each selfie step starts with its words, which give way after a few seconds.
+            guard vm.step == .selfie else { return }
+            selfieCompact = false
+            try? await Task.sleep(for: .seconds(Self.selfieChromeSeconds))
+            guard !Task.isCancelled else { return }
+            compactSelfieChrome()
+        }
+        .onChange(of: selfieTimer) { _, _ in compactSelfieChrome() }
         .onChange(of: vm.step) { old, step in
             UITestTrace.log("step \(old) -> \(step)")
             if step != .selfie { selfieCountdown.cancel() }
@@ -320,9 +331,7 @@ struct CaptureView: View {
                     .allowsHitTesting(false)
             }
         }
-        .overlay(alignment: .top) {
-            if vm.step == .selfie { selfiePrompt.padding(.top, 48) }
-        }
+        .overlay { selfieChrome }
         .overlay {
             if vm.step == .selfie, let left = selfieCountdown.remaining { SelfieCountdownNumber(remaining: left) }
         }
@@ -341,13 +350,35 @@ struct CaptureView: View {
             .overlay {
                 if vm.step == .camera, !shooting { ViewfinderBrackets().padding(36).allowsHitTesting(false) }
             }
-            .overlay(alignment: .top) {
-                if vm.step == .selfie { selfiePrompt.padding(.top, 48) }
-            }
+            .overlay { selfieChrome }
             .overlay {
                 if vm.step == .selfie, let left = selfieCountdown.remaining { SelfieCountdownNumber(remaining: left) }
             }
     }
+
+    /// The selfie step's words over the viewfinder (owner 2026-10-22: 「数秒したらスキップ以外の文字は消えて、スキップも小さく
+    /// 右上に移動して。タイマーモードを押したらすぐ…」): 「ものと一緒に、もう一枚」 and a large スキップ at first; after
+    /// `selfieChromeSeconds`, or at once when the timer is chosen or starts counting, only a small スキップ in the top-right
+    /// corner, so the words never cover the selfie.
+    @ViewBuilder
+    private var selfieChrome: some View {
+        if vm.step == .selfie {
+            if selfieCompact {
+                skipButton(small: true)
+                    .padding(.top, 10)
+                    .padding(.trailing, 10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .topTrailing)))
+            } else {
+                selfiePrompt
+                    .padding(.top, 48)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+        }
+    }
+
+    /// How long 「ものと一緒に、もう一枚」 stays before only the small スキップ is left.
+    private static let selfieChromeSeconds: Double = 3
 
     private var selfiePrompt: some View {
         VStack(spacing: 18) {
@@ -355,21 +386,34 @@ struct CaptureView: View {
                 .scaledFont(size: 20, weight: .bold)
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
-            Button {
-                selfieCountdown.cancel()
-                vm.finishSelfie(nil)
-            } label: {
-                Text(L("スキップ"))
-                    .scaledFont(size: 16, weight: .medium)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 26)
-                    .frame(minHeight: 44)
-                    .background(.black.opacity(0.35), in: Capsule())
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
-            .buttonStyle(PressableStyle())
+            skipButton(small: false)
         }
         .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func skipButton(small: Bool) -> some View {
+        Button {
+            selfieCountdown.cancel()
+            vm.finishSelfie(nil)
+        } label: {
+            Text(L("スキップ"))
+                .scaledFont(size: small ? 13 : 16, weight: .medium)
+                .foregroundStyle(.white)
+                .padding(.horizontal, small ? 12 : 26)
+                .frame(minHeight: small ? 30 : 44)
+                .background(.black.opacity(0.35), in: Capsule())
+                .background(.ultraThinMaterial, in: Capsule())
+                // The small one keeps a finger-sized place to tap.
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityIdentifier("selfie.skip")
+    }
+
+    private func compactSelfieChrome() {
+        guard vm.step == .selfie, !selfieCompact else { return }
+        withAnimation(.snappy(duration: 0.3)) { selfieCompact = true }
     }
 
     /// The camera is on (zoom and 切替 work).
@@ -413,7 +457,7 @@ struct CaptureView: View {
         HStack(alignment: .top) {
             if vm.step == .selfie {
                 // Where 写真 was: the self-timer (no photo library for selfies).
-                SelfieTimerMenu(seconds: $selfieTimer)
+                SelfieTimerMenu(seconds: $selfieTimer, onOpen: compactSelfieChrome)
                     .disabled(selfieCountdown.isRunning)
             } else {
                 PhotosPicker(selection: $pickerItem, matching: .images) {
@@ -500,6 +544,7 @@ struct CaptureView: View {
                 selfieCountdown.cancel()
                 return
             }
+            compactSelfieChrome()
             selfieCountdown.start(selfieTimer) {
                 guard vm.step == .selfie else { return }
                 shutterSound()

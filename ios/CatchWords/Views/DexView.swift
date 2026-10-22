@@ -1105,12 +1105,14 @@ struct DexMapView: View {
         let shadowRadius: CGFloat = isOn ? 8 : 5
         let shadowY: CGFloat = isOn ? 6 : 2
         return Button {
-            Haptics.selection()
             let wasOpen = panelOpen
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedId = s.id; panelOpen = true }
             // A pin tap is the one selection the list follows: it brings that stop's rows up to the reading line.
             if !isOn || !wasOpen { jumpList(to: v.id) }
             focusOn(s)
+            // The photo on the map opens its word (owner 2026-10-22: 「地図上の写真をタップしても単語の詳細に飛ばない」 —
+            // a pin only chose its stop). The stop stays chosen, so the map is where it was on the way back.
+            onOpen(s)
         } label: {
             Theme.secondary.frame(width: 48, height: 48)
                 .overlay { DexThumb(sticker: s, inset: 5).allowsHitTesting(false) }
