@@ -86,10 +86,17 @@
 1. https://supabase.com/dashboard/account/tokens を開く
 2. **Generate new token**（新しいトークンを作る）を押す
 3. 名前（Name）に `github-actions` と入れる
-4. 有効期限（Expires）を選べる場合は **なし（Never）** か、いちばん長い期間を選ぶ
+4. **Resource access**（届く範囲）は **Project**（RECOMMENDED）のまま。
+   organization を選び、その下の欄でプロジェクト **catchwords** だけを選ぶ
+   （「Create legacy token」は全部に届く古い鍵なので使わない）
+5. **Permissions**（権限）は Preset を **No access** のままにして、次の2つだけを付ける
+   - **Application services** を開き、**Edge Functions** を **Read-write**
+   - **Project** を開き、**Project Settings** を **Read**
+   他は全部 None のまま。（反映に要るのはこれだけ。鍵が漏れても、データベースや他のプロジェクトには届かない）
+6. 有効期限（Expires）を選べる場合は **なし（Never）** か、いちばん長い期間を選ぶ
    （期限が来ると自動の反映が止まります。期限を付けた場合は、その日をカレンダーに入れてください）
-5. **Generate token** を押す
-6. 出てきた長い文字列（`sbp_` で始まる）の横の **コピー** ボタンを押す
+7. **Review access** → 内容を確かめて **Generate token** を押す
+8. 出てきた長い文字列（`sbp_` で始まる）の横の **コピー** ボタンを押す
    **この画面を閉じると、二度と表示されません。** 3-2 が終わるまで閉じないでください。
 
 ### 3-2. GitHub の金庫に入れる
