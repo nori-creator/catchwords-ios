@@ -5,8 +5,10 @@ iOS 27・iPadOS 27 以降で表示されます。オーナーの指示（2026-10
 
 | 版 | ファイル | 一言 | タグの意味 |
 | --- | --- | --- | --- |
-| 日本語（ページの主言語） | `out/header-ja.mp4` | 撮れば、中国語のことばに。 | マグカップ |
-| 英語 | `out/header-en.mp4` | Snap it. Learn it in Chinese. | mug |
+| 日本語（ページの主言語） | `header-ja.mp4` | 撮れば、中国語のことばに。 | マグカップ |
+| 英語 | `header-en.mp4` | Snap it. Learn it in Chinese. | mug |
+
+動画（各 約 11MB）はリポジトリに入れていない（2026-10-22 の push で GitHub が「容量が上限に近い」と警告したため）。下の手順でいつでも作り直せる。
 
 タグの単語「馬克杯」（台湾華語のマグカップ）は学ぶ単語なので、どちらの版でも同じです。それ以外の文字は、版ごとに 1 つの言語だけです（`docs/language-rules.md`）。
 
@@ -62,7 +64,7 @@ $P prep.py outlines $S/mask $S/outlines.json
 $P scene.py main   $S/main 1920 24 0 299 $S/sticker.png   # 本番の絵（約 2.5 時間。途中で止めても続きから描く）
 mkdir -p motion/data && cp $S/outlines.json $S/points.json motion/data/ && ln -sfn $S/main motion/frames
 cd motion && python3 -m http.server 8766 --bind 127.0.0.1 &
-node render.js ja ../out/header-ja.mp4 && node render.js en ../out/header-en.mp4
+node render.js ja header-ja.mp4 && node render.js en header-en.mp4   # 各 約 2 分
 ```
 
 確認用: `http://127.0.0.1:8766/header.html?lang=ja&f=100&safe` で 100 コマ目を、セーフエリアの枠つきで描く。
@@ -78,7 +80,7 @@ node render.js ja ../out/header-ja.mp4 && node render.js en ../out/header-en.mp4
 ## App Store Connect に入れる
 
 1. App Store Connect → アプリ → 「製品ページの情報」（Product Page Information）→「ヘッダーと検索結果」（Header and Search Results）。
-2. 置き場所で「製品ページのヘッダー」を選び、言語を「日本語」にして `out/header-ja.mp4` を入れる。
-3. 言語を「英語」に切り替えて `out/header-en.mp4` を入れる。
+2. 置き場所で「製品ページのヘッダー」を選び、言語を「日本語」にして `header-ja.mp4` を入れる。
+3. 言語を「英語」に切り替えて `header-en.mp4` を入れる。
 4. プレビューで、iPhone と iPad の縦・横で、タグと一言が切れていないか見る。
 5. 審査に出す（次のバージョンの提出と一緒に、または製品ページの変更として）。
