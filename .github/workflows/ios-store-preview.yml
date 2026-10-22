@@ -5,6 +5,8 @@
 #   2. 時計などの表示を 9:41・電池満タンにそろえる。
 #   3. 案 A（docs/app-store/preview/README.md）の場面を、日本語と英語の表示で 1 本ずつ画面録画する。
 #      撮影〜タグは名前が 6.0 秒後に届く回（scanslow。オーナー 2026-10-22「名前の遅い回の録画を使って」）。
+#      アプリは見本のモード（-uiDemo）の時だけ、鳴らした音と時刻を trace に書く（SoundService.trace）。録画には音が
+#      入らないので、その時刻にアプリと同じ音のファイルを重ねる（v6・v10 の効果音。オーナー 2026-10-22）。
 #   4. 録画を ci-previews ブランチの runs/store-preview/ に置く（Claude が字幕と音を重ねて書き出す）。
 #
 # 限界: シミュレーターではカメラと Vision が動かないので、アプリの見本の写真（UIPreview.swift）で動く。音は録れない。
@@ -16,6 +18,7 @@ on:
   push:
     paths:
       - .github/workflows/ios-store-preview.yml
+      - ios/CatchWords/Services/SoundService.swift
 
 concurrency:
   group: ios-store-preview
@@ -72,6 +75,8 @@ jobs:
           APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
           xcrun simctl install "$UDID" "$APP"
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+          TRACE="$DATA/Library/Caches/uitest-trace.txt"
           xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
             --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
           # 1 回目の起動は遅いので、録る前に一度開いて閉じる。
@@ -84,12 +89,17 @@ jobs:
               name=$1; secs=$2
               xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
               sleep 1
+              rm -f "$TRACE"
+              # 録画が始まった時刻（音の時刻を録画に合わせるため。アプリは鳴らした音を壁時計の時刻で trace に書く）
+              python3 -c 'import time; print("%.3f" % time.time())' > "$OUT/${name}-${lang}.start"
               xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/${name}-${lang}.mp4" &
               REC=$!
               sleep 1
+              python3 -c 'import time; print("%.3f" % time.time())' > "$OUT/${name}-${lang}.launch"
               xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "${name}${sfx}" -uiDemo zh-TW >/dev/null || echo "::warning::${name}${sfx} を開けませんでした"
               sleep "$secs"
               kill -INT $REC; wait $REC
+              cp "$TRACE" "$OUT/${name}-${lang}.trace.txt" 2>/dev/null || echo "::warning::${name}-${lang} の trace がありません"
             done
           done
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
@@ -110,7 +120,7 @@ jobs:
             git sparse-checkout set --no-cone "/$DIR/" || return 1
             git checkout --quiet ci-previews || return 1
             rm -rf "$DIR" && mkdir -p "$DIR"
-            cp "$SRC"/*.mp4 "$DIR"/ 2>/dev/null || true
+            cp "$SRC"/*.mp4 "$SRC"/*.txt "$SRC"/*.start "$SRC"/*.launch "$DIR"/ 2>/dev/null || true
             echo "${{ github.sha }}" > "$DIR/COMMIT"
             git add -A
             git -c user.name="ios-store-preview" -c user.email="ios-store-preview@users.noreply.github.com" commit --quiet -m "store preview footage @ ${{ github.sha }}" || return 0

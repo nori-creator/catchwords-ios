@@ -192,6 +192,7 @@ final class SoundService {
 
     func play(_ sfx: SFX, volume: Float = 1) {
         let level = levelMultiplier
+        Self.trace(sfx.rawValue, min(1, sfx.gain * volume * level))
         guard level > 0, let player = player(for: sfx) else { return }
         player.stop()
         player.currentTime = sfx.offset
@@ -206,6 +207,7 @@ final class SoundService {
     /// catch's animations (owner 2026-10-20: the add to 図鑑 stuttered).
     func playLayered(_ sfx: SFX, volume: Float = 1) {
         let level = levelMultiplier
+        Self.trace(sfx.rawValue, min(1, sfx.gain * volume * level))
         guard level > 0 else { return }
         var pool = pools[sfx] ?? []
         let player: AVAudioPlayer
@@ -260,6 +262,13 @@ final class SoundService {
 
     /// A page opening (dex, word detail, tab) or going back: the bubble pon plus its matching tap.
     /// The sound follows the sound level ("off" is silent); the tap follows the vibration switch.
+    /// The UI tests' trace (`-uiDemo` only, a no-op elsewhere): each sound with the wall-clock time it is asked for, so
+    /// CI's screen recordings (which carry no sound) can be given the app's own sounds at the same moments — the App
+    /// Store preview's footage (`.github/workflows/ios-store-preview.yml`).
+    nonisolated static func trace(_ name: String, _ volume: Float, _ text: String = "") {
+        UITestTrace.log(String(format: "sfx %.3f %@ %.3f", Date().timeIntervalSince1970, name, volume) + (text.isEmpty ? "" : " " + text))
+    }
+
     func pon(open: Bool) {
         play(open ? .ponOpen : .ponBack)
         Haptics.pon(open: open)
@@ -315,6 +324,7 @@ final class SoundService {
 
     func startAnalyzeLoop() {
         let level = levelMultiplier
+        Self.trace("analyze-loop-start", min(1, SFX.analyzeLoop.gain * 0.5 * level))
         guard level > 0, let player = player(for: .analyzeLoop) else { return }
         player.numberOfLoops = -1
         player.currentTime = 0
@@ -324,6 +334,7 @@ final class SoundService {
     }
 
     func stopAnalyzeLoop() {
+        Self.trace("analyze-loop-stop", 0)
         guard let player = players[.analyzeLoop], player.isPlaying else { return }
         player.setVolume(0, fadeDuration: 0.3)
         Task {
@@ -442,6 +453,7 @@ final class SoundService {
 
     func speak(_ text: String) {
         guard !text.isEmpty else { return }
+        Self.trace("speak", 1, text)
         speakToken += 1
         let token = speakToken
         voicePlayer?.stop()
@@ -627,6 +639,7 @@ final class TickEngine {
 
     /// `volume` already carries the sound level; 0 plays nothing.
     func play(_ sfx: SFX, volume: Float) {
+        SoundService.trace(sfx.rawValue, min(1, volume))
         guard volume > 0 else { return }
         warm(decodeNow: true)
         guard engine.isRunning, let buffer = buffers[sfx], let nodes = voices[sfx], !nodes.isEmpty else { return }
