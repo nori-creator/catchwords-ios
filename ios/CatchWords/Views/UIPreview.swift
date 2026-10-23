@@ -109,6 +109,7 @@ struct UIPreviewRoot: View {
             case "memorial": MemorialPreview()
             case "carousel": CarouselPreview()
             case "detail": DetailPreview()
+            case "milktea": MilkTeaDetailPreview()
             case "tips": TipsPreview()
             // 「作り直す」: the section breaks into dust and the new text gathers back (owner 2026-10-16), on a loop.
             case "regen": RegenPreview()
@@ -909,6 +910,83 @@ private struct SunscreenExamplesPreview: View {
 
     var body: some View {
         WordDetailView(sticker: sticker, previewFocus: .example)
+    }
+}
+
+/// The App Store preview's word page (`-uiPreview milktea`, owner 2026-10-23: 「単語の詳細…実際のアプリに準拠して」):
+/// 珍珠奶茶 as the catch films show it — the same photo and cut-out (copied by `ios-store-preview.yml` into
+/// Caches/preview-assets; a plain cup is drawn without them), the example sentences with the readings the server's
+/// dictionary gives them.
+private struct MilkTeaDetailPreview: View {
+    private static func pick(_ ja: String, _ en: String) -> String { L10n.lang == "en" ? en : ja }
+
+    private static func image(_ name: String) -> UIImage? {
+        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("preview-assets")
+        return UIImage(contentsOfFile: dir.appendingPathComponent(name).path)
+    }
+
+    private static let main = "我要一杯珍珠奶茶，半糖少冰。"
+    private static let extra = "這家的珍珠奶茶很好喝。"
+
+    /// The dictionary's readings, one per character (punctuation none).
+    private static func units(_ s: String, _ readings: [(String, String)?]) -> [SentenceUnit] {
+        zip(s.map(String.init), readings).map { ch, r in SentenceUnit(char: ch, pinyin: r?.0, zhuyin: r?.1) }
+    }
+
+    private static func seedReadings() {
+        let tea: [(String, String)?] = [("zhēn", "ㄓㄣ"), ("zhū", "ㄓㄨ"), ("nǎi", "ㄋㄞˇ"), ("chá", "ㄔㄚˊ")]
+        SentenceReadings.shared.seedForPreview(main, units(main, [("wǒ", "ㄨㄛˇ"), ("yào", "ㄧㄠˋ"), ("yī", "ㄧ"), ("bēi", "ㄅㄟ")]
+            + tea + [nil, ("bàn", "ㄅㄢˋ"), ("táng", "ㄊㄤˊ"), ("shǎo", "ㄕㄠˇ"), ("bīng", "ㄅㄧㄥ"), nil]))
+        SentenceReadings.shared.seedForPreview(extra, units(extra, [("zhè", "ㄓㄜˋ"), ("jiā", "ㄐㄧㄚ"), ("de", "˙ㄉㄜ")]
+            + tea + [("hěn", "ㄏㄣˇ"), ("hǎo", "ㄏㄠˇ"), ("hē", "ㄏㄜ"), nil]))
+    }
+
+    private static var sticker: Sticker {
+        seedReadings()   // before the page asks for them
+        let obj: [String: Any] = [
+            "id": "w-milktea", "headword": "珍珠奶茶", "language": "zh-TW", "reading_zhuyin": "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
+            "pinyin": "zhēnzhū nǎichá", "meaning_ja": pick("タピオカミルクティー", "bubble tea"), "part_of_speech": "N",
+            "category_key": "drink",
+            "example_sentence": main,
+            "example_translation": pick("珍珠奶茶を1杯、甘さ半分・氷少なめで。", "One bubble tea, half sugar, less ice, please."),
+            "extras": [
+                "explain_lang": L10n.lang,
+                "example_v": 3,
+                "example_pattern_count": 2,
+                "example_scene": pick("ドリンクスタンドで注文するとき", "Ordering at a drink stand"),
+                "example_scene_for": main,
+                "examples_extra": [[
+                    "zh": extra, "ja": pick("この店の珍珠奶茶はおいしい。", "This shop's bubble tea is really good."),
+                    "scene": pick("友達に店をすすめるとき", "Recommending a shop to a friend"), "scene_for": extra,
+                ] as [String: Any]],
+                "usage_chunks": [
+                    ["parts": [["text": "點", "pos": "V"], ["text": "珍珠奶茶", "pos": "N"]], "ja": pick("珍珠奶茶を注文する", "order bubble tea")],
+                    ["parts": [["text": "喝", "pos": "V"], ["text": "珍珠奶茶", "pos": "N"]], "ja": pick("珍珠奶茶を飲む", "drink bubble tea")],
+                    ["parts": [["text": "珍珠奶茶", "pos": "N"], ["text": "很", "pos": "Adv"], ["text": "好喝", "pos": "Vs"]],
+                     "ja": pick("珍珠奶茶がおいしい", "bubble tea tastes great")],
+                ],
+                "measure_words": [["word": "杯", "zhuyin": "ㄅㄟ", "note": pick("一杯（カップの飲み物を数える量詞）", "a cup (the measure word for drinks in cups)")]],
+                "related_words": [
+                    ["word": "珍奶", "kind": "syn", "reading": "ㄓㄣ ㄋㄞˇ", "note": pick("珍珠奶茶の略。会話や注文でよく使う", "Short for 珍珠奶茶. Used when chatting and ordering")],
+                    ["word": "波霸奶茶", "kind": "rel", "reading": "ㄅㄛ ㄅㄚˋ ㄋㄞˇ ㄔㄚˊ", "note": pick("大粒のタピオカのもの", "With large pearls")],
+                ],
+            ] as [String: Any],
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        let word = (try? JSONDecoder().decode(Word.self, from: data))
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
+        if let photo = image("milktea-photo.jpg") { ImageCache.shared.set(photo, for: "preview/milktea-photo.jpg") }
+        else { ImageCache.shared.set(PreviewFixtures.photo, for: "preview/milktea-photo.jpg") }
+        if let cut = image("milktea-cutout.png") { ImageCache.shared.set(cut, for: "preview/milktea-cutout.png") }
+        else { ImageCache.shared.set(PreviewFixtures.subject, for: "preview/milktea-cutout.png") }
+        return Sticker(id: "milktea", wordId: "w-milktea", objectImageUrl: "preview/milktea-photo.jpg",
+                       cutoutImageUrl: "preview/milktea-cutout.png", selfieImageUrl: nil, caption: nil, locationName: "台北",  // l10n-ignore (place name)
+                       takenAt: Date(), captureType: "photo", word: word)
+    }
+
+    var body: some View {
+        WordDetailView(sticker: Self.sticker)
+            .uiReady("preview")
     }
 }
 

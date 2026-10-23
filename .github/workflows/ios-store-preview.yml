@@ -81,6 +81,10 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
           TRACE="$DATA/Library/Caches/uitest-trace.txt"
+          # 単語ページ（milktea）の写真と切り抜きは、v6・v10 の映像と同じタピオカミルクティー
+          mkdir -p "$DATA/Library/Caches/preview-assets"
+          cp docs/design/catch-concepts/film/assets/photo_1080.jpg "$DATA/Library/Caches/preview-assets/milktea-photo.jpg"
+          cp docs/design/catch-concepts/film/assets/cup_cut.png "$DATA/Library/Caches/preview-assets/milktea-cutout.png"
           xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
             --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
           # 1 回目の起動は遅いので、録る前に一度開いて閉じる。
@@ -88,8 +92,9 @@ jobs:
           for lang in ja en; do
             sfx=""; [ "$lang" = en ] && sfx="-en"
             # 場面 秒数: 撮影〜タグ（名前は 6.0 秒後）、言い方を選ぶ、GET、図鑑への着地、単語ページ、復習の答え、ホーム
-            # 撮影〜タグは名前が 6.0 秒後（scanslow）と 2.4 秒後（analyzing。オーナー 2026-10-23「やっぱり速いバージョンに」）
-            for spec in "analyzing 10" "scanslow 12" "variants 8" "get 8" "landing 9" "detail 6" "answer 5" "home-again 6"; do
+            # 撮影〜タグは名前が 6.0 秒後（scanslow）と 2.4 秒後（analyzing。オーナー 2026-10-23「やっぱり速いバージョンに」）。
+            # milktea: 珍珠奶茶の単語ページ（v6・v10 の映像の後に続ける、アプリの実際の画面）
+            for spec in "analyzing 10" "milktea 7" "scanslow 12" "variants 8" "get 8" "landing 9" "detail 6" "answer 5" "home-again 6"; do
               set -- $spec
               name=$1; secs=$2
               if [ -n "$SCENES" ] && ! echo " $SCENES " | grep -q " $name "; then continue; fi

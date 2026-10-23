@@ -79,6 +79,14 @@ final class SentenceReadings {
         return Array(Set(out))
     }
 
+    #if DEBUG
+    /// `-uiPreview milktea`: the readings the server's dictionary gives these sentences (the demo has no dictionary).
+    func seedForPreview(_ sentence: String, _ u: [SentenceUnit]) {
+        loadIfNeeded()
+        keep(sentence, u)
+    }
+    #endif
+
     private func keep(_ sentence: String, _ u: [SentenceUnit]) {
         if units[sentence] == nil { order.append(sentence) }
         units[sentence] = u
