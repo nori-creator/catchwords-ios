@@ -3,3 +3,6 @@ node_modules
 .expo
 .rork
 __pycache__/
+
+# Built by scripts/build_site.py
+site/public/

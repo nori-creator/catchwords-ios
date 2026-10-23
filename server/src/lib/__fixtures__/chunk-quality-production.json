@@ -1,0 +1,2336 @@
+[
+  {
+    "headword": "竹筍",
+    "meaning": "タケノコ",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "冷やしタケノコ",
+        "parts": [
+          {
+            "pos": "Vi",
+            "text": "涼拌"
+          },
+          {
+            "pos": "N",
+            "text": "竹筍"
+          }
+        ]
+      },
+      {
+        "ja": "タケノコの煮物",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "滷"
+          },
+          {
+            "pos": "N",
+            "text": "竹筍"
+          }
+        ]
+      },
+      {
+        "ja": "タケノコとスペアリブのスープ",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "竹筍"
+          },
+          {
+            "alts": [
+              {
+                "ja": "鶏スープ",
+                "text": "雞湯"
+              },
+              {
+                "ja": "サラダ",
+                "text": "沙拉"
+              },
+              {
+                "ja": "豚肉炒め",
+                "text": "炒肉片"
+              }
+            ],
+            "ja": "豚スペアリブスープ",
+            "pos": "N",
+            "slot": true,
+            "text": "排骨湯"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "細長い形のものによく使われる。",
+        "pinyin": "gēn",
+        "word": "根",
+        "zhuyin": "ㄍㄣ"
+      },
+      {
+        "note": "重さで買うとき。",
+        "pinyin": "jīn",
+        "word": "斤",
+        "zhuyin": "ㄐㄧㄣ"
+      }
+    ]
+  },
+  {
+    "headword": "指甲剪",
+    "meaning": "爪切り",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "爪切りを使う",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "用"
+          },
+          {
+            "pos": "N",
+            "text": "指甲剪"
+          }
+        ]
+      },
+      {
+        "ja": "爪切りを探す",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "找"
+          },
+          {
+            "pos": "N",
+            "text": "指甲剪"
+          }
+        ]
+      },
+      {
+        "ja": "爪切りを借りる",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "借"
+          },
+          {
+            "pos": "N",
+            "text": "指甲剪"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "持ち手がある道具に使います。",
+        "pinyin": "bǎ",
+        "word": "把",
+        "zhuyin": "ㄅㄚˇ"
+      }
+    ]
+  },
+  {
+    "headword": "牛排",
+    "meaning": "ステーキ",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "牛排の焼き加減",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "牛排"
+          },
+          {
+            "alts": [
+              {
+                "ja": "レア",
+                "text": "三分熟"
+              },
+              {
+                "ja": "ミディアムウェル",
+                "text": "七分熟"
+              },
+              {
+                "ja": "ウェルダン",
+                "text": "全熟"
+              }
+            ],
+            "ja": "焼き加減",
+            "pos": "N",
+            "slot": true,
+            "text": "五分熟"
+          }
+        ]
+      },
+      {
+        "ja": "ステーキを焼く",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "煎"
+          },
+          {
+            "pos": "N",
+            "text": "牛排"
+          }
+        ]
+      },
+      {
+        "ja": "ソースの種類＋ステーキ",
+        "parts": [
+          {
+            "alts": [
+              {
+                "ja": "マッシュルームソース",
+                "text": "蘑菇"
+              },
+              {
+                "ja": "ミックスソース",
+                "text": "綜合"
+              }
+            ],
+            "ja": "ソースの種類",
+            "pos": "N",
+            "slot": true,
+            "text": "黑胡椒"
+          },
+          {
+            "pos": "N",
+            "text": "牛排"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "ステーキの皿数を数える際に使う",
+        "pinyin": "yī fèn",
+        "word": "一份",
+        "zhuyin": "ㄧ ㄈㄣˋ"
+      }
+    ]
+  },
+  {
+    "headword": "可麗餅",
+    "meaning": "クレープ",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "イチゴのクレープ",
+        "parts": [
+          {
+            "alts": [
+              {
+                "ja": "チョコレート",
+                "text": "巧克力"
+              },
+              {
+                "ja": "バナナ",
+                "text": "香蕉"
+              },
+              {
+                "ja": "ブルーベリー",
+                "text": "藍莓"
+              }
+            ],
+            "ja": "イチゴ",
+            "pos": "N",
+            "slot": true,
+            "text": "草莓"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "可麗餅"
+          }
+        ]
+      },
+      {
+        "ja": "作りたてのクレープ",
+        "parts": [
+          {
+            "pos": "Vs",
+            "slot": false,
+            "text": "現做"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "可麗餅"
+          }
+        ]
+      },
+      {
+        "ja": "クレープの皮がパリパリだ",
+        "parts": [
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "可麗餅"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "皮"
+          },
+          {
+            "alts": [
+              {
+                "ja": "超",
+                "text": "超"
+              },
+              {
+                "ja": "かなり",
+                "text": "蠻"
+              }
+            ],
+            "ja": "程度",
+            "pos": "Adv",
+            "slot": true,
+            "text": "很"
+          },
+          {
+            "pos": "Vs",
+            "slot": false,
+            "text": "脆"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "最も一般的な量詞。",
+        "pinyin": "yígè",
+        "word": "一個",
+        "zhuyin": "ㄧ ㄍㄜ˙"
+      }
+    ]
+  },
+  {
+    "headword": "拉鍊",
+    "meaning": "ファスナー",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "ファスナーが壊れる",
+        "parts": [
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "拉鍊"
+          },
+          {
+            "pos": "Vs",
+            "slot": false,
+            "text": "壞了"
+          }
+        ]
+      },
+      {
+        "ja": "ファスナーを開ける",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "拉開"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "拉鍊"
+          }
+        ]
+      },
+      {
+        "ja": "ファスナーを閉める",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "拉上"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "拉鍊"
+          }
+        ]
+      },
+      {
+        "ja": "ファスナーがすごく引っかかる",
+        "parts": [
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "拉鍊"
+          },
+          {
+            "alts": [
+              {
+                "ja": "すごく",
+                "text": "超"
+              },
+              {
+                "ja": "少し",
+                "text": "有點"
+              }
+            ],
+            "ja": "とても",
+            "pos": "Adv",
+            "slot": true,
+            "text": "很"
+          },
+          {
+            "pos": "Vs",
+            "slot": false,
+            "text": "卡住"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "細長いファスナーを数える時に使う",
+        "pinyin": "tiáo",
+        "word": "條",
+        "zhuyin": "ㄊㄧㄠˊ"
+      }
+    ]
+  },
+  {
+    "headword": "襪子",
+    "meaning": "靴下",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "靴下を履く",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "穿上"
+          },
+          {
+            "pos": "N",
+            "text": "襪子"
+          }
+        ]
+      },
+      {
+        "ja": "靴下を脱ぐ",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "脫掉"
+          },
+          {
+            "pos": "N",
+            "text": "襪子"
+          }
+        ]
+      },
+      {
+        "ja": "靴下を洗う",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "洗"
+          },
+          {
+            "pos": "N",
+            "text": "襪子"
+          }
+        ]
+      },
+      {
+        "ja": "靴下1足",
+        "parts": [
+          {
+            "pos": "M",
+            "text": "一雙"
+          },
+          {
+            "pos": "N",
+            "text": "襪子"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "ペアで使うもの（左右一対）を数える時に使う",
+        "pinyin": "yì shuāng",
+        "word": "一雙",
+        "zhuyin": "ㄧˋ ㄕㄨㄤ"
+      }
+    ]
+  },
+  {
+    "headword": "番薯",
+    "meaning": "サツマイモ",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "焼き芋",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "烤"
+          },
+          {
+            "pos": "N",
+            "text": "番薯"
+          }
+        ]
+      },
+      {
+        "ja": "サツマイモがとても甘い",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "番薯"
+          },
+          {
+            "pos": "Adv",
+            "text": "很"
+          },
+          {
+            "alts": [
+              {
+                "ja": "ほくほくした",
+                "text": "鬆"
+              },
+              {
+                "ja": "柔らかい",
+                "text": "軟"
+              }
+            ],
+            "ja": "甘い",
+            "pos": "Vs",
+            "slot": true,
+            "text": "甜"
+          }
+        ]
+      },
+      {
+        "ja": "サツマイモ粥",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "番薯"
+          },
+          {
+            "pos": "N",
+            "text": "粥"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "個体として数えるとき。",
+        "pinyin": "yí gè",
+        "word": "一個",
+        "zhuyin": "ㄧ ㄍㄜˋ"
+      },
+      {
+        "note": "長い形状のものを数えるとき。",
+        "pinyin": "yì tiáo",
+        "word": "一條",
+        "zhuyin": "ㄧ ㄊㄧㄠˊ"
+      }
+    ]
+  },
+  {
+    "headword": "冷氣機",
+    "meaning": "エアコン",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "エアコンをつける",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "打開"
+          },
+          {
+            "pos": "N",
+            "text": "冷氣機"
+          }
+        ]
+      },
+      {
+        "ja": "エアコンを消す",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "關掉"
+          },
+          {
+            "pos": "N",
+            "text": "冷氣機"
+          }
+        ]
+      },
+      {
+        "ja": "エアコンが壊れた",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "冷氣機"
+          },
+          {
+            "pos": "Vs",
+            "text": "壞了"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "機械類を数える一般的な量詞。",
+        "pinyin": "yí tái",
+        "word": "一台",
+        "zhuyin": "ㄧˋ ㄊㄞˊ"
+      }
+    ]
+  },
+  {
+    "headword": "地瓜",
+    "meaning": "sweet potato",
+    "el": "en",
+    "uc": [
+      {
+        "ja": "eat sweet potato",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "吃"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "地瓜"
+          }
+        ]
+      },
+      {
+        "ja": "roasted sweet potato",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "烤"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "地瓜"
+          }
+        ]
+      },
+      {
+        "ja": "sweet potato is very sweet",
+        "parts": [
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "地瓜"
+          },
+          {
+            "alts": [
+              {
+                "ja": "super",
+                "text": "超"
+              },
+              {
+                "ja": "not",
+                "text": "不"
+              },
+              {
+                "ja": "a little",
+                "text": "有點"
+              }
+            ],
+            "ja": "very",
+            "pos": "Adv",
+            "slot": true,
+            "text": "很"
+          },
+          {
+            "pos": "Vs",
+            "text": "甜"
+          }
+        ]
+      },
+      {
+        "ja": "buy sweet potatoes",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "買"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "地瓜"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "Used for long, slender objects like a single sweet potato.",
+        "pinyin": "yī tiáo",
+        "word": "一條",
+        "zhuyin": "ㄧˋ　ㄌㄧㄠˊ"
+      },
+      {
+        "note": "Used for small, rounded objects, can be used for a sweet potato if it's considered more roundish.",
+        "pinyin": "yī kē",
+        "word": "一顆",
+        "zhuyin": "ㄧˋ　ㄎㄜ"
+      }
+    ]
+  },
+  {
+    "headword": "蓮藕",
+    "meaning": "レンコン",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "レンコンの冷菜",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "涼拌"
+          },
+          {
+            "pos": "N",
+            "text": "蓮藕"
+          }
+        ]
+      },
+      {
+        "ja": "レンコンとスペアリブのスープ",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "蓮藕"
+          },
+          {
+            "alts": [
+              {
+                "ja": "鶏肉",
+                "text": "雞肉"
+              },
+              {
+                "ja": "スープ",
+                "text": "湯"
+              }
+            ],
+            "ja": "スペアリブ",
+            "pos": "N",
+            "slot": true,
+            "text": "排骨"
+          },
+          {
+            "pos": "N",
+            "text": "湯"
+          }
+        ]
+      },
+      {
+        "ja": "レンコンがとてもシャキシャキしている",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "蓮藕"
+          },
+          {
+            "pos": "Adv",
+            "text": "很"
+          },
+          {
+            "pos": "Vs",
+            "text": "脆"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "レンコンの「節」で数える。",
+        "pinyin": "jié",
+        "word": "節",
+        "zhuyin": "ㄐㄧㄝˊ"
+      },
+      {
+        "note": "一本まるごとを指す。",
+        "pinyin": "gēn",
+        "word": "根",
+        "zhuyin": "ㄍㄣ"
+      }
+    ]
+  },
+  {
+    "headword": "臉",
+    "meaning": "顔",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "顔を洗う",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "洗"
+          },
+          {
+            "pos": "O",
+            "text": "臉"
+          }
+        ]
+      },
+      {
+        "ja": "顔がとても赤い",
+        "parts": [
+          {
+            "pos": "S",
+            "text": "臉"
+          },
+          {
+            "alts": [
+              {
+                "ja": "めちゃくちゃ",
+                "text": "超"
+              },
+              {
+                "ja": "なかなか",
+                "text": "蠻"
+              },
+              {
+                "ja": "ちょっと",
+                "text": "有點"
+              },
+              {
+                "ja": "非常に",
+                "text": "非常"
+              }
+            ],
+            "ja": "とても",
+            "pos": "Adv",
+            "slot": true,
+            "text": "很"
+          },
+          {
+            "pos": "Vs",
+            "text": "紅"
+          }
+        ]
+      },
+      {
+        "ja": "顔に何かついている",
+        "parts": [
+          {
+            "pos": "S",
+            "text": "臉上"
+          },
+          {
+            "pos": "V",
+            "text": "有"
+          },
+          {
+            "alts": [
+              {
+                "ja": "蚊",
+                "text": "蚊子"
+              },
+              {
+                "ja": "汗",
+                "text": "汗"
+              },
+              {
+                "ja": "汚れ",
+                "text": "髒東西"
+              }
+            ],
+            "ja": "もの",
+            "pos": "O",
+            "slot": true,
+            "text": "東西"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "「平らな面」として顔を数える標準的な量詞",
+        "pinyin": "yì zhāng",
+        "word": "一張",
+        "zhuyin": "ㄧˋ ㄓㄤ"
+      }
+    ]
+  },
+  {
+    "headword": "面膜",
+    "meaning": "フェイスマスク",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "マスクをする（「顔に貼る」という動作）",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "敷"
+          },
+          {
+            "pos": "N",
+            "text": "面膜"
+          }
+        ]
+      },
+      {
+        "ja": "マスクがとても保湿効果がある",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "面膜"
+          },
+          {
+            "alts": [
+              {
+                "ja": "すごく",
+                "text": "超"
+              },
+              {
+                "ja": "非常に",
+                "text": "非常"
+              },
+              {
+                "ja": "かなり",
+                "text": "蠻"
+              }
+            ],
+            "ja": "とても",
+            "pos": "Adv",
+            "slot": true,
+            "text": "很"
+          },
+          {
+            "pos": "Vs",
+            "text": "保濕"
+          }
+        ]
+      },
+      {
+        "ja": "美白マスク",
+        "parts": [
+          {
+            "pos": "Vs-attr",
+            "text": "美白"
+          },
+          {
+            "pos": "N",
+            "text": "面膜"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "マスク1枚を数える標準的な量詞。",
+        "pinyin": "yī piàn",
+        "word": "一片",
+        "zhuyin": "ㄧ ㄆㄧㄢˋ"
+      }
+    ]
+  },
+  {
+    "headword": "麻辣煲",
+    "meaning": "麻辣味の煮込み料理",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "麻辣煲を注文する",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "點"
+          },
+          {
+            "pos": "N",
+            "text": "麻辣煲"
+          }
+        ]
+      },
+      {
+        "ja": "麻辣煲がとても味が染みている",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "麻辣煲"
+          },
+          {
+            "alts": [
+              {
+                "ja": "超",
+                "text": "超級"
+              },
+              {
+                "ja": "非常に",
+                "text": "非常"
+              }
+            ],
+            "ja": "とても",
+            "pos": "Adv",
+            "slot": true,
+            "text": "很"
+          },
+          {
+            "pos": "Vs",
+            "text": "入味"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "鍋単位で数える。",
+        "pinyin": "yī guō",
+        "word": "一鍋",
+        "zhuyin": "ㄧ ㄍㄨㄛ"
+      },
+      {
+        "note": "器単位で数える。",
+        "pinyin": "yī wǎn",
+        "word": "一碗",
+        "zhuyin": "ㄧ ㄨㄢˇ"
+      }
+    ]
+  },
+  {
+    "headword": "鍵盤",
+    "meaning": "キーボード",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "キーボード",
+        "parts": [
+          {
+            "pos": "名詞",
+            "text": "鍵盤"
+          }
+        ]
+      }
+    ],
+    "mw": []
+  },
+  {
+    "headword": "手錶",
+    "meaning": "腕時計",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "腕時計を身につける",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "戴"
+          },
+          {
+            "pos": "N",
+            "text": "手錶"
+          }
+        ]
+      },
+      {
+        "ja": "腕時計を見る",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "看"
+          },
+          {
+            "pos": "N",
+            "text": "手錶"
+          }
+        ]
+      },
+      {
+        "ja": "腕時計を買う",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "買"
+          },
+          {
+            "pos": "N",
+            "text": "手錶"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "手錶など、細長いものや持ち手があるものに使う量詞",
+        "pinyin": "zhī",
+        "word": "支",
+        "zhuyin": "ㄓ"
+      }
+    ]
+  },
+  {
+    "headword": "防曬乳",
+    "meaning": "sunscreen",
+    "el": "en",
+    "uc": [
+      {
+        "ja": "apply sunscreen",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "擦"
+          },
+          {
+            "pos": "O",
+            "slot": false,
+            "text": "防曬乳"
+          }
+        ]
+      },
+      {
+        "ja": "the sunscreen is very refreshing",
+        "parts": [
+          {
+            "pos": "S",
+            "slot": false,
+            "text": "防曬乳"
+          },
+          {
+            "pos": "Adv",
+            "slot": false,
+            "text": "很"
+          },
+          {
+            "alts": [
+              {
+                "ja": "sticky",
+                "text": "黏膩"
+              },
+              {
+                "ja": "easy to spread",
+                "text": "好推"
+              }
+            ],
+            "ja": "refreshing",
+            "pos": "Vs",
+            "slot": true,
+            "text": "清爽"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "Used for standard plastic bottles.",
+        "pinyin": "píng",
+        "word": "瓶",
+        "zhuyin": "ㄆㄧㄥˊ"
+      },
+      {
+        "note": "Used for tube-style packaging.",
+        "pinyin": "tiáo",
+        "word": "條",
+        "zhuyin": "ㄊㄧㄠˊ"
+      }
+    ]
+  },
+  {
+    "headword": "平口褲",
+    "meaning": "トランクス",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "綿素材のトランクス",
+        "parts": [
+          {
+            "alts": [
+              {
+                "ja": "綿100%",
+                "text": "純棉"
+              },
+              {
+                "ja": "冷感",
+                "text": "涼感"
+              }
+            ],
+            "ja": "綿100%",
+            "pos": "Vs-attr",
+            "slot": true,
+            "text": "純棉"
+          },
+          {
+            "pos": "Ptc",
+            "text": "的"
+          },
+          {
+            "pos": "N",
+            "text": "平口褲"
+          }
+        ]
+      },
+      {
+        "ja": "トランクスを履く",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "穿"
+          },
+          {
+            "pos": "O",
+            "text": "平口褲"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "服や下着を数える標準的な量詞。",
+        "pinyin": "jiàn",
+        "word": "件",
+        "zhuyin": "ㄐㄧㄢˋ"
+      }
+    ]
+  },
+  {
+    "headword": "手鍊",
+    "meaning": "ブレスレット",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "ブレスレットをつける",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "戴"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "手鍊"
+          }
+        ]
+      },
+      {
+        "ja": "ブレスレットを選ぶ",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "挑選"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "手鍊"
+          }
+        ]
+      },
+      {
+        "ja": "精巧なブレスレット",
+        "parts": [
+          {
+            "pos": "Vs-attr",
+            "text": "精緻的"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "手鍊"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "紐状の細長いものや装飾品に使う最も一般的な量詞。",
+        "pinyin": "yì tiáo",
+        "word": "一條",
+        "zhuyin": "ㄧ ㄊㄧㄠˊ"
+      }
+    ]
+  },
+  {
+    "headword": "馬桶",
+    "meaning": "便器",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "トイレが詰まる",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "馬桶"
+          },
+          {
+            "pos": "Vp",
+            "text": "堵住"
+          }
+        ]
+      },
+      {
+        "ja": "トイレを流す",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "沖"
+          },
+          {
+            "pos": "N",
+            "text": "馬桶"
+          }
+        ]
+      },
+      {
+        "ja": "トイレを掃除する",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "刷"
+          },
+          {
+            "pos": "N",
+            "text": "馬桶"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "一般的な個数",
+        "pinyin": "yī gè",
+        "word": "一個",
+        "zhuyin": "ㄧ ㄍㄜ˙"
+      }
+    ]
+  },
+  {
+    "headword": "甜筒",
+    "meaning": "ソフトクリームのコーン",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "コーンを手に持つ",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "拿"
+          },
+          {
+            "pos": "Ptc",
+            "text": "著"
+          },
+          {
+            "pos": "N",
+            "text": "甜筒"
+          }
+        ]
+      },
+      {
+        "ja": "コーンを食べる",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "吃"
+          },
+          {
+            "pos": "N",
+            "text": "甜筒"
+          }
+        ]
+      },
+      {
+        "ja": "コーンがとてもサクサクだ",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "甜筒"
+          },
+          {
+            "pos": "Adv",
+            "text": "很"
+          },
+          {
+            "alts": [
+              {
+                "ja": "硬い",
+                "text": "硬"
+              },
+              {
+                "ja": "サクサクしている",
+                "text": "酥"
+              }
+            ],
+            "ja": "サクサクする",
+            "pos": "Vs",
+            "slot": true,
+            "text": "脆"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "最も一般的な量詞",
+        "pinyin": "gè",
+        "word": "個",
+        "zhuyin": "ㄍㄜˋ"
+      }
+    ]
+  },
+  {
+    "headword": "凡士林",
+    "meaning": "ワセリン",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "ワセリンを塗る",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "抹"
+          },
+          {
+            "pos": "N",
+            "text": "凡士林"
+          }
+        ]
+      },
+      {
+        "ja": "ワセリンを塗る",
+        "parts": [
+          {
+            "alts": [
+              {
+                "ja": "塗る",
+                "text": "塗"
+              },
+              {
+                "ja": "塗る",
+                "text": "抹"
+              }
+            ],
+            "ja": "塗る",
+            "pos": "V",
+            "slot": true,
+            "text": "擦"
+          },
+          {
+            "pos": "N",
+            "text": "凡士林"
+          }
+        ]
+      },
+      {
+        "ja": "ワセリンを厚く塗る",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "厚敷"
+          },
+          {
+            "pos": "N",
+            "text": "凡士林"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "容器に入ったワセリンを数えるとき",
+        "pinyin": "guàn",
+        "word": "罐",
+        "zhuyin": "ㄍㄨㄢˋ"
+      }
+    ]
+  },
+  {
+    "headword": "咖哩飯",
+    "meaning": "カレーライス",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "カレーライスを食べる",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "吃"
+          },
+          {
+            "pos": "O",
+            "text": "咖哩飯"
+          }
+        ]
+      },
+      {
+        "ja": "カレーライスがとても濃厚である",
+        "parts": [
+          {
+            "pos": "S",
+            "text": "咖哩飯"
+          },
+          {
+            "pos": "Adv",
+            "text": "很"
+          },
+          {
+            "alts": [
+              {
+                "ja": "美味しい",
+                "text": "好吃"
+              },
+              {
+                "ja": "辛い",
+                "text": "辣"
+              },
+              {
+                "ja": "香ばしい",
+                "text": "香"
+              }
+            ],
+            "ja": "濃厚",
+            "pos": "Vs",
+            "slot": true,
+            "text": "濃郁"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "料理を1人前注文する際に使う最も一般的な量詞。",
+        "pinyin": "yī fèn",
+        "word": "一份",
+        "zhuyin": "ㄧ ㄈㄣˋ"
+      },
+      {
+        "note": "皿に盛られた状態を指すとき。",
+        "pinyin": "pán",
+        "word": "盤",
+        "zhuyin": "ㄆㄢˊ"
+      }
+    ]
+  },
+  {
+    "headword": "光雕投影",
+    "meaning": "プロジェクションマッピング",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "プロジェクションマッピングを見る",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "看"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "光雕投影"
+          }
+        ]
+      },
+      {
+        "ja": "プロジェクションマッピングを鑑賞する",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "欣賞"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "光雕投影"
+          }
+        ]
+      },
+      {
+        "ja": "プロジェクションマッピングのショー",
+        "parts": [
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "光雕投影"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "表演"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "イベントやショーの回数を数える",
+        "pinyin": "chǎng",
+        "word": "場",
+        "zhuyin": "ㄔㄤˇ"
+      }
+    ]
+  },
+  {
+    "headword": "豆花",
+    "meaning": "豆花",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "豆花を一杯注文する",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "點"
+          },
+          {
+            "pos": "M",
+            "text": "一碗"
+          },
+          {
+            "pos": "N",
+            "text": "豆花"
+          }
+        ]
+      },
+      {
+        "ja": "トッピングを乗せた豆花",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "加"
+          },
+          {
+            "alts": [
+              {
+                "ja": "タピオカ",
+                "text": "珍珠"
+              },
+              {
+                "ja": "あずき",
+                "text": "紅豆"
+              },
+              {
+                "ja": "タロイモ団子",
+                "text": "芋圓"
+              },
+              {
+                "ja": "タピオカ",
+                "text": "粉圓"
+              }
+            ],
+            "ja": "トッピング",
+            "pos": "N",
+            "slot": true,
+            "text": "花生"
+          },
+          {
+            "pos": "Ptc",
+            "text": "的"
+          },
+          {
+            "pos": "N",
+            "text": "豆花"
+          }
+        ]
+      },
+      {
+        "ja": "冷たい豆花",
+        "parts": [
+          {
+            "alts": [
+              {
+                "ja": "温かい",
+                "text": "熱"
+              }
+            ],
+            "ja": "冷たさ",
+            "pos": "N",
+            "slot": true,
+            "text": "冰"
+          },
+          {
+            "pos": "N",
+            "text": "豆花"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "丼や碗に入れる料理を数える",
+        "pinyin": "yì wǎn",
+        "word": "一碗",
+        "zhuyin": "ㄧˋ ㄨㄢˇ"
+      }
+    ]
+  },
+  {
+    "headword": "洗碗精",
+    "meaning": "食器用洗剤",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "食器用洗剤を使い切った",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "洗碗精"
+          },
+          {
+            "pos": "Vp",
+            "text": "用完"
+          },
+          {
+            "pos": "Ptc",
+            "text": "了"
+          }
+        ]
+      },
+      {
+        "ja": "詰め替え用の食器用洗剤を買う",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "買"
+          },
+          {
+            "alts": [
+              {
+                "ja": "詰め替え用",
+                "text": "補充包"
+              },
+              {
+                "ja": "大きなボトル1本",
+                "text": "一大瓶"
+              }
+            ],
+            "ja": "詰め替え用",
+            "pos": "N",
+            "slot": true,
+            "text": "補充包"
+          },
+          {
+            "pos": "N",
+            "text": "洗碗精"
+          }
+        ]
+      },
+      {
+        "ja": "この食器用洗剤はとても使いやすい",
+        "parts": [
+          {
+            "pos": "Det",
+            "text": "這款"
+          },
+          {
+            "pos": "N",
+            "text": "洗碗精"
+          },
+          {
+            "pos": "Adv",
+            "text": "很"
+          },
+          {
+            "alts": [
+              {
+                "ja": "使いやすい",
+                "text": "好用"
+              },
+              {
+                "ja": "手に優しい",
+                "text": "不傷手"
+              },
+              {
+                "ja": "香りがいい",
+                "text": "很香"
+              }
+            ],
+            "ja": "使いやすい",
+            "pos": "Vs",
+            "slot": true,
+            "text": "好用"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "ボトル入りの洗剤を数える",
+        "pinyin": "yì píng",
+        "word": "一瓶",
+        "zhuyin": "ㄧˋ ㄆㄧㄥˊ"
+      }
+    ]
+  },
+  {
+    "headword": "煙囪",
+    "meaning": "煙突",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "工場の煙突",
+        "parts": [
+          {
+            "alts": [
+              {
+                "ja": "発電所",
+                "text": "發電廠"
+              },
+              {
+                "ja": "製鉄所",
+                "text": "鋼鐵廠"
+              },
+              {
+                "ja": "ボイラー室",
+                "text": "鍋爐房"
+              }
+            ],
+            "ja": "工場",
+            "pos": "N",
+            "slot": true,
+            "text": "工廠"
+          },
+          {
+            "pos": "Ptc",
+            "text": "的"
+          },
+          {
+            "pos": "N",
+            "text": "煙囪"
+          }
+        ]
+      },
+      {
+        "ja": "煙突から黒い煙が出る",
+        "parts": [
+          {
+            "pos": "N",
+            "text": "煙囪"
+          },
+          {
+            "pos": "V",
+            "text": "冒"
+          },
+          {
+            "pos": "V",
+            "text": "出"
+          },
+          {
+            "alts": [
+              {
+                "ja": "濃い煙",
+                "text": "濃煙"
+              }
+            ],
+            "ja": "黒い煙",
+            "pos": "N",
+            "slot": true,
+            "text": "黑煙"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "大きな建物や煙突など、固定されたものに使う。",
+        "pinyin": "yízuò",
+        "word": "一座",
+        "zhuyin": "ㄧˊ　ㄗㄨㄛˋ"
+      }
+    ]
+  },
+  {
+    "headword": "內褲",
+    "meaning": "パンツ",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "パンツを履き替える",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "換"
+          },
+          {
+            "pos": "O",
+            "text": "內褲"
+          }
+        ]
+      },
+      {
+        "ja": "パンツを買う",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "買"
+          },
+          {
+            "pos": "O",
+            "text": "內褲"
+          }
+        ]
+      },
+      {
+        "ja": "パンツがきつい",
+        "parts": [
+          {
+            "pos": "S",
+            "text": "內褲"
+          },
+          {
+            "pos": "Adv",
+            "text": "很"
+          },
+          {
+            "alts": [
+              {
+                "ja": "心地よい",
+                "text": "舒服"
+              },
+              {
+                "ja": "小さい",
+                "text": "小"
+              }
+            ],
+            "pos": "Vs",
+            "slot": true,
+            "text": "緊"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "パンツ1枚を数える標準的な量詞。",
+        "pinyin": "yíjiàn",
+        "word": "一件",
+        "zhuyin": "ㄧˊ ㄐㄧㄢˋ"
+      }
+    ]
+  },
+  {
+    "headword": "眼鏡",
+    "meaning": "眼鏡",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "眼鏡をかける",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "戴"
+          },
+          {
+            "pos": "O",
+            "text": "眼鏡"
+          }
+        ]
+      },
+      {
+        "ja": "眼鏡1つ",
+        "parts": [
+          {
+            "pos": "M",
+            "text": "一副"
+          },
+          {
+            "pos": "O",
+            "text": "眼鏡"
+          }
+        ]
+      },
+      {
+        "ja": "眼鏡が汚い",
+        "parts": [
+          {
+            "pos": "S",
+            "text": "眼鏡"
+          },
+          {
+            "alts": [
+              {
+                "ja": "〜すぎる",
+                "text": "太"
+              },
+              {
+                "ja": "少し",
+                "text": "有點"
+              }
+            ],
+            "pos": "Adv",
+            "slot": true,
+            "text": "很"
+          },
+          {
+            "pos": "Vs",
+            "text": "髒"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "眼鏡や手袋など、対になっているものに使う。",
+        "pinyin": "yī fù",
+        "word": "一副",
+        "zhuyin": "ㄧ ㄈㄨˋ"
+      }
+    ]
+  },
+  {
+    "headword": "天花板",
+    "meaning": "天井",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "天井が高い",
+        "parts": [
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "天花板"
+          },
+          {
+            "pos": "Adv",
+            "slot": false,
+            "text": "很"
+          },
+          {
+            "alts": [
+              {
+                "ja": "低い",
+                "text": "低"
+              },
+              {
+                "ja": "汚れている",
+                "text": "髒"
+              },
+              {
+                "ja": "白い",
+                "text": "白"
+              }
+            ],
+            "ja": "高い",
+            "pos": "Vs",
+            "slot": true,
+            "text": "高"
+          }
+        ]
+      },
+      {
+        "ja": "天井を見る",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "看"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "天花板"
+          }
+        ]
+      }
+    ],
+    "mw": []
+  },
+  {
+    "headword": "蘋果核",
+    "meaning": "リンゴの芯",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "リンゴの芯を吐き出す",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "吐掉"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "蘋果核"
+          }
+        ]
+      },
+      {
+        "ja": "リンゴの芯までかじり取る",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "啃完"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "蘋果核"
+          }
+        ]
+      },
+      {
+        "ja": "リンゴの芯が残る",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "剩下"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "蘋果核"
+          }
+        ]
+      },
+      {
+        "ja": "リンゴの芯を捨てる",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "丟掉"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "蘋果核"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "最も一般的な数え方。",
+        "pinyin": "yī gè",
+        "word": "一個",
+        "zhuyin": "ㄧ ㄍㄜˋ"
+      }
+    ]
+  },
+  {
+    "headword": "保溫瓶",
+    "meaning": "保温ボトル",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "保温ボトルを持参する",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "自備"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "保溫瓶"
+          }
+        ]
+      },
+      {
+        "ja": "保温ボトルは保温性が高い",
+        "parts": [
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "保溫瓶"
+          },
+          {
+            "pos": "Adv",
+            "slot": false,
+            "text": "很"
+          },
+          {
+            "pos": "Vs",
+            "slot": false,
+            "text": "保溫"
+          }
+        ]
+      },
+      {
+        "ja": "保温ボトルにコーヒーを入れる",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "裝"
+          },
+          {
+            "pos": "N",
+            "slot": true,
+            "text": "咖啡"
+          },
+          {
+            "pos": "Prep",
+            "slot": false,
+            "text": "在"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "保溫瓶"
+          }
+        ]
+      },
+      {
+        "ja": "保温ボトルを持って出かける",
+        "parts": [
+          {
+            "pos": "V",
+            "slot": false,
+            "text": "攜帶"
+          },
+          {
+            "pos": "N",
+            "slot": false,
+            "text": "保溫瓶"
+          },
+          {
+            "pos": "Vi",
+            "slot": false,
+            "text": "出門"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "最も一般的な量詞。数える時に迷った場合はこれを使う。",
+        "pinyin": "gè",
+        "word": "個",
+        "zhuyin": "ㄍㄜˋ"
+      },
+      {
+        "note": "細長い形状のものを数える際に用いられる。ボトルやペンなどに対して使う。",
+        "pinyin": "zhī",
+        "word": "支",
+        "zhuyin": "ㄓ"
+      }
+    ]
+  },
+  {
+    "headword": "皮鞋",
+    "meaning": "革靴",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "革靴を磨く。日本語の「靴を磨く」と対応する自然な連語。",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "擦"
+          },
+          {
+            "pos": "O",
+            "text": "皮鞋"
+          }
+        ]
+      },
+      {
+        "ja": "革靴を履く。動作の完了や開始を表す。",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "穿上"
+          },
+          {
+            "pos": "O",
+            "text": "皮鞋"
+          }
+        ]
+      },
+      {
+        "ja": "革靴が靴擦れを起こす。日本語話者が「靴が足に当たる」と言いたくなる状況。",
+        "parts": [
+          {
+            "pos": "S",
+            "text": "皮鞋"
+          },
+          {
+            "pos": "Vi",
+            "text": "磨腳"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "ペアになっている靴を数える際に使用する。",
+        "pinyin": "shuāng",
+        "word": "雙",
+        "zhuyin": "ㄕㄨㄤ"
+      }
+    ]
+  },
+  {
+    "headword": "優酪乳",
+    "meaning": "飲むヨーグルト",
+    "el": "ja",
+    "uc": [
+      {
+        "ja": "飲むヨーグルトを飲む",
+        "parts": [
+          {
+            "pos": "V",
+            "text": "喝"
+          },
+          {
+            "pos": "O",
+            "text": "優酪乳"
+          }
+        ]
+      },
+      {
+        "ja": "無糖の飲むヨーグルト",
+        "parts": [
+          {
+            "pos": "Vs-attr",
+            "text": "無糖"
+          },
+          {
+            "pos": "O",
+            "text": "優酪乳"
+          }
+        ]
+      },
+      {
+        "ja": "飲むヨーグルトが消化を助ける",
+        "parts": [
+          {
+            "pos": "S",
+            "text": "優酪乳"
+          },
+          {
+            "pos": "V",
+            "text": "助消化"
+          }
+        ]
+      }
+    ],
+    "mw": [
+      {
+        "note": "容器に入った飲料を数える際に最も一般的。",
+        "pinyin": "píng",
+        "word": "瓶",
+        "zhuyin": "ㄆㄧㄥˊ"
+      },
+      {
+        "note": "少し大きめの容器に入っている場合に使われる。",
+        "pinyin": "guàn",
+        "word": "罐",
+        "zhuyin": "ㄍㄨㄢˋ"
+      }
+    ]
+  }
+]

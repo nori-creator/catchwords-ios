@@ -3,28 +3,30 @@ import Foundation
 /// Where the app talks to — owned by this repository, not injected by a build service.
 ///
 /// (The Rork-generated `Config.swift` held empty strings and was never read; it was removed.)
-/// These values are the same ones the Lovable web app ships in its public bundle:
-/// - The Supabase publishable key is the `anon` role. It is meant to be public;
-///   every row is protected by RLS (`auth.uid() = user_id`).
-/// - No secret (AI keys etc.) may ever be placed here. AI goes through the web
-///   server (`/api/native-fn`), which holds the keys.
+/// Since 2026-10-20 the app runs on its own Supabase project (catchwords, Tokyo), not on Lovable Cloud:
+/// - The Supabase publishable key is meant to be public; every row is protected by RLS (`auth.uid() = user_id`).
+/// - No secret (AI keys etc.) may ever be placed here. AI goes through the server functions (`server/` in this
+///   repository, deployed as the Edge Function `native-fn`), which hold the keys in Supabase's secrets.
 enum AppConfig {
-    /// The published Lovable web app. Its server hosts `/api/native-fn`.
-    nonisolated static let webBaseURL = URL(string: "https://catchwords.lovable.app")!
+    /// The app's own site (GitHub Pages, built from site/ by scripts/build_site.py): the legal and support pages
+    /// and the password-reset page. Not the Lovable web app any more (2026-10-22).
+    nonisolated static let webBaseURL = URL(string: "https://catchwords.app")!
 
-    /// The legal pages on the web app (texts in docs/legal). Built from `webBaseURL`, so every link in the
+    /// The legal pages on the site (texts in site/src). Built from `webBaseURL`, so every link in the
     /// app (sign-in, settings, paywall, AI consent) moves with it. Each carries the display language as `?lang=`
     /// (owner 2026-10-15: under the English UI the pages opened in Japanese — the web falls back to Japanese when
     /// Safari has no stored language; the web now reads `lang=ja|en|zh-TW`).
     nonisolated static var termsURL: URL { legalURL("terms") }
     nonisolated static var privacyURL: URL { legalURL("privacy") }
-    /// 特定商取引法に基づく表記. The web app serves it at /legal/tokushoho (src/components/legal/TokushohoDocument.tsx).
+    /// 特定商取引法に基づく表記, at /legal/tokushoho (site/src/tokushoho.*.html).
     nonisolated static var tokushohoURL: URL { legalURL("legal/tokushoho") }
     /// 設定 › お問い合わせ・サポート. The same page goes into App Store Connect's support URL.
-    // Web の /support（docs/web-changes/ の 0001〈旧 docs/legal/web/legal.patch〉で足す頁。連絡先は LEGAL_EMAIL から出る）
+    // サイトの /support（site/src/support.*.html）
     nonisolated static var supportURL: URL { legalURL("support") }
+    /// Where the password e-mail's link lands to set a new password (on the same site as the legal pages).
+    nonisolated static var passwordResetURL: URL { webBaseURL.appendingPathComponent("reset-password") }
 
-    /// A page of the web app with the display language as its `lang` query (`URLComponents`, never pasted strings).
+    /// A page of the site with the display language as its `lang` query (`URLComponents`, never pasted strings).
     /// `lang` defaults to the app's display language (`L10n.lang`, the web's own codes); a language the web has no
     /// pages in (languages.json `legalDocs`) opens the English ones.
     nonisolated static func legalURL(_ path: String, lang: String? = nil) -> URL {
@@ -37,16 +39,26 @@ enum AppConfig {
     /// Apple's page for the subscriptions of the signed-in Apple ID (cancel there).
     nonisolated static let manageSubscriptionsURL = URL(string: "https://apps.apple.com/account/subscriptions")!
 
-    /// Where the web's `/native-auth` bridge hands a Google / Apple login back to the app
-    /// (`catchwords://auth-callback#…`, see `WebAuthSession`).
+    /// Where Supabase hands a Google login back to the app (`catchwords://auth-callback?code=…`, see
+    /// `WebAuthSession`). The project's Auth settings allow exactly this redirect.
     nonisolated static let authCallbackScheme = "catchwords"
     nonisolated static let authCallbackHost = "auth-callback"
-    /// Apple sign-in straight from the device (Supabase `grant_type=id_token`). Off: it needs the app's
-    /// bundle id registered on the auth server, which Lovable Cloud does not expose, and a native Apple
-    /// login gets a different Apple user id than the web's, so the same person would end up with two
-    /// accounts. Apple goes through the web bridge like Google.
-    nonisolated static let nativeAppleSignIn = false
+    nonisolated static var authCallbackURL: String { "\(authCallbackScheme)://\(authCallbackHost)" }
+    /// Google sign-in straight with Google (`GoogleSignIn.swift`): the iOS OAuth client of the Google Cloud
+    /// project (a public ID, not a secret). Google's sheet then names the app instead of the Supabase address,
+    /// and the ID token goes to Supabase like Apple's. Empty: Google goes through Supabase's page as before.
+    nonisolated static let googleIOSClientID = "706889927548-a370c7kkfm8u9ggqlht30mg35lj7t0n3.apps.googleusercontent.com"
+    /// Apple sign-in straight from the device (Supabase `grant_type=id_token`): the system sheet, no web page.
+    /// The project's Apple provider lists this app's bundle id. (Off while the app ran on Lovable Cloud, which
+    /// did not let the bundle id be registered.)
+    nonisolated static let nativeAppleSignIn = true
 
-    nonisolated static let supabaseURL = "https://arjicopbmvseztldpxpk.supabase.co"
-    nonisolated static let supabasePublishableKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyamljb3BibXZzZXp0bGRweHBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMjUwODQsImV4cCI6MjA5NzcwMTA4NH0.ZzTgNSzT8QWZ2QIeBUVjx_UONYMl-R1Iak9oRAJMknQ"
+    /// The app's own Supabase project (catchwords, ap-northeast-1).
+    nonisolated static let supabaseURL = "https://libwmvpoqvxfxbjgqnuj.supabase.co"
+    nonisolated static let supabasePublishableKey = "sb_publishable_B0BKHxcXGuwdPkErW54uPg_ZEG1NEyc"
+    /// The server functions: `server/` in this repository, deployed as the Edge Function `native-fn`
+    /// (same `{ fn, data }` contract the web app's `/api/native-fn` had).
+    nonisolated static var nativeFunctionURL: URL {
+        URL(string: supabaseURL)!.appendingPathComponent("functions/v1/native-fn")
+    }
 }

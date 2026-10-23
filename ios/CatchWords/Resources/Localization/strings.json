@@ -8643,5 +8643,12 @@
   "es": "Esta imagen se usa en la página de la palabra y en el álbum de Inicio.",
   "ko": "단어 상세와 홈 앨범에서 이 사진을 사용해요.",
   "vi": "Ảnh này được dùng ở trang từ và trong album Trang chủ."
+ },
+ "サイト": {
+  "en": "Website",
+  "zh-TW": "網站",
+  "es": "Sitio web",
+  "ko": "웹사이트",
+  "vi": "Trang web"
  }
 }

@@ -1,0 +1,221 @@
+{
+  "_note": "嘴邊肉（台湾の黑白切の豚の口の周りの肉）の画像検索で返ってくる形の見本（オーナー報告 2026-10-09「明らかに英語で検索された画像」）。説明・URL は実際の出所の書き方に似せた作り物。",
+  "unsplash": {
+    "results": [
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/photo-cauldron1?w=1080",
+          "small": "https://images.unsplash.com/photo-cauldron1?w=400"
+        },
+        "user": { "name": "Cook A", "links": { "html": "https://unsplash.com/@a" } },
+        "alt_description": "boiled pork cheek in a large cauldron",
+        "description": null,
+        "tags": [{ "title": "meat" }]
+      },
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/photo-paella1?w=1080",
+          "small": "https://images.unsplash.com/photo-paella1?w=400"
+        },
+        "user": { "name": "Chef B", "links": { "html": "https://unsplash.com/@b" } },
+        "alt_description": "braised pork cheek paella with saffron rice",
+        "description": null,
+        "tags": [{ "title": "paella" }]
+      },
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/photo-paella1?w=1080&fm=jpg",
+          "small": "https://images.unsplash.com/photo-paella1?w=400&fm=jpg"
+        },
+        "user": { "name": "Chef B", "links": { "html": "https://unsplash.com/@b" } },
+        "alt_description": "braised pork cheek paella with saffron rice",
+        "description": null,
+        "tags": [{ "title": "paella" }]
+      },
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/photo-plate4?w=1080",
+          "small": "https://images.unsplash.com/photo-plate4?w=400"
+        },
+        "user": { "name": "D", "links": { "html": "https://unsplash.com/@d" } },
+        "alt_description": "sliced beef and duck on a plate",
+        "description": null,
+        "tags": null
+      },
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/photo-sauce5?w=1080",
+          "small": "https://images.unsplash.com/photo-sauce5?w=400"
+        },
+        "user": { "name": "E", "links": { "html": "https://unsplash.com/@e" } },
+        "alt_description": "braised pork cheeks in red wine sauce",
+        "description": null,
+        "tags": null
+      }
+    ]
+  },
+  "commonsEnglish": {
+    "query": {
+      "pages": {
+        "1": {
+          "title": "File:Carrilleras de cerdo.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/a/a1/Carrilleras_de_cerdo.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Carrilleras_de_cerdo.jpg/960px-Carrilleras_de_cerdo.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Carrilleras_de_cerdo.jpg",
+              "extmetadata": {
+                "Artist": { "value": "Cocinero" },
+                "LicenseShortName": { "value": "CC BY-SA 4.0" },
+                "ImageDescription": { "value": "Spanish stewed pork cheek (carrilleras)" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "commonsLearning": {
+    "query": {
+      "pages": {
+        "11": {
+          "title": "File:嘴邊肉.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/b/b1/嘴邊肉.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/嘴邊肉.jpg/960px-嘴邊肉.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:嘴邊肉.jpg",
+              "extmetadata": {
+                "Artist": { "value": "台南人" },
+                "LicenseShortName": { "value": "CC BY 4.0" },
+                "ImageDescription": { "value": "黑白切的嘴邊肉" }
+              }
+            }
+          ]
+        },
+        "12": {
+          "title": "File:台南黑白切 嘴邊肉 豬頭皮.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/c/c1/Tainan_heibaiqie.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Tainan_heibaiqie.jpg/960px-Tainan_heibaiqie.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Tainan_heibaiqie.jpg",
+              "extmetadata": {
+                "Artist": { "value": "小吃迷" },
+                "LicenseShortName": { "value": "CC BY-SA 4.0" }
+              }
+            }
+          ]
+        },
+        "13": {
+          "title": "File:嘴邊肉麵.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/d/d1/Noodles.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Noodles.jpg/960px-Noodles.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Noodles.jpg",
+              "extmetadata": {
+                "Artist": { "value": "麵店" },
+                "LicenseShortName": { "value": "CC BY 4.0" }
+              }
+            }
+          ]
+        },
+        "14": {
+          "title": "File:紅燒肉.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/e/e1/Hongshaorou.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Hongshaorou.jpg/960px-Hongshaorou.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Hongshaorou.jpg",
+              "extmetadata": {
+                "Artist": { "value": "廚師" },
+                "LicenseShortName": { "value": "CC BY 4.0" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "openverse": {
+    "result_count": 4,
+    "results": [
+      {
+        "id": "0b6f6f3e-1111-4aaa-8bbb-000000000001",
+        "title": "嘴邊肉",
+        "url": "https://live.staticflickr.com/65535/51234567890_abcdef1234_b.jpg",
+        "thumbnail": "https://api.openverse.org/v1/images/0b6f6f3e-1111-4aaa-8bbb-000000000001/thumb/",
+        "creator": "foodie_tw",
+        "license": "by",
+        "license_version": "2.0",
+        "foreign_landing_url": "https://www.flickr.com/photos/foodie_tw/51234567890",
+        "tags": [{ "name": "黑白切" }, { "name": "台灣小吃" }]
+      },
+      {
+        "id": "0b6f6f3e-1111-4aaa-8bbb-000000000002",
+        "title": "IMG_2041",
+        "url": "https://live.staticflickr.com/65535/51234567890_abcdef1234_c.jpg",
+        "thumbnail": "https://api.openverse.org/v1/images/0b6f6f3e-1111-4aaa-8bbb-000000000002/thumb/",
+        "creator": "foodie_tw",
+        "license": "by",
+        "license_version": "2.0",
+        "foreign_landing_url": "https://www.flickr.com/photos/foodie_tw/51234567890",
+        "tags": [{ "name": "嘴邊肉" }]
+      },
+      {
+        "id": "0b6f6f3e-1111-4aaa-8bbb-000000000003",
+        "title": "嘴邊肉 (non-commercial)",
+        "url": "https://live.staticflickr.com/65535/59999999999_ffffeeee11_b.jpg",
+        "thumbnail": "https://api.openverse.org/v1/images/0b6f6f3e-1111-4aaa-8bbb-000000000003/thumb/",
+        "creator": "someone",
+        "license": "by-nc",
+        "license_version": "2.0",
+        "foreign_landing_url": "https://www.flickr.com/photos/someone/59999999999",
+        "tags": []
+      },
+      {
+        "id": "0b6f6f3e-1111-4aaa-8bbb-000000000004",
+        "title": "肉圓",
+        "url": "https://live.staticflickr.com/65535/58888888888_aaaabbbb22_b.jpg",
+        "thumbnail": "https://api.openverse.org/v1/images/0b6f6f3e-1111-4aaa-8bbb-000000000004/thumb/",
+        "creator": "x",
+        "license": "cc0",
+        "license_version": "1.0",
+        "foreign_landing_url": "https://www.flickr.com/photos/x/58888888888",
+        "tags": [{ "name": "肉" }]
+      }
+    ]
+  },
+  "wikiLead": {
+    "query": {
+      "pages": [{ "pageid": 1, "ns": 0, "title": "嘴邊肉", "pageimage": "嘴邊肉_台南.jpg" }]
+    }
+  },
+  "wikiLeadRedirected": {
+    "query": {
+      "redirects": [{ "from": "嘴邊肉", "to": "黑白切" }],
+      "pages": [{ "pageid": 2, "ns": 0, "title": "黑白切", "pageimage": "Heibaiqie_platter.jpg" }]
+    }
+  },
+  "wikiLeadInfo": {
+    "query": {
+      "pages": {
+        "-1": {
+          "title": "File:嘴邊肉_台南.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/f/f1/嘴邊肉_台南.jpg",
+              "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/嘴邊肉_台南.jpg/960px-嘴邊肉_台南.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:嘴邊肉_台南.jpg",
+              "extmetadata": {
+                "Artist": { "value": "維基人" },
+                "LicenseShortName": { "value": "CC BY-SA 4.0" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

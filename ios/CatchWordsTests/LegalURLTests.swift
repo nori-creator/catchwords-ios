@@ -31,9 +31,9 @@ final class LegalURLTests: XCTestCase {
         XCTAssertEqual(AppConfig.supportURL.path(), "/support")
         XCTAssertEqual(AppConfig.privacyURL.path(), "/privacy")
         L10n.lang = "zh-TW"
-        XCTAssertEqual(AppConfig.termsURL.absoluteString, "https://catchwords.lovable.app/terms?lang=zh-TW")
+        XCTAssertEqual(AppConfig.termsURL.absoluteString, "https://catchwords.app/terms?lang=zh-TW")
         L10n.lang = "ja"
-        XCTAssertEqual(AppConfig.privacyURL.absoluteString, "https://catchwords.lovable.app/privacy?lang=ja")
+        XCTAssertEqual(AppConfig.privacyURL.absoluteString, "https://catchwords.app/privacy?lang=ja")
     }
 
     func testAnUnknownLanguageFallsBackToASupportedOne() {

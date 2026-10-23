@@ -98,18 +98,31 @@ final class SupabaseClient {
         try storeSession(json)
     }
 
+    /// Finishes an OAuth sign-in (Google): the code from `catchwords://auth-callback?code=…` plus the PKCE
+    /// verifier only this device holds (`WebAuthSession`).
+    func exchangeOAuthCode(_ code: String, verifier: String) async throws {
+        let json = try await authRequest(path: "token?grant_type=pkce", body: ["auth_code": code, "code_verifier": verifier])
+        try storeSession(json)
+    }
+
     func signInWithApple(idToken: String, nonce: String) async throws {
-        let json = try await authRequest(
-            path: "token?grant_type=id_token",
-            body: ["provider": "apple", "id_token": idToken, "nonce": nonce]
-        )
+        try await signInWithIdToken(provider: "apple", idToken: idToken, nonce: nonce)
+    }
+
+    /// Signs in with an OpenID Connect ID token from Apple or Google (`grant_type=id_token`). The token's
+    /// audience must be one of the provider's client IDs in the project's Auth settings; `nonce` is the raw
+    /// nonce whose SHA-256 went to the provider.
+    func signInWithIdToken(provider: String, idToken: String, nonce: String, accessToken: String? = nil) async throws {
+        var body = ["provider": provider, "id_token": idToken, "nonce": nonce]
+        if let accessToken { body["access_token"] = accessToken }
+        let json = try await authRequest(path: "token?grant_type=id_token", body: body)
         try storeSession(json)
     }
 
     /// Sends the password (re)set email. Also lets Google/Apple users add a password to the SAME account (UUID).
     func sendPasswordReset(email: String) async throws {
         _ = try await authRequest(
-            path: "recover?redirect_to=https://catchwords.lovable.app/reset-password",
+            path: "recover?redirect_to=\(AppConfig.passwordResetURL.absoluteString)",
             body: ["email": email]
         )
     }
@@ -321,47 +334,6 @@ final class SupabaseClient {
     private func persist(_ s: AuthSession) {
         session = s
         if let data = try? JSONEncoder().encode(s) { KeychainStore.save(data, account: sessionAccount) }
-    }
-
-    /// Takes over a session the web bridge handed back (Google / Apple via `WebAuthSession`). The user id,
-    /// email and expiry come from the access token itself (a JWT); `GET auth/v1/user` only when the token
-    /// cannot be read.
-    func adoptSession(accessToken: String, refreshToken: String, expiresAt: Date?) async throws {
-        let claims = Self.jwtClaims(accessToken)
-        var uid = claims["sub"] as? String
-        var email = claims["email"] as? String
-        if uid == nil || uid?.isEmpty == true {
-            guard let baseURL, let url = URL(string: "auth/v1/user", relativeTo: baseURL) else { throw APIError.notConfigured }
-            var req = URLRequest(url: url, timeoutInterval: 15)
-            req.setValue(anonKey, forHTTPHeaderField: "apikey")
-            req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-            let (data, response) = try await perform(req)
-            guard (200..<300).contains(response.statusCode),
-                  let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-                  let id = json["id"] as? String else { throw APIError.unauthorized }
-            uid = id
-            email = json["email"] as? String
-        }
-        guard let userId = uid else { throw APIError.unauthorized }
-        let exp = (claims["exp"] as? Double).map { Date(timeIntervalSince1970: $0) }
-        persist(AuthSession(
-            accessToken: accessToken,
-            refreshToken: refreshToken,
-            expiresAt: expiresAt ?? exp ?? Date().addingTimeInterval(3600),
-            userId: userId,
-            email: email
-        ))
-    }
-
-    /// The payload of a JWT (no signature check — the server verifies the token on every request).
-    nonisolated static func jwtClaims(_ token: String) -> [String: Any] {
-        let parts = token.split(separator: ".")
-        guard parts.count >= 2 else { return [:] }
-        var b64 = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
-        while b64.count % 4 != 0 { b64 += "=" }
-        guard let data = Data(base64Encoded: b64),
-              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [:] }
-        return json
     }
 
     private static func localizeAuthError(_ msg: String, code: Int) -> String {
