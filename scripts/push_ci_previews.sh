@@ -31,10 +31,12 @@ for attempt in 1 2 3 4 5; do
   done
   cd "$work"
   git add -A
-  if [ -n "$lease" ] && git diff --quiet --cached HEAD -- 2>/dev/null; then
+  # Compare tree ids, never `git diff`: in a clone without file contents a diff fetches every replaced picture one by
+  # one from GitHub (2026-10-23: the step hung for 15 minutes and the job hit its timeout).
+  tree="$(git write-tree)"
+  if [ -n "$lease" ] && [ "$tree" = "$(git rev-parse 'HEAD^{tree}')" ]; then
     cd - >/dev/null; rm -rf "$work"; exit 0   # nothing changed
   fi
-  tree="$(git write-tree)"
   commit="$(git commit-tree "$tree" -m "$msg")"
   if [ -n "$lease" ]; then
     git push --quiet --force-with-lease="refs/heads/ci-previews:$lease" origin "$commit:refs/heads/ci-previews" && { cd - >/dev/null; rm -rf "$work"; exit 0; }
