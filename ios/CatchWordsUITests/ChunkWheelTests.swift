@@ -8,10 +8,11 @@ final class ChunkWheelTests: XCTestCase {
         app.launchArguments = ["-uiPreview", "detail", "-ui.lang", "ja",
                                "-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
         app.launch()
-        let degree = app.buttons["很"].firstMatch
-        XCTAssertTrue(degree.waitForExistence(timeout: 30))
-        if !degree.isHittable { app.swipeUp() }
-        degree.tap()
+        // The sauce of 蘑菇＋鐵板麵 is the swappable block of the preview (C5 2026-10-23: a degree word no longer opens it).
+        let sauce = app.buttons["蘑菇"].firstMatch
+        XCTAssertTrue(sauce.waitForExistence(timeout: 30))
+        if !sauce.isHittable { app.swipeUp() }
+        sauce.tap()
         let wheel = app.pickerWheels.firstMatch
         XCTAssertTrue(wheel.waitForExistence(timeout: 5))
         let before = wheel.value as? String

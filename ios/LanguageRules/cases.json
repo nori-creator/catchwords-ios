@@ -1532,8 +1532,8 @@
   "source": "滷味",
   "hanOnlyOk": null,
   "expect": true,
-  "expected": "滷味:N+~超:Adv+入味:Vs",
-  "why": "程度の語が既に在れば足さない（超 も入れ替えられる）"
+  "expected": "滷味:N+超:Adv+入味:Vs",
+  "why": "程度の語が既に在れば足さない。超 も入れ替えにはしない（C5 改正 2026-10-23）"
  },
  {
   "id": "C5-en-adjective",
@@ -1545,8 +1545,8 @@
   "source": "mango",
   "hanOnlyOk": null,
   "expect": true,
-  "expected": "a:Det+ripe:Vs+mango:N",
-  "why": "形容詞は点線にしない"
+  "expected": "a:Det+~ripe:Vs+mango:N",
+  "why": "形容詞も、同じ公式で1語替えると意味が変わる所なら入れ替え可（C5 改正 2026-10-23）"
  },
  {
   "id": "C12-swap-ja",
@@ -1559,7 +1559,7 @@
   "hanOnlyOk": null,
   "expect": true,
   "expected": "マンゴーはちょっと甘い",
-  "chunk": "芒果:N+甜:Vs",
+  "chunk": "芒果:N+~很=とても|有點=ちょっと|超=すごく|非常=非常に:Adv+甜:Vs",
   "pick": "1=有點",
   "why": "入れ替えた語の訳に差し替える（とても → ちょっと）"
  },
@@ -1574,7 +1574,7 @@
   "hanOnlyOk": null,
   "expect": true,
   "expected": "Mangoes are super sweet",
-  "chunk": "芒果:N+甜:Vs",
+  "chunk": "芒果:N+~很=very|有點=a bit|超=super|非常=extremely:Adv+甜:Vs",
   "pick": "1=超",
   "why": "英語の読者も同じ"
  },
@@ -1589,7 +1589,7 @@
   "hanOnlyOk": null,
   "expect": true,
   "expected": "マンゴーはすごく甘い（很 → 非常: 非常に）",
-  "chunk": "芒果:N+甜:Vs",
+  "chunk": "芒果:N+~很=とても|有點=ちょっと|超=すごく|非常=非常に:Adv+甜:Vs",
   "pick": "1=非常",
   "why": "訳の中に元の語が見つからない時は、何を替えたかを添える"
  },
@@ -2047,7 +2047,7 @@
   "hanOnlyOk": null,
   "expect": true,
   "expected": "El mango es un poco dulce",
-  "chunk": "芒果:N+甜:Vs",
+  "chunk": "芒果:N+~很=muy|有點=un poco|超=súper|非常=extremadamente:Adv+甜:Vs",
   "pick": "1=有點",
   "why": "スペイン語の読者も、入れ替えた語の訳に差し替える（muy → un poco）"
  },
@@ -2062,7 +2062,7 @@
   "hanOnlyOk": null,
   "expect": true,
   "expected": "망고는 엄청 달아요",
-  "chunk": "芒果:N+甜:Vs",
+  "chunk": "芒果:N+~很=아주|有點=조금|超=엄청|非常=매우:Adv+甜:Vs",
   "pick": "1=超",
   "why": "韓国語の読者も同じ（아주 → 엄청）"
  },
@@ -2077,7 +2077,7 @@
   "hanOnlyOk": null,
   "expect": true,
   "expected": "Xoài hơi ngọt",
-  "chunk": "芒果:N+甜:Vs",
+  "chunk": "芒果:N+~很=rất|有點=hơi|超=siêu|非常=vô cùng:Adv+甜:Vs",
   "pick": "1=有點",
   "why": "ベトナム語の読者も同じ（rất → hơi）"
  },
@@ -2092,7 +2092,7 @@
   "hanOnlyOk": null,
   "expect": true,
   "expected": "El mango es súper dulce (很 → 非常: extremadamente)",
-  "chunk": "芒果:N+甜:Vs",
+  "chunk": "芒果:N+~很=muy|有點=un poco|超=súper|非常=extremadamente:Adv+甜:Vs",
   "pick": "1=非常",
   "why": "見つからない時の注記は読む人の言語の括弧と区切りで"
  },

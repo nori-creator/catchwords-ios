@@ -24,7 +24,7 @@ struct Case: Decodable {
 }
 
 /// "跟:Prep+~男朋友:N+吵架:V" → parts. A leading ~ is a part the AI marked swappable: with two other words (X, Y), or
-/// with the ones written after it ("~塞住了|不通|壞了:V").
+/// with the ones written after it ("~塞住了|不通|壞了:V"). A word may carry its gloss after = ("~很=とても|有點=ちょっと|超=すごく:Adv").
 func parseChunk(_ spec: String) -> [ChunkPart] {
     spec.split(separator: "+").map { raw in
         var t = String(raw)
@@ -33,8 +33,12 @@ func parseChunk(_ spec: String) -> [ChunkPart] {
         let bits = t.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
         let words = bits[0].split(separator: "|", omittingEmptySubsequences: false).map(String.init)
         let alts = words.count > 1 ? Array(words.dropFirst()) : ["X", "Y"]
-        return ChunkPart(text: words[0], pos: bits.count > 1 ? bits[1] : "", slot: slot ? true : nil,
-                         alts: slot ? alts.map { ChunkAlt(text: $0, ja: "") } : nil)
+        let own = words[0].split(separator: "=", maxSplits: 1).map(String.init)
+        return ChunkPart(text: own[0], pos: bits.count > 1 ? bits[1] : "", slot: slot ? true : nil, ja: own.count > 1 ? own[1] : nil,
+                         alts: slot ? alts.map { a in
+                             let kv = a.split(separator: "=", maxSplits: 1).map(String.init)
+                             return ChunkAlt(text: kv[0], ja: kv.count > 1 ? kv[1] : "")
+                         } : nil)
     }
 }
 

@@ -392,11 +392,19 @@ nonisolated enum ChunkRules {
         return pos.contains("助詞") || pos.contains("前置") || pos.contains("接続") || pos.contains("介詞")  // l10n-ignore (matching server POS)
     }
 
+    /// The block that is the headword itself: in Mandarin the exact word (馬桶刷 in 用馬桶刷刷馬桶 is a partner of 馬桶,
+    /// not the headword); in English / Japanese an inflected form counts (mangoes, 食べた).
+    static func isHeadwordBlock(_ text: String, headword: String, target: String) -> Bool {
+        guard !headword.isEmpty else { return false }
+        if target.hasPrefix("zh") { return LanguageRules.headwordCore(text) == LanguageRules.headwordCore(headword) }
+        return LanguageRules.mentionsHeadword(text, headword: headword, target: target)
+    }
+
     /// The role of a block (C18): the headword is `.head`; a degree word, 的/了/把… or a preposition / particle is `.frame`;
     /// everything else — the word the headword is used with — is `.partner`, the one drawn boldest.
     static func role(_ p: ChunkPart, headword: String, target: String) -> ChunkRole {
         let t = p.text.trimmingCharacters(in: .whitespaces)
-        if !headword.isEmpty, LanguageRules.mentionsHeadword(t, headword: headword, target: target) { return .head }
+        if isHeadwordBlock(t, headword: headword, target: target) { return .head }
         if isGluePos(p.pos) { return .frame }
         if target.hasPrefix("zh"), degreeWords.contains(t) || frameWords.contains(t) { return .frame }
         return .partner
