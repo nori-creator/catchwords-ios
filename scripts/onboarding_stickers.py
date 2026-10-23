@@ -32,15 +32,17 @@ OUT = SRC
 
 # 名前 → (元の写真, 切り方)。"cut" は物の形、"shaped" は角の丸い形（景色）。
 # 元の写真は blender/onboarding/sources/ に置いてある（アプリには入れない）。
+# gen_*: 2026-10-22〜 ElevenLabs（Seedream 5 Pro）で作った、白い背景の商品写真（切り抜きやすい）。
+# first_catch_*: Web 時代の写真。新しい写真ができたものから置き換える。
 STICKERS = {
-    "cafe": ("first_catch_cafe", "cut"),
+    "cafe": ("gen_cafe", "cut"),
     "flower": ("first_catch_flower", "cut"),
     "cat": ("first_catch_cat", "cut"),
-    "sea": ("first_catch_ready", "shaped"),
-    "food": ("first_catch_interest_food", "cut"),
+    "bubbletea": ("gen_bubbletea", "cut"),
+    "food": ("gen_food", "cut"),
     "travel": ("first_catch_interest_travel", "shaped"),
     "animals": ("first_catch_interest_animals", "cut"),
-    "nature": ("first_catch_interest_nature", "shaped"),
+    "nature": ("gen_nature", "cut"),
     "city": ("first_catch_interest_city", "shaped"),
     "fashion": ("first_catch_interest_fashion", "cut"),
     "business": ("first_catch_interest_business", "cut"),
@@ -49,7 +51,7 @@ STICKERS = {
 }
 
 # 書き出しの長い辺（px）。画面では最大で約 200pt なので 3x でも足りる大きさ。
-LONG_SIDE = 600
+LONG_SIDE = 700
 # 白いふちの太さ（長い辺に対して）。アプリの切り抜きのふち（`CatchStickerArt` の 4%）に合わせる。
 BORDER = 0.04
 

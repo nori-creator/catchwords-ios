@@ -3,7 +3,7 @@ import SwiftUI
 /// The first-run guide's pictures as the app's own stickers (owner 2026-10-22: the guide still showed the web's old
 /// photo prints; the app now keeps cut-outs). Each picture is a cut-out with a white die-cut border, lit as a slightly
 /// curved vinyl sticker in Blender (`scripts/onboarding_stickers.py` → `blender/onboarding_stickers.py`); scenes with
-/// no single thing (the sea, a street) are cut as a rounded shape, as the app's last resort does (`StickerCrop.shaped`).
+/// no single thing (a street, a lake) are cut as a rounded shape, as the app's last resort does (`StickerCrop.shaped`).
 /// The word is never baked into the picture: `WordTag` draws it with the reading the learner chose.
 enum OnboardingSticker {
     /// Taiwanese Mandarin words shown on the guide's stickers (the learning language, never translated).
@@ -17,7 +17,8 @@ enum OnboardingSticker {
     static let cafe = Word(image: "cafe", headword: "咖啡", zhuyin: "ㄎㄚ ㄈㄟ", pinyin: "kāfēi")  // l10n-ignore (learning-language word)
     static let flower = Word(image: "flower", headword: "花", zhuyin: "ㄏㄨㄚ", pinyin: "huā")  // l10n-ignore (learning-language word)
     static let cat = Word(image: "cat", headword: "貓", zhuyin: "ㄇㄠ", pinyin: "māo")  // l10n-ignore (learning-language word)
-    static let sea = Word(image: "sea", headword: "海", zhuyin: "ㄏㄞˇ", pinyin: "hǎi")  // l10n-ignore (learning-language word)
+    static let bubbleTea = Word(image: "bubbletea", headword: "珍珠奶茶", zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",  // l10n-ignore (learning-language word)
+                                pinyin: "zhēnzhū nǎichá")
 
     static func image(_ name: String) -> UIImage? {
         OnboardingImage.load("onboarding_sticker_" + name)
@@ -56,7 +57,7 @@ struct OnboardingStickerView: View {
     }
 }
 
-/// The guide's opening picture: four stickers (咖啡・花・貓・海) that drop onto the page one after another with a
+/// The guide's opening picture: four stickers (咖啡・花・貓・珍珠奶茶) that drop onto the page one after another with a
 /// spring, then float, each at its own pace. A tap gives the sticker a little hop (a hint that things here can be
 /// touched). With reduced motion only the still picture.
 struct OnboardingStickerCluster: View {
@@ -77,7 +78,7 @@ struct OnboardingStickerCluster: View {
     }
 
     private static let spots: [Spot] = [
-        Spot(word: OnboardingSticker.sea, x: 0.72, y: 0.25, w: 0.36, tilt: 7, delay: 0.16, bob: 7, period: 4.3),
+        Spot(word: OnboardingSticker.bubbleTea, x: 0.72, y: 0.27, w: 0.42, tilt: 7, delay: 0.16, bob: 7, period: 4.3),
         Spot(word: OnboardingSticker.flower, x: 0.26, y: 0.28, w: 0.38, tilt: -8, delay: 0.06, bob: 9, period: 3.8),
         Spot(word: OnboardingSticker.cafe, x: 0.27, y: 0.72, w: 0.40, tilt: 4, delay: 0.26, bob: 6, period: 4.0),
         Spot(word: OnboardingSticker.cat, x: 0.71, y: 0.73, w: 0.40, tilt: -3, delay: 0.36, bob: 8, period: 3.6),
@@ -95,7 +96,7 @@ struct OnboardingStickerCluster: View {
                     let s = Self.spots[i]
                     FloatingSticker(word: s.word, width: side * s.w, tilt: s.tilt, delay: s.delay, bob: s.bob,
                                     period: s.period, appeared: appeared, animate: !reduceMotion,
-                                    tagSize: compact ? 14 : 17)
+                                    tagSize: compact ? 17 : 21)
                         .position(x: ox + side * s.x, y: oy + side * s.y)
                 }
             }
