@@ -22,6 +22,8 @@ const CONFLICT: Record<string, string> = {
   corpus_pairs: "word_a,word_b,day,source",
   corpus_stats: "word,day,source",
   categories: "key",
+  // A test sign-in on the new app already cached a few headwords: the old row (same word) takes its place.
+  dictionary_entries: "language,headword,entry_type",
   review_choices: "word_id",
   apple_tokens: "user_id",
 };
