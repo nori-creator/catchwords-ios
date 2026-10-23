@@ -1,4 +1,4 @@
-"""The App Store preview from the app's own screen recordings (README.md): the cuts of edl-<lang>.json, framed on the
+"""The App Store preview from the app's own screen recordings or the v6/v10 films (README.md): the cuts of edl-<lang>.json, framed on the
 stage ("枠あり"), with the captions, the tap rings and the end card of overlay.html over them, and the app's own sounds
 at the moments the app played them (the "sfx" lines of each recording's trace, SoundService.trace).
 
@@ -106,6 +106,17 @@ def main(edl_file, footage, out):
         mix = np.zeros((int(duration * SR) + SR, 2), dtype=np.float32)
         cache, t_out, loops = {}, 0.0, []
         for s in segs:
+            if s.get('audio') == 'embedded':
+                # A film with its own mix (the v6/v10 films, docs/design/catch-concepts): its sound for the cut.
+                raw = subprocess.run(['ffmpeg', '-v', 'error', '-ss', str(s['in']), '-to', str(s['out']),
+                                      '-i', os.path.join(footage, s['src'] + '.mp4'), '-vn', '-f', 'f32le', '-ac', '2',
+                                      '-ar', str(SR), '-'], check=True, capture_output=True).stdout
+                x = np.frombuffer(raw, dtype=np.float32).reshape(-1, 2)
+                a = int(t_out * SR); n = min(len(x), len(mix) - a)
+                if n > 0:
+                    mix[a:a + n] += x[:n]
+                t_out += seglen(s)
+                continue
             # Recording start → its first frame (seconds): differs per recording, set by matching a sound to its frame.
             calib = s.get('sound_offset', edl.get('sound_offset', 0.0))
             events = [(t - calib, n, v) for (t, n, v) in trace_events(os.path.join(footage, s['src']))]

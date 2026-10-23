@@ -25,7 +25,7 @@ from scipy import signal
 HERE = os.path.dirname(__file__)
 RAW = os.path.join(HERE, '..', 'raw')
 CC = os.environ.get('CC_SOUNDS') or os.path.join(HERE, '..', '..', '..', '..', '..', 'ios', 'CatchWords', 'Resources', 'Sounds')   # the repo's own files
-ALL = json.load(open(os.path.join(HERE, '..', 'cues10.json')))
+ALL = json.load(open(os.environ.get('CUES') or os.path.join(HERE, '..', 'cues10.json')))   # CUES=: another film's cues
 APP_GAIN = {'cc-shutter': .9 * 2.803, 'cc-scan-start': .9, 'cc-tick': .9, 'cc-found': .9, 'cc-pop': .9}   # SoundService.swift
 BASE = -11.0                                              # one common trim for all the app's sounds against the ambience
 
@@ -33,7 +33,12 @@ def oneshot(name, length=0.12, pre=0.004, thresh=0.3):
     x = load(os.path.join(RAW, name + '.mp3')); m = np.abs(x).max(1)
     on = int(np.argmax(m > thresh * m.max())); a = max(0, on - int(pre * SR))
     return fade(x[a:a + int(length * SR)], 0.001, min(0.03, length / 3))
-def cc(name): return fade(load(os.path.join(CC, name + '.m4a')) * APP_GAIN[name], 0.0005, 0.02)
+# The app's shutter is now B, cc-shutter-light (owner 2026-10-21), at its own gain (SoundService: 0.9 × 2.610).
+SHUTTER_NOW = {'cc-shutter': ('cc-shutter-light', .9 * 2.610)}
+def cc(name):
+    f, g = name, APP_GAIN[name]
+    if not os.path.exists(os.path.join(CC, f + '.m4a')) and name in SHUTTER_NOW: f, g = SHUTTER_NOW[name]
+    return fade(load(os.path.join(CC, f + '.m4a')) * g, 0.0005, 0.02)
 
 class Mix:
     def __init__(self, dur):

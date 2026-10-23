@@ -7,8 +7,9 @@ const VAR = [
   { h: '波霸奶茶', zy: 'ㄅㄛ ㄅㄚˋ ㄋㄞˇ ㄔㄚˊ', reg: 'specific', mean: '大粒タピオカのミルクティー', note: '粒の大きいタピオカのもの。店のメニューで見かける' },
 ];
 VAR.forEach(v => v.u = Z(v.h, v.zy));
-const PICK = VAR[1];                                 // the user chooses 珍奶 (the word they hear when ordering)
-const REG = { casual: '砕けた言い方', specific: 'くわしい名前', proper: '固有名詞' };
+// the user chooses 珍奶 (the word they hear when ordering); ?pick=0 chooses 珍珠奶茶 (the App Store preview, owner 2026-10-23)
+const PICK = VAR[Q.get('pick') === '0' ? 0 : 1];
+const REG = { common: 'ふだんの言い方', casual: '砕けた言い方', specific: 'くわしい名前', proper: '固有名詞' };   // common: the chip on GET / the word page when 珍珠奶茶 is chosen (the choose screen shows none for it)
 const PAL = {
   light: { ink: INK, muted: MUTED, note: '#0066CC', chipBg: '#EEF1F5', chipInk: MUTED, card: '#FFFFFF', line: '#E6ECF3', sel: 'rgba(0,131,255,0.08)', selRing: BLUE },
   warm: { ink: '#2B1D12', muted: '#7A5F47', note: '#A0522D', chipBg: 'rgba(120,85,50,0.10)', chipInk: '#6B5038', card: 'rgba(255,255,255,0.72)', line: 'rgba(120,85,50,0.14)', sel: 'rgba(160,82,45,0.10)', selRing: '#A0522D' },

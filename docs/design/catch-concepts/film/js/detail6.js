@@ -13,8 +13,13 @@
 // ~5.3 s. (Already generated: 0.27 s — the page then opens with the text in place.)
 const T_OPEN_E = .62, T_DETAIL = 1.05, T_DONE = T_DETAIL + 5.3;
 const EX = [
+  ...(PICK === VAR[0] ? [
+    { zh: Z('我要一杯珍珠奶茶，半糖少冰。', 'ㄨㄛˇ ㄧㄠˋ ㄧˋ ㄅㄟ ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ ㄅㄢˋ ㄊㄤˊ ㄕㄠˇ ㄅㄧㄥ'), ja: '珍珠奶茶を1杯、甘さ半分・氷少なめで。' },
+    { zh: Z('這家的珍珠奶茶很好喝。', 'ㄓㄜˋ ㄐㄧㄚ ˙ㄉㄜ ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ ㄏㄣˇ ㄏㄠˇ ㄏㄜ'), ja: 'この店の珍珠奶茶はおいしい。' },
+  ] : [
   { zh: Z('我要一杯珍奶，半糖少冰。', 'ㄨㄛˇ ㄧㄠˋ ㄧˋ ㄅㄟ ㄓㄣ ㄋㄞˇ ㄅㄢˋ ㄊㄤˊ ㄕㄠˇ ㄅㄧㄥ'), ja: '珍奶を1杯、甘さ半分・氷少なめで。' },
   { zh: Z('這家的珍奶很好喝。', 'ㄓㄜˋ ㄐㄧㄚ ˙ㄉㄜ ㄓㄣ ㄋㄞˇ ㄏㄣˇ ㄏㄠˇ ㄏㄜ'), ja: 'この店の珍奶はおいしい。' },
+  ]),
 ];
 const TIPS = ['注文では「珍奶」だけで通じる。', '甘さは 全糖・半糖・微糖・無糖、', '氷は 正常冰・少冰・去冰 で伝える。'];
 const TRIVIA = ['1980年代に台湾で生まれた飲み物。', '台中と台南の店が元祖を名乗っている。'];
@@ -118,7 +123,7 @@ function detailContent(t) {
   text(PICK.mean, W / 2 - 300 + cw + 22, 846, { w: 500, size: 34, color: MUTED, align: 'left' });
   text(PICK.note, W / 2, 906, { w: 600, size: 30, color: '#0066CC' });
   sectionCard(DET.sim, 240, '似た言い方');
-  [[VAR[0], 'ふだんの言い方'], [VAR[2], '大粒タピオカ']].forEach(([v, s], i) => {
+  [PICK === VAR[0] ? [VAR[1], '砕けた言い方'] : [VAR[0], 'ふだんの言い方'], [VAR[2], '大粒タピオカ']].forEach(([v, s], i) => {
     const y = DET.sim + 140 + i * 66; zyDraw(v.u, DET.x + 44, y, 46, { align: 'left', w: 600 });
     text(s, DET.x + DET.w - 44, y - 4, { w: 500, size: 30, color: MUTED, align: 'right' });
   });

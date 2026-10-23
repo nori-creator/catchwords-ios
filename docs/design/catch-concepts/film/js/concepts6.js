@@ -31,9 +31,11 @@ const D_CARD = { x: 40, y: 1150, w: W - 80 };
 const GET_POS = [540, 1060], GET_S = .5;
 function getTimes(C) {
   const P = C + 1.6, G = P + .62;
-  // the voice (voice_zhennai_4): 珍 starts 0.08 s and 奶 0.27 s into the file; the mix places the file at G − 0.04
-  return { C, P, rise: P + .18, cut: P + .32, G, ch: [G + .04, G + .23], mean: P + 1.15, catchT: P + 1.32,
-    out: P + 2.9, open: P + 3.0, scroll0: P + 3.05, scroll1: P + 3.6, anticip: P + 3.3, launch: P + 3.42, I: P + 3.82 };
+  // the voice (voice_zhennai_4): 珍 starts 0.08 s and 奶 0.27 s into the file; the mix places the file at G − 0.04.
+  // 珍珠奶茶 (voice_zhenzhu, ?pick=0): 珍 0.08, 珠 0.33, 奶 0.52, 茶 0.72 s; the word is longer, so all after it is 0.45 s later.
+  const long = PICK === VAR[0], d = long ? .45 : 0, ch = long ? [G + .04, G + .29, G + .48, G + .68] : [G + .04, G + .23];
+  return { C, P, rise: P + .18, cut: P + .32, G, ch, mean: P + 1.15 + d, catchT: P + 1.32 + d,
+    out: P + 2.9 + d, open: P + 3.0 + d, scroll0: P + 3.05 + d, scroll1: P + 3.6 + d, anticip: P + 3.3 + d, launch: P + 3.42 + d, I: P + 3.82 + d };
 }
 function wordPop(t, x, y, size, times) {                  // each character lands with its syllable (scale + blur → sharp, a glow)
   const { cell } = zyCell(size), total = zyWidth(PICK_U, size); let cx = x - total / 2;

@@ -27,7 +27,7 @@ from scipy import signal
 
 HERE = os.path.dirname(__file__)
 RAW = os.path.join(HERE, '..', 'raw')
-ALL = json.load(open(os.path.join(HERE, '..', 'cues6.json')))
+ALL = json.load(open(os.environ.get('CUES') or os.path.join(HERE, '..', 'cues6.json')))   # CUES=: another film's cues
 PENTA = ['D6', 'E6', 'F#6', 'A6', 'B6', 'D7', 'E7', 'F#7', 'A7', 'B7']
 
 def pan_of(x): return float(np.clip((x - 540) / 540 * .8, -.8, .8))
@@ -124,9 +124,11 @@ def tags_in(mx, sh, times):
 def tap(mx, t):
     mx.add('sfx', oneshot('ui_tap', .09), t + .02, -15, 0, label='tap the word', haptic='transient 0.5/0.7')
     mx.add('sfx', tick(NOTE['A6'], 1), t + .02, -27)
+PICK0 = os.environ.get('PICK') == '0'   # the film rendered with ?pick=0: 珍珠奶茶 is chosen (the App Store preview)
 def voice(mx, t, gain=-3):
-    v = load(os.path.join(RAW, 'voice_zhennai_4.mp3')); v = peak_norm(butter(v, 'high', 90), -6)
-    mx.add('voice', v, t - 0.04, gain, label='pronunciation 珍奶 (zh-TW, prefetched — no wait)')
+    f, w = ('voice_zhenzhu.mp3', '珍珠奶茶') if PICK0 else ('voice_zhennai_4.mp3', '珍奶')
+    v = load(os.path.join(RAW, f)); v = peak_norm(butter(v, 'high', 90), -6)
+    mx.add('voice', v, t - 0.04, gain, label=f'pronunciation {w} (zh-TW, prefetched — no wait)')
 def music(mx, name, start, frm, gain, fin=.35, fout=.8, until=None):
     m = load(os.path.join(RAW, name + '.mp3'))[int(frm * SR):]; end = (until or mx.off + mx.n / SR) - start; m = m[:int(max(.1, end) * SR)]
     mx.add('music', fade(m, fin, fout), start, gain, label=f'music {name} from {frm}s')

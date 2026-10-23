@@ -6,7 +6,7 @@ const { chromium } = require('playwright'); const fs = require('fs');
   const out = {};
   for (const [ai, list] of [[null, ['F', 'E']], ['11.5', ['S']]]) {
     const p = await b.newPage({ viewport: { width: 1080, height: 2340 } });
-    await p.goto('http://127.0.0.1:8765/film6.html?c=F&t=0' + (ai ? '&ai=' + ai : '')); await p.evaluate(() => window.ready);
+    await p.goto('http://127.0.0.1:8765/film6.html?c=F&t=0' + (ai ? '&ai=' + ai : '') + (process.env.QS || '')); await p.evaluate(() => window.ready);
     const r = await p.evaluate(list => {
       for (const c of list) window.renderFrame((window.START[c] || 0) + window.DUR[c] - .3, c);
       const o = {}; for (const c of list) o[c] = JSON.parse(JSON.stringify(window.CUES[c]));
@@ -16,7 +16,7 @@ const { chromium } = require('playwright'); const fs = require('fs');
     for (const c of list) { out[c] = r[c]; out[c].shared = r._shared; }
     await p.close();
   }
-  fs.writeFileSync('../audio/cues6.json', JSON.stringify(out, null, 1));
+  fs.writeFileSync((process.env.CUES_OUT || '../audio/cues6.json'), JSON.stringify(out, null, 1));
   console.log('F end', out.F.end, 'S end', out.S.end, 'E end', out.E.end, 'F dur', out.F.shared.dur.F, 'S dur', out.S.shared.dur.S);
   await b.close();
 })();
