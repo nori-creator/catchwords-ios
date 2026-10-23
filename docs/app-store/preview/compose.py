@@ -153,10 +153,8 @@ def main(edl_file, footage, out):
             w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
             w.writeframes((np.clip(mix, -1, 1) * 32767).astype('<i2').tobytes())
 
-        # 4. Together: stage + framed footage (+ blurred over the end card) + overlay + sound.
-        end0, blur_in = spec['end']['t0'], .4
-        fc = (f"[1:v]format=rgba[v];[2:v]format=gray[m];[v][m]alphamerge[vr];"
-              f"[vr]split[a][b];[b]boxblur=24:2,fade=t=in:st={end0:.3f}:d={blur_in}:alpha=1[bl];[a][bl]overlay=0:0[vf];"
+        # 4. Together: stage + framed footage + overlay (captions, taps, the end card on white) + sound.
+        fc = (f"[1:v]format=rgba[v];[2:v]format=gray[m];[v][m]alphamerge[vf];"
               f"[0:v][vf]overlay={FRAME['x']}:{FRAME['y']}:shortest=1[bv];[bv][3:v]overlay=0:0:shortest=1,format=yuv420p[out]")
         run('ffmpeg', '-v', 'error', '-y',
             '-loop', '1', '-framerate', str(FPS), '-i', os.path.join(work, 'bg.png'),

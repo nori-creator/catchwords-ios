@@ -17,6 +17,11 @@ name: iOS store preview（App Store の動画の素材）
 # docs/app-store/preview/edl-*.json の sound_offset を合わせ直す。
 on:
   workflow_dispatch:
+    inputs:
+      scenes:
+        description: 撮る場面（空なら全部）。例 "analyzing"。指定した場面の録画だけを置き換え、ほかは残す
+        required: false
+        default: ""
 
 concurrency:
   group: ios-store-preview
@@ -68,6 +73,7 @@ jobs:
           set +e -uo pipefail
           OUT="$RUNNER_TEMP/store-preview"
           mkdir -p "$OUT"
+          SCENES="${{ github.event.inputs.scenes }}"
           UDID=$(cat "$RUNNER_TEMP/udid")
           xcrun simctl bootstatus "$UDID" -b
           APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
@@ -82,9 +88,11 @@ jobs:
           for lang in ja en; do
             sfx=""; [ "$lang" = en ] && sfx="-en"
             # 場面 秒数: 撮影〜タグ（名前は 6.0 秒後）、言い方を選ぶ、GET、図鑑への着地、単語ページ、復習の答え、ホーム
-            for spec in "scanslow 12" "variants 8" "get 8" "landing 9" "detail 6" "answer 5" "home-again 6"; do
+            # 撮影〜タグは名前が 6.0 秒後（scanslow）と 2.4 秒後（analyzing。オーナー 2026-10-23「やっぱり速いバージョンに」）
+            for spec in "analyzing 10" "scanslow 12" "variants 8" "get 8" "landing 9" "detail 6" "answer 5" "home-again 6"; do
               set -- $spec
               name=$1; secs=$2
+              if [ -n "$SCENES" ] && ! echo " $SCENES " | grep -q " $name "; then continue; fi
               xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
               sleep 1
               rm -f "$TRACE"
@@ -117,9 +125,10 @@ jobs:
             cd "$DEST"
             git sparse-checkout set --no-cone "/$DIR/" || return 1
             git checkout --quiet ci-previews || return 1
-            rm -rf "$DIR" && mkdir -p "$DIR"
+            mkdir -p "$DIR"
+            # 撮った場面のファイルだけを置き換える（ほかの場面の録画と、それに合わせた edl の値はそのまま使える）
             cp "$SRC"/*.mp4 "$SRC"/*.txt "$SRC"/*.start "$SRC"/*.launch "$DIR"/ 2>/dev/null || true
-            echo "${{ github.sha }}" > "$DIR/COMMIT"
+            for v in "$SRC"/*.mp4; do echo "${{ github.sha }}" > "$DIR/$(basename "$v" .mp4).commit"; done
             git add -A
             git -c user.name="ios-store-preview" -c user.email="ios-store-preview@users.noreply.github.com" commit --quiet -m "store preview footage @ ${{ github.sha }}" || return 0
             git push --quiet origin ci-previews

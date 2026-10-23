@@ -67,11 +67,12 @@ function tap(t, p, src) {
   ctx.restore();
 }
 
-// The end card over the blurred last screen: the icon pops like 「新しいことばをキャッチ！」 (.6 → 1, back 2.6),
-// the name and the subtitle rise after it.
+// The end card on white (owner 2026-10-23: the screen behind the icon was hard to read): the last screen fades to
+// white in 0.4 s, then the icon pops like 「新しいことばをキャッチ！」 (.6 → 1, back 2.6) and the name and subtitle rise.
 let ICON = null;
 function endCard(t, e, lang) {
   if (t < e.t0) return;
+  ctx.save(); ctx.globalAlpha = EASE(seg(t, e.t0, e.t0 + .4)); ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H); ctx.restore();
   const hp = seg(t, e.t0 + .2, e.t0 + .6), k = .6 + .4 * outBack(hp, 2.6);
   const cx = W / 2, cy = 800, s = 240;
   ctx.save(); ctx.globalAlpha = Math.min(1, hp * 4); ctx.translate(cx, cy); ctx.scale(k, k);
