@@ -1,15 +1,18 @@
 <!doctype html>
 <!--
-  App Store の製品ページのヘッダー（21:9、3840×1646、10 秒でループ）の動きの層。
-  Blender の 3D の絵（frames/f0000.png〜、1920 幅）を 2 倍にして敷き、その上に、アプリの撮影演出 v10
-  （docs/design/catch-concepts）と同じ見た目の、枠のカチッ・光のペン・タグ、最後に一言を描く。
-  ?lang=ja|en で一言とタグの意味の言語を切り替える（1 本の動画に 1 つの言語だけ。中国語は学ぶ単語だけ）。
-  ?f=<コマ> でそのコマを描く。render.js が 1 コマずつ呼ぶ。
+  App Store の製品ページのヘッダー（21:9、3840×1646、12 秒でループ）v2: 実写の写真の上で、アプリの流れをそのまま見せる。
+    v10（docs/design/catch-concepts の O10）: シャッター → 枠がカチッ → 光のペンが輪郭を描く → 名前が届くとペンが追いつく → タグ
+    v6（同じく F）: タグを押す → 写真が白くとけ、物がステッカーになって浮かぶ → ことばと読み → 「新しいことばをキャッチ！」
+                     → 図鑑の飲み物の枠に入る
+  値・見た目はアプリの演出のコード（film/js/o10_pen.js・concepts6.js・core6.js・dex.js）から。画面が横長なので配置だけ変えた。
+  ?lang=ja|en で画面の文字の言語を切り替える（1 本に 1 つの言語。中国語は学ぶ単語だけ）。?f=<コマ> でそのコマを描く。
 -->
 <meta charset="utf-8">
 <style>
   @font-face { font-family: 'Inter'; font-weight: 500; src: url('fonts/Inter-500.ttf'); }
-  @font-face { font-family: 'Inter'; font-weight: 800; src: url('fonts/Inter-800.ttf'); }
+  @font-face { font-family: 'Inter'; font-weight: 600; src: url('fonts/Inter-600.ttf'); }
+  @font-face { font-family: 'Inter'; font-weight: 700; src: url('fonts/Inter-700.ttf'); }
+  @font-face { font-family: 'Inter'; font-weight: 800 900; src: url('fonts/Inter-800.ttf'); }
   @font-face { font-family: 'Noto Sans JP'; font-weight: 100 900; src: url('fonts/NotoSansJP-sub.ttf'); }
   @font-face { font-family: 'Noto Sans TC'; font-weight: 100 900; src: url('fonts/NotoSansTC-sub.ttf'); }
   html, body { margin: 0; background: #000; }
@@ -17,68 +20,196 @@
 </style>
 <canvas id="c" width="3840" height="1646"></canvas>
 <script>
-const W = 3840, H = 1646, FPS = 30, N = 300;
+const W = 3840, H = 1646, FPS = 30, DUR = 12, N = DUR * FPS;
 const q = new URLSearchParams(location.search), LANG = q.get('lang') || 'ja';
-const COPY = {
-  ja: { line: '撮れば、中国語のことばに。', mean: 'マグカップ', font: '"Noto Sans JP"' },
-  en: { line: 'Snap it. Learn it in Chinese.', mean: 'mug', font: 'Inter' },
+// 画面の文字（アプリの strings.json の訳と同じ）。タグの意味・ことばの意味もこの言語
+const L = {
+  ja: { scan: '写真をスキャンしています', tap: '覚えたいことばをタップ', caught: '新しいことばをキャッチ！', cat: '飲み物',
+        no1: 'No.001 · 飲み物', mean: { cup: 'タピオカミルクティー', scooter: 'バイク', sign: '黒板' }, word: 'タピオカミルクティー', font: '"Noto Sans JP"' },
+  en: { scan: 'Scanning the photo', tap: 'Tap a word to learn', caught: 'New word caught!', cat: 'Drinks',
+        no1: 'No.001 · Drinks', mean: { cup: 'bubble milk tea', scooter: 'scooter', sign: 'blackboard' }, word: 'bubble milk tea', font: 'Inter' },
 }[LANG];
-const WORD = '馬克杯';                                     // 台湾華語のマグカップ（學習の単語。どの言語の版でも同じ）
-const FONT_TC = '"Noto Sans TC"';
-const NAVY = '#1F2F57', BLUE2 = '#2A9BFF', INK = '#0B121A', MUTED = '#5C646F', LOCKED = '#6CC8FF';
-const PT = 2.1;                                           // アプリの 1px（1080 幅の画面）→ この絵
-
-// 時刻（秒）。scene.py のコマと同じ（F_PEEL=120 → 4.0 s、F_LAND=166、F_CLOSE 終わり=198）
-const T = { brIn: 1.0, brMove: 1.26, lock: 1.8, penDur: 1.0, tag: 2.95, peel: 4.0, land: 166 / 30, closed: 198 / 30,
-            lineIn: 6.85, lineOut: 9.05 };
+const ZH = { cup: '珍珠奶茶', scooter: '機車', sign: '黑板' };
+const FONT_TC = '"Noto Sans TC", "Noto Sans JP", sans-serif', FONT_UI = 'Inter, "Noto Sans JP", sans-serif';
+const BLUE = '#0083FF', BLUE2 = '#2A9BFF', INK = '#0B121A', MUTED = '#5C646F', BG_APP = '#F9FCFF', LOCKED = '#6CC8FF';
+const PT = 2.0;                                           // アプリの 1px（1080 幅の画面）→ この絵
 
 const c = document.getElementById('c'), ctx = c.getContext('2d');
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x)), lerp = (a, b, u) => a + (b - a) * u;
 const seg = (t, a, b) => clamp((t - a) / (b - a));
 const E = {
-  outCubic: x => 1 - (1 - x) ** 3, inOutCubic: x => x < .5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2,
+  outCubic: x => 1 - (1 - x) ** 3, inCubic: x => x ** 3, inOutCubic: x => x < .5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2,
   inOutSine: x => -(Math.cos(Math.PI * x) - 1) / 2, outBack: (x, s = 1.7) => 1 + (s + 1) * (x - 1) ** 3 + s * (x - 1) ** 2,
 };
-function bezierEase(x1, y1, x2, y2) {                    // CSS の cubic-bezier（アプリの枠の動き）
+function bezierEase(x1, y1, x2, y2) {
   const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
   const X = t => ((ax * t + bx) * t + cx) * t, Y = t => ((ay * t + by) * t + cy) * t, dX = t => (3 * ax * t + 2 * bx) * t + cx;
   return x => { if (x <= 0) return 0; if (x >= 1) return 1; let t = x; for (let i = 0; i < 8; i++) { const d = dX(t); if (Math.abs(d) < 1e-6) break; t -= (X(t) - x) / d; } return Y(clamp(t)); };
 }
-const mv = bezierEase(.3, 1.3, .5, 1);
-const font = (w, s, f) => ctx.font = `${w} ${s}px ${f}`;
-const measure = (s, w, size, f) => { ctx.save(); font(w, size, f); const m = ctx.measureText(s).width; ctx.restore(); return m; };
-function text(s, x, y, { w = 500, size = 40, f = COPY.font, color = INK, alpha = 1, align = 'center' } = {}) {
-  if (alpha <= 0) return; ctx.save(); ctx.globalAlpha *= alpha; font(w, size, f); ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(s, x, y); ctx.restore();
+const mv = bezierEase(.3, 1.3, .5, 1), cssEase = bezierEase(.25, .1, .25, 1);
+// a damped spring 0 → 1 (the app's .spring)
+const sp = (t, t0, dur, damp = .75) => { if (t <= t0) return 0; const u = (t - t0) / dur; return 1 - Math.exp(-6 * damp * u) * Math.cos(6 * Math.sqrt(1 - damp * damp) * u * 1.2); };
+const bez2 = (a, b, c2, u) => [0, 1].map(i => (1 - u) ** 2 * a[i] + 2 * (1 - u) * u * b[i] + u * u * c2[i]);
+const rr = (x, y, w, h, r, g = ctx) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+const font = (w, s, f, g = ctx) => g.font = `${w} ${s}px ${f}`;
+function text(s, x, y, { w = 500, size = 40, f = L.font, color = INK, align = 'center', alpha = 1, ls = 0, g = ctx } = {}) {
+  if (alpha <= 0) return; g.save(); g.globalAlpha *= alpha; font(w, size, f, g); g.fillStyle = color; g.textAlign = align;
+  if (ls) g.letterSpacing = ls + 'px'; g.fillText(s, x, y); g.restore();
+}
+const measure = (s, w, size, f = L.font, ls = 0) => { ctx.save(); font(w, size, f); if (ls) ctx.letterSpacing = ls + 'px'; const m = ctx.measureText(s).width; ctx.restore(); return m; };
+
+// ---------- zhuyin (the app: the reading stands to the right of each character, tone mark beside it) ----------
+function Z(h, zy) {
+  const parts = zy.split(' '), out = [];
+  [...h].forEach((ch, i) => {
+    let s = parts[i] || '', tone = '', neutral = false;
+    if (s.startsWith('˙')) { neutral = true; s = s.slice(1); }
+    const last = s.slice(-1); if ('ˊˇˋ'.includes(last)) { tone = last; s = s.slice(0, -1); }
+    out.push({ h: ch, z: s, tone, neutral });
+  });
+  return out;
+}
+const zyCell = size => { const zs = size * .31; return { zs, cell: size + zs * 1.2 }; };
+const zyWidth = (units, size) => { const { zs, cell } = zyCell(size); return units.length * cell - zs * .2; };
+function zyChar(u, cx, y, size, { color = INK, zcolor = MUTED, w = 800 } = {}) {
+  const { zs } = zyCell(size);
+  text(u.h, cx + size / 2, y, { w, size, f: FONT_TC, color });
+  if (!u.z) return;
+  const zx = cx + size + zs * .62, n = [...u.z].length, top = y - size * .42 - (n * zs * 1.02) / 2;
+  [...u.z].forEach((z, j) => text(z, zx, top + (j + 1) * zs * 1.02, { w: 500, size: zs, f: FONT_TC, color: zcolor }));
+  if (u.tone) text(u.tone, zx + zs * .62, top + zs * 1.02 * (n - .35), { w: 700, size: zs * .9, f: FONT_TC, color: zcolor });
+  if (u.neutral) text('˙', zx, top - zs * .05, { w: 700, size: zs * .9, f: FONT_TC, color: zcolor });
+}
+function zyDraw(units, x, y, size, opts = {}) {
+  const { cell } = zyCell(size); let cx = x - zyWidth(units, size) / 2;
+  units.forEach(u => { zyChar(u, cx, y, size, opts); cx += cell; });
+}
+const PICK = { h: '珍奶', u: Z('珍奶', 'ㄓㄣ ㄋㄞˇ') };    // the word the learner chooses (v6: the one heard when ordering)
+
+// ---------- assets ----------
+const A = {}; let O = null;
+const loadImg = src => new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ng(src); i.src = src; });
+
+// ---------- times (seconds). v10's values from the shutter; v6's after the tap ----------
+const T_CAP = .8, T_NAMES = T_CAP + 2.4;
+const ORDER = ['cup', 'scooter', 'sign'];
+const BR_IN = T_CAP + .26, IN = .26, MOVE = .54, PEN = { cup: 1.0, scooter: .9, sign: .6 }, HOP = .26;
+const LOCK = []; { let t = BR_IN + IN + MOVE; ORDER.forEach((k, r) => { LOCK[r] = t; t += PEN[k] + HOP; }); }
+const CLOSE = r => LOCK[r] + PEN[ORDER[r]], DRAW_END = () => CLOSE(ORDER.length - 1), MOVE0 = r => LOCK[r] - MOVE;
+// v10 ⑧: when the names arrive the pen speeds up to finish what is left within 0.5 s (≤ 4×), on its own clock τ
+const CATCH = .5, RAMP = .15, KMAX = 4, LEFT = DRAW_END() - T_NAMES;
+const K = LEFT <= CATCH ? 1 : Math.min(KMAX, 1 + (LEFT - CATCH) / (CATCH - RAMP / 2));
+const extra = d => d <= RAMP ? RAMP * ((d / RAMP) ** 3 - (d / RAMP) ** 4 / 2) : RAMP / 2 + (d - RAMP);
+const tau = t => (K === 1 || t <= T_NAMES ? t : t + (K - 1) * extra(t - T_NAMES));
+const real = x => { if (K === 1 || x <= T_NAMES) return x; let lo = T_NAMES, hi = x; for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (tau(m) < x) lo = m; else hi = m; } return hi; };
+const CLOSE_R = r => real(CLOSE(r)), DRAW_END_R = () => real(DRAW_END());
+const FOUND = Math.max(T_NAMES, CLOSE_R(0));
+const TAG = k => Math.max(FOUND + .14 + .13 * k, CLOSE_R(k) + .1);
+const T_TAP = TAG(ORDER.length - 1) + .95;
+// v6 (concepts6.js getTimes, without the choice list: the header goes straight from the tap to the word)
+const C = T_TAP + .22, CUT = C + .9, G = C + 1.25, CH = [G + .04, G + .23], MEAN = C + 1.75, CATCHT = C + 1.92;
+const D0 = CATCHT + 1.75, LAUNCH = D0 + .5, ARRIVE = D0 + .92, BACK = ARRIVE + 1.45, END = BACK + .85;
+
+// ---------- the camera: a slow push towards the cup; back to 1 at the end so the loop closes ----------
+let FOC = [0, 0];
+function cam(t) {
+  const push = .035 * E.inOutSine(seg(t, 0, C)), melt = .07 * E.inOutCubic(seg(t, C + .05, C + .6));
+  const back = E.inOutCubic(seg(t, BACK, END));
+  return 1 + (push + melt) * (1 - back);
+}
+const toS = (t, x, y) => { const s = cam(t); return [FOC[0] + (x - FOC[0]) * s, FOC[1] + (y - FOC[1]) * s]; };
+
+// the photo, blurred and whitened as the app's backdrop takes over (v6 dGet: blur 40, brightness, BG_APP + a blue pool)
+const SMALL = document.createElement('canvas'); SMALL.width = 960; SMALL.height = 412;
+function photo(t, melt) {
+  const s = cam(t);
+  ctx.save(); ctx.translate(FOC[0], FOC[1]); ctx.scale(s, s); ctx.translate(-FOC[0], -FOC[1]);
+  if (melt <= .01) ctx.drawImage(A.photo, 0, 0, W, H);
+  else { ctx.filter = `blur(${40 * melt / 4}px) brightness(${1 + .06 * melt})`; ctx.drawImage(SMALL, -20, -20, W + 40, H + 40); ctx.filter = 'none'; }
+  ctx.restore();
+}
+function appBackdrop(melt, sx, sy) {
+  if (melt <= 0) return;
+  ctx.save(); ctx.globalAlpha = melt; ctx.fillStyle = BG_APP; ctx.fillRect(0, 0, W, H);
+  const r = ctx.createRadialGradient(sx, sy + 40, 0, sx, sy + 40, 1100);
+  r.addColorStop(0, 'rgba(221,238,255,0.95)'); r.addColorStop(.35, 'rgba(228,241,255,0.7)'); r.addColorStop(.7, 'rgba(240,247,255,0.3)'); r.addColorStop(1, 'rgba(249,252,255,0)');
+  ctx.fillStyle = r; ctx.fillRect(0, 0, W, H); ctx.restore();
 }
 
-let OUT = [], PTS = [], BG = null;
-const outlineAt = f => OUT[f] || OUT[120];
-function boxOf(o) { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const [x, y] of o) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } return [x0, y0, x1, y1]; }
-
-// ---------- 枠（アプリの v8〜v10: 角だけの枠。真ん中に出て、物へ移り、カチッと止まって青に） ----------
-const SAFE = [1097, 493, 2743, 1154];                    // 21:9 の、どの端末でも見える真ん中（第三者が Apple の型紙から読んだ値）
-function corner(x, y, sx, sy, arm, r) {
-  ctx.moveTo(x, y + sy * arm); ctx.lineTo(x, y + sy * r); ctx.arcTo(x, y, x + sx * r, y, r); ctx.lineTo(x + sx * arm, y);
+// ---------- v10: the screen edge glows from the shutter until the names are in ----------
+function edgeGlow(t) {
+  const a = E.outCubic(seg(t, T_CAP, T_CAP + .3)) * (1 - seg(t, FOUND + .2, FOUND + .7)); if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a * (.75 + .25 * Math.sin(t * 3.2));
+  for (const [w, al] of [[90, .22], [36, .35], [10, .8]]) {
+    ctx.strokeStyle = `rgba(80,170,255,${al})`; ctx.lineWidth = w; ctx.filter = `blur(${w / 2}px)`; ctx.strokeRect(0, 0, W, H);
+  }
+  ctx.restore();
 }
-function bracket(t, f) {
-  if (t < T.brIn) return;
-  const pad = 30 * PT, b = boxOf(outlineAt(f)), to = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
-  const a = mv(seg(t, T.brIn, T.brIn + .26)) * (1 - seg(t, T.lock + T.penDur, T.lock + T.penDur + .3));
-  if (a <= 0) return;
-  const u = mv(seg(t, T.brMove, T.brMove + .54)), R = SAFE.map((v, j) => lerp(v, to[j], u)), locked = t >= T.lock;
-  const sq = locked ? 1 - .06 * (1 - Math.abs(1 - 2 * seg(t, T.lock, T.lock + .26))) : 1;
-  const cx = (R[0] + R[2]) / 2, cy = (R[1] + R[3]) / 2;
-  ctx.save(); ctx.globalAlpha = a; ctx.translate(cx, cy); ctx.scale(sq, sq); ctx.translate(-cx, -cy);
-  ctx.lineWidth = 3 * PT; ctx.lineJoin = 'round'; ctx.strokeStyle = locked ? LOCKED : '#fff';
-  ctx.shadowColor = 'rgba(100,224,255,0.9)'; ctx.shadowBlur = 6 * PT;
-  const arm = 19 * PT * 1.6, r = 12 * PT;
-  ctx.beginPath(); corner(R[0], R[1], 1, 1, arm, r); corner(R[2], R[1], -1, 1, arm, r); corner(R[0], R[3], 1, -1, arm, r); corner(R[2], R[3], -1, -1, arm, r); ctx.stroke();
+function flash(t) { const a = .75 * seg(t, T_CAP - .04, T_CAP) * (1 - seg(t, T_CAP, T_CAP + .28)); if (a > 0) { ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
+
+// ---------- the top pill (the app's: glass capsule, sparkles icon, label) ----------
+function sparkles(x, y, r, color) {
+  const star = (cx, cy, s) => { ctx.beginPath(); ctx.moveTo(cx, cy - s); ctx.quadraticCurveTo(cx + s * .15, cy - s * .15, cx + s, cy); ctx.quadraticCurveTo(cx + s * .15, cy + s * .15, cx, cy + s); ctx.quadraticCurveTo(cx - s * .15, cy + s * .15, cx - s, cy); ctx.quadraticCurveTo(cx - s * .15, cy - s * .15, cx, cy - s); ctx.fill(); };
+  ctx.fillStyle = color; star(x - r * .15, y + r * .1, r * .62); star(x + r * .5, y - r * .45, r * .32);
+}
+function pill(t) {
+  const a = E.outCubic(seg(t, T_CAP + .15, T_CAP + .45)) * (1 - seg(t, C, C + .2)); if (a <= 0) return;
+  const swap = seg(t, TAG(ORDER.length - 1) + .2, TAG(ORDER.length - 1) + .5), label = swap < .5 ? L.scan : L.tap;
+  const ta = swap < .5 ? 1 - swap * 2 : swap * 2 - 1, size = 30 * PT, w = measure(label, 600, size) + 100 * PT, h = 64 * PT, x = W / 2 - w / 2, y = 520;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.18)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 10; rr(x, y, w, h, h / 2); ctx.fillStyle = 'rgba(255,255,255,0.86)'; ctx.fill(); ctx.restore();
+  rr(x + 1, y + 1, w - 2, h - 2, h / 2 - 1); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.stroke();
+  ctx.globalAlpha *= ta; sparkles(x + 44 * PT, y + h / 2, 17 * PT, BLUE2);
+  // the scanning label shimmers (the app's), the tap label is still
+  text(label, x + 64 * PT + (w - 64 * PT - 36 * PT) / 2, y + h / 2 + size * .36, { w: 600, size, color: INK });
   ctx.restore();
 }
 
-// ---------- 光のペン（W2/v9: 大きい光の点が輪郭を一筆で描く。曲がり角でゆっくり） ----------
-function headFrac(t) {                                    // 0..1 どこまで描いたか（アプリと同じ acos のゆるみ）
-  const u = seg(t, T.lock, T.lock + T.penDur); return Math.acos(1 - 2 * u) / Math.PI;
+// ---------- v10: the bracket ----------
+const FULL = [760, 400, 3080, 1480];
+function boxOf(k) { const [x0, y0, x1, y1] = O[k].box, p = 14 * PT; return [x0 - p, y0 - p, x1 + p, y1 + p]; }
+function corner(x, y, sx, sy, arm, r) { ctx.moveTo(x, y + sy * arm); ctx.lineTo(x, y + sy * r); ctx.arcTo(x, y, x + sx * r, y, r); ctx.lineTo(x + sx * arm, y); }
+function bracket(rt) {
+  const t = tau(rt); if (t < BR_IN) return;
+  const a = mv(seg(t, BR_IN, BR_IN + IN)) * (1 - seg(rt, DRAW_END_R(), DRAW_END_R() + .3)); if (a <= 0) return;
+  let r = -1; ORDER.forEach((_, i) => { if (t >= MOVE0(i)) r = i; });
+  const to = r < 0 ? FULL : boxOf(ORDER[r]), from = r <= 0 ? FULL : boxOf(ORDER[r - 1]);
+  const u = r < 0 ? 1 : mv(seg(t, MOVE0(r), MOVE0(r) + MOVE)), locked = r >= 0 && t >= LOCK[r];
+  let R = to.map((v, j) => lerp(from[j], v, u)); const p0 = toS(rt, R[0], R[1]), p1 = toS(rt, R[2], R[3]); R = [...p0, ...p1];
+  const sq = locked ? 1 - .06 * (1 - Math.abs(1 - 2 * seg(t, LOCK[r], LOCK[r] + .26))) : 1, cx = (R[0] + R[2]) / 2, cy = (R[1] + R[3]) / 2;
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(cx, cy); ctx.scale(sq, sq); ctx.translate(-cx, -cy);
+  ctx.lineWidth = 3 * PT; ctx.lineJoin = 'round'; ctx.strokeStyle = locked ? LOCKED : '#fff'; ctx.shadowColor = 'rgba(100,224,255,0.9)'; ctx.shadowBlur = 6 * PT;
+  const arm = 22 * PT, rad = 12 * PT;
+  ctx.beginPath(); corner(R[0], R[1], 1, 1, arm, rad); corner(R[2], R[1], -1, 1, arm, rad); corner(R[0], R[3], 1, -1, arm, rad); corner(R[2], R[3], -1, -1, arm, rad); ctx.stroke();
+  ctx.restore();
+}
+
+// ---------- v10: the pen (W2: a big point of light draws each outline in one stroke, slower where it turns) ----------
+const TD = {};
+function tdOf(r) {
+  if (TD[r]) return TD[r];
+  const o = O[ORDER[r]], n = o.pts.length;
+  const w = o.turn.map((_, i) => { let s = 0; for (let d = -4; d <= 4; d++) s += o.turn[(i + d + n) % n]; return 1 + 2.6 * s / 9; });
+  let acc = 0; const T = w.map(x => (acc += x)), tot = acc;
+  return TD[r] = T.map(x => LOCK[r] + PEN[ORDER[r]] * Math.acos(1 - 2 * Math.min(1, x / tot)) / Math.PI);
+}
+function headOf(r, t) {
+  const o = O[ORDER[r]], n = o.pts.length, td = tdOf(r);
+  if (t <= LOCK[r]) return { h: 0, xy: o.pts[0] };
+  if (t >= CLOSE(r)) return { h: n, xy: o.pts[0] };
+  let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (td[m] <= t) lo = m; else hi = m - 1; }
+  const t0 = td[lo], t1 = td[Math.min(n - 1, lo + 1)], f = t1 > t0 ? clamp((t - t0) / (t1 - t0)) : 0, p = o.pts[lo], q2 = o.pts[(lo + 1) % n];
+  return { h: lo + f, xy: [lerp(p[0], q2[0], f), lerp(p[1], q2[1], f)] };
+}
+const hopArc = (a, b) => [(a[0] + b[0]) / 2, Math.min(a[1], b[1]) - 220];
+function penAt(rt) {
+  const t = tau(rt);
+  for (let r = 0; r < ORDER.length; r++) {
+    if (t >= LOCK[r] && t < CLOSE(r)) return { xy: headOf(r, t).xy, a: 1 };
+    if (r < ORDER.length - 1 && t >= CLOSE(r) && t < LOCK[r + 1]) { const a = O[ORDER[r]].pts[0], b = O[ORDER[r + 1]].pts[0]; return { xy: bez2(a, hopArc(a, b), b, E.inOutSine(seg(t, CLOSE(r), LOCK[r + 1]))), a: .55 }; }
+  }
+  if (rt >= DRAW_END_R() && rt < DRAW_END_R() + .25) return { xy: O[ORDER[ORDER.length - 1]].pts[0], a: 1 - seg(rt, DRAW_END_R(), DRAW_END_R() + .25) };
+  return null;
 }
 function glowDot(x, y, r, a, rgb = '160,215,255') {
   if (a <= .01) return; ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -86,101 +217,245 @@ function glowDot(x, y, r, a, rgb = '160,215,255') {
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
 }
 const OL = document.createElement('canvas'); OL.width = W; OL.height = H; const olx = OL.getContext('2d');
-function outline(t, f) {
-  if (t < T.lock) return;
-  const o = outlineAt(f), n = o.length, h = headFrac(t) * n;
-  // 名前が出た後はアプリの選ぶ画面と同じくゆっくり脈打ち、はがれる時に消える
-  let A = 1; if (t > T.tag) { const p = ((t - T.tag) % 2) / 2; A = p < .5 ? lerp(1, .55, E.inOutSine(p * 2)) : lerp(.55, 1, E.inOutSine(p * 2 - 1)); }
-  A *= 1 - seg(t, T.peel + .05, T.peel + .4); if (A <= .005) return;
-  olx.clearRect(0, 0, W, H);
-  olx.beginPath(); const last = Math.min(n, Math.floor(h));
-  for (let i = 0; i <= last; i++) { const p = o[i % n]; i ? olx.lineTo(p[0], p[1]) : olx.moveTo(p[0], p[1]); }
-  if (h < n) { const fr = h - last, p = o[last % n], q2 = o[(last + 1) % n]; olx.lineTo(lerp(p[0], q2[0], fr), lerp(p[1], q2[1], fr)); }
-  const [x0, y0, x1, y1] = boxOf(o), g = olx.createLinearGradient(x0, y0, x1, y1);
-  g.addColorStop(0, '#BFE8FF'); g.addColorStop(.5, '#9CC8FF'); g.addColorStop(1, '#CFE3FF');
-  olx.lineWidth = 2.2 * PT; olx.lineJoin = olx.lineCap = 'round'; olx.strokeStyle = g; olx.stroke();
-  ctx.save(); ctx.globalAlpha = A;
-  ctx.filter = `drop-shadow(0 0 ${5 * PT}px rgba(140,200,255,0.95)) drop-shadow(0 0 ${16 * PT}px rgba(40,120,255,0.6))`;
+function outlines(t) {
+  const tp = tau(t); let A0 = 1;
+  if (t > FOUND) { const p = ((t - FOUND) % 2) / 2; A0 = p < .5 ? lerp(1, .5, E.inOutSine(p * 2)) : lerp(.5, 1, E.inOutSine(p * 2 - 1)); }
+  A0 *= 1 - cssEase(seg(t, T_TAP, T_TAP + .5)); if (A0 <= .005) return;
+  olx.clearRect(0, 0, W, H); let any = false;
+  ORDER.forEach((k, r) => {
+    if (tp < LOCK[r]) return; any = true;
+    const o = O[k], n = o.pts.length, h = headOf(r, tp).h, last = Math.min(n, Math.floor(h));
+    olx.beginPath();
+    for (let i = 0; i <= last; i++) { const p = toS(t, ...o.pts[i % n]); i ? olx.lineTo(p[0], p[1]) : olx.moveTo(p[0], p[1]); }
+    if (h < n) { const f = h - last, a = o.pts[last % n], b = o.pts[(last + 1) % n], p = toS(t, lerp(a[0], b[0], f), lerp(a[1], b[1], f)); olx.lineTo(p[0], p[1]); }
+    const [x0, y0, x1, y1] = o.box, g = olx.createLinearGradient(...toS(t, x0, y0), ...toS(t, x1, y1));
+    g.addColorStop(0, '#BFE8FF'); g.addColorStop(.5, '#9CC8FF'); g.addColorStop(1, '#CFE3FF');
+    olx.lineWidth = 2.2 * PT; olx.lineJoin = olx.lineCap = 'round'; olx.strokeStyle = g; olx.stroke();
+  });
+  if (!any) return;
+  ctx.save(); ctx.globalAlpha = A0; ctx.filter = `drop-shadow(0 0 ${5 * PT}px rgba(140,200,255,0.95)) drop-shadow(0 0 ${16 * PT}px rgba(40,120,255,0.6))`;
   ctx.drawImage(OL, 0, 0); ctx.restore();
-  if (t < T.lock + T.penDur + .25) {                      // ペンの先
-    const p = h >= n ? o[0] : (() => { const i = Math.floor(h), fr = h - i, a = o[i % n], b = o[(i + 1) % n]; return [lerp(a[0], b[0], fr), lerp(a[1], b[1], fr)]; })();
-    glowDot(p[0], p[1], 34 * PT, 1 - seg(t, T.lock + T.penDur, T.lock + T.penDur + .25));
-  }
-}
-// はがれる瞬間: 白い縁がひと回り光る（ステッカーになった合図）
-function peelFlash(t, f) {
-  const u = seg(t, T.peel - .02, T.peel + .35); if (u <= 0 || u >= 1) return;
-  const o = outlineAt(f); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.sin(u * Math.PI) * .8;
-  ctx.beginPath(); o.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
-  ctx.lineWidth = 6 * PT; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.filter = `blur(${4 * PT}px)`; ctx.stroke(); ctx.restore();
 }
 
-// ---------- タグ（アプリのタグ: 白いガラスのカプセル、青い点と単語、下に意味） ----------
-function tag(t, f) {
-  const PT = 1.8;                                         // タグは少し小さく（上の端をセーフエリアに収める）
-  const a =E.outCubic(seg(t, T.tag, T.tag + .25)) * (1 - seg(t, T.peel - .15, T.peel + .1)); if (a <= 0) return;
-  const o = outlineAt(f), b = boxOf(o), ax = (b[0] + b[2]) / 2 - 18 * PT, ay = b[1] - 6 * PT;   // 物の上の点（取っ手の分だけ左）
-  const size = 46 * PT, dot = 13 * PT, wWord = measure(WORD, 800, size, FONT_TC) + dot * 2 + 14 * PT, wMean = measure(COPY.mean, 500, 28 * PT, COPY.font);
-  const w = Math.max(wWord, wMean) + 64 * PT, h = 112 * PT, x = ax - w / 2, y = ay - 30 * PT - h;
-  const pop = E.outBack(seg(t, T.tag, T.tag + .35), 2.0), s = .6 + .4 * pop;
-  // 物の上の白い点と、短い軸
-  ctx.save(); ctx.globalAlpha = a; ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 10 * PT; ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(ax, ay, 11 * PT, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-  ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 3 * PT; ctx.beginPath(); ctx.moveTo(ax, ay - 12 * PT); ctx.lineTo(ax, ay - 30 * PT); ctx.stroke(); ctx.restore();
-  ctx.save(); ctx.globalAlpha = a; ctx.translate(ax, y + h); ctx.scale(s, s); ctx.translate(-ax, -(y + h));
-  ctx.save(); ctx.shadowColor = 'rgba(20,30,60,0.22)'; ctx.shadowBlur = 40 * PT; ctx.shadowOffsetY = 12 * PT;
-  ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill(); ctx.restore();
-  const gg = ctx.createLinearGradient(0, y, 0, y + h); gg.addColorStop(0, 'rgba(255,255,255,0.5)'); gg.addColorStop(.55, 'rgba(255,255,255,0)');
-  ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fillStyle = gg; ctx.fill();
+// ---------- the tags (the app's: white glass capsule, blue dot + the word, the meaning under it, NEW) ----------
+function tagGeom(k) {
+  const size = 46 * PT, dot = 13 * PT, w1 = measure(ZH[k], 800, size, FONT_TC) + dot * 2 + 14 * PT, w2 = measure(L.mean[k], 500, 28 * PT);
+  const w = Math.max(w1, w2) + 64 * PT, h = 112 * PT; return { w, h, w1, size, dot };
+}
+function tagCenter(t, k) { const g = tagGeom(k), p = toS(t, ...O[k].anchor); return [p[0], p[1] - 30 * PT - g.h / 2]; }
+function drawTag(t, k, { alpha = 1, press = 0 } = {}) {
+  if (alpha <= 0) return;
+  const g = tagGeom(k), p = toS(t, ...O[k].anchor), X = p[0], Y = p[1] - 30 * PT - g.h / 2, x = X - g.w / 2, y = Y - g.h / 2;
+  const pop = E.outBack(seg(t, TAG(ORDER.indexOf(k)), TAG(ORDER.indexOf(k)) + .35), 2), s = (.6 + .4 * pop) * (1 - .07 * press);
+  // the anchor: a white dot on the thing and a short stem
+  ctx.save(); ctx.globalAlpha = alpha; ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 10 * PT; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X, p[1], 11 * PT, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.lineWidth = 3 * PT; ctx.beginPath(); ctx.moveTo(X, p[1] - 12 * PT); ctx.lineTo(X, p[1] - 30 * PT); ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(X, Y + g.h / 2); ctx.scale(s, s); ctx.translate(-X, -(Y + g.h / 2));
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12; rr(x, y, g.w, g.h, g.h / 2); ctx.fillStyle = 'rgba(255,255,255,0.86)'; ctx.fill(); ctx.restore();
+  const gg = ctx.createLinearGradient(0, y, 0, y + g.h); gg.addColorStop(0, 'rgba(255,255,255,0.5)'); gg.addColorStop(.55, 'rgba(255,255,255,0)'); rr(x, y, g.w, g.h, g.h / 2); ctx.fillStyle = gg; ctx.fill();
   ctx.lineWidth = 2 * PT; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.stroke();
-  const reveal = seg(t, T.tag + .05, T.tag + .65), Y = y + h / 2;
-  let xx = ax - wWord / 2;
-  const dp = E.outBack(clamp(reveal * 3), 2.2);
-  if (dp > 0) { ctx.fillStyle = BLUE2; ctx.beginPath(); ctx.arc(xx + dot, Y - 16 * PT, dot * dp, 0, Math.PI * 2); ctx.fill(); }
-  xx += dot * 2 + 14 * PT;
-  [...WORD].forEach((ch, i, arr) => {
-    const p = E.outBack(clamp((reveal * (arr.length + 2) - i) / 2.2), 1.6), wch = measure(ch, 800, size, FONT_TC);
-    if (p > 0) text(ch, xx + wch / 2, Y + (1 - p) * 26 * PT, { w: 800, size, f: FONT_TC, color: INK, alpha: clamp(p * 1.4) });
+  const reveal = seg(t, TAG(ORDER.indexOf(k)) + .05, TAG(ORDER.indexOf(k)) + .65);
+  let xx = X - g.w1 / 2; const dp = E.outBack(clamp(reveal * 3), 2.2);
+  if (dp > 0) { ctx.fillStyle = BLUE2; ctx.beginPath(); ctx.arc(xx + g.dot, Y - 16 * PT, g.dot * dp, 0, Math.PI * 2); ctx.fill(); }
+  xx += g.dot * 2 + 14 * PT;
+  [...ZH[k]].forEach((ch, i, arr) => {
+    const pp = E.outBack(clamp((reveal * (arr.length + 2) - i) / 2.2), 1.6), wch = measure(ch, 800, g.size, FONT_TC);
+    if (pp > 0) text(ch, xx + wch / 2, Y + (1 - pp) * 26 * PT, { w: 800, size: g.size, f: FONT_TC, color: INK, alpha: clamp(pp * 1.4) });
     xx += wch;
   });
-  text(COPY.mean, ax, Y + 38 * PT, { w: 500, size: 28 * PT, color: MUTED, alpha: E.outCubic(seg(reveal, .45, 1)) });
+  text(L.mean[k], X, Y + 38 * PT, { w: 500, size: 28 * PT, color: MUTED, alpha: E.outCubic(seg(reveal, .45, 1)) });
+  // NEW (a word not in the 図鑑 yet): the blue chip on the capsule's top right
+  const na = E.outBack(seg(reveal, .5, 1), 2.4);
+  if (na > 0) { const nw = 64 * PT, nh = 28 * PT, nx = x + g.w - nw * .8, ny = y - nh * .45; ctx.save(); ctx.translate(nx + nw / 2, ny + nh / 2); ctx.scale(na, na); ctx.translate(-(nx + nw / 2), -(ny + nh / 2));
+    rr(nx, ny, nw, nh, nh / 2); ctx.fillStyle = BLUE; ctx.fill(); text('NEW', nx + nw / 2, ny + nh * .72, { w: 800, size: 17 * PT, f: FONT_UI, color: '#fff', ls: 1 }); ctx.restore(); }
+  ctx.restore();
+}
+function finger(x, y, t, tIn, tPress, tOut = tPress + .35) {
+  if (t < tIn || t > tOut + .4) return;
+  const a = seg(t, tIn, tIn + .12) * (1 - seg(t, tOut, tOut + .2)), pr = seg(t, tPress, tPress + .08) * (1 - seg(t, tPress + .1, tPress + .22)), rip = seg(t, tPress + .08, tPress + .5), R = 46 * PT;
+  ctx.save();
+  if (rip > 0 && rip < 1) { ctx.globalAlpha = (1 - rip) * .55; ctx.strokeStyle = '#fff'; ctx.lineWidth = 4 * PT; ctx.beginPath(); ctx.arc(x, y, R + 70 * PT * E.outCubic(rip), 0, Math.PI * 2); ctx.stroke(); }
+  ctx.globalAlpha = a; ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 24 * PT; ctx.fillStyle = 'rgba(255,255,255,0.42)'; ctx.beginPath(); ctx.arc(x, y, R * (1 - .14 * pr), 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0; ctx.lineWidth = 3 * PT; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.stroke(); ctx.restore();
+}
+
+// ---------- v6: the sticker (the thing's own shape, a white die-cut border, a sheen, a holo sweep on the catch) ----------
+const SK = document.createElement('canvas'), skx = SK.getContext('2d'), HL = document.createElement('canvas'), hlx = HL.getContext('2d');
+function sticker(border, sheen, holo) {
+  const w = A.cut.width, h = A.cut.height; if (SK.width !== w) { SK.width = HL.width = w; SK.height = HL.height = h; }
+  skx.clearRect(0, 0, w, h); skx.globalAlpha = border; skx.drawImage(A.border, 0, 0); skx.globalAlpha = 1; skx.drawImage(A.cut, 0, 0);
+  if (sheen > 0 && sheen < 1) { skx.save(); skx.globalCompositeOperation = 'source-atop'; const Lx = w + h, p = -Lx * .35 + sheen * Lx * 1.3, g = skx.createLinearGradient(p, p * .6, p + 260, p * .6 + 160);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(.5, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); skx.fillStyle = g; skx.fillRect(0, 0, w, h); skx.restore(); }
+  if (holo > 0 && holo < 1) {
+    const Lx = w + h, p = -Lx * .5 + holo * Lx * 1.5, g = hlx.createLinearGradient(p, p * .5, p + 700, p * .5 + 420);
+    [[0, 'rgba(120,255,240,0)'], [.2, 'rgba(120,255,240,0.55)'], [.4, 'rgba(255,120,220,0.55)'], [.6, 'rgba(255,230,120,0.55)'], [.8, 'rgba(120,180,255,0.5)'], [1, 'rgba(120,180,255,0)']].forEach(([o, col]) => g.addColorStop(o, col));
+    hlx.globalCompositeOperation = 'source-over'; hlx.clearRect(0, 0, w, h); hlx.fillStyle = g; hlx.fillRect(0, 0, w, h); hlx.globalCompositeOperation = 'destination-in'; hlx.drawImage(SK, 0, 0);
+    skx.save(); skx.globalCompositeOperation = 'soft-light'; skx.globalAlpha = .9; skx.drawImage(HL, 0, 0); skx.globalCompositeOperation = 'source-atop'; skx.globalAlpha = .22; skx.drawImage(HL, 0, 0); skx.restore();
+  }
+  return SK;
+}
+function placeTile(src, cx, cy, s, r = 0, alpha = 1) { ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(cx, cy); ctx.rotate(r); ctx.scale(s, s); ctx.drawImage(src, -src.width / 2, -src.height / 2); ctx.restore(); }
+function star4(x, y, r, rot, alpha, color) {
+  if (alpha <= 0 || r <= 0) return; ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(x, y); ctx.rotate(rot); ctx.fillStyle = color; ctx.beginPath();
+  ctx.moveTo(0, -r); ctx.quadraticCurveTo(r * .14, -r * .14, r, 0); ctx.quadraticCurveTo(r * .14, r * .14, 0, r); ctx.quadraticCurveTo(-r * .14, r * .14, -r, 0); ctx.quadraticCurveTo(-r * .14, -r * .14, 0, -r); ctx.fill(); ctx.restore();
+}
+function speakerBtn(x, y, r, t, tVoice, alpha) {
+  if (alpha <= 0) return; ctx.save(); ctx.globalAlpha *= alpha;
+  const v = seg(t, tVoice, tVoice + .9);
+  if (v > 0 && v < 1) for (let k = 0; k < 2; k++) { const u = clamp(v * 1.4 - k * .3); if (u <= 0 || u >= 1) continue; ctx.save(); ctx.globalAlpha *= (1 - u) * .5; ctx.strokeStyle = BLUE; ctx.lineWidth = 4 * PT; ctx.beginPath(); ctx.arc(x, y, r + 40 * PT * E.outCubic(u), 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+  ctx.shadowColor = 'rgba(0,131,255,0.35)'; ctx.shadowBlur = 24 * PT; ctx.shadowOffsetY = 8 * PT; ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowColor = 'transparent';
+  // the speaker glyph (SF Symbols speaker.wave.2.fill, drawn)
+  const k = r / 46; ctx.fillStyle = BLUE; ctx.strokeStyle = BLUE; ctx.lineWidth = 5 * k; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 20 * k, y - 8 * k); ctx.lineTo(x - 10 * k, y - 8 * k); ctx.lineTo(x + 2 * k, y - 19 * k); ctx.lineTo(x + 2 * k, y + 19 * k); ctx.lineTo(x - 10 * k, y + 8 * k); ctx.lineTo(x - 20 * k, y + 8 * k); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 4 * k, y, 12 * k, -.9, .9); ctx.stroke(); ctx.beginPath(); ctx.arc(x + 4 * k, y, 22 * k, -.9, .9); ctx.stroke();
+  ctx.restore();
+}
+// the word lands one character per syllable (scale + blur → sharp, a blue glow), as in v6
+function wordPop(t, x, y, size) {
+  const { cell } = zyCell(size), total = zyWidth(PICK.u, size); let cx = x - total / 2;
+  PICK.u.forEach((u, i) => {
+    const t0 = CH[i], p = seg(t, t0 - .02, t0 + .32);
+    if (p > 0) {
+      const g = seg(t, t0, t0 + .6);
+      if (g < 1) { const gx = cx + size / 2, gy = y - size * .36, R = size * 1.1, gr = ctx.createRadialGradient(gx, gy, 0, gx, gy, R); gr.addColorStop(0, `rgba(42,155,255,${.28 * Math.sin(Math.PI * g)})`); gr.addColorStop(1, 'rgba(42,155,255,0)'); ctx.fillStyle = gr; ctx.fillRect(gx - R, gy - R, 2 * R, 2 * R); }
+      const sc = lerp(1.38, 1, E.outBack(p, 1.9)), ox = cx + size / 2, oy = y - size * .36;
+      ctx.save(); ctx.globalAlpha *= clamp(p * 3); ctx.translate(ox, oy); ctx.scale(sc, sc); ctx.translate(-ox, -oy);
+      if (p < .35) ctx.filter = `blur(${(1 - p / .35) * 7 * PT}px)`;
+      zyChar(u, cx, y, size); ctx.restore();
+    }
+    cx += cell;
+  });
+  return total;
+}
+
+// ---------- the 図鑑: the 飲み物 card (the app's DexGallery: white card, a 4-col grid there; here one row of six) ----------
+const SLOTS = [
+  { no: 1, h: '珍奶', zy: 'ㄓㄣ ㄋㄞˇ', sil: 'cup', target: true },
+  { no: 2, img: 'coffee', h: '咖啡', zy: 'ㄎㄚ ㄈㄟ' }, { no: 3, img: 'oolong', h: '茶', zy: 'ㄔㄚˊ' },
+  { no: 4, img: 'juice', h: '果汁', zy: 'ㄍㄨㄛˇ ㄓ' }, { no: 104, img: 'soymilk', h: '豆漿', zy: 'ㄉㄡˋ ㄐㄧㄤ' },
+  { no: 117, img: 'cola', h: '可樂', zy: 'ㄎㄜˇ ㄌㄜˋ' },
+];
+SLOTS.forEach(s => s.u = Z(s.h, s.zy));
+const SLOT = 236, GAP = 26, CARD = { w: 6 * SLOT + 5 * GAP + 2 * 44, h: 520 };
+CARD.x = W / 2 - CARD.w / 2; CARD.y = 560;
+const slotXY = i => [CARD.x + 44 + i * (SLOT + GAP), CARD.y + 128];
+const noStr = no => 'No.' + String(no).padStart(3, '0');
+function dexCard(t, alpha, dy) {
+  if (alpha <= 0) return;
+  const landed = seg(t, ARRIVE, ARRIVE + .05), caught = 6 + (landed > 0 ? 1 : 0);
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(0, dy);
+  ctx.save(); ctx.shadowColor = 'rgba(15,40,80,0.10)'; ctx.shadowBlur = 60; ctx.shadowOffsetY = 18; rr(CARD.x, CARD.y, CARD.w, CARD.h, 56); ctx.fillStyle = '#fff'; ctx.fill(); ctx.restore();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#E6ECF3'; rr(CARD.x, CARD.y, CARD.w, CARD.h, 56); ctx.stroke();
+  // title row: the category, the count and its bar
+  text(L.cat, CARD.x + 48, CARD.y + 74, { w: 800, size: 44, color: INK, align: 'left' });
+  text(`${caught} / 19`, CARD.x + CARD.w - 48, CARD.y + 74, { w: 700, size: 38, f: FONT_UI, color: landed > 0 ? BLUE : MUTED, align: 'right' });
+  const bw = CARD.w - 96, frac = lerp(6, 7, E.outCubic(seg(t, ARRIVE + .05, ARRIVE + .5))) / 19;
+  rr(CARD.x + 48, CARD.y + 96, bw, 8, 4); ctx.fillStyle = '#EDF2F8'; ctx.fill(); rr(CARD.x + 48, CARD.y + 96, bw * frac, 8, 4); ctx.fillStyle = BLUE; ctx.fill();
+  SLOTS.forEach((s, i) => {
+    const [x, y] = slotXY(i), isT = s.target, got = !isT || landed > 0;
+    if (got) { const g = ctx.createRadialGradient(x + SLOT / 2, y + SLOT * .38, 0, x + SLOT / 2, y + SLOT * .38, SLOT * .75); g.addColorStop(0, '#FFFFFF'); g.addColorStop(1, '#E2ECF8'); ctx.fillStyle = g; }
+    else ctx.fillStyle = '#EEF2F7';
+    rr(x, y, SLOT, SLOT, 32); ctx.fill();
+    if (isT && !got) { ctx.save(); ctx.setLineDash([14, 12]); ctx.lineWidth = 3; ctx.strokeStyle = '#B9C6D6'; rr(x + 2, y + 2, SLOT - 4, SLOT - 4, 30); ctx.stroke(); ctx.restore();
+      const im = A['sil_cup'], k = Math.min(SLOT * .72 / im.width, SLOT * .72 / im.height); ctx.drawImage(im, x + SLOT / 2 - im.width * k / 2, y + SLOT / 2 - im.height * k / 2, im.width * k, im.height * k); }
+    if (!isT) { const im = A['d_' + s.img], f = Math.min(SLOT * .86 / im.width, SLOT * .86 / im.height); ctx.save(); ctx.shadowColor = 'rgba(0,30,70,0.25)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 12;
+      ctx.drawImage(im, x + SLOT / 2 - im.width * f / 2, y + SLOT / 2 - im.height * f / 2, im.width * f, im.height * f); ctx.restore(); }
+    text(isT && !got ? 'No.001' : noStr(s.no), x + SLOT / 2, y + SLOT + 44, { w: 600, size: 26, f: FONT_UI, color: isT && got ? BLUE : '#8C96A3' });
+    if (got) { const sz = 44, w = zyWidth(s.u, sz), k = Math.min(1, (SLOT + GAP - 8) / w); ctx.save(); ctx.translate(x + SLOT / 2, y + SLOT + 108); ctx.scale(k, k);
+      ctx.globalAlpha *= isT ? E.outCubic(seg(t, ARRIVE + .1, ARRIVE + .4)) : 1; zyDraw(s.u, 0, 0, sz, { w: 800 }); ctx.restore(); }
+    else text('?', x + SLOT / 2, y + SLOT + 104, { w: 700, size: 40, f: FONT_UI, color: '#AEB8C4' });
+  });
+  ctx.restore();
+}
+function newBadge(t, dy) {                               // NEW pops on the slot as the sticker lands, a ring runs out
+  const u = seg(t, ARRIVE, ARRIVE + .4); if (u <= 0) return;
+  const [x, y] = slotXY(0), a = 1 - E.inOutCubic(seg(t, BACK, BACK + .4)); if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(0, dy);
+  const ring = seg(t, ARRIVE, ARRIVE + .7);
+  if (ring < 1) { ctx.save(); ctx.globalAlpha *= (1 - ring) * .8; ctx.strokeStyle = BLUE2; ctx.lineWidth = 6; rr(x - 22 * ring, y - 22 * ring, SLOT + 44 * ring, SLOT + 44 * ring, 32 + 20 * ring); ctx.stroke(); ctx.restore(); }
+  const s = E.outBack(u, 2.6), nw = 128, nh = 50, nx = x - 14, ny = y - 20;
+  ctx.translate(nx + nw / 2, ny + nh / 2); ctx.rotate(-.12); ctx.scale(s, s); ctx.translate(-(nx + nw / 2), -(ny + nh / 2));
+  rr(nx, ny, nw, nh, nh / 2); ctx.fillStyle = BLUE; ctx.fill(); text('NEW', nx + nw / 2, ny + 36, { w: 800, size: 28, f: FONT_UI, color: '#fff', ls: 2 });
   ctx.restore();
 }
 
-// ---------- 本に入った合図: 表紙に貼り付いた所で小さい光がはじける ----------
-function sparkle(t, f) {
-  const u = seg(t, T.land - .02, T.land + .55); if (u <= 0 || u >= 1) return;
-  const p = PTS[Math.round(T.land * FPS)].cover, x = p[0] * W, y = p[1] * H;
-  glowDot(x, y, lerp(20, 130, E.outCubic(u)) * PT * .6, (1 - u) * .9);
-  for (let k = 0; k < 6; k++) {
-    const ang = -Math.PI / 2 + (k - 2.5) * .55, r = lerp(30, 150, E.outCubic(u)) * PT * .7;
-    glowDot(x + Math.cos(ang) * r, y + Math.sin(ang) * r * .8, 9 * PT, (1 - u) * .85);
-  }
-}
-
-// ---------- 一言（本が閉じた後、真ん中に。読める時間は約 2 秒） ----------
-function line(t) {
-  const a = E.outCubic(seg(t, T.lineIn, T.lineIn + .55)) * (1 - E.inOutCubic(seg(t, T.lineOut, T.lineOut + .55)));
-  if (a <= 0) return;
-  const size = LANG === 'ja' ? 118 : 112, y = 640 + (1 - E.outCubic(seg(t, T.lineIn, T.lineIn + .7))) * 26;
-  ctx.save(); ctx.globalAlpha = a; font(800, size, COPY.font);
-  ctx.shadowColor = 'rgba(255,248,236,0.9)'; ctx.shadowBlur = 36; ctx.fillStyle = NAVY; ctx.textAlign = 'center';
-  if (LANG === 'en') ctx.letterSpacing = '-1px';
-  ctx.fillText(COPY.line, W / 2, y); ctx.restore();
-}
-
-function draw(f, safe = false) {
+// ---------- the frame ----------
+const STAGE = [1480, 905];                               // where the sticker floats on the catch (left of the word)
+function draw(f) {
   const t = f / FPS;
-  ctx.save(); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(BG, 0, 0, W, H); ctx.restore();
-  outline(t, f); bracket(t, f); peelFlash(t, f); tag(t, f); sparkle(t, f); line(t);
-  if (safe) { ctx.save(); ctx.strokeStyle = 'rgba(255,0,0,0.8)'; ctx.lineWidth = 4; ctx.setLineDash([20, 14]); ctx.strokeRect(SAFE[0], SAFE[1], SAFE[2] - SAFE[0], SAFE[3] - SAFE[1]); ctx.restore(); }
+  const melt = E.inOutCubic(seg(t, C + .05, C + .6)) * (1 - E.inOutCubic(seg(t, BACK, END)));
+  photo(t, melt);
+  appBackdrop(melt, STAGE[0], STAGE[1]);
+  flash(t); edgeGlow(t);
+  outlines(t);
+  bracket(t);
+  const pen = penAt(t); if (pen) { const [x, y] = toS(t, ...pen.xy); glowDot(x, y, 34 * PT, pen.a); }
+  // the tags: the others fade as the tapped one takes over (v6)
+  const tagA = 1 - seg(t, C, C + .15);
+  ORDER.forEach((k, i) => { if (t >= TAG(i)) drawTag(t, k, { alpha: tagA, press: k === 'cup' ? seg(t, T_TAP, T_TAP + .08) * (1 - seg(t, T_TAP + .12, T_TAP + .24)) : 0 }); });
+  pill(t);
+  const tc = tagCenter(t, 'cup'); finger(tc[0], tc[1], t, T_TAP - .22, T_TAP);
+  // the 図鑑 card comes up under the sticker, which flies into its slot
+  const cardA = E.outCubic(seg(t, D0, D0 + .45)) * (1 - E.inOutCubic(seg(t, BACK, BACK + .45)));
+  const dyCard = (1 - E.outCubic(seg(t, D0, D0 + .45))) * 120;
+  dexCard(t, cardA, dyCard);
+  // the cup → the sticker → the stage → the slot
+  if (t >= C && t < BACK + .4) {
+    const tile = O.cup.tile, home = toS(t, tile[0] + tile[2] / 2, tile[1] + tile[3] / 2), s0 = cam(t);
+    const pose = clamp(sp(t, C + .05, .62, .8), 0, 1.06), sT = 520 / tile[3];
+    let cx = lerp(home[0], STAGE[0], pose), cy = lerp(home[1], STAGE[1], pose), s = lerp(s0, sT, pose), r = 0;
+    const bob = Math.sin((t - C) * 2.6) * 10 * PT * seg(t, C + .6, C + 1) * (1 - seg(t, D0, D0 + .3)); cy += bob;
+    s *= 1 + .07 * Math.sin(Math.PI * seg(t, LAUNCH - .12, LAUNCH)) ;
+    const fly = seg(t, LAUNCH, ARRIVE), e = E.inCubic(fly), dyCard = (1 - E.outCubic(seg(t, D0, D0 + .45))) * 120;
+    const tgt = [slotXY(0)[0] + SLOT / 2, slotXY(0)[1] + SLOT / 2 + dyCard], sEnd = SLOT * .86 / tile[3];
+    const stk = sticker(E.outCubic(seg(t, CUT, CUT + .3)), seg(t, C + .6, C + 1.1), seg(t, CATCHT - .05, CATCHT + .85));
+    // its shadow on the stage while it floats
+    const shA = .22 * clamp(pose) * (1 - fly) * (1 - seg(t, D0, D0 + .3)); if (shA > 0) { ctx.save(); ctx.globalAlpha = shA; ctx.fillStyle = '#0F2850'; ctx.filter = 'blur(28px)'; ctx.beginPath(); ctx.ellipse(cx, STAGE[1] + 330, 190, 30, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+    if (fly > 0) { const p0 = [cx, cy], p = bez2(p0, [p0[0] + 160, p0[1] - 420], tgt, e); cx = p[0]; cy = p[1]; s = lerp(s, sEnd, e); r = -.12 * e; }
+    if (t < ARRIVE) placeTile(stk, cx, cy, s, r, 1);
+    else { const k = 1 + .08 * Math.sin(Math.PI * seg(t, ARRIVE, ARRIVE + .3)), ca = 1 - E.inOutCubic(seg(t, BACK, BACK + .45));
+      ctx.save(); ctx.shadowColor = 'rgba(0,30,70,0.25)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 12; placeTile(stk, tgt[0], tgt[1], sEnd * k, 0, ca); ctx.restore(); }
+  }
+  newBadge(t, dyCard);
+  // the word, its reading and meaning, and 「新しいことばをキャッチ！」 (v6 getText), placed for 21:9
+  const textA = 1 - E.inOutCubic(seg(t, D0 - .35, D0 - .05));
+  if (t > C && textA > 0) {
+    ctx.save(); ctx.globalAlpha = textA;
+    const WX = 2230, HX = W / 2;
+    const hp = seg(t, CATCHT, CATCHT + .4);
+    if (hp > 0) {
+      const k = lerp(.6, 1, E.outBack(hp, 2.6)); ctx.save(); ctx.globalAlpha *= clamp(hp * 4); ctx.translate(HX, 570); ctx.scale(k, k); ctx.translate(-HX, -570);
+      text(L.caught, HX, 600, { w: 900, size: 88, color: BLUE }); ctx.restore();
+      const hw = measure(L.caught, 900, 88) / 2 + 60;
+      [[-hw, -40, 34, 0], [hw, -70, 28, .05], [-hw + 40, 52, 20, .1], [hw + 20, 34, 30, .07], [-hw - 40, 6, 16, .14], [hw - 120, -112, 18, .12]].forEach(([dx, dy, rad, d]) => {
+        const u = seg(t, CATCHT + d, CATCHT + d + .9); if (u <= 0 || u >= 1) return;
+        const sc = E.outBack(seg(u, 0, .3), 3) * (1 - E.inCubic(seg(u, .55, 1))), tw = .75 + .25 * Math.sin(u * 20);
+        star4(HX + dx * lerp(.86, 1.04, E.outCubic(u)), 570 + dy * .7, rad * PT * .8 * sc * tw, u * 1.2, 1, d % .1 ? '#64E0FF' : BLUE2);
+      });
+      const cp = E.outCubic(seg(t, CATCHT + .12, CATCHT + .42)); ctx.save(); ctx.globalAlpha *= cp; ctx.translate(0, (1 - cp) * 14);
+      const lw = measure(L.no1.split(' · ')[0] + ' · ' + L.no1.split(' · ')[1], 600, 34) + 130 + 18, lx = WX - lw / 2;
+      rr(lx, 724, 130, 54, 27); ctx.fillStyle = BLUE; ctx.fill(); text('NEW', lx + 65, 762, { w: 800, size: 28, f: FONT_UI, color: '#fff', ls: 2 });
+      text(L.no1, lx + 148, 763, { w: 600, size: 34, color: MUTED, align: 'left' }); ctx.restore();
+    }
+    const total = wordPop(t, WX - 50, 985, 180);
+    speakerBtn(WX - 50 + total / 2 + 110, 922, 46 * PT * .9, t, G, E.outCubic(seg(t, G - .1, G + .15)));
+    text(L.word, WX, 1085, { w: 500, size: 52, color: MUTED, alpha: E.outCubic(seg(t, MEAN, MEAN + .3)) });
+    ctx.restore();
+  }
+  if (q.has('safe')) { ctx.save(); ctx.strokeStyle = 'rgba(255,0,0,0.8)'; ctx.lineWidth = 4; ctx.setLineDash([20, 14]); ctx.strokeRect(1097, 493, 1646, 661); ctx.restore(); }
 }
-const loadImg = src => new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = src; });
-window.renderFrame = async (f, safe) => { BG = await loadImg(`frames/f${String(f).padStart(4, '0')}.png`); draw(f, safe); };
+window.renderFrame = f => draw(f);
 window.ready = (async () => {
-  [OUT, PTS] = await Promise.all([fetch('data/outlines.json').then(r => r.json()), fetch('data/points.json').then(r => r.json())]);
-  await document.fonts.load(`800 40px ${FONT_TC}`, WORD); await document.fonts.load(`800 40px ${COPY.font}`, COPY.line); await document.fonts.load(`500 40px ${COPY.font}`, COPY.mean);
-  if (q.has('f')) await window.renderFrame(+q.get('f'), q.has('safe'));
+  const [photoI, cut, border, objs] = await Promise.all([loadImg('../assets/photo.jpg'), loadImg('../assets/cup_cut.png'), loadImg('../assets/cup_border.png'), fetch('../assets/objects.json').then(r => r.json())]);
+  A.photo = photoI; A.cut = cut; A.border = border; O = objs;
+  SMALL.getContext('2d').drawImage(photoI, 0, 0, SMALL.width, SMALL.height);
+  for (const s of SLOTS) if (s.img) A['d_' + s.img] = await loadImg(`../assets/dex/${s.img}.png`);
+  A.sil_cup = await loadImg('../assets/dex/cup_sil.png');
+  const cb = O.cup.box; FOC = [(cb[0] + cb[2]) / 2, (cb[1] + cb[3]) / 2];
+  // every weight used, before the first frame (a face not loaded yet would be drawn in the browser's default font)
+  await Promise.all([500, 600, 700, 800, 900].flatMap(w => [`${w} 40px Inter`, `${w} 40px "Noto Sans JP"`, `${w} 40px "Noto Sans TC"`].map(f => document.fonts.load(f, 'Aa珍奶黑板機車咖啡写真'))));
+  window.TIMES = { T_CAP, T_NAMES, LOCK, FOUND, TAGS: ORDER.map((_, i) => TAG(i)), T_TAP, C, CUT, G, CATCHT, D0, LAUNCH, ARRIVE, BACK, END, K };
+  if (q.has('f')) draw(+q.get('f'));
   return true;
 })();
 </script>

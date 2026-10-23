@@ -1,9 +1,13 @@
 """
-3D の絵から、重ねる層とステッカーの材料を作る（OpenCV）。
+App Store のヘッダー動画（v2: 実写）の材料を、オーナーが作った横長の写真から作る。
 
-  python prep.py sticker STILL.png MASK.png OUT.png    マグカップを白い縁つきで切り抜く（アプリのステッカー）。
-                                                       OUT.json に画面での範囲（0〜1、左下が原点）を書く
-  python prep.py outlines MASK_DIR OUT.json            毎コマのマグカップの輪郭（3840×1646 の座標。光のペンが描く）
+  python prep.py upscale SRC.png MODEL.pb       写真を AI（EDSR ×2）で 3840×1646 に拡大して assets/photo.jpg に（CPU で約 8 分）
+  python prep.py objects                        カップ・バイク・黒板を切り抜き（rembg の isnet-general-use）、
+                                                assets/objects.json（輪郭・範囲・タグの位置）と、カップの切り抜き
+                                                assets/cup_cut.png・白い縁 assets/cup_border.png を書く
+
+使う物: opencv-contrib-python-headless・rembg・onnxruntime（rembg は初回に学習済みモデルを GitHub から取る）。
+植木鉢は葉が背景のぼけと混ざって切り抜けないので、アプリの v10 の動画と同じく、光のペンが描くのは 3 つ。
 """
 
 import json
@@ -13,63 +17,91 @@ import sys
 import cv2
 import numpy as np
 
-W_OUT = 3840
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, "assets")
+W, H = 3840, 1646
+
+# 物ごとの切り抜きの範囲（3840×1646 の写真の座標）。rembg は範囲の中のいちばん目立つ物を返す。
+BOXES = {
+    "cup": (1600, 840, 2020, 1540),
+    "scooter": (1300, 460, 2020, 1290),
+    "sign": (2280, 800, 2780, 1430),
+}
+# タグの付け根（物の範囲の中の割合）。アプリのタグと同じく、物の上の点から上へ出る
+ANCHOR = {"cup": (0.5, 0.52), "scooter": (0.24, 0.56), "sign": (0.5, 0.42)}
 
 
-def sticker(still, mask, out):
-    rgb = cv2.imread(still, cv2.IMREAD_COLOR)
-    m = cv2.imread(mask, cv2.IMREAD_GRAYSCALE)
-    m = np.where(m > 127, 255, 0).astype(np.uint8)              # 描画の細かいざらつき（値 1）を捨てる
-    h, w = m.shape
-    border = round(w * 0.0075)                                  # 1920 幅で 14px の白い縁
-    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * border + 1, 2 * border + 1))
-    cut = cv2.GaussianBlur(m, (3, 3), 0)
-    outer = cv2.GaussianBlur(cv2.dilate(m, k), (5, 5), 0)
-    a = cut.astype(np.float32)[..., None] / 255
-    img = (rgb.astype(np.float32) * a + 255 * (1 - a)).astype(np.uint8)   # 縁は白
-    rgba = np.dstack([img, outer])
-    ys, xs = np.where(outer > 0)
-    pad = 4
-    x0, x1, y0, y1 = max(0, xs.min() - pad), min(w, xs.max() + pad + 1), max(0, ys.min() - pad), min(h, ys.max() + pad + 1)
-    cv2.imwrite(out, rgba[y0:y1, x0:x1])
-    crop = [x0 / w, 1 - y1 / h, x1 / w, 1 - y0 / h]
-    json.dump({"crop": crop}, open(out.replace(".png", ".json"), "w"))
-    print("sticker", out, crop)
+def upscale(src, model):
+    sr = cv2.dnn_superres.DnnSuperResImpl_create()
+    sr.readModel(model)
+    sr.setModel("edsr", 2)
+    up = sr.upsample(cv2.imread(src))
+    up = cv2.resize(up, (W, H), interpolation=cv2.INTER_LANCZOS4)
+    os.makedirs(OUT, exist_ok=True)
+    cv2.imwrite(os.path.join(OUT, "photo.jpg"), up, [cv2.IMWRITE_JPEG_QUALITY, 90])
 
 
-def outline(mask_path, n=260):
-    m = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-    s = W_OUT / m.shape[1]
-    _, b = cv2.threshold(m, 127, 255, cv2.THRESH_BINARY)
+def outline(mask, n=320):
+    _, b = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
     cs, _ = cv2.findContours(b, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    if not cs:
-        return None
     c = max(cs, key=cv2.contourArea)[:, 0, :].astype(np.float64)
-    # なめらかに（輪のまま平均）
-    k = 5
+    k = 6
     c = np.stack([np.convolve(np.r_[c[-k:, i], c[:, i], c[:k, i]], np.ones(2 * k + 1) / (2 * k + 1), "valid") for i in (0, 1)], 1)
-    # 時計回りにそろえ、一番上の点から始め、同じ間隔で n 点に
     area = 0.5 * np.sum(c[:, 0] * np.roll(c[:, 1], -1) - np.roll(c[:, 0], -1) * c[:, 1])
     if area < 0:
         c = c[::-1]
-    top = np.argmin(c[:, 1] + 0.001 * c[:, 0])
-    c = np.roll(c, -top, 0)
+    c = np.roll(c, -int(np.argmin(c[:, 1] + 0.001 * c[:, 0])), 0)   # 一番上の点から時計回り
     seg = np.hypot(*np.diff(np.r_[c, c[:1]], axis=0).T)
     cum = np.r_[0, np.cumsum(seg)]
     t = np.linspace(0, cum[-1], n, endpoint=False)
-    xs = np.interp(t, cum, np.r_[c[:, 0], c[0, 0]])
-    ys = np.interp(t, cum, np.r_[c[:, 1], c[0, 1]])
-    return [[round(x * s, 1), round(y * s, 1)] for x, y in zip(xs, ys)]
+    xs, ys = np.interp(t, cum, np.r_[c[:, 0], c[0, 0]]), np.interp(t, cum, np.r_[c[:, 1], c[0, 1]])
+    # 曲がり具合（光のペンが曲がり角でゆっくりになる。アプリの v10 と同じ考え）
+    pts = np.stack([xs, ys], 1)
+    d1 = np.roll(pts, -1, 0) - pts
+    d0 = pts - np.roll(pts, 1, 0)
+    ang = np.abs(np.arctan2(d0[:, 0] * d1[:, 1] - d0[:, 1] * d1[:, 0], (d0 * d1).sum(1)))
+    return [[round(x, 1), round(y, 1)] for x, y in pts], [round(a, 3) for a in ang]
 
 
-def outlines(d, out):
-    files = sorted(f for f in os.listdir(d) if f.startswith("m") and f.endswith(".png"))
-    json.dump([outline(os.path.join(d, f)) for f in files], open(out, "w"))
-    print("outlines", len(files), "->", out)
+def objects():
+    from rembg import new_session, remove
+
+    im = cv2.imread(os.path.join(OUT, "photo.jpg"))
+    sess = new_session("isnet-general-use")
+    masks = {}
+    for k, (x0, y0, x1, y1) in BOXES.items():
+        m = np.array(remove(cv2.cvtColor(im[y0:y1, x0:x1], cv2.COLOR_BGR2RGB), session=sess, only_mask=True))
+        full = np.zeros((H, W), np.uint8)
+        full[y0:y1, x0:x1] = m
+        masks[k] = full
+    # バイクは手前のカップの後ろ: カップの分を引く
+    masks["scooter"][cv2.dilate(masks["cup"], np.ones((9, 9), np.uint8)) > 100] = 0
+    data = {}
+    for k, m in masks.items():
+        ys, xs = np.where(m > 127)
+        box = [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())]
+        pts, turn = outline(m)
+        ax, ay = ANCHOR[k]
+        data[k] = {"box": box, "pts": pts, "turn": turn,
+                   "anchor": [round(box[0] + ax * (box[2] - box[0])), round(box[1] + ay * (box[3] - box[1]))]}
+    # カップの切り抜き（アプリの StickerCrop と同じく物の形）と白い縁（ステッカー）
+    x0, y0, x1, y1 = data["cup"]["box"]
+    pad = 40
+    x0, y0, x1, y1 = x0 - pad, y0 - pad, x1 + pad, y1 + pad
+    a = cv2.GaussianBlur(masks["cup"], (3, 3), 0)[y0:y1, x0:x1]
+    cut = np.dstack([im[y0:y1, x0:x1], a])
+    cv2.imwrite(os.path.join(OUT, "cup_cut.png"), cut)
+    r = 22
+    border = cv2.GaussianBlur(cv2.dilate(masks["cup"], cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))), (5, 5), 0)[y0:y1, x0:x1]
+    cv2.imwrite(os.path.join(OUT, "cup_border.png"), np.dstack([np.full_like(a, 255)] * 3 + [border]))
+    data["cup"]["tile"] = [x0, y0, x1 - x0, y1 - y0]
+    with open(os.path.join(OUT, "objects.json"), "w") as f:
+        json.dump(data, f)
+    print({k: v["box"] for k, v in data.items()})
 
 
 if __name__ == "__main__":
-    if sys.argv[1] == "sticker":
-        sticker(*sys.argv[2:5])
+    if sys.argv[1] == "upscale":
+        upscale(sys.argv[2], sys.argv[3])
     else:
-        outlines(sys.argv[2], sys.argv[3])
+        objects()
