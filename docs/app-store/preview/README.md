@@ -87,6 +87,6 @@ ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,sampl
 | 単語ページ | 注音もピンインも、例文に | Zhuyin and pinyin on every example |
 | 復習 | 4択で復習 | Review with quick quizzes |
 | ホーム | 集めた日が、アルバムに | Every day becomes an album |
-| 最後 | 撮って集める、台湾華語の単語図鑑 | Learn Taiwanese Mandarin words |
+| 最後 | 撮って覚える台湾華語 | Taiwanese Mandarin |
 
-最後のサブタイトルは App Store のサブタイトル（`ios/metadata/app-info/*.json`）と同じ。
+最後の CatchWords の下の文はオーナーの指定（2026-10-23）。App Store のサブタイトル（`ios/metadata/app-info/*.json`）とは別。
