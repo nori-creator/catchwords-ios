@@ -162,11 +162,12 @@ struct ChunkLineView: View {
         }
     }
 
-    /// The colour of a block's characters: by its role (C18), or by its part of speech when 「品詞」 is on.
+    /// The colour of a block's characters: by its role (C18), or by its part of speech when 「品詞」 is on. The headword
+    /// stays blue either way (owner 2026-10-23 evening: 「青はそのままで」); the colours are barely darkened so the red
+    /// stays vivid (「赤色ももう少し鮮やかな色に」).
     private func ink(role: ChunkRole, pos: String) -> Color {
-        if posColors {
-            // Darker ink on the light page, lighter on the dark one (mixing with black vanished in dark mode).
-            return ChunkKind(pos: pos).ink.mix(with: colorScheme == .dark ? .white : .black, by: size == .large ? 0.3 : 0.25)
+        if posColors, role != .head {
+            return ChunkKind(pos: pos).ink.mix(with: colorScheme == .dark ? .white : .black, by: size == .large ? 0.12 : 0.1)
         }
         switch role {
         case .head: return Theme.primaryInk

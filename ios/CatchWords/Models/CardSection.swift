@@ -57,7 +57,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
             [.meaning, .example, .usageChunks, .kanjiBreakdown, .conjugation, .politeness, .counters,
              .relatedWords, .pitchAccent, .wordOrigin, .japanNote, .realUsage]
         default:
-            // 「例文」 is inside 「使い方パターン」 for Taiwan Mandarin (owner 2026-10-23: scene, formula and example as one unit).
+            // 「例文」 is inside 「使い方」 (the patterns) for Taiwan Mandarin (owner 2026-10-23: scene, formula and example as one unit).
             [.meaning, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
         }
     }
@@ -74,7 +74,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
         case .webImages: L("ネットの画像")
         case .example: L("例文")
         case .examplesExtra: L("追加の例文")
-        case .usageChunks: L("使い方パターン")
+        case .usageChunks: L("使い方")  // owner 2026-10-23 evening: a noun like 「意味」「量詞」, one line wide
         case .measureWords: L("量詞")
         case .forms: L("活用")
         case .countability: L("数え方と冠詞")

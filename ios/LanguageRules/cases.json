@@ -2290,5 +2290,50 @@
   "chunk": null,
   "pick": null,
   "why": "語の区切りが無ければそのまま"
+ },
+ {
+  "id": "C17-legacy-pairs",
+  "rule": "C17",
+  "fn": "legacyPatterns",
+  "text": "電視遙控器在哪裡？=見当たらないとき / 我在找電視遙控器。=探すとき",
+  "reader": null,
+  "target": "zh-TW",
+  "source": "電視遙控器",
+  "hanOnlyOk": null,
+  "expect": true,
+  "expected": "CE+C+E",
+  "chunk": "找:V+電視遙控器:N / 按:V+電視遙控器:N",
+  "pick": null,
+  "why": "古い語: 公式はそれを含む例文と組になり、含む例文の無い公式と、どの公式にも当たらない例文は単独の塊。捨てない"
+ },
+ {
+  "id": "C17-legacy-alt",
+  "rule": "C17",
+  "fn": "legacyPatterns",
+  "text": "馬桶不通了。=流れないとき",
+  "reader": null,
+  "target": "zh-TW",
+  "source": "馬桶",
+  "hanOnlyOk": null,
+  "expect": true,
+  "expected": "CE",
+  "chunk": "馬桶:N+~塞住了|不通|壞了:V",
+  "pick": null,
+  "why": "候補に替えた形（馬桶不通）も結び付く"
+ },
+ {
+  "id": "C17-legacy-none",
+  "rule": "C17",
+  "fn": "legacyPatterns",
+  "text": "",
+  "reader": null,
+  "target": "zh-TW",
+  "source": "馬桶",
+  "hanOnlyOk": null,
+  "expect": true,
+  "expected": "C+C",
+  "chunk": "沖:V+馬桶:N / 刷:V+馬桶:N",
+  "pick": null,
+  "why": "例文が無ければ公式だけの塊が公式の順に並ぶ"
  }
 ]

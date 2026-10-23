@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// 「使い方パターン」 (owner 2026-10-23, docs/chunk-rules.md C17): one card per way natives use the word — the general
-/// situation it is said in, the formula (`ChunkLineView`), its translation, and a sentence that uses that very formula —
-/// most used first. A card made before the patterns (no `usage_patterns`) shows what it has in the same place, the old
-/// way: its examples, then its chunks (the content is never rewritten on its own — owner 2026-10-23).
-/// Under them, the legend of the parts of speech when 「品詞」 is on.
+/// 「使い方」 (owner 2026-10-23, docs/chunk-rules.md C17): one card per way natives use the word — the general situation
+/// it is said in, the formula (`ChunkLineView`), its translation, and a sentence that uses that very formula — most used
+/// first, numbered ①②③. A card made before the patterns (no `usage_patterns`) is drawn the same way from what it has:
+/// each formula with the example that holds it (`ChunkRules.patternsFromLegacy`; the content is never rewritten on its
+/// own — owner 2026-10-23). Under them, the legend of the parts of speech when 「品詞」 is on.
 struct PatternsCardContent: View {
     let patterns: [UsagePattern]
     /// An older card's examples and chunks (`ExampleItem.all` / `refinedChunks`), for a card without patterns.
@@ -20,8 +20,17 @@ struct PatternsCardContent: View {
     /// Every sentence's reading of each character (owner 2026-10-22: 「例文の漢字にピンインまたは注音をすべて書いて」).
     @State private var readings: [String: [SentenceUnit]] = [:]
 
+    /// What is drawn: the server's patterns, or the older card's examples and formulas paired up.
+    private var shown: [UsagePattern] {
+        if !patterns.isEmpty { return patterns }
+        let legacy = examples.map {
+            ChunkRules.LegacyExample(zh: $0.sentence, ja: $0.translation ?? "", scene: $0.scene ?? "", words: $0.words)
+        }
+        return ChunkRules.patternsFromLegacy(chunks: chunks, examples: legacy, headword: headword, target: target)
+    }
+
     private var sentences: [String] {
-        patterns.map(\.example.zh).filter { !$0.isEmpty } + examples.map(\.sentence)
+        shown.map(\.example.zh).filter { !$0.isEmpty }
     }
 
     private func units(for sentence: String) -> [SentenceUnit]? {
@@ -30,22 +39,11 @@ struct PatternsCardContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !patterns.isEmpty {
-                ForEach(Array(patterns.enumerated()), id: \.offset) { _, pat in
-                    PatternBlock(pattern: pat, chunk: refine(pat.chunk), headword: headword, target: target,
-                                 units: units(for: pat.example.zh))
-                }
-            } else {
-                ForEach(Array(examples.enumerated()), id: \.offset) { _, ex in
-                    ExampleBlock(example: ex, headword: headword, units: units(for: ex.sentence))
-                }
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(chunks.enumerated()), id: \.offset) { i, chunk in
-                        if i > 0 { Divider().overlay(Theme.border) }
-                        ChunkLineView(chunk: chunk, headword: headword, target: target)
-                            .padding(.vertical, 12)
-                    }
-                }
+            let fromServer = !patterns.isEmpty
+            ForEach(Array(shown.enumerated()), id: \.offset) { i, pat in
+                // An older card's formulas are already in the page's shape (`refinedChunks`); a pattern's is refined here.
+                PatternBlock(pattern: pat, chunk: fromServer ? refine(pat.chunk) : (pat.chunk.parts.isEmpty ? nil : pat.chunk),
+                             headword: headword, target: target, number: i + 1, units: units(for: pat.example.zh))
             }
             if posColors { legend }
         }
@@ -59,7 +57,7 @@ struct PatternsCardContent: View {
     /// The kinds of block in every formula shown, in their colours. The legend wraps between its items, never inside
     /// one (owner 2026-10-15: under the English UI the labels broke into cramped lines).
     private var legend: some View {
-        let parts = patterns.map(\.chunk).flatMap(\.parts) + chunks.flatMap(\.parts)
+        let parts = shown.map(\.chunk).flatMap(\.parts)
         let kinds = Set(parts.map { ChunkKind(pos: $0.pos) })
         return FlowRow(spacing: 12) {
             ForEach(ChunkKind.allCases.filter { kinds.contains($0) }, id: \.self) { k in
@@ -86,6 +84,8 @@ struct PatternBlock: View {
     let chunk: UsageChunk?
     let headword: String
     let target: String
+    /// Its place in the card (1-based): ①②③ before the scene (owner 2026-10-23 evening), most used first. 0: none.
+    var number: Int = 0
     /// The example's reading of each character; nil: the sentence alone.
     var units: [SentenceUnit]? = nil
     @State private var showNote = false
@@ -93,7 +93,13 @@ struct PatternBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if !pattern.scene.isEmpty {
-                PatternSceneTag(text: pattern.scene)  // lang-ok: ReaderLanguage.clean (usagePatterns)
+                PatternSceneTag(text: pattern.scene, number: number)  // lang-ok: ReaderLanguage.clean (usagePatterns)
+            } else if number > 0 {
+                // No scene (an older card's formula no sentence holds): the number stands alone over the formula.
+                Text(ChunkRules.circledNumber(number))
+                    .scaledFont(size: 15, weight: .bold)
+                    .foregroundStyle(Theme.primaryInk)
+                    .accessibilityLabel(String(number))
             }
             if let chunk {
                 ChunkLineView(chunk: chunk, headword: headword, target: target)
@@ -148,11 +154,19 @@ struct PatternBlock: View {
 /// The situation a formula is said in: a short line in the reader's language in a pale blue label with a speech bubble.
 struct PatternSceneTag: View {
     let text: String
+    /// ①②③…: the pattern's place, most used first; 0 for none.
+    var number: Int = 0
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "bubble.left")
-                .scaledFont(size: 12, weight: .semibold)
+            if number > 0 {
+                Text(ChunkRules.circledNumber(number))
+                    .scaledFont(size: 15, weight: .bold)
+                    .accessibilityLabel(String(number))
+            } else {
+                Image(systemName: "bubble.left")
+                    .scaledFont(size: 12, weight: .semibold)
+            }
             Text(text)
                 .scaledFont(size: 13, weight: .semibold)
                 .fixedSize(horizontal: false, vertical: true)
