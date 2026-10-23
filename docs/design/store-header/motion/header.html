@@ -84,7 +84,7 @@ function zyDraw(units, x, y, size, opts = {}) {
   const { cell } = zyCell(size); let cx = x - zyWidth(units, size) / 2;
   units.forEach(u => { zyChar(u, cx, y, size, opts); cx += cell; });
 }
-const PICK = { h: '珍奶', u: Z('珍奶', 'ㄓㄣ ㄋㄞˇ') };    // the word the learner chooses (v6: the one heard when ordering)
+const PICK = { h: '珍珠奶茶', u: Z('珍珠奶茶', 'ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ') };   // the word caught (owner 2026-10-23: 珍珠奶茶, not 珍奶)
 
 // ---------- assets ----------
 const A = {}; let O = null;
@@ -107,7 +107,7 @@ const FOUND = Math.max(T_NAMES, CLOSE_R(0));
 const TAG = k => Math.max(FOUND + .14 + .13 * k, CLOSE_R(k) + .1);
 const T_TAP = TAG(ORDER.length - 1) + .95;
 // v6 (concepts6.js getTimes, without the choice list: the header goes straight from the tap to the word)
-const C = T_TAP + .22, CUT = C + .9, G = C + 1.25, CH = [G + .04, G + .23], MEAN = C + 1.75, CATCHT = C + 1.92;
+const C = T_TAP + .22, CUT = C + .9, G = C + 1.25, CH = [G + .04, G + .23, G + .42, G + .61], MEAN = C + 1.95, CATCHT = C + 2.1;
 const D0 = CATCHT + 1.75, LAUNCH = D0 + .5, ARRIVE = D0 + .92, BACK = ARRIVE + 1.45, END = BACK + .85;
 
 // ---------- the camera: a slow push towards the cup; back to 1 at the end so the loop closes ----------
@@ -330,7 +330,7 @@ function wordPop(t, x, y, size) {
 
 // ---------- the 図鑑: the 飲み物 card (the app's DexGallery: white card, a 4-col grid there; here one row of six) ----------
 const SLOTS = [
-  { no: 1, h: '珍奶', zy: 'ㄓㄣ ㄋㄞˇ', sil: 'cup', target: true },
+  { no: 1, h: '珍珠奶茶', zy: 'ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ', sil: 'cup', target: true },
   { no: 2, img: 'coffee', h: '咖啡', zy: 'ㄎㄚ ㄈㄟ' }, { no: 3, img: 'oolong', h: '茶', zy: 'ㄔㄚˊ' },
   { no: 4, img: 'juice', h: '果汁', zy: 'ㄍㄨㄛˇ ㄓ' }, { no: 104, img: 'soymilk', h: '豆漿', zy: 'ㄉㄡˋ ㄐㄧㄤ' },
   { no: 117, img: 'cola', h: '可樂', zy: 'ㄎㄜˇ ㄌㄜˋ' },
@@ -421,7 +421,7 @@ function draw(f) {
   const textA = 1 - E.inOutCubic(seg(t, D0 - .35, D0 - .05));
   if (t > C && textA > 0) {
     ctx.save(); ctx.globalAlpha = textA;
-    const WX = 2230, HX = W / 2;
+    const WX = 2200, HX = W / 2;
     const hp = seg(t, CATCHT, CATCHT + .4);
     if (hp > 0) {
       const k = lerp(.6, 1, E.outBack(hp, 2.6)); ctx.save(); ctx.globalAlpha *= clamp(hp * 4); ctx.translate(HX, 570); ctx.scale(k, k); ctx.translate(-HX, -570);
@@ -437,8 +437,8 @@ function draw(f) {
       rr(lx, 724, 130, 54, 27); ctx.fillStyle = BLUE; ctx.fill(); text('NEW', lx + 65, 762, { w: 800, size: 28, f: FONT_UI, color: '#fff', ls: 2 });
       text(L.no1, lx + 148, 763, { w: 600, size: 34, color: MUTED, align: 'left' }); ctx.restore();
     }
-    const total = wordPop(t, WX - 50, 985, 180);
-    speakerBtn(WX - 50 + total / 2 + 110, 922, 46 * PT * .9, t, G, E.outCubic(seg(t, G - .1, G + .15)));
+    const total = wordPop(t, WX - 50, 975, 150);
+    speakerBtn(WX - 50 + total / 2 + 100, 922, 46 * PT * .9, t, G, E.outCubic(seg(t, G - .1, G + .15)));
     text(L.word, WX, 1085, { w: 500, size: 52, color: MUTED, alpha: E.outCubic(seg(t, MEAN, MEAN + .3)) });
     ctx.restore();
   }
