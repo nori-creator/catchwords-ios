@@ -36,10 +36,15 @@ for attempt in 1 2 3 4 5; do
     tree="$(git write-tree)" || exit 1
     if [ -n "$old" ] && [ "$tree" = "$(git rev-parse "$old^{tree}")" ]; then exit 0; fi   # nothing changed
     commit="$(git -c user.name="ci-previews" -c user.email="ci-previews@users.noreply.github.com" commit-tree "$tree" -m "$msg")" || exit 1
+    # The push must not go looking for the branch's old pictures (none are in this clone): with delta compression
+    # git fetched them one by one as delta bases and GitHub cut the request off with HTTP 408 (PR #3, 2026-10-23).
+    # No lazy fetch, no deltas, no thin pack: only this run's files are sent, as they are.
+    export GIT_NO_LAZY_FETCH=1
+    pushcfg=(-c pack.window=0 -c pack.depth=0 -c http.postBuffer=524288000)
     if [ -n "$old" ]; then
-      git push --quiet --force-with-lease="refs/heads/ci-previews:$old" origin "$commit:refs/heads/ci-previews"
+      git "${pushcfg[@]}" push --quiet --no-thin --force-with-lease="refs/heads/ci-previews:$old" origin "$commit:refs/heads/ci-previews"
     else
-      git push --quiet origin "$commit:refs/heads/ci-previews"
+      git "${pushcfg[@]}" push --quiet --no-thin origin "$commit:refs/heads/ci-previews"
     fi
   ) && { rm -rf "$work"; exit 0; }
   rm -rf "$work"

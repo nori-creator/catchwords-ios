@@ -1949,7 +1949,7 @@ enum ChunkKind: CaseIterable, Hashable {
     var ink: Color {
         switch self {
         case .noun: Theme.primary
-        case .verb: Color(hex: 0xE5484D)
+        case .verb: Color(hex: 0xFF3B30)  // vivid (owner 2026-10-23 evening), near iOS systemRed
         case .stative: Color(hex: 0x2FA84F)
         case .adverb: Color(hex: 0xA08A2E)
         case .particle: Color(hex: 0x7C8798)
