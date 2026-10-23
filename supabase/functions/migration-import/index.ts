@@ -25,6 +25,8 @@ const CONFLICT: Record<string, string> = {
   // A test sign-in on the new app already cached a few headwords: the old row (same word) takes its place.
   dictionary_entries: "language,headword,entry_type",
   review_choices: "word_id",
+  // Inserting a sticker creates a fresh review (`stickers_create_review`); the old one, with its schedule, replaces it.
+  reviews: "user_id,sticker_id",
   apple_tokens: "user_id",
 };
 
