@@ -20,8 +20,12 @@
 </style>
 <canvas id="c" width="3840" height="1646"></canvas>
 <script>
-const W = 3840, H = 1646, FPS = 30, DUR = 12, N = DUR * FPS;
+const W = 3840, H = 1646, FPS = 30, DUR = 12, N = DUR * FPS;          // the layout space: the 21:9 header
 const q = new URLSearchParams(location.search), LANG = q.get('lang') || 'ja';
+// ?fmt=search: the search results asset (3:2, 2880×1920). The same layout, cut from its middle (x 686–3155, the
+// cup, the scooter and the chalkboard) and drawn 1.17× larger, so the tags and words read bigger in the small card.
+const FMT = q.get('fmt') === 'search' ? { cw: 2880, ch: 1920, x0: 686 } : { cw: W, ch: H, x0: 0 };
+FMT.k = FMT.ch / H;
 // 画面の文字（アプリの strings.json の訳と同じ）。タグの意味・ことばの意味もこの言語
 const L = {
   ja: { scan: '写真をスキャンしています', tap: '覚えたいことばをタップ', caught: '新しいことばをキャッチ！', cat: '飲み物',
@@ -34,7 +38,7 @@ const FONT_TC = '"Noto Sans TC", "Noto Sans JP", sans-serif', FONT_UI = 'Inter, 
 const BLUE = '#0083FF', BLUE2 = '#2A9BFF', INK = '#0B121A', MUTED = '#5C646F', BG_APP = '#F9FCFF', LOCKED = '#6CC8FF';
 const PT = 2.0;                                           // アプリの 1px（1080 幅の画面）→ この絵
 
-const c = document.getElementById('c'), ctx = c.getContext('2d');
+const c = document.getElementById('c'); c.width = FMT.cw; c.height = FMT.ch; const ctx = c.getContext('2d');
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x)), lerp = (a, b, u) => a + (b - a) * u;
 const seg = (t, a, b) => clamp((t - a) / (b - a));
 const E = {
@@ -139,9 +143,9 @@ function appBackdrop(melt, sx, sy) {
 // ---------- v10: the screen edge glows from the shutter until the names are in ----------
 function edgeGlow(t) {
   const a = E.outCubic(seg(t, T_CAP, T_CAP + .3)) * (1 - seg(t, FOUND + .2, FOUND + .7)); if (a <= 0) return;
-  ctx.save(); ctx.globalAlpha = a * (.75 + .25 * Math.sin(t * 3.2));
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = a * (.75 + .25 * Math.sin(t * 3.2));
   for (const [w, al] of [[90, .22], [36, .35], [10, .8]]) {
-    ctx.strokeStyle = `rgba(80,170,255,${al})`; ctx.lineWidth = w; ctx.filter = `blur(${w / 2}px)`; ctx.strokeRect(0, 0, W, H);
+    ctx.strokeStyle = `rgba(80,170,255,${al})`; ctx.lineWidth = w; ctx.filter = `blur(${w / 2}px)`; ctx.strokeRect(0, 0, FMT.cw, FMT.ch);
   }
   ctx.restore();
 }
@@ -383,6 +387,7 @@ function newBadge(t, dy) {                               // NEW pops on the slot
 const STAGE = [1480, 905];                               // where the sticker floats on the catch (left of the word)
 function draw(f) {
   const t = f / FPS;
+  ctx.setTransform(FMT.k, 0, 0, FMT.k, -FMT.x0 * FMT.k, 0);
   const melt = E.inOutCubic(seg(t, C + .05, C + .6)) * (1 - E.inOutCubic(seg(t, BACK, END)));
   photo(t, melt);
   appBackdrop(melt, STAGE[0], STAGE[1]);
@@ -442,7 +447,8 @@ function draw(f) {
     text(L.word, WX, 1085, { w: 500, size: 52, color: MUTED, alpha: E.outCubic(seg(t, MEAN, MEAN + .3)) });
     ctx.restore();
   }
-  if (q.has('safe')) { ctx.save(); ctx.strokeStyle = 'rgba(255,0,0,0.8)'; ctx.lineWidth = 4; ctx.setLineDash([20, 14]); ctx.strokeRect(1097, 493, 1646, 661); ctx.restore(); }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (q.has('safe') && FMT.x0 === 0) { ctx.save(); ctx.strokeStyle = 'rgba(255,0,0,0.8)'; ctx.lineWidth = 4; ctx.setLineDash([20, 14]); ctx.strokeRect(1097, 493, 1646, 661); ctx.restore(); }
 }
 window.renderFrame = f => draw(f);
 window.ready = (async () => {
