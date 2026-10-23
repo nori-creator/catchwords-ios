@@ -66,6 +66,11 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     var registerTag: String?
     var sceneWeights: [String: Double]?
     var usageChunks: [UsageChunk]?
+    /// 「使い方パターン」(server `usage_patterns`, owner 2026-10-23): scene + formula + example as one unit, most used first.
+    /// nil on cards made before — the page then draws the examples and the chunks it has, the old way.
+    var usagePatterns: [UsagePattern]?
+    /// The version of the way the patterns were written (`usage_v`; nil on older cards).
+    var usageV: Int?
     var usageContext: String?
     var mnemonic: String?
     var measureWords: [MeasureWord]?
@@ -79,6 +84,9 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
     /// The sentence `exampleScene` was written for (server PR #182, 2026-10-15; absent on older cards). The label is
     /// shown only over that very sentence (`shownExampleScene(for:)`).
     var exampleSceneFor: String?
+    /// The main example cut into words (server `example_chunks`, only when it is that very sentence's); the page never
+    /// breaks a line inside one. nil on older cards.
+    var exampleChunks: [ChunkPart]?
     /// The version of the way the examples were written (server PR #182; nil on older cards).
     var exampleV: Int?
     /// How many usage patterns the word has (1–4; nil on older cards). 1 = it is used in one situation only: no
@@ -130,6 +138,7 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         case examplesExtra = "examples_extra"
         case exampleScene = "example_scene"
         case exampleSceneFor = "example_scene_for"
+        case exampleChunks = "example_chunks"
         case exampleV = "example_v"
         case examplePatternCount = "example_pattern_count"
         case pronunciationTips = "pronunciation_tips"
@@ -142,6 +151,8 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         case registerTag = "register_tag"
         case sceneWeights = "scene_weights"
         case usageChunks = "usage_chunks"
+        case usagePatterns = "usage_patterns"
+        case usageV = "usage_v"
         case usageContext = "usage_context"
         case measureWords = "measure_words"
         case imageQuery = "image_query"
@@ -168,6 +179,8 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         registerTag = (try? c.decodeIfPresent(String.self, forKey: .registerTag)).flatMap { $0 }
         sceneWeights = (try? c.decodeIfPresent([String: Double].self, forKey: .sceneWeights)).flatMap { $0 }
         usageChunks = (try? c.decodeIfPresent([UsageChunk].self, forKey: .usageChunks)).flatMap { $0 }
+        usagePatterns = (try? c.decodeIfPresent([UsagePattern].self, forKey: .usagePatterns)).flatMap { $0 }?.filter(\.hasContent)
+        usageV = Self.lenientInt(c, .usageV)
         usageContext = (try? c.decodeIfPresent(String.self, forKey: .usageContext)).flatMap { $0 }
         mnemonic = (try? c.decodeIfPresent(String.self, forKey: .mnemonic)).flatMap { $0 }
         measureWords = (try? c.decodeIfPresent([MeasureWord].self, forKey: .measureWords)).flatMap { $0 }
@@ -178,6 +191,7 @@ nonisolated struct WordExtras: Codable, Sendable, Hashable {
         examplesExtra = (try? c.decodeIfPresent([ExampleExtra].self, forKey: .examplesExtra)).flatMap { $0 }
         exampleScene = (try? c.decodeIfPresent(String.self, forKey: .exampleScene)).flatMap { $0 }
         exampleSceneFor = (try? c.decodeIfPresent(String.self, forKey: .exampleSceneFor)).flatMap { $0 }
+        exampleChunks = (try? c.decodeIfPresent([ChunkPart].self, forKey: .exampleChunks)).flatMap { $0 }
         exampleV = Self.lenientInt(c, .exampleV)
         examplePatternCount = Self.lenientInt(c, .examplePatternCount)
         pronunciationTips = (try? c.decodeIfPresent(String.self, forKey: .pronunciationTips)).flatMap { $0 }
@@ -288,17 +302,20 @@ nonisolated struct ExampleExtra: Codable, Sendable, Hashable {
     var ja: String
     var scene: String
     var sceneFor: String = ""
+    /// The sentence cut into words (server `chunks`; empty on older rows): the page never breaks a line inside one.
+    var chunks: [ChunkPart] = []
 
     enum CodingKeys: String, CodingKey {
-        case zh, ja, scene
+        case zh, ja, scene, chunks
         case sceneFor = "scene_for"
     }
 
-    init(zh: String, ja: String = "", scene: String = "", sceneFor: String = "") {
+    init(zh: String, ja: String = "", scene: String = "", sceneFor: String = "", chunks: [ChunkPart] = []) {
         self.zh = zh
         self.ja = ja
         self.scene = scene
         self.sceneFor = sceneFor
+        self.chunks = chunks
     }
 
     init(from decoder: Decoder) throws {
@@ -307,6 +324,7 @@ nonisolated struct ExampleExtra: Codable, Sendable, Hashable {
         ja = (try? c.decode(String.self, forKey: .ja)) ?? ""
         scene = (try? c.decode(String.self, forKey: .scene)) ?? ""
         sceneFor = (try? c.decode(String.self, forKey: .sceneFor)) ?? ""
+        chunks = (try? c.decode([ChunkPart].self, forKey: .chunks)) ?? []
     }
 
     /// The label over this sentence: only when it was written for this very sentence (spaces and punctuation aside),
@@ -326,6 +344,8 @@ nonisolated struct ExampleItem: Hashable, Sendable {
     let sentence: String
     let translation: String?
     let scene: String?
+    /// The sentence's words (server `example_chunks` / `chunks`, only when they are this sentence's), for the line breaks.
+    var words: [String] = []
 
     /// Every example to show, the main one first. With one usage pattern (`example_pattern_count` 1) only the main
     /// example; an extra one not in the learning language, or the main sentence again, is left out.
@@ -334,14 +354,17 @@ nonisolated struct ExampleItem: Hashable, Sendable {
         var seen = Set<String>()
         let main = (sentence ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !main.isEmpty, main.isIn(target: target) {
-            out.append(ExampleItem(sentence: main, translation: translation, scene: extras?.shownExampleScene(for: main)))
+            let cut = extras?.exampleChunks ?? []
+            out.append(ExampleItem(sentence: main, translation: translation, scene: extras?.shownExampleScene(for: main),
+                                   words: cut.map(\.text).joined() == main ? cut.map(\.text) : []))
             seen.insert(WordExtras.sceneMatchKey(main))
         }
         guard extras?.examplesExtraComplete != true else { return out }
         for x in extras?.examplesExtra ?? [] {
             let zh = x.zh.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !zh.isEmpty, zh.isIn(target: target), seen.insert(WordExtras.sceneMatchKey(zh)).inserted else { continue }
-            out.append(ExampleItem(sentence: zh, translation: x.ja.isEmpty ? nil : x.ja, scene: x.shownScene))
+            out.append(ExampleItem(sentence: zh, translation: x.ja.isEmpty ? nil : x.ja, scene: x.shownScene,
+                                   words: x.chunks.map(\.text).joined() == zh ? x.chunks.map(\.text) : []))
         }
         return out
     }

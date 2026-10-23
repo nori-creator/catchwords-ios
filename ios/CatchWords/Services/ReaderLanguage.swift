@@ -104,7 +104,7 @@ nonisolated enum ReaderLanguage {
         /// web `hasExtrasContent`: anything beyond the language marks.
         var hasContent: Bool {
             guard let e = extras else { return false }
-            let lists: [Int] = [e.usageChunks?.count ?? 0, e.examplesExtra?.count ?? 0, e.measureWords?.count ?? 0,
+            let lists: [Int] = [e.usageChunks?.count ?? 0, e.usagePatterns?.count ?? 0, e.examplesExtra?.count ?? 0, e.measureWords?.count ?? 0,
                                 e.relatedWords?.count ?? 0, e.synonyms?.count ?? 0, e.antonyms?.count ?? 0,
                                 e.phrasalVerbs?.count ?? 0, e.kanjiBreakdown?.count ?? 0, e.conjugation?.count ?? 0,
                                 e.counters?.count ?? 0]
@@ -214,6 +214,21 @@ nonisolated enum ReaderLanguage {
                 return p
             }
             return c
+        }
+        // A pattern's scene, note, translation and its formula's meanings are the reader's (R26); its sentence stays.
+        e.usagePatterns = e.usagePatterns?.map { pat in
+            var pat = pat
+            if drop(pat.scene, nil, false) { pat.scene = "" }
+            if drop(pat.note, nil, false) { pat.note = "" }
+            if drop(pat.example.ja, pat.example.zh, false) { pat.example.ja = "" }
+            if drop(pat.chunk.ja, nil, false) { pat.chunk.ja = "" }
+            pat.chunk.parts = pat.chunk.parts.map { p in
+                var p = p
+                if let j = p.ja, drop(j, nil, true) { p.ja = nil }
+                p.alts = p.alts?.map { a in drop(a.ja, nil, true) ? ChunkAlt(text: a.text, ja: "", pinyin: a.pinyin, zhuyin: a.zhuyin) : a }
+                return p
+            }
+            return pat
         }
         e.measureWords = e.measureWords?.map { m in
             var m = m

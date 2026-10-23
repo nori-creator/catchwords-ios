@@ -137,6 +137,9 @@ struct ZhuyinWordView: View {
     /// Readings in the headword's proportion at every size, as on the word page (no minimum size): the home tags
     /// (owner 2026-10-20: the small tag's reading came out as big as its characters).
     var proportionalReading: Bool = false
+    /// The zhuyin symbols' size as a proportion of the character (0.3 like the headword; the formula blocks of
+    /// 「使い方パターン」 use 0.36 — owner 2026-10-23 evening's review: 「注音が小さすぎて漢字との対応が追いにくい」).
+    var zhuyinScale: CGFloat = 0.3
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
     /// Japanese reading: "kana" (furigana, default) or "romaji". Kept apart from the Mandarin choice.
     @AppStorage("reading.ja") private var readingJa: String = "kana"
@@ -255,7 +258,7 @@ struct ZhuyinWordView: View {
     }
 
     private func column(_ u: ZhuyinUnit, size: CGFloat) -> some View {
-        ZhuyinColumn(unit: u, size: reading(size * 0.3, floor: 7), color: readingColor)
+        ZhuyinColumn(unit: u, size: reading(size * zhuyinScale, floor: 7), color: readingColor)
     }
 }
 
@@ -294,18 +297,67 @@ struct SentenceRuby: View {
     let headword: String
     /// The characters' size.
     let size: CGFloat
+    /// The formula's run in the sentence (docs/chunk-rules.md C19, owner 2026-10-23): drawn in the blue too, with the word.
+    var span: String? = nil
+    /// The sentence's words (server `chunks`): the line never breaks inside one (owner 2026-10-23: 「水完全沖不下 / 去！」).
+    var words: [String] = []
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
 
+    /// The characters drawn in the blue: the headword's, and the formula's.
+    private var markedIndexes: Set<Int> {
+        let chars = units.map(\.char)
+        var out = Self.marked(chars, headword: headword)
+        if let span, !span.isEmpty { out.formUnion(Self.marked(chars, headword: span)) }
+        return out
+    }
+
     var body: some View {
-        let marked = Self.marked(units.map(\.char), headword: headword)
+        let marked = markedIndexes
         let pinyin = readingPref == "pinyin"
-        FlowRow(spacing: size * (pinyin ? 0.05 : 0.06), alignment: .center) {
-            ForEach(Array(units.enumerated()), id: \.offset) { i, u in
-                unit(u, marked: marked.contains(i), pinyin: pinyin)
+        let gap = size * (pinyin ? 0.05 : 0.06)
+        FlowRow(spacing: gap, alignment: .center) {
+            ForEach(Array(Self.groups(units.map(\.char), words: words).enumerated()), id: \.offset) { _, group in
+                HStack(alignment: .center, spacing: gap) {
+                    ForEach(group, id: \.self) { i in
+                        unit(units[i], marked: marked.contains(i), pinyin: pinyin)
+                    }
+                }
             }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(units.map(\.char).joined())
+    }
+
+    /// The runs of characters that stay on one line: each occurrence of each of `words` (longest first, so 馬桶刷 is kept
+    /// before 馬桶), every other character on its own. Pure, so ChunkReadingTests checks it.
+    nonisolated static func groups(_ chars: [String], words: [String]) -> [[Int]] {
+        guard chars.count > 1 else { return chars.indices.map { [$0] } }
+        var joined = [Bool](repeating: false, count: chars.count)
+        let wordChars = words.map { Array($0.trimmingCharacters(in: .whitespaces)).map(String.init) }
+            .filter { $0.count > 1 }
+            .sorted { $0.count > $1.count }
+        for w in wordChars {
+            var i = 0
+            while i + w.count <= chars.count {
+                if Array(chars[i..<(i + w.count)]) == w {
+                    for k in i..<(i + w.count - 1) { joined[k] = true }
+                    i += w.count
+                } else {
+                    i += 1
+                }
+            }
+        }
+        var out: [[Int]] = []
+        var run: [Int] = []
+        for i in chars.indices {
+            run.append(i)
+            if !joined[i] {
+                out.append(run)
+                run = []
+            }
+        }
+        if !run.isEmpty { out.append(run) }
+        return out
     }
 
     @ViewBuilder

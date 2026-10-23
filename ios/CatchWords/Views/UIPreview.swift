@@ -29,7 +29,7 @@ enum UIPreview {
             parts.removeLast()
         }
         L10n.lang = lang
-        for key in ["reading.pref", DevChoices.tabBarKey] + DevChoices.retiredKeys {
+        for key in ["reading.pref", "chunk.posColors", DevChoices.tabBarKey] + DevChoices.retiredKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
         return (parts.joined(separator: "-"), dark)
@@ -120,6 +120,10 @@ struct UIPreviewRoot: View {
             case "selfie-original": SelfieDetailPreview(original: true)
             case "slides": SlidesPreview()
             case "chunks": ChunkWheelPreview()
+            // 「使い方パターン」 (owner 2026-10-23): 馬桶 with three patterns, zhuyin / pinyin / the parts of speech on.
+            case "patterns": PatternsPreview(pref: "zhuyin", pos: false)
+            case "patterns-pinyin": PatternsPreview(pref: "pinyin", pos: false)
+            case "patterns-pos": PatternsPreview(pref: "zhuyin", pos: true)
             case "jadetail": LanguageCardPreview(kind: .ja)
             case "quiz": ReviewPreview(learning: "zh-TW", answered: false)
             case "answer": ReviewPreview(learning: "zh-TW", answered: true)
@@ -717,22 +721,25 @@ private struct CarouselPreview: View {
 /// The word page's chunk / measure-word / related-word cards (web WordCard look), scrolled to the chunks.
 private struct DetailPreview: View {
     /// The same word as each display language's reader would get it (notes written in their language).
-    private static var notes: (meaning: String, translation: String, chunks: [String], measure: String, related: [String]) {
+    private static var notes: (meaning: String, translation: String, chunks: [String], places: [String], measure: String, related: [String]) {
         switch L10n.lang {
         case "en":
             return ("teppan noodles", "I want teppan noodles for breakfast.",
                     ["teppan noodles with mushroom sauce", "teppan noodles with black pepper sauce", "order teppan noodles"],
+                    ["a breakfast shop", "a night market", "the school cafeteria", "a convenience store"],
                     "one serving (the most common measure word for dishes)",
                     ["Ordinary stir-fried noodles. 鐵板麵 is served sizzling on an iron plate with sauce poured over.",
                      "Pasta. 鐵板麵 is cheaper — a light meal sold at breakfast shops."])
         case "zh-TW":
             return ("鐵板上淋醬的麵", "",
                     ["蘑菇醬的鐵板麵", "黑胡椒醬的鐵板麵", "點一份鐵板麵"],
+                    ["早餐店", "夜市", "學校餐廳", "便利商店"],
                     "一盤的量（數餐點最常用的量詞）",
                     ["一般的炒麵。鐵板麵是放在熱鐵板上再淋醬。", "比義大利麵便宜，是早餐店的輕食。"])
         default:
             return ("鉄板焼きそば", "朝ごはんに鉄板焼きそばが食べたい。",
                     ["マッシュルームソースの鉄板焼きそば", "黒胡椒ソースの鉄板焼きそば", "鉄板焼きそばを注文する"],
+                    ["朝ごはんの店", "夜市", "学食", "コンビニ"],
                     "一皿分（料理を数える際の最も一般的な量詞）",
                     ["一般的な炒め麺。鐵板麵は鉄板の上でソースをかけて調理する点が異なる。",
                      "パスタ。鐵板麵はパスタより安価で、朝食店で提供される軽食という位置づけ。"])
@@ -799,7 +806,12 @@ private struct DetailPreview: View {
                     ["parts": [["text": "點", "pos": "V"], ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[2]],
                     // Every kind of block, so the legend under the chunks shows all five (owner 2026-10-15: the English
                     // legend wrapped inside its labels).
-                    ["parts": [["text": "在", "pos": "P"], ["text": "早餐店", "pos": "N"], ["text": "點", "pos": "V"], ["text": "鐵板麵", "pos": "N"]],
+                    // 早餐店 is swappable (C5: another place changes where it is ordered) — ChunkWheelTests opens the wheel
+                    // on it. (蘑菇＋鐵板麵 is one word by C7, so its blocks are not buttons.)
+                    ["parts": [["text": "在", "pos": "P"],
+                               ["text": "早餐店", "pos": "N", "slot": true, "ja": n.places[0],
+                                "alts": [["text": "夜市", "ja": n.places[1]], ["text": "學校餐廳", "ja": n.places[2]], ["text": "便利商店", "ja": n.places[3]]]],
+                               ["text": "點", "pos": "V"], ["text": "鐵板麵", "pos": "N"]],
                      "ja": L10n.lang == "en" ? "order teppan noodles at a breakfast shop" : L10n.lang == "zh-TW" ? "在早餐店點鐵板麵" : "朝ごはんの店で鉄板焼きそばを注文する"],
                     ["parts": [["text": "鐵板麵", "pos": "N"], ["text": "很", "pos": "Adv"], ["text": "香", "pos": "Vs"]],
                      "ja": L10n.lang == "en" ? "teppan noodles smell great" : L10n.lang == "zh-TW" ? "鐵板麵很香" : "鉄板焼きそばはいい香り"],
@@ -1524,6 +1536,85 @@ private struct CameraBlockedPreview: View {
                           buttonTitle: L("設定を開く")) {}
             .ignoresSafeArea()
             .denseTypeSizeCap()  // as inside CaptureView
+    }
+}
+
+/// The word page of 馬桶 scrolled to 「使い方パターン」 (`-uiPreview patterns`, owner 2026-10-23): three patterns as the server
+/// writes them (`usage_patterns`: scene, formula with readings and one swappable block, example cut into words, note),
+/// through the same reader-language filter as real cards.
+private struct PatternsPreview: View {
+    init(pref: String, pos: Bool) {
+        UserDefaults.standard.set(pref, forKey: "reading.pref")
+        UserDefaults.standard.set(pos, forKey: "chunk.posColors")
+    }
+
+    private static func pick(_ ja: String, _ en: String, _ zh: String) -> String {
+        L10n.lang == "en" ? en : L10n.lang == "zh-TW" ? zh : ja
+    }
+
+    private static func part(_ text: String, _ pos: String, _ pinyin: String, _ zhuyin: String, ja: String = "",
+                             alts: [[String: Any]]? = nil) -> [String: Any] {
+        var p: [String: Any] = ["text": text, "pos": pos, "pinyin": pinyin, "zhuyin": zhuyin]
+        if !ja.isEmpty { p["ja"] = ja }
+        if let alts { p["slot"] = true; p["alts"] = alts }
+        return p
+    }
+
+    private static var sticker: Sticker {
+        let matong = part("馬桶", "N", "mǎ tǒng", "ㄇㄚˇ ㄊㄨㄥˇ", ja: pick("トイレ", "the toilet", "馬桶"))
+        let patterns: [[String: Any]] = [
+            ["kind": "state", "share": 45,
+             "scene": pick("トイレが詰まった・流れない時", "When the toilet is clogged or won't flush", "馬桶堵住、沖不下去的時候"),
+             "chunk": ["parts": [matong,
+                                 part("塞住了", "V", "sāi zhù le", "ㄙㄞ ㄓㄨˋ ˙ㄌㄜ", ja: pick("詰まった", "is clogged", "塞住了"),
+                                      alts: [["text": "不通", "ja": pick("流れない", "won't drain", "不通"), "pinyin": "bù tōng", "zhuyin": "ㄅㄨˋ ㄊㄨㄥ"],
+                                             ["text": "壞了", "ja": pick("壊れた", "is broken", "壞了"), "pinyin": "huài le", "zhuyin": "ㄏㄨㄞˋ ˙ㄌㄜ"]])],
+                       "ja": pick("トイレが詰まった", "the toilet is clogged", "馬桶塞住了")],
+             "example": ["zh": "糟糕，馬桶塞住了，水完全沖不下去！",
+                         "ja": pick("やばい、トイレが詰まって水が全然流れない！", "Oh no, the toilet's clogged and the water won't go down at all!", ""),
+                         "chunk_in_example": true,
+                         "chunks": [["text": "糟糕", "pos": "Vs"], ["text": "，", "pos": "Ptc"], ["text": "馬桶", "pos": "N"], ["text": "塞住了", "pos": "V"],
+                                    ["text": "，", "pos": "Ptc"], ["text": "水", "pos": "N"], ["text": "完全", "pos": "Adv"], ["text": "沖不下去", "pos": "V"],
+                                    ["text": "！", "pos": "Ptc"]]],
+             "note": pick("塞住了は詰まって動かない状態。水が流れないだけなら不通、壊れて使えないなら壞了。",
+                          "塞住了 is stuck and not moving. If it just won't drain, 不通; if it is broken, 壞了.", "")],
+            ["kind": "action", "share": 35, "scene": pick("トイレを使った後", "After using the toilet", "上完廁所之後"),
+             "chunk": ["parts": [part("沖", "V", "chōng", "ㄔㄨㄥ", ja: pick("水を流す", "flush", "沖")), matong],
+                       "ja": pick("トイレの水を流す", "flush the toilet", "沖馬桶")],
+             "example": ["zh": "上完記得沖馬桶喔！", "ja": pick("使ったら流すのを忘れないでね！", "Remember to flush after you go!", ""),
+                         "chunk_in_example": true,
+                         "chunks": [["text": "上完", "pos": "V"], ["text": "記得", "pos": "V"], ["text": "沖", "pos": "V"], ["text": "馬桶", "pos": "N"], ["text": "喔", "pos": "Ptc"], ["text": "！", "pos": "Ptc"]]],
+             "note": ""],
+            ["kind": "action", "share": 20, "scene": pick("トイレを掃除する時", "When cleaning the toilet", "刷馬桶的時候"),
+             "chunk": ["parts": [part("刷", "V", "shuā", "ㄕㄨㄚ", ja: pick("掃除する", "scrub", "刷")), matong],
+                       "ja": pick("トイレを掃除する", "scrub the toilet", "刷馬桶")],
+             "example": ["zh": "週末我來刷馬桶，你掃地。",
+                         "ja": pick("週末は私がトイレを掃除するから、あなたは床を掃いて。", "This weekend I'll scrub the toilet; you sweep the floor.", ""),
+                         "chunk_in_example": true,
+                         "chunks": [["text": "週末", "pos": "N"], ["text": "我", "pos": "N"], ["text": "來", "pos": "V"], ["text": "刷", "pos": "V"], ["text": "馬桶", "pos": "N"],
+                                    ["text": "，", "pos": "Ptc"], ["text": "你", "pos": "N"], ["text": "掃地", "pos": "V"], ["text": "。", "pos": "Ptc"]]],
+             "note": ""],
+        ]
+        let obj: [String: Any] = [
+            "id": "w-matong", "headword": "馬桶", "language": "zh-TW", "reading_zhuyin": "ㄇㄚˇ ㄊㄨㄥˇ", "pinyin": "mǎtǒng",
+            "meaning_ja": pick("便器", "toilet (bowl)", "馬桶"), "part_of_speech": "N", "level": "TOCFL-2",
+            "example_sentence": "糟糕，馬桶塞住了，水完全沖不下去！",
+            "example_translation": pick("やばい、トイレが詰まって水が全然流れない！", "Oh no, the toilet's clogged and the water won't go down at all!", ""),
+            "extras": [
+                "explain_lang": L10n.lang, "usage_v": 2, "usage_patterns": patterns,
+                "usage_chunks": patterns.map { $0["chunk"] as Any },
+                "measure_words": [["word": "一個", "zhuyin": "ㄧˊ ˙ㄍㄜ", "pinyin": "yí ge", "note": pick("便器を数える時の量詞。", "The measure word for a toilet.", "")]],
+            ],
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        let word = (try? JSONDecoder().decode(Word.self, from: data))
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
+        return Sticker(id: "patterns", wordId: "w-matong", objectImageUrl: nil, cutoutImageUrl: nil, selfieImageUrl: nil,
+                       caption: nil, locationName: nil, takenAt: Date(), captureType: "photo", word: word)
+    }
+
+    var body: some View {
+        WordDetailView(sticker: Self.sticker, previewFocus: .usageChunks)
     }
 }
 

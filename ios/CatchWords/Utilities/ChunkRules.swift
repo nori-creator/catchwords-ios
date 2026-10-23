@@ -98,6 +98,84 @@ nonisolated struct ChunkPart: Codable, Sendable, Hashable {
     }
 }
 
+/// extras.usage_patterns entry (server `usage-patterns.ts`, owner 2026-10-23): one way natives use the word, as one
+/// unit — the general situation it is said in (`scene`), the formula (`chunk`), and a sentence that uses that very
+/// formula (`example`). `kind` (action / state / phrase) is never shown; the server uses it to keep the patterns varied.
+nonisolated struct UsagePattern: Codable, Sendable, Hashable {
+    var kind: String
+    var scene: String
+    /// How often this pattern is the one said (0–100); the server already sorts by it.
+    var share: Double
+    var chunk: UsageChunk
+    var example: PatternExample
+    /// 「このパターンのポイント」: a line or two in the reader's language (nuance, how the swappable words differ). Often empty.
+    var note: String
+
+    enum CodingKeys: String, CodingKey { case kind, scene, share, chunk, example, note }
+
+    init(kind: String = "", scene: String, chunk: UsageChunk, example: PatternExample, note: String = "", share: Double = 0) {
+        self.kind = kind
+        self.scene = scene
+        self.share = share
+        self.chunk = chunk
+        self.example = example
+        self.note = note
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = (try? c.decode(String.self, forKey: .kind)) ?? ""
+        scene = ((try? c.decode(String.self, forKey: .scene)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        share = (try? c.decode(Double.self, forKey: .share)) ?? Double((try? c.decode(String.self, forKey: .share)) ?? "") ?? 0
+        chunk = (try? c.decode(UsageChunk.self, forKey: .chunk)) ?? UsageChunk(parts: [], ja: "")
+        example = (try? c.decode(PatternExample.self, forKey: .example)) ?? PatternExample(zh: "", ja: "")
+        note = ((try? c.decode(String.self, forKey: .note)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Something to draw: a formula with blocks, or a sentence.
+    var hasContent: Bool { !chunk.parts.isEmpty || !example.zh.trimmingCharacters(in: .whitespaces).isEmpty }
+}
+
+/// A pattern's example: the sentence in the learning language and its translation in the reader's language.
+nonisolated struct PatternExample: Codable, Sendable, Hashable {
+    var zh: String
+    var ja: String
+    /// The server found the formula's characters in the sentence (`chunk_in_example`); the page marks them there (C19).
+    var chunkInExample: Bool
+    /// The sentence cut into words (`chunks`, the server's `example_chunks` of this sentence; empty on older rows), so
+    /// the page never breaks a line inside a word (`Sentences.unbreakable`).
+    var chunks: [ChunkPart]
+
+    enum CodingKeys: String, CodingKey {
+        case zh, ja, chunks
+        case chunkInExample = "chunk_in_example"
+    }
+
+    init(zh: String, ja: String, chunkInExample: Bool = false, chunks: [ChunkPart] = []) {
+        self.zh = zh
+        self.ja = ja
+        self.chunkInExample = chunkInExample
+        self.chunks = chunks
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        zh = ((try? c.decode(String.self, forKey: .zh)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        ja = ((try? c.decode(String.self, forKey: .ja)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        chunkInExample = (try? c.decode(Bool.self, forKey: .chunkInExample)) ?? false
+        chunks = (try? c.decode([ChunkPart].self, forKey: .chunks)) ?? []
+    }
+
+    /// The words of the sentence (for the line breaks), when the server cut it.
+    var words: [String] { chunks.map(\.text) }
+}
+
+/// What a block of a formula is to the learner (C18): the word being learned, a word it is used with (what to
+/// remember — drawn boldest), or glue between them (a degree word, 的/了/把, a preposition — drawn faint).
+nonisolated enum ChunkRole: Sendable {
+    case head, partner, frame
+}
+
 nonisolated enum ChunkRules {
     // MARK: - Part kinds
 
@@ -149,22 +227,14 @@ nonisolated enum ChunkRules {
     /// Puts a chunk into the shape it is shown in (docs/chunk-rules.md). Running it twice changes nothing.
     /// - C7: a word natives use as one word (芒果冰) is one block, never 芒果＋冰.
     /// - C8: a Mandarin noun + adjective gets its degree word (滷味＋很＋入味).
-    /// - C5: a degree word can be swapped (很 → 超・非常・有點・蠻).
+    /// The degree word is no longer made swappable here (owner 2026-10-23: 「入れ替え可能が很とか程度を表すものがほとんどに
+    /// なってる」): a block opens the wheel only when the server gave it other words that change the meaning (C5, `isSwappable`).
     static func tidy(_ parts: [ChunkPart], headword: String, target: String, reader: String) -> [ChunkPart] {
         var out = withoutSeparatorParts(parts)
         guard target.hasPrefix("zh") else { return out }
         out = mergeCompounds(out, headword: headword)
         out = withDegree(out)
-        return out.map { p -> ChunkPart in
-            guard isDegree(p), !LanguageRules.mentionsHeadword(p.text, headword: headword, target: target) else { return p }
-            var q = p
-            q.slot = true
-            if (q.ja ?? "").isEmpty { q.ja = degreeGloss(p.text, reader: reader) }
-            if (q.alts ?? []).isEmpty {
-                q.alts = degreeChoices.filter { $0 != p.text }.map { ChunkAlt(text: $0, ja: degreeGloss($0, reader: reader)) }
-            }
-            return q
-        }
+        return out
     }
 
     // MARK: - C14 Separators are not blocks (chunk-grammar.ts withoutSeparatorParts)
@@ -295,15 +365,84 @@ nonisolated enum ChunkRules {
         tidied.count >= 2 || original.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }.count < 2
     }
 
-    /// C2 / C5 / C6: a part opens the wheel only when it is not the word being learned, is a concrete noun,
-    /// a measure word or a degree word, and has other words to offer.
+    /// C2 / C5 / C6 (rewritten 2026-10-23): a part opens the wheel only when it is not the word being learned, the server
+    /// marked it swappable, and it has at least two other words — ones that keep the same formula and change its meaning
+    /// (馬桶＋[塞住了 / 不通 / 壞了], [開 / 關 / 吹]＋電風扇), whatever their part of speech. A degree word (很) and a part
+    /// whose other words are only degree words (超・非常・有點) never open it: 「とても／少し」 is not a different way of using
+    /// the word.
     static func isSwappable(_ p: ChunkPart, headword: String, target: String) -> Bool {
         guard p.slot == true else { return false }
-        let alts = (p.alts ?? []).filter { !$0.text.isEmpty && $0.text != p.text }
-        guard !alts.isEmpty else { return false }
-        if !headword.isEmpty, LanguageRules.mentionsHeadword(p.text, headword: headword, target: target) { return false }
-        if p.pos.trimmingCharacters(in: .whitespaces).isEmpty { return true }
-        return isNoun(p) || isMeasure(p) || (target.hasPrefix("zh") && isDegree(p))
+        let own = p.text.trimmingCharacters(in: .whitespaces)
+        let alts = Set((p.alts ?? []).map { $0.text.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty && $0 != own })
+        guard alts.count >= 2 else { return false }
+        if !headword.isEmpty, LanguageRules.mentionsHeadword(own, headword: headword, target: target) { return false }
+        if target.hasPrefix("zh"), degreeWords.contains(own) || alts.allSatisfy({ degreeWords.contains($0) }) { return false }
+        return true
+    }
+
+    // MARK: - C18 Roles (what each block is to the learner)
+
+    /// Glue words of a Mandarin formula, drawn faint: never what the learner is to remember about the word.
+    static let frameWords: Set<String> = ["的", "了", "把", "被", "在", "跟", "給", "也", "都", "就", "不", "沒", "和", "對", "從", "往", "幫", "替", "著", "過", "嗎", "吧", "呢", "是", "有"]  // l10n-ignore (Mandarin words)
+
+    /// A part-of-speech tag of glue (pos.ts): prepositions, particles, conjunctions, determiners, and the old role mark C.
+    static func isGluePos(_ pos: String) -> Bool {
+        let p = pos.trimmingCharacters(in: .whitespaces).uppercased()
+        if ["P", "PART", "PREP", "DET", "ART", "PTC", "CONJ", "C"].contains(p) { return true }
+        return pos.contains("助詞") || pos.contains("前置") || pos.contains("接続") || pos.contains("介詞")  // l10n-ignore (matching server POS)
+    }
+
+    /// The block that is the headword itself: in Mandarin the exact word (馬桶刷 in 用馬桶刷刷馬桶 is a partner of 馬桶,
+    /// not the headword); in English / Japanese an inflected form counts (mangoes, 食べた).
+    static func isHeadwordBlock(_ text: String, headword: String, target: String) -> Bool {
+        guard !headword.isEmpty else { return false }
+        if target.hasPrefix("zh") { return LanguageRules.headwordCore(text) == LanguageRules.headwordCore(headword) }
+        return LanguageRules.mentionsHeadword(text, headword: headword, target: target)
+    }
+
+    /// The role of a block (C18): the headword is `.head`; a degree word, 的/了/把… or a preposition / particle is `.frame`;
+    /// everything else — the word the headword is used with — is `.partner`, the one drawn boldest.
+    static func role(_ p: ChunkPart, headword: String, target: String) -> ChunkRole {
+        let t = p.text.trimmingCharacters(in: .whitespaces)
+        if isHeadwordBlock(t, headword: headword, target: target) { return .head }
+        if isGluePos(p.pos) { return .frame }
+        if target.hasPrefix("zh"), degreeWords.contains(t) || frameWords.contains(t) { return .frame }
+        return .partner
+    }
+
+    /// The meanings of the partner blocks as they are written in the chunk's translation (their `ja`), for the page to
+    /// draw bold there (C18). Only the ones that do occur in the translation.
+    static func partnerGlosses(_ chunk: UsageChunk, headword: String, target: String) -> [String] {
+        chunk.parts.compactMap { p -> String? in
+            guard role(p, headword: headword, target: target) == .partner,
+                  let g = p.ja?.trimmingCharacters(in: .whitespacesAndNewlines), !g.isEmpty, chunk.ja.contains(g) else { return nil }
+            return g
+        }
+    }
+
+    // MARK: - C19 The formula in its example
+
+    /// The formula as it stands in a sentence: its blocks joined (Mandarin and Japanese without spaces, English with),
+    /// or, for a swappable block, any of its other words in its place. The first run found, else nil (then nothing is marked).
+    static func spanText(of chunk: UsageChunk, in sentence: String, target: String) -> String? {
+        let parts = chunk.parts.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard !parts.isEmpty, !sentence.isEmpty else { return nil }
+        let sep = target == "en" ? " " : ""
+        let texts = parts.map { $0.text.trimmingCharacters(in: .whitespaces) }
+        var candidates = [texts.joined(separator: sep)]
+        for (i, p) in parts.enumerated() where p.slot == true {
+            for a in p.alts ?? [] {
+                let t = a.text.trimmingCharacters(in: .whitespaces)
+                guard !t.isEmpty else { continue }
+                var swapped = texts
+                swapped[i] = t
+                candidates.append(swapped.joined(separator: sep))
+            }
+        }
+        for c in candidates where !c.isEmpty {
+            if sentence.range(of: c, options: target == "en" ? [.caseInsensitive] : []) != nil { return c }
+        }
+        return nil
     }
 
     /// The choices of a swappable part: the word itself first, then the others.

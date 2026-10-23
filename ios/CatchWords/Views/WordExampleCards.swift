@@ -76,11 +76,11 @@ struct ExampleBlock: View {
             VStack(alignment: .leading, spacing: 10) {
                 if let scene = example.scene, !scene.isEmpty { SceneTag(text: scene) }
                 if let units, !units.isEmpty {
-                    SentenceRuby(units: units, headword: headword, size: AppTypeScale.scaled(19, for: dynamicTypeSize))
+                    SentenceRuby(units: units, headword: headword, size: AppTypeScale.scaled(19, for: dynamicTypeSize), words: example.words)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityIdentifier("example.sentence")
                 } else {
-                    Text(WordHighlight.marked(example.sentence, headword: headword))
+                    Text(WordHighlight.marked(example.sentence, headword: headword, words: example.words))
                         .scaledFont(size: 19)
                         .foregroundStyle(Theme.foreground)
                         .lineSpacing(8)
@@ -120,16 +120,38 @@ struct SceneTag: View {
 }
 
 enum WordHighlight {
-    /// The sentence with every occurrence of the word drawn in the accent colour.
-    static func marked(_ sentence: String, headword: String, size: CGFloat = 19) -> AttributedString {
+    /// The sentence with every occurrence of the word drawn in the accent colour, and (C19) the formula's run `span` the
+    /// same way without the wash; with `words`, a WORD JOINER inside each word so a line never breaks there
+    /// (`Sentences.unbreakable`, owner 2026-10-23).
+    static func marked(_ sentence: String, headword: String, size: CGFloat = 19, span: String? = nil, words: [String] = []) -> AttributedString {
         var out = AttributedString(sentence)
-        guard !headword.isEmpty else { return out }
-        var searchStart = out.startIndex
-        while let r = out[searchStart...].range(of: headword) {
-            out[r].foregroundColor = Theme.primaryInk
-            out[r].backgroundColor = Theme.primary.opacity(0.1)
-            out[r].font = .system(size: size, weight: .semibold)
-            searchStart = r.upperBound
+        if let span, !span.isEmpty {
+            var searchStart = out.startIndex
+            while let r = out[searchStart...].range(of: span) {
+                out[r].foregroundColor = Theme.primaryInk
+                out[r].font = .system(size: size, weight: .semibold)
+                searchStart = r.upperBound
+            }
+        }
+        if !headword.isEmpty {
+            var searchStart = out.startIndex
+            while let r = out[searchStart...].range(of: headword) {
+                out[r].foregroundColor = Theme.primaryInk
+                out[r].backgroundColor = Theme.primary.opacity(0.1)
+                out[r].font = .system(size: size, weight: .semibold)
+                searchStart = r.upperBound
+            }
+        }
+        // The joiners go in last, from the end, so the ranges found above stay what they were.
+        let joinedText = Sentences.unbreakable(sentence, words: words)
+        guard joinedText != sentence else { return out }
+        var consumed = 0            // characters of the original passed so far
+        var after: [Int] = []       // a joiner goes after this many characters of the original
+        for ch in joinedText {
+            if ch == "\u{2060}" { after.append(consumed) } else { consumed += 1 }
+        }
+        for offset in after.reversed() {
+            out.insert(AttributedString("\u{2060}"), at: out.index(out.startIndex, offsetByCharacters: offset))
         }
         return out
     }

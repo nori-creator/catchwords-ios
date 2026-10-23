@@ -11,6 +11,9 @@ enum Theme {
     static let surface2 = Color(light: 0xEDF2F8, dark: 0x16202F)
     static let secondary = Color(light: 0xEDF2F8, dark: 0x132032)
     static let accent = Color(light: 0xD8EEFF, dark: 0x112D55)
+    /// The pale blue behind a sentence in the learning language inside a pattern card (owner 2026-10-23, the example's
+    /// own face: lighter than `accent`, so the formula above it stays the stronger thing).
+    static let inset = Color(light: 0xEAF3FF, dark: 0x112A4A)
     static let primary = Color(hex: 0x0083FF)
     /// Blue used as text: brighter on dark surfaces so it doesn't sink (web: 暗い面では青を暗くしない).
     static let primaryInk = Color(light: 0x0053D4, dark: 0x6FB0FF)

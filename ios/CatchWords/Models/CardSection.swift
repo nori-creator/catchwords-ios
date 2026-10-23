@@ -57,7 +57,8 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
             [.meaning, .example, .usageChunks, .kanjiBreakdown, .conjugation, .politeness, .counters,
              .relatedWords, .pitchAccent, .wordOrigin, .japanNote, .realUsage]
         default:
-            [.meaning, .example, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
+            // 「例文」 is inside 「使い方パターン」 for Taiwan Mandarin (owner 2026-10-23: scene, formula and example as one unit).
+            [.meaning, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
         }
     }
 
@@ -73,7 +74,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
         case .webImages: L("ネットの画像")
         case .example: L("例文")
         case .examplesExtra: L("追加の例文")
-        case .usageChunks: L("使い方チャンク")
+        case .usageChunks: L("使い方パターン")
         case .measureWords: L("量詞")
         case .forms: L("活用")
         case .countability: L("数え方と冠詞")
@@ -126,7 +127,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
 
     /// card-prefs.ts DEFAULT_VISIBLE (2026-09-23), within the language's sections. 台湾メモ is shown, right above
     /// 実際の使われ方 (owner 2026-10-16).
-    static let defaultVisibleAll: [CardSection] = [.meaning, .example, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
+    static let defaultVisibleAll: [CardSection] = [.meaning, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
 
     /// Each language shows its own grammar section by default where Mandarin shows measure words:
     /// English word forms and articles, Japanese kanji, conjugation and counters.
