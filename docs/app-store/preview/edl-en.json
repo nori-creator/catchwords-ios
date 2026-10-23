@@ -1,27 +1,110 @@
 {
   "lang": "en",
-  "src": {"w": 1320, "h": 2868},
+  "src": {
+    "w": 1320,
+    "h": 2868
+  },
   "segments": [
-    {"src": "scanslow-en", "in": 3.7, "out": 11.2, "sound_offset": 0.0, "extra_sounds": [{"t": 3.85, "name": "cc-scan-start"}]},
-    {"src": "variants-en", "in": 4.2, "out": 8.1, "sound_offset": -0.33},
-    {"src": "get-en", "in": 8.0, "out": 10.8, "sound_offset": 0.21},
-    {"src": "landing-en", "in": 4.3, "out": 7.2, "sound_offset": 0.3},
-    {"src": "detail-en", "in": 5.6, "out": 5.945, "hold": 2.9},
-    {"src": "answer-en", "in": 3.6, "out": 3.925, "hold": 2.3},
-    {"src": "home-again-en", "in": 3.35, "out": 3.598, "hold": 4.25}
+    {
+      "src": "analyzing-en",
+      "in": 3.7,
+      "out": 7.9,
+      "sound_offset": 0.15,
+      "extra_sounds": [
+        {
+          "t": 3.75,
+          "name": "cc-scan-start"
+        }
+      ]
+    },
+    {
+      "src": "variants-en",
+      "in": 4.2,
+      "out": 8.1,
+      "sound_offset": -0.33
+    },
+    {
+      "src": "get-en",
+      "in": 8.0,
+      "out": 10.8,
+      "sound_offset": 0.21
+    },
+    {
+      "src": "landing-en",
+      "in": 4.3,
+      "out": 7.2,
+      "sound_offset": 0.3
+    },
+    {
+      "src": "detail-en",
+      "in": 5.6,
+      "out": 5.945,
+      "hold": 2.9
+    },
+    {
+      "src": "answer-en",
+      "in": 3.6,
+      "out": 3.925,
+      "hold": 2.3
+    },
+    {
+      "src": "home-again-en",
+      "in": 3.35,
+      "out": 3.598,
+      "hold": 4.25
+    }
   ],
   "captions": [
-    {"t0": 0.3, "t1": 5.4, "text": "Just take a photo"},
-    {"t0": 5.8, "t1": 8.1, "text": "Taiwanese Mandarin names,\nright on the things"},
-    {"t0": 8.4, "t1": 11.2, "text": "Choose how to say it"},
-    {"t0": 14.3, "t1": 17.0, "text": "Straight into your collection"},
-    {"t0": 17.3, "t1": 20.2, "text": "Readings and real usage"},
-    {"t0": 20.4, "t1": 22.8, "text": "Review with quick quizzes"},
-    {"t0": 23.0, "t1": 25.3, "text": "Every day becomes an album"}
+    {
+      "t0": 0.2,
+      "t1": 2.1,
+      "text": "Just take a photo"
+    },
+    {
+      "t0": 2.4,
+      "t1": 4.8,
+      "text": "Taiwanese Mandarin names,\nright on the things"
+    },
+    {
+      "t0": 5.1,
+      "t1": 7.9,
+      "text": "Choose how to say it"
+    },
+    {
+      "t0": 11.0,
+      "t1": 13.7,
+      "text": "Straight into your collection"
+    },
+    {
+      "t0": 14.0,
+      "t1": 16.9,
+      "text": "Readings and real usage"
+    },
+    {
+      "t0": 17.1,
+      "t1": 19.5,
+      "text": "Review with quick quizzes"
+    },
+    {
+      "t0": 19.7,
+      "t1": 22.0,
+      "text": "Every day becomes an album"
+    }
   ],
   "taps": [
-    {"t": 8.1, "x": 660, "y": 1370},
-    {"t": 10.9, "x": 600, "y": 1900}
+    {
+      "t": 4.8,
+      "x": 660,
+      "y": 1370
+    },
+    {
+      "t": 7.6,
+      "x": 600,
+      "y": 1900
+    }
   ],
-  "end": {"length": 2.0, "subtitle": "Taiwanese Mandarin"}
+  "end": {
+    "length": 2.0,
+    "subtitle": "Taiwanese Mandarin"
+  }
 }
