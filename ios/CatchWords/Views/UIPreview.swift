@@ -721,25 +721,25 @@ private struct CarouselPreview: View {
 /// The word page's chunk / measure-word / related-word cards (web WordCard look), scrolled to the chunks.
 private struct DetailPreview: View {
     /// The same word as each display language's reader would get it (notes written in their language).
-    private static var notes: (meaning: String, translation: String, chunks: [String], sauces: [String], measure: String, related: [String]) {
+    private static var notes: (meaning: String, translation: String, chunks: [String], places: [String], measure: String, related: [String]) {
         switch L10n.lang {
         case "en":
             return ("teppan noodles", "I want teppan noodles for breakfast.",
                     ["teppan noodles with mushroom sauce", "teppan noodles with black pepper sauce", "order teppan noodles"],
-                    ["mushroom sauce", "black pepper sauce", "seafood", "curry"],
+                    ["a breakfast shop", "a night market", "the school cafeteria", "a convenience store"],
                     "one serving (the most common measure word for dishes)",
                     ["Ordinary stir-fried noodles. 鐵板麵 is served sizzling on an iron plate with sauce poured over.",
                      "Pasta. 鐵板麵 is cheaper — a light meal sold at breakfast shops."])
         case "zh-TW":
             return ("鐵板上淋醬的麵", "",
                     ["蘑菇醬的鐵板麵", "黑胡椒醬的鐵板麵", "點一份鐵板麵"],
-                    ["蘑菇醬", "黑胡椒醬", "海鮮", "咖哩"],
+                    ["早餐店", "夜市", "學校餐廳", "便利商店"],
                     "一盤的量（數餐點最常用的量詞）",
                     ["一般的炒麵。鐵板麵是放在熱鐵板上再淋醬。", "比義大利麵便宜，是早餐店的輕食。"])
         default:
             return ("鉄板焼きそば", "朝ごはんに鉄板焼きそばが食べたい。",
                     ["マッシュルームソースの鉄板焼きそば", "黒胡椒ソースの鉄板焼きそば", "鉄板焼きそばを注文する"],
-                    ["マッシュルームソース", "黒胡椒ソース", "シーフード", "カレー"],
+                    ["朝ごはんの店", "夜市", "学食", "コンビニ"],
                     "一皿分（料理を数える際の最も一般的な量詞）",
                     ["一般的な炒め麺。鐵板麵は鉄板の上でソースをかけて調理する点が異なる。",
                      "パスタ。鐵板麵はパスタより安価で、朝食店で提供される軽食という位置づけ。"])
@@ -801,15 +801,17 @@ private struct DetailPreview: View {
         var extras: [String: Any] = [
                 "explain_lang": L10n.lang,
                 "usage_chunks": [
-                    // 蘑菇 is swappable (C5: another sauce changes what is ordered) — ChunkWheelTests opens the wheel on it.
-                    ["parts": [["text": "蘑菇", "pos": "N", "slot": true, "ja": n.sauces[0],
-                                "alts": [["text": "黑胡椒", "ja": n.sauces[1]], ["text": "海鮮", "ja": n.sauces[2]], ["text": "咖哩", "ja": n.sauces[3]]]],
-                               ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[0]],
+                    ["parts": [["text": "蘑菇", "pos": "N"], ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[0]],
                     ["parts": [["text": "黑胡椒", "pos": "N"], ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[1]],
                     ["parts": [["text": "點", "pos": "V"], ["text": "鐵板麵", "pos": "N"]], "ja": n.chunks[2]],
                     // Every kind of block, so the legend under the chunks shows all five (owner 2026-10-15: the English
                     // legend wrapped inside its labels).
-                    ["parts": [["text": "在", "pos": "P"], ["text": "早餐店", "pos": "N"], ["text": "點", "pos": "V"], ["text": "鐵板麵", "pos": "N"]],
+                    // 早餐店 is swappable (C5: another place changes where it is ordered) — ChunkWheelTests opens the wheel
+                    // on it. (蘑菇＋鐵板麵 is one word by C7, so its blocks are not buttons.)
+                    ["parts": [["text": "在", "pos": "P"],
+                               ["text": "早餐店", "pos": "N", "slot": true, "ja": n.places[0],
+                                "alts": [["text": "夜市", "ja": n.places[1]], ["text": "學校餐廳", "ja": n.places[2]], ["text": "便利商店", "ja": n.places[3]]]],
+                               ["text": "點", "pos": "V"], ["text": "鐵板麵", "pos": "N"]],
                      "ja": L10n.lang == "en" ? "order teppan noodles at a breakfast shop" : L10n.lang == "zh-TW" ? "在早餐店點鐵板麵" : "朝ごはんの店で鉄板焼きそばを注文する"],
                     ["parts": [["text": "鐵板麵", "pos": "N"], ["text": "很", "pos": "Adv"], ["text": "香", "pos": "Vs"]],
                      "ja": L10n.lang == "en" ? "teppan noodles smell great" : L10n.lang == "zh-TW" ? "鐵板麵很香" : "鉄板焼きそばはいい香り"],
