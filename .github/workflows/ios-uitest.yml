@@ -131,26 +131,21 @@ jobs:
         if: always()
         env:
           HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          GIT_AUTHOR_NAME: ios-uitest
+          GIT_AUTHOR_EMAIL: ios-uitest@users.noreply.github.com
         run: |
           set -uo pipefail
           SRC="$RUNNER_TEMP/uitest"
           [ -d "$SRC" ] || exit 0
-          DEST="$RUNNER_TEMP/previews-branch"
-          git clone --quiet --depth 1 --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" 2>/dev/null || {
-            mkdir -p "$DEST" && cd "$DEST" && git init --quiet && git checkout --quiet -b ci-previews && \
-            git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-          }
-          cd "$DEST"
           DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-uitest"
-          rm -rf "$DIR" && mkdir -p "$DIR"
-          cp "$SRC"/*.png "$DIR"/ 2>/dev/null || true
-          cp "$SRC"/failures.txt "$DIR"/ 2>/dev/null || true
-          cp "$SRC"/trace.txt "$DIR"/ 2>/dev/null || true
-          cp "$RUNNER_TEMP/verdict" "$DIR"/VERDICT 2>/dev/null || true
-          echo "${{ github.sha }}" > "$DIR/COMMIT"
-          git add -A
-          git -c user.name="ios-uitest" -c user.email="ios-uitest@users.noreply.github.com" commit --quiet -m "ui test for $HEAD_REF @ ${{ github.sha }}" || exit 0
-          for i in 1 2 3; do git pull --quiet --rebase origin ci-previews 2>/dev/null; git push --quiet origin ci-previews && break; sleep 3; done
+          STAGE="$RUNNER_TEMP/previews-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
+          cp "$SRC"/*.png "$STAGE"/ 2>/dev/null || true
+          cp "$SRC"/failures.txt "$STAGE"/ 2>/dev/null || true
+          cp "$SRC"/trace.txt "$STAGE"/ 2>/dev/null || true
+          cp "$RUNNER_TEMP/verdict" "$STAGE"/VERDICT 2>/dev/null || true
+          echo "${{ github.sha }}" > "$STAGE/COMMIT"
+          bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            "$DIR" "ui test for $HEAD_REF @ ${{ github.sha }}" "$STAGE"
 
       - name: 結果を保存する
         if: always()
