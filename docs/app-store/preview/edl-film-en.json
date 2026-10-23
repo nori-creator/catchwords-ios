@@ -33,12 +33,12 @@
     {
       "t0": 2.7,
       "t1": 5.0,
-      "text": "AI spots what's\nin your photo"
+      "text": "AI analyzes\nwhat you shot"
     },
     {
       "t0": 5.3,
       "t1": 8.2,
-      "text": "Pick how it's said\nin Taiwan"
+      "text": "Pick the way\nyou want to learn"
     },
     {
       "t0": 10.3,
@@ -48,7 +48,7 @@
     {
       "t0": 13.8,
       "t1": 16.9,
-      "text": "Zhuyin and audio\nhelp it stick"
+      "text": "Your own\nword book"
     }
   ],
   "taps": [],

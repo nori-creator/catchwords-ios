@@ -80,9 +80,9 @@ ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,sampl
 | 場面 | 日本語 | English |
 | --- | --- | --- |
 | 撮影 | 知らない物も、撮るだけ | Snap it, even if you can't name it |
-| タグが出る | AIが写った物を見つける | AI spots what's in your photo |
-| 言い方を選ぶ | 台湾の言い方を選べる | Pick how it's said in Taiwan |
+| タグが出る | AIが撮ったものを分析 | AI analyzes what you shot |
+| 言い方を選ぶ | 覚えたい言い方を選べる | Pick the way you want to learn |
 | GET | （字幕なし。アプリの「新しいことばをキャッチ！」を読ませる） | （同じ） |
 | 図鑑 | 自分だけの図鑑が どんどん増える | Your own collection keeps growing |
-| 単語ページ | 注音と発音で、すぐ覚えられる | Zhuyin and audio help it stick |
+| 単語ページ | 自分だけの単語帳になる | Your own word book |
 | 最後 | 撮って覚える台湾華語 | Snap it. Learn Taiwanese Mandarin. |
