@@ -1,57 +1,55 @@
 #!/usr/bin/env bash
-# Puts files on the ci-previews branch (where Claude reads CI results) — as ONE commit with no history.
+# Puts files on the ci-previews branch (where Claude reads CI results).
+# Usage: push_ci_previews.sh REPO_URL DEST_DIR "commit message" FILE...
+#   CI_PREVIEWS_REPLACE=1  empties DEST_DIR first (a run's own folder, so files from an older run do not linger).
 #
-# 2026-10-23: the branch had kept every run's pictures and videos since 10/16 in its history, and the repository went
-# over GitHub's size quota (pushes refused: "Repository is above its size quota"). Now each publish builds a fresh
-# commit with no parent (git commit-tree) holding the branch's current files plus this run's, and force-pushes it: the
-# branch is always a single commit, and what a run replaced becomes unreachable, so GitHub's cleanup can drop it.
-# `--force-with-lease` keeps a run that pushed in between from being overwritten: the push fails and we retry from a
-# fresh clone. The clone takes no file contents (--filter=blob:none, sparse checkout of DEST_DIR only), so it is fast
-# however many runs the branch holds.
-#
-# Usage: push_ci_previews.sh REPO_URL DEST_DIR "commit message" FILE_OR_DIR...
-#   DEST_DIR is replaced (its old files go away); a directory argument is copied by its contents.
+# The branch is always ONE commit with no parent: the new files are written over the last tree and the branch is
+# force-moved to it. Keeping every run in history grew the old repository past GitHub's size quota (about 100 GB
+# of screenshots and recordings, 2026-10-23) and stopped every push. Recordings (.mp4/.mov) never go here; they
+# stay in the run's artifact. Only the trees of the last commit are fetched (no images), so this takes seconds.
 set -uo pipefail
 url="$1"; dest="$2"; msg="$3"; shift 3
-export GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-ci-previews}" GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-ci-previews@users.noreply.github.com}"
-export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
-# Never fetch a missing file's contents behind our back (2026-10-23: the push stalled while git pulled the branch's old
-# pictures one by one to use as delta bases, and GitHub cut the request off with HTTP 408). With no delta compression
-# and no thin pack, the push needs only this run's files.
-export GIT_NO_LAZY_FETCH=1
-pushcfg=(-c pack.window=0 -c pack.depth=0 -c http.postBuffer=524288000)
+files=()
+for f in "$@"; do
+  case "$f" in *.mp4|*.mov|*.MP4|*.MOV) continue ;; esac
+  [ -f "$f" ] && files+=("$(cd "$(dirname "$f")" && pwd)/$(basename "$f")")
+done
+
 for attempt in 1 2 3 4 5; do
   work="$(mktemp -d)"
-  lease=""
-  if git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ci-previews "$url" "$work" 2>/dev/null; then
-    ( cd "$work" && git sparse-checkout set --no-cone "/$dest/" && git checkout --quiet ci-previews ) || { rm -rf "$work"; sleep 3; continue; }
-    lease="$(git -C "$work" rev-parse HEAD)"
-  else
-    # No branch yet (or it was deleted): start it from nothing.
-    git init --quiet "$work" && git -C "$work" remote add origin "$url"
-  fi
-  rm -rf "$work/$dest" && mkdir -p "$work/$dest"
-  for src in "$@"; do
-    if [ -d "$src" ]; then cp -R "$src"/. "$work/$dest/"; elif [ -f "$src" ]; then cp "$src" "$work/$dest/"; fi
-  done
-  cd "$work"
-  git add -A
-  # Compare tree ids, never `git diff`: in a clone without file contents a diff fetches every replaced picture one by
-  # one from GitHub (2026-10-23: the step hung for 15 minutes and the job hit its timeout).
-  tree="$(git write-tree)"
-  if [ -n "$lease" ] && [ "$tree" = "$(git rev-parse 'HEAD^{tree}')" ]; then
-    cd - >/dev/null; rm -rf "$work"; exit 0   # nothing changed
-  fi
-  commit="$(git commit-tree "$tree" -m "$msg")"
-  if [ -n "$lease" ]; then
-    git "${pushcfg[@]}" push --quiet --no-thin --force-with-lease="refs/heads/ci-previews:$lease" origin "$commit:refs/heads/ci-previews" && { cd - >/dev/null; rm -rf "$work"; exit 0; }
-  else
-    git "${pushcfg[@]}" push --quiet --no-thin origin "$commit:refs/heads/ci-previews" && { cd - >/dev/null; rm -rf "$work"; exit 0; }
-  fi
-  cd - >/dev/null
+  # Each step is checked by hand: `set -e` does not apply inside a ( … ) whose status is tested.
+  (
+    old=""
+    if git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ci-previews "$url" "$work" 2>/dev/null; then
+      cd "$work" || exit 1
+      old="$(git rev-parse HEAD)" || exit 1
+    else
+      git init --quiet "$work" && cd "$work" && git remote add origin "$url" || exit 1
+    fi
+    export GIT_INDEX_FILE="$work/.git/ci-previews-index"
+    if [ -n "$old" ]; then git read-tree "$old" || exit 1; else git read-tree --empty || exit 1; fi
+    if [ "${CI_PREVIEWS_REPLACE:-0}" = "1" ]; then git rm -r -q --cached --ignore-unmatch -- "$dest" || exit 1; fi
+    for f in ${files[@]+"${files[@]}"}; do
+      blob="$(git hash-object -w -- "$f")" || exit 1
+      git update-index --add --cacheinfo "100644,$blob,$dest/$(basename "$f")" || exit 1
+    done
+    tree="$(git write-tree)" || exit 1
+    if [ -n "$old" ] && [ "$tree" = "$(git rev-parse "$old^{tree}")" ]; then exit 0; fi   # nothing changed
+    commit="$(git -c user.name="ci-previews" -c user.email="ci-previews@users.noreply.github.com" commit-tree "$tree" -m "$msg")" || exit 1
+    # The push must not go looking for the branch's old pictures (none are in this clone): with delta compression
+    # git fetched them one by one as delta bases and GitHub cut the request off with HTTP 408 (PR #3, 2026-10-23).
+    # No lazy fetch, no deltas, no thin pack: only this run's files are sent, as they are.
+    export GIT_NO_LAZY_FETCH=1
+    pushcfg=(-c pack.window=0 -c pack.depth=0 -c http.postBuffer=524288000)
+    if [ -n "$old" ]; then
+      git "${pushcfg[@]}" push --quiet --no-thin --force-with-lease="refs/heads/ci-previews:$old" origin "$commit:refs/heads/ci-previews"
+    else
+      git "${pushcfg[@]}" push --quiet --no-thin origin "$commit:refs/heads/ci-previews"
+    fi
+  ) && { rm -rf "$work"; exit 0; }
   rm -rf "$work"
   echo "ci-previews: attempt $attempt failed, retrying"
   sleep $(( attempt * 4 + RANDOM % 5 ))
 done
-echo "::warning::ci-previews に置けませんでした（他のワークフローと重なった可能性）。結果は実行の Summary にあります。"
+echo "::warning::ci-previews に置けませんでした（他のワークフローと重なった可能性）。結果は実行の Summary と artifact にあります。"
 exit 0

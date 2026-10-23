@@ -83,8 +83,12 @@ final class SupabaseClient {
     }
 
     /// Returns true when a session was created immediately (email confirmation disabled).
+    /// The display language rides along as user_metadata: the confirmation email is written in it
+    /// (`supabase/templates`), and it is sent before the account has a profile.
     func signUp(email: String, password: String) async throws -> Bool {
-        let json = try await authRequest(path: "signup", body: ["email": email, "password": password])
+        let json = try await authRequest(path: "signup", body: [
+            "email": email, "password": password, "data": ["ui_language": L10n.lang],
+        ])
         if json["access_token"] != nil {
             try storeSession(json)
             return true
@@ -300,7 +304,7 @@ final class SupabaseClient {
         _ = try? await urlSession.data(for: req)
     }
 
-    private func authRequest(path: String, body: [String: String]) async throws -> [String: Any] {
+    private func authRequest(path: String, body: [String: Any]) async throws -> [String: Any] {
         guard let baseURL, let url = URL(string: "auth/v1/\(path)", relativeTo: baseURL) else { throw APIError.notConfigured }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"

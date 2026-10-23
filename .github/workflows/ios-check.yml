@@ -31,8 +31,7 @@ permissions:
 jobs:
   build-and-shoot:
     runs-on: macos-26
-    # 撮影までで 45〜55 分（10/16 の実行）。ci-previews に置くのは自分の場所だけを取り出して数秒で済ませる
-    #（scripts/push_ci_previews.sh: 枝は履歴の無い1コミット。2026-10-23 に履歴の写真と動画で容量の上限を超えた）。
+    # 撮影までで 45〜55 分（10/16 の実行）。ci-previews に置くのは自分の場所だけを取り出して数秒で済ませる。
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
@@ -213,7 +212,7 @@ jobs:
       # キャッチの演出（v10 のスキャン、v6 の選ぶ画面・ゲット・図鑑へ）のコマ落ちを数える（オーナー 2026-10-20:
       # 「限界まで滑らかなアニメーション」）。アプリの FrameMeter（UITestTrace.swift）が 1 秒ごとに遅れたコマを書く。
       # 録画は CPU を使うので、数える回は録画しない。シミュレーターの数字なので、端末の値ではなく変更の前後の比較に使う。
-      # 録画は ci-previews に置く（Claude がお手本の動画とコマごとに比べる）。
+      # 録画は artifact（ios-check-report の videos/）に置く。ci-previews には入れない（履歴が膨らんだため、2026-10-23）。
       - name: キャッチの演出のコマ落ちを数え、動画で撮る
         continue-on-error: true
         run: |
@@ -349,25 +348,18 @@ jobs:
         if: always()
         env:
           HEAD_REF: ${{ github.head_ref || github.ref_name }}
-          GIT_AUTHOR_NAME: ios-check
-          GIT_AUTHOR_EMAIL: ios-check@users.noreply.github.com
         run: |
           set -uo pipefail
           SRC="$RUNNER_TEMP/report"
           [ -d "$SRC" ] || exit 0
           DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')"
-          # この実行の分だけを集めて、scripts/push_ci_previews.sh に渡す（枝は履歴の無い1コミットのまま — 2026-10-23 の容量超過の後）。
+          # 枝は最新の 1 コミットだけ（scripts/push_ci_previews.sh）。録画は artifact（ios-check-report）にだけ残す。
           STAGE="$RUNNER_TEMP/previews-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
           cp "$SRC"/*.png "$STAGE"/ 2>/dev/null || true
-          [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$STAGE"/ 2>/dev/null || true
-          [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.txt "$STAGE"/ 2>/dev/null || true
-          # 「作り直す」の動き（-uiPreview regen の録画）
-          [ -f "$SRC/videos/scan-regen.mp4" ] && cp "$SRC/videos/scan-regen.mp4" "$STAGE/regen.mp4" || true
-          # キャッチの演出の録画（お手本の動画と比べる）
-          for v in "$SRC"/videos/catch-*.mp4 "$SRC"/videos/scan-analyzing.mp4; do [ -f "$v" ] && cp "$v" "$STAGE/" ; done
+          [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$SRC"/previews/*.txt "$STAGE"/ 2>/dev/null || true
           echo "${{ github.sha }}" > "$STAGE/COMMIT"
-          bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
-            "$DIR" "previews for $HEAD_REF @ ${{ github.sha }}" "$STAGE"
+          CI_PREVIEWS_REPLACE=1 bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            "$DIR" "previews for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
 
       - name: 結果を保存する
         if: always()
@@ -433,15 +425,15 @@ jobs:
         if: always()
         env:
           HEAD_REF: ${{ github.head_ref || github.ref_name }}
-          GIT_AUTHOR_NAME: ios-check
-          GIT_AUTHOR_EMAIL: ios-check@users.noreply.github.com
         run: |
           set -uo pipefail
           SRC="$RUNNER_TEMP/cutout"
           [ -d "$SRC" ] || exit 0
           [ -f "$SRC/summary.md" ] && cat "$SRC/summary.md" >> "$GITHUB_STEP_SUMMARY"
           DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-cutout"
-          echo "${{ github.sha }}" > "$SRC/COMMIT"
-          bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
-            "$DIR" "cut-out harness for $HEAD_REF @ ${{ github.sha }}" "$SRC"
+          STAGE="$RUNNER_TEMP/cutout-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
+          cp "$SRC"/* "$STAGE"/ 2>/dev/null || true
+          echo "${{ github.sha }}" > "$STAGE/COMMIT"
+          CI_PREVIEWS_REPLACE=1 bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            "$DIR" "cut-out harness for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
 

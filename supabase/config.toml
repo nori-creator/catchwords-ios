@@ -11,3 +11,17 @@ entrypoint = "./functions/native-fn/index.ts"
 # TEMPORARY (2026-10-22): the data move from Lovable. Checks its own token; delete after the move.
 [functions.migration-import]
 verify_jwt = false
+
+# Auth emails in the learner's display language (scripts/build_auth_emails.py writes the files; the hosted
+# project takes the same text in Authentication → Emails → Templates). Subject: the app's name, in every language.
+[auth.email.template.confirmation]
+subject = "CatchWords"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "CatchWords"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "CatchWords"
+content_path = "./supabase/templates/email_change.html"

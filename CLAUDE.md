@@ -34,3 +34,6 @@
 - **本物は iOS 版だけ**（2026-10-21「ios版だけが本物、WEB版はテストたから気にしなくていい」）。Web 版の画面の不具合は
   直さない。ただしサーバの関数（`nori-creator/Lovable-catch-words-app` の `src/lib`）は iOS が呼ぶので、そこは直す。
 - **学習言語は台湾華語（zh-TW）だけ**（同日「学習言語は台湾華語だけ」）。英語・日本語を学ぶ場合のための直しはしない。
+- **リポジトリは `nori-creator/catchwords-ios`**（2026-10-23）。旧 `rork-catchwords-728` は CI の画像の履歴で容量の上限
+  （約 100 GB）を超え、どこからも push できなくなったので移った（旧リポジトリは記録として残す）。`ci-previews` 枝は**最新の
+  1 コミットだけ**（`scripts/push_ci_previews.sh`）。録画は artifact にだけ置き、Git の履歴に画像・動画を積まない。
