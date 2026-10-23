@@ -80,7 +80,7 @@ ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,sampl
 | 場面 | 日本語 | English |
 | --- | --- | --- |
 | 撮影〜待つ間 | 撮るだけで | Just take a photo |
-| タグが出る | 物の上に、台湾華語の名前 | Taiwanese Mandarin names, right on the things |
+| タグが出る | 写った物に、名前のタグ | A name tag on every thing |
 | 言い方を選ぶ | 言い方を選べる | Choose how to say it |
 | GET | （字幕なし。アプリの「新しいことばをキャッチ！」を読ませる） | （同じ） |
 | 図鑑 | そのまま図鑑へ | Straight into your collection |
