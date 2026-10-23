@@ -20,7 +20,8 @@ nonisolated enum ReaderLanguage {
     /// A new explanation asked for now would be written in `lang`. Not while the screen's language has not reached the
     /// server (the save failed or is still on its way): the server would write it in the old language, under the old
     /// key, and the word page would ask again on every opening (one AI card each time).
-    static func serverWritesIn(_ lang: String) -> Bool { serverLang.map { $0 == lang } ?? true }
+    /// Unknown (never read, never saved) counts as not yet: the server's default is ja.
+    static func serverWritesIn(_ lang: String) -> Bool { serverLang == lang }
 
     /// web `readerL1`: the display language when it differs from the learning language, else the old
     /// native language, else the first allowed choice. The choices are the display languages (web `L1_ORDER`, the
@@ -103,7 +104,7 @@ nonisolated enum ReaderLanguage {
         /// web `hasExtrasContent`: anything beyond the language marks.
         var hasContent: Bool {
             guard let e = extras else { return false }
-            let lists: [Int] = [e.usageChunks?.count ?? 0, e.examplesExtra?.count ?? 0, e.measureWords?.count ?? 0,
+            let lists: [Int] = [e.usageChunks?.count ?? 0, e.usagePatterns?.count ?? 0, e.examplesExtra?.count ?? 0, e.measureWords?.count ?? 0,
                                 e.relatedWords?.count ?? 0, e.synonyms?.count ?? 0, e.antonyms?.count ?? 0,
                                 e.phrasalVerbs?.count ?? 0, e.kanjiBreakdown?.count ?? 0, e.conjugation?.count ?? 0,
                                 e.counters?.count ?? 0]
@@ -213,6 +214,21 @@ nonisolated enum ReaderLanguage {
                 return p
             }
             return c
+        }
+        // A pattern's scene, note, translation and its formula's meanings are the reader's (R26); its sentence stays.
+        e.usagePatterns = e.usagePatterns?.map { pat in
+            var pat = pat
+            if drop(pat.scene, nil, false) { pat.scene = "" }
+            if drop(pat.note, nil, false) { pat.note = "" }
+            if drop(pat.example.ja, pat.example.zh, false) { pat.example.ja = "" }
+            if drop(pat.chunk.ja, nil, false) { pat.chunk.ja = "" }
+            pat.chunk.parts = pat.chunk.parts.map { p in
+                var p = p
+                if let j = p.ja, drop(j, nil, true) { p.ja = nil }
+                p.alts = p.alts?.map { a in drop(a.ja, nil, true) ? ChunkAlt(text: a.text, ja: "", pinyin: a.pinyin, zhuyin: a.zhuyin) : a }
+                return p
+            }
+            return pat
         }
         e.measureWords = e.measureWords?.map { m in
             var m = m

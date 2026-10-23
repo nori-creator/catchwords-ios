@@ -8727,5 +8727,40 @@
   "es": "Esta imagen se usa en la página de la palabra y en el álbum de Inicio.",
   "ko": "단어 상세와 홈 앨범에서 이 사진을 사용해요.",
   "vi": "Ảnh này được dùng ở trang từ và trong album Trang chủ."
+ },
+ "使い方パターン": {
+  "en": "Usage patterns",
+  "zh-TW": "用法模式",
+  "es": "Patrones de uso",
+  "ko": "사용 패턴",
+  "vi": "Mẫu cách dùng"
+ },
+ "このパターンのポイント": {
+  "en": "Notes on this pattern",
+  "zh-TW": "這個模式的重點",
+  "es": "Claves de este patrón",
+  "ko": "이 패턴의 포인트",
+  "vi": "Điểm cần nhớ của mẫu này"
+ },
+ "品詞の色を表示": {
+  "en": "Show part-of-speech colors",
+  "zh-TW": "顯示詞性顏色",
+  "es": "Mostrar colores de categoría gramatical",
+  "ko": "품사 색 표시",
+  "vi": "Hiện màu từ loại"
+ },
+ "品詞の色を隠す": {
+  "en": "Hide part-of-speech colors",
+  "zh-TW": "隱藏詞性顏色",
+  "es": "Ocultar colores de categoría gramatical",
+  "ko": "품사 색 숨기기",
+  "vi": "Ẩn màu từ loại"
+ },
+ "サイト": {
+  "en": "Website",
+  "zh-TW": "網站",
+  "es": "Sitio web",
+  "ko": "웹사이트",
+  "vi": "Trang web"
  }
 }

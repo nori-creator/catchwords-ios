@@ -82,16 +82,9 @@ nonisolated struct DayLayoutItem: Hashable, Sendable {
     var z: Int
 }
 
-/// 自動配置に渡す1枚（TS `packCollage` の items 要素）。
+/// 自動配置に渡す1枚（`packDay`）。
 nonisolated struct CollageItem: Hashable, Sendable {
     var id: String
-    var ratio: Double
-    var extra: Double = 0
-}
-
-/// 避け直す自動の1枚（TS `avoidFixed` の autos 要素）。
-nonisolated struct AvoidItem: Hashable, Sendable {
-    var place: AlbumPlacement
     var ratio: Double
     var extra: Double = 0
 }
@@ -124,16 +117,17 @@ nonisolated enum AlbumLayout {
         }
     }
 
-    // 誌面の自動配置（packCollage）の定数。
-    static let COLLAGE_COL_W: Double = 0.47
-    static let COLLAGE_GUTTER: Double = 0.04
-    static let COLLAGE_HERO_W: Double = 0.6
-    static let COLLAGE_STAGGER: Double = 0.05
+    // 誌面の定数。
     static let COLLAGE_GAP: Double = 0.022
     static let COLLAGE_RATIO_MIN: Double = 0.66
     static let COLLAGE_RATIO_MAX: Double = 1.15
-    /// packCollage の列ごとの大小の律動。
-    static let RHYTHM: [Double] = [0.96, 0.8, 0.9, 0.76]
+
+    // 1日のアルバムの自動配置（packDay）の定数。
+    /// 自動で置く写真の幅（台紙の幅に対する割合）。どの写真も同じ（オーナー 2026-10-22「1枚目とそれ以降の写真は
+    /// 同等に扱って。1枚目だけ大きくするのはへん」）。
+    static let DAY_PHOTO_W: Double = 0.44
+    /// 1段に2枚並べた時の、写真と写真の間。
+    static let DAY_GUTTER: Double = 0.05
 
     // MARK: - 定数（album-day-layout.ts）
 
@@ -260,7 +254,7 @@ nonisolated enum AlbumLayout {
         return clamp(r, COLLAGE_RATIO_MIN, COLLAGE_RATIO_MAX)
     }
 
-    /// id から決まる 0〜1（TS `packCollage` 内の `seed`、FNV-1a＋仕上げの攪拌）。
+    /// id から決まる 0〜1（TS `packCollage` 内の `seed`、FNV-1a＋仕上げの攪拌）。写真の傾きに使う。
     static func seed(_ id: String, _ salt: UInt32) -> Double {
         var h: UInt32 = 0x811c9dc5 ^ salt
         for u in id.utf16 {
@@ -271,55 +265,6 @@ nonisolated enum AlbumLayout {
         h = h &* 0x2545f491
         h ^= h >> 13
         return Double(h) / 4294967296
-    }
-
-    /// 誌面の自動配置：1枚目を大きく左、残りは空いた列へ積む（TS `packCollage`）。
-    static func packCollage(_ items: [CollageItem]) -> [AlbumPlacement] {
-        func safeRatio(_ r: Double) -> Double { r.isFinite && r > 0 ? r : 1 }
-        var bottom: [Double] = [0, COLLAGE_STAGGER]
-        var placedIn: [Int] = [0, 0]
-        let hero = items.count >= 3
-        var heroRight: Double = 0
-        var heroBottom: Double = 0
-        var out: [AlbumPlacement] = []
-        out.reserveCapacity(items.count)
-        for (i, it) in items.enumerated() {
-            if hero && i == 0 {
-                let w = COLLAGE_HERO_W
-                let h = w * safeRatio(it.ratio)
-                let y = h / 2
-                let capTop = y + h / 2
-                bottom[0] = capTop + it.extra + COLLAGE_GAP
-                heroRight = w
-                heroBottom = bottom[0]
-                out.append(AlbumPlacement(
-                    x: clamp(w / 2, 0, 1),
-                    y: y,
-                    scale: w / BASE_WIDTH,
-                    rot: -(0.6 + seed(it.id, 11) * 1.2)
-                ))
-                continue
-            }
-            let col = bottom[0] <= bottom[1] ? 0 : 1
-            let beat = RHYTHM[placedIn[col] % RHYTHM.count]
-            placedIn[col] += 1
-            var w = COLLAGE_COL_W * clamp(beat + (seed(it.id, 7) - 0.5) * 0.06, 0.73, 0.98)
-            let top = bottom[col]
-            if col == 1 && heroRight > 0 && top < heroBottom {
-                w = jsMin(w, (1 - heroRight - COLLAGE_GUTTER) * (beat / RHYTHM[0]))
-            }
-            let h = w * safeRatio(it.ratio)
-            let cx = col == 0 ? w / 2 : 1 - w / 2
-            let y = top + h / 2
-            bottom[col] = y + h / 2 + it.extra + COLLAGE_GAP
-            out.append(AlbumPlacement(
-                x: clamp(cx, 0, 1),
-                y: y,
-                scale: w / BASE_WIDTH,
-                rot: (col == 0 ? -1 : 1) * (1 + seed(it.id, 13) * 1.5)
-            ))
-        }
-        return out
     }
 
     /// 傾けた札を包む箱、字（extra）は下に足す（TS `boxOf`）。
@@ -337,26 +282,69 @@ nonisolated enum AlbumLayout {
         abs(a.x - b.x) < (a.w + b.w) / 2 + pad && abs(a.y - b.y) < (a.h + b.h) / 2 + pad
     }
 
-    /// 自分で置いた写真を避けて、自動の写真を下へずらす（TS `avoidFixed`）。
-    static func avoidFixed(_ autos: [AvoidItem], fixed: [AlbumBox]) -> [AlbumPlacement] {
+    /// 1日のアルバムの自動配置（オーナー 2026-10-22「その日の欄の1枚目は真ん中に」「決してほかの画像には被らない
+    /// ように上から順に配置して」「1枚目とそれ以降の写真は同等に扱って」）。撮った順に、どれも同じ幅で:
+    /// - 2枚ずつの段に左右へ並べ、段に1枚だけの写真（最後の1枚）は中央。段は前の段の下から。
+    /// - 指で置いた写真（`fixed`）が在る日は、どの写真も、上から見て最初に空いている所へ（自分の段の位置 → 中央 →
+    ///   左 → 右の順に試す）。指で置いた写真にも、先に置いた写真にも決して重ならない。
+    /// - 指で置いた写真が無く、写真が台紙の高さの下限に足りない日は、写真のまとまりを台紙の縦の真ん中へ。
+    static func packDay(_ items: [CollageItem], fixed: [AlbumBox] = []) -> [AlbumPlacement] {
+        func safeRatio(_ r: Double) -> Double { r.isFinite && r > 0 ? r : 1 }
+        let w = DAY_PHOTO_W
+        let scale = w / BASE_WIDTH
+        let left = 0.5 - DAY_GUTTER / 2 - w / 2
+        let right = 0.5 + DAY_GUTTER / 2 + w / 2
         var taken = fixed
         var out: [AlbumPlacement] = []
-        out.reserveCapacity(autos.count)
-        for a in autos {
-            var p = a.place
-            var b = boxOf(p, ratio: a.ratio, extra: a.extra)
-            for _ in 0..<200 {
-                let hits = taken.filter { boxesOverlap(b, $0) }
-                if hits.isEmpty { break }
-                let floor = hits.map { $0.y + $0.h / 2 }.reduce(-Double.infinity) { jsMax($0, $1) }
-                let dy = floor + COLLAGE_GAP - (b.y - b.h / 2)
-                p.y = p.y + jsMax(dy, 0.001)
-                b = boxOf(p, ratio: a.ratio, extra: a.extra)
+        out.reserveCapacity(items.count)
+        var rowTop: Double = 0
+        var rowBottom: Double = 0
+        for (i, it) in items.enumerated() {
+            let alone = i % 2 == 0 && i == items.count - 1
+            let x = alone ? 0.5 : (i % 2 == 0 ? left : right)
+            let rot = alone
+                ? (seed(it.id, 17) < 0.5 ? -1 : 1) * (0.6 + seed(it.id, 13) * 1.2)
+                : (i % 2 == 0 ? -1 : 1) * (1 + seed(it.id, 13) * 1.5)
+            var p = AlbumPlacement(x: x, y: 0, scale: scale, rot: rot)
+            // 傾けた写真の箱の、写真ぶんの高さ（字の extra を除く）。箱の上端 = y − bh / 2。
+            let bh = boxOf(p, ratio: safeRatio(it.ratio), extra: it.extra).h - it.extra
+            if fixed.isEmpty {
+                if i % 2 == 0 { rowTop = rowBottom }
+                p.y = rowTop + bh / 2
+                rowBottom = Swift.max(rowBottom, rowTop + bh + it.extra + COLLAGE_GAP)
+            } else {
+                p = firstFree(p, xs: [x, 0.5, left, right], halfH: bh / 2, ratio: safeRatio(it.ratio), extra: it.extra,
+                              taken: taken)
             }
-            taken.append(b)
+            taken.append(boxOf(p, ratio: safeRatio(it.ratio), extra: it.extra))
             out.append(p)
         }
+        // 写真が少ない日は、まとまりを台紙の縦の真ん中へ（1枚なら真ん中に1枚）。
+        if fixed.isEmpty, !out.isEmpty {
+            let room = MIN_BOARD_H - GAP_Y - (rowBottom - COLLAGE_GAP)
+            if room > 0 { out = out.map { var q = $0; q.y += room / 2; return q } }
+        }
         return out
+    }
+
+    /// 上から見て最初に空いている所（`packDay`）。試す上端は 0 と、置いてある写真それぞれの下端＋間。同じ上端では
+    /// `xs` の順に試す。
+    private static func firstFree(_ p: AlbumPlacement, xs: [Double], halfH: Double, ratio: Double, extra: Double,
+                                  taken: [AlbumBox]) -> AlbumPlacement {
+        let tops = ([0] + taken.map { $0.y + $0.h / 2 + COLLAGE_GAP }).filter { $0 >= 0 }.sorted()
+        for top in tops {
+            for x in xs {
+                var q = p
+                q.x = x
+                q.y = top + halfH
+                let b = boxOf(q, ratio: ratio, extra: extra)
+                if !taken.contains(where: { boxesOverlap(b, $0) }) { return q }
+            }
+        }
+        // 一番下の写真の下なら必ず空いている（tops の最後）。ここへは来ない。
+        var q = p
+        q.y = (tops.last ?? 0) + halfH
+        return q
     }
 
     // MARK: - 1日のアルバム（album-day-layout.ts）
@@ -374,7 +362,7 @@ nonisolated enum AlbumLayout {
     /// その札の枠の縦横比を返す関数（TS `dayFrameRatio`）。
     static func dayFrameRatio(_ input: DayLayoutInput) -> (String) -> Double {
         let hasNote = Dictionary(input.stickers.map { ($0.id, jsTruthy($0.caption)) }, uniquingKeysWith: { _, new in new })
-        let narrowest = jsMax(input.boardW * COLLAGE_COL_W * 0.78, 1)
+        let narrowest = jsMax(input.boardW * DAY_PHOTO_W, 1)
         let hasHero = input.hasHero
         let photoRatio = input.photoRatio
         let boardW = input.boardW
@@ -398,9 +386,10 @@ nonisolated enum AlbumLayout {
         let boardW = input.boardW
         let frameRatio = dayFrameRatio(input)
         let base = sortedByOrder(stickers)
-        let places = packCollage(base.map {
-            CollageItem(id: $0.id, ratio: frameRatio($0.id), extra: dayExtra($0, hasHero: hasHero($0.id), boardW: boardW))
-        })
+        func item(_ s: DayLayoutSticker) -> CollageItem {
+            CollageItem(id: s.id, ratio: frameRatio(s.id), extra: dayExtra(s, hasHero: hasHero(s.id), boardW: boardW))
+        }
+        let places = packDay(base.map(item))
         var autoById: [String: AlbumPlacement] = [:]
         for (i, s) in base.enumerated() { autoById[s.id] = places[i] }
 
@@ -414,11 +403,9 @@ nonisolated enum AlbumLayout {
         }
         if fixed.isEmpty { return (frameRatio, autoById) }
 
-        let autos = base.filter { !saved($0) && autoById[$0.id] != nil }
-        let settled = avoidFixed(autos.map {
-            AvoidItem(place: autoById[$0.id]!, ratio: frameRatio($0.id),
-                      extra: dayExtra($0, hasHero: hasHero($0.id), boardW: boardW))
-        }, fixed: fixed)
+        // 指で置いていない写真は撮った順に、上から見て最初に空いている所へ（`packDay`）。
+        let autos = base.filter { !saved($0) }
+        let settled = packDay(autos.map(item), fixed: fixed)
         var settledById = autoById
         for (i, s) in autos.enumerated() { settledById[s.id] = settled[i] }
         return (frameRatio, settledById)

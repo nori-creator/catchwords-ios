@@ -33,6 +33,37 @@ nonisolated enum Sentences {
         return out
     }
 
+    /// The opposite of `wrappable` for the words of a sentence (owner 2026-10-23: the example broke as 「水完全沖不下 /
+    /// 去！」): a WORD JOINER (U+2060) between the characters of every occurrence of each of `words`, so the line never
+    /// breaks inside a word (沖不下去 stays whole) and still breaks between words. Longer words first, so 馬桶刷 is kept
+    /// whole before 馬桶 is. Words of one character, empty words and Latin words (which never break inside) change nothing.
+    static func unbreakable(_ text: String, words: [String]) -> String {
+        let chars = Array(text)
+        guard chars.count > 1 else { return text }
+        var joined = [Bool](repeating: false, count: chars.count)   // joined[i]: no break between chars[i] and chars[i+1]
+        let wordChars = words.map { Array($0.trimmingCharacters(in: .whitespaces)) }
+            .filter { $0.count > 1 && $0.allSatisfy { !$0.isWhitespace } }
+            .sorted { $0.count > $1.count }
+        for w in wordChars {
+            var i = 0
+            while i + w.count <= chars.count {
+                if Array(chars[i..<(i + w.count)]) == w {
+                    for k in i..<(i + w.count - 1) { joined[k] = true }
+                    i += w.count
+                } else {
+                    i += 1
+                }
+            }
+        }
+        guard joined.contains(true) else { return text }
+        var out = ""
+        for (i, ch) in chars.enumerated() {
+            out.append(ch)
+            if joined[i] { out.append("\u{2060}") }
+        }
+        return out
+    }
+
     // MARK: - Splitting
 
     private static let enders: Set<Character> = ["。", "！", "？", "!", "?", "．"]

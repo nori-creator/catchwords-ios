@@ -191,7 +191,6 @@ nonisolated struct DemoResponse {
 /// Picks the part of the demo that answers a request.
 nonisolated enum DemoRouter {
     static let supabaseHost: String = (URL(string: AppConfig.supabaseURL)?.host ?? "").lowercased()
-    static let webHost: String = (AppConfig.webBaseURL.host ?? "").lowercased()
 
     static func handle(_ req: URLRequest, body: Data) -> DemoResponse {
         guard let url = req.url else { return .empty(400) }
@@ -202,6 +201,11 @@ nonisolated enum DemoRouter {
         let db = DemoDatabase.shared
 
         if host == supabaseHost {
+            if path.hasSuffix("/functions/v1/native-fn") {
+                let json = DJ.dict(DJ.parse(body))
+                let fn = DJ.str(json["fn"]) ?? ""
+                return db.callFunction(fn, DJ.dict(json["data"]))
+            }
             if path.hasPrefix("/auth/v1/") {
                 return db.auth(method: method, path: String(path.dropFirst("/auth/v1/".count)), query: query, body: body)
             }
@@ -211,14 +215,6 @@ nonisolated enum DemoRouter {
             }
             if path.hasPrefix("/storage/v1/") {
                 return db.storage(method: method, path: String(path.dropFirst("/storage/v1/".count)), body: body)
-            }
-            return .notFound()
-        }
-        if host == webHost {
-            if path.hasSuffix("/api/native-fn") {
-                let json = DJ.dict(DJ.parse(body))
-                let fn = DJ.str(json["fn"]) ?? ""
-                return db.callFunction(fn, DJ.dict(json["data"]))
             }
             return .notFound()
         }

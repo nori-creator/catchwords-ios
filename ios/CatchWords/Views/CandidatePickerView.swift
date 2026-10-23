@@ -483,6 +483,24 @@ struct CandidatePickerView: View {
         flow = ChooseFlow(words: t.choices.map(\.word), objects: t.choices.map { $0.object as CatchObject? },
                           subtitle: L("写っている物：\(t.label)"), anchor: o, typed: false, tappedAt: now,
                           start: startRect(o), cut: o.cut, fallback: fallback, palette: palette, dexLabel: label)
+        if o.cut == nil { takeCut(for: o) }
+    }
+
+    /// A thing the photo's masks gave no cut-out (yet): it is lifted now (`liftedCut`, the same one the GET moment
+    /// shows), and the open choose screen takes it as its sticker and its colours as soon as it comes — the piece of the
+    /// photo round the thing's box is only the stand-in until then (owner 2026-10-22: 「単語の候補の画像が切り抜きに
+    /// なってない」).
+    private func takeCut(for object: CatchObject?) {
+        let lifting = vm.liftedCut(for: object)
+        Task {
+            let made = await lifting.value
+            guard let cut = made.cut, var f = flow, f.cut == nil, f.chosenAt == nil, f.closingAt == nil,
+                  f.anchor?.id == object?.id else { return }
+            f.cut = cut
+            f.palette = StagePalette.make(from: cut)
+            vm.stagePalette = f.palette
+            flow = f
+        }
     }
 
     /// The words found for a typed word (owner 2026-10-15: 「違う単語を入力」 must show the candidates and let the learner
@@ -526,6 +544,7 @@ struct CandidatePickerView: View {
         flow = ChooseFlow(words: words, objects: words.map { _ in object }, subtitle: subtitle, anchor: object, typed: true,
                           tappedAt: now, start: start, cut: object?.cut, fallback: fallback, palette: palette,
                           dexLabel: label)
+        if object?.cut == nil { takeCut(for: object) }
         withAnimation(reduceMotion ? nil : .timingCurve(0.65, 0, 0.35, 1, duration: 0.55)) { melt = true }
         Haptics.selection()
     }

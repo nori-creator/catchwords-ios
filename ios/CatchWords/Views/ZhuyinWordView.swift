@@ -137,6 +137,9 @@ struct ZhuyinWordView: View {
     /// Readings in the headword's proportion at every size, as on the word page (no minimum size): the home tags
     /// (owner 2026-10-20: the small tag's reading came out as big as its characters).
     var proportionalReading: Bool = false
+    /// The zhuyin symbols' size as a proportion of the character (0.3 like the headword; the formula blocks of
+    /// 「使い方パターン」 use 0.36 — owner 2026-10-23 evening's review: 「注音が小さすぎて漢字との対応が追いにくい」).
+    var zhuyinScale: CGFloat = 0.3
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
     /// Japanese reading: "kana" (furigana, default) or "romaji". Kept apart from the Mandarin choice.
     @AppStorage("reading.ja") private var readingJa: String = "kana"
@@ -255,20 +258,148 @@ struct ZhuyinWordView: View {
     }
 
     private func column(_ u: ZhuyinUnit, size: CGFloat) -> some View {
-        let s = reading(size * 0.3, floor: 7)
-        return HStack(alignment: .bottom, spacing: 0) {
+        ZhuyinColumn(unit: u, size: reading(size * zhuyinScale, floor: 7), color: readingColor)
+    }
+}
+
+/// One character's zhuyin, stacked to the right of it: its symbols top to bottom, the tone mark beside the last, the
+/// neutral tone's dot on top (`size`: the symbols' size, 0.3 of the character's).
+struct ZhuyinColumn: View {
+    let unit: ZhuyinUnit
+    let size: CGFloat
+    var color: Color = Theme.muted
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 0) {
             VStack(spacing: 0) {
-                if u.neutral {
-                    Text("˙").font(.system(size: s)).frame(height: s * 1.02)
+                if unit.neutral {
+                    Text("˙").font(.system(size: size)).frame(height: size * 1.02)
                 }
-                ForEach(Array(u.body.enumerated()), id: \.offset) { _, sym in
-                    Text(sym).font(.system(size: s)).frame(height: s * 1.02)
+                ForEach(Array(unit.body.enumerated()), id: \.offset) { _, sym in
+                    Text(sym).font(.system(size: size)).frame(height: size * 1.02)
                 }
             }
-            Text(u.tone.isEmpty ? " " : u.tone)
-                .font(.system(size: s))
-                .frame(width: s * 0.55, height: s * 1.02)
+            Text(unit.tone.isEmpty ? " " : unit.tone)
+                .font(.system(size: size))
+                .frame(width: size * 0.55, height: size * 1.02)
         }
-        .foregroundStyle(readingColor)
+        .foregroundStyle(color)
+    }
+}
+
+/// An example sentence with the reading of every character (owner 2026-10-22: 「例文の漢字にピンインまたは注音をすべて
+/// 書いて、書き方、大きさはアプリ内の書き方に統一して」), drawn as the headword is (`ZhuyinWordView`): zhuyin stacked
+/// to the right of each character, or pinyin centred over it (設定 › 発音表記), in the same proportions to the character
+/// (0.3 and 0.36, with the word page's smallest sizes). The sentence wraps between characters like a paragraph; the
+/// learned word keeps its blue (`WordHighlight`).
+struct SentenceRuby: View {
+    let units: [SentenceUnit]
+    let headword: String
+    /// The characters' size.
+    let size: CGFloat
+    /// The formula's run in the sentence (docs/chunk-rules.md C19, owner 2026-10-23): drawn in the blue too, with the word.
+    var span: String? = nil
+    /// The sentence's words (server `chunks`): the line never breaks inside one (owner 2026-10-23: 「水完全沖不下 / 去！」).
+    var words: [String] = []
+    @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
+
+    /// The characters drawn in the blue: the headword's, and the formula's.
+    private var markedIndexes: Set<Int> {
+        let chars = units.map(\.char)
+        var out = Self.marked(chars, headword: headword)
+        if let span, !span.isEmpty { out.formUnion(Self.marked(chars, headword: span)) }
+        return out
+    }
+
+    var body: some View {
+        let marked = markedIndexes
+        let pinyin = readingPref == "pinyin"
+        let gap = size * (pinyin ? 0.05 : 0.06)
+        FlowRow(spacing: gap, alignment: .center) {
+            ForEach(Array(Self.groups(units.map(\.char), words: words).enumerated()), id: \.offset) { _, group in
+                HStack(alignment: .center, spacing: gap) {
+                    ForEach(group, id: \.self) { i in
+                        unit(units[i], marked: marked.contains(i), pinyin: pinyin)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(units.map(\.char).joined())
+    }
+
+    /// The runs of characters that stay on one line: each occurrence of each of `words` (longest first, so 馬桶刷 is kept
+    /// before 馬桶), every other character on its own. Pure, so ChunkReadingTests checks it.
+    nonisolated static func groups(_ chars: [String], words: [String]) -> [[Int]] {
+        guard chars.count > 1 else { return chars.indices.map { [$0] } }
+        var joined = [Bool](repeating: false, count: chars.count)
+        let wordChars = words.map { Array($0.trimmingCharacters(in: .whitespaces)).map(String.init) }
+            .filter { $0.count > 1 }
+            .sorted { $0.count > $1.count }
+        for w in wordChars {
+            var i = 0
+            while i + w.count <= chars.count {
+                if Array(chars[i..<(i + w.count)]) == w {
+                    for k in i..<(i + w.count - 1) { joined[k] = true }
+                    i += w.count
+                } else {
+                    i += 1
+                }
+            }
+        }
+        var out: [[Int]] = []
+        var run: [Int] = []
+        for i in chars.indices {
+            run.append(i)
+            if !joined[i] {
+                out.append(run)
+                run = []
+            }
+        }
+        if !run.isEmpty { out.append(run) }
+        return out
+    }
+
+    @ViewBuilder
+    private func unit(_ u: SentenceUnit, marked: Bool, pinyin: Bool) -> some View {
+        let char = Text(u.char)
+            .font(.system(size: size, weight: marked ? .semibold : .regular))
+            .foregroundStyle(marked ? Theme.primaryInk : Theme.foreground)
+        if pinyin {
+            VStack(spacing: 0) {
+                // The reading line keeps its height over punctuation, so every character stands on one baseline.
+                Text(u.pinyin ?? " ")
+                    .font(.system(size: max(9, size * 0.36), weight: .medium))
+                    .foregroundStyle(marked ? Theme.primaryInk.opacity(0.8) : Theme.muted)
+                    .lineLimit(1)
+                    .fixedSize()
+                char
+            }
+        } else if let z = u.zhuyin, let column = ZhuyinLayout.pair(u.char, z)?.first, column.hasReading {
+            HStack(alignment: .center, spacing: size * 0.03) {
+                char
+                ZhuyinColumn(unit: column, size: max(7, size * 0.3),
+                             color: marked ? Theme.primaryInk.opacity(0.8) : Theme.muted)
+            }
+        } else {
+            char
+        }
+    }
+
+    /// The places of the learned word's characters in the sentence.
+    nonisolated static func marked(_ chars: [String], headword: String) -> Set<Int> {
+        let word = headword.map(String.init)
+        guard !word.isEmpty, word.count <= chars.count else { return [] }
+        var out = Set<Int>()
+        var i = 0
+        while i + word.count <= chars.count {
+            if Array(chars[i..<(i + word.count)]) == word {
+                out.formUnion(i..<(i + word.count))
+                i += word.count
+            } else {
+                i += 1
+            }
+        }
+        return out
     }
 }

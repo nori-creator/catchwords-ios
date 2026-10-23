@@ -1,0 +1,101 @@
+{
+  "_note": "牛蒡（ゴボウ）の画像検索で返ってくる形の見本（オーナー報告 2026-10-08「花の写真しか出ない」）。説明は実際の出所の書き方に似せた作り物。",
+  "unsplash": {
+    "results": [
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/flower-1",
+          "small": "https://images.unsplash.com/flower-1-s"
+        },
+        "user": { "name": "A", "links": { "html": "https://unsplash.com/@a" } },
+        "alt_description": "purple thistle flowers in bloom",
+        "description": null,
+        "tags": [{ "title": "flower" }, { "title": "purple" }]
+      },
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/wild-2",
+          "small": "https://images.unsplash.com/wild-2-s"
+        },
+        "user": { "name": "B", "links": { "html": "https://unsplash.com/@b" } },
+        "alt_description": "wildflowers on a meadow",
+        "description": "summer blossom",
+        "tags": [{ "title": "nature" }]
+      },
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/root-3",
+          "small": "https://images.unsplash.com/root-3-s"
+        },
+        "user": { "name": "C", "links": { "html": "https://unsplash.com/@c" } },
+        "alt_description": "fresh burdock roots on a wooden table",
+        "description": "gobo, a root vegetable used in Japanese cooking",
+        "tags": [{ "title": "vegetable" }, { "title": "food" }]
+      },
+      {
+        "urls": {
+          "regular": "https://images.unsplash.com/dish-4",
+          "small": "https://images.unsplash.com/dish-4-s"
+        },
+        "user": { "name": "D", "links": { "html": "https://unsplash.com/@d" } },
+        "alt_description": "kinpira burdock root stir fry in a bowl",
+        "description": null,
+        "tags": null
+      }
+    ]
+  },
+  "commons": {
+    "query": {
+      "pages": {
+        "101": {
+          "title": "File:Arctium lappa flower head.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/a/arctium-flower.jpg",
+              "thumburl": "https://upload.wikimedia.org/thumb/a/960px-arctium-flower.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Arctium_lappa_flower_head.jpg",
+              "extmetadata": {
+                "Artist": { "value": "<a href=\"x\">Botanist</a>" },
+                "LicenseShortName": { "value": "CC BY-SA 4.0" },
+                "ImageDescription": { "value": "ゴボウの花 (Arctium lappa) inflorescence" },
+                "Categories": { "value": "Arctium lappa|Flowers of Japan" }
+              }
+            }
+          ]
+        },
+        "102": {
+          "title": "File:Arctium lappa herbarium specimen.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/b/arctium-herbarium.jpg",
+              "thumburl": "https://upload.wikimedia.org/thumb/b/960px-arctium-herbarium.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Arctium_lappa_herbarium_specimen.jpg",
+              "extmetadata": {
+                "Artist": { "value": "Museum" },
+                "ImageDescription": { "value": "Herbarium specimen of burdock" }
+              }
+            }
+          ]
+        },
+        "103": {
+          "title": "File:Gobo burdock root at market.jpg",
+          "imageinfo": [
+            {
+              "url": "https://upload.wikimedia.org/c/gobo-root.jpg",
+              "thumburl": "https://upload.wikimedia.org/thumb/c/960px-gobo-root.jpg",
+              "descriptionurl": "https://commons.wikimedia.org/wiki/File:Gobo_burdock_root_at_market.jpg",
+              "extmetadata": {
+                "Artist": { "value": "Cook" },
+                "LicenseShortName": { "value": "CC BY 4.0" },
+                "ImageDescription": {
+                  "value": "ゴボウ（根）を売る八百屋 / burdock root vegetable"
+                },
+                "Categories": { "value": "Burdock roots|Vegetables of Japan" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

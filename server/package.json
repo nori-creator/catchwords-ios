@@ -1,0 +1,29 @@
+{
+  "name": "catchwords-server",
+  "private": true,
+  "type": "module",
+  "description": "The app's server functions, run as one Supabase Edge Function (native-fn).",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "2.0.51",
+    "@supabase/supabase-js": "2.108.2",
+    "ai": "6.0.208",
+    "opencc-js": "1.4.2",
+    "pinyin-pro": "3.29.4",
+    "react": "19.2.7",
+    "ts-fsrs": "5.4.2",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.101.0",
+    "@types/node": "22.20.0",
+    "@types/react": "^19.3.0",
+    "esbuild": "0.28.1",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

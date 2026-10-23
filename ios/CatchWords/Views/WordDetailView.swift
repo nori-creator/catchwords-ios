@@ -18,6 +18,8 @@ struct WordDetailView: View {
 
     @State private var isAddingSelfie: Bool = false
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
+    /// 「品詞」 on the patterns card: the blocks in their parts of speech's colours (off by default, owner 2026-10-23).
+    @AppStorage("chunk.posColors") private var posColors: Bool = false
     @State private var autoplayed: String = ""
     @State private var prefs: CardPrefsStore = .shared
     @State private var showSections: Bool = false
@@ -916,6 +918,10 @@ struct WordDetailView: View {
         ExampleItem.all(sentence: word?.exampleSentence, translation: word?.exampleTranslation, extras: extras, target: learningLang)
     }
     private var chunks: [UsageChunk] { refinedChunks(extras?.usageChunks ?? []) }
+    /// 「使い方パターン」 (server `usage_patterns`; empty on cards made before 2026-10-23).
+    private var patterns: [UsagePattern] { (extras?.usagePatterns ?? []).filter(\.hasContent) }
+    /// 「例文」 is drawn inside 「使い方パターン」 when the language's card has no 「例文」 of its own (Taiwan Mandarin).
+    private var examplesInPatterns: Bool { !CardSection.sections(for: learningLang).contains(.example) }
     private var measures: [MeasureWord] { (extras?.measureWords ?? []).filter { !$0.word.isEmpty } }
     private var taiwanText: String { nonEmpty([extras?.taiwanNote, extras?.trivia, extras?.usageNote]) }
     private var forms: [(String, String)] {
@@ -938,7 +944,7 @@ struct WordDetailView: View {
         case .example: !examples.isEmpty
         // Gone from the word page (owner 2026-10-15, `CardSection.isRemoved`), whatever an older card still holds.
         case .examplesExtra, .webImages, .pronunciationTips, .mnemonic, .etymology: false
-        case .usageChunks: !chunks.isEmpty
+        case .usageChunks: !patterns.isEmpty || !chunks.isEmpty || (examplesInPatterns && !examples.isEmpty)
         case .measureWords: !measures.isEmpty
         case .relatedWords: !(extras?.allRelated.isEmpty ?? true) || !(extras?.synonymDiff ?? "").isEmpty
         case .taiwanNote: learningLang == "zh-TW" && !taiwanText.isEmpty
@@ -993,9 +999,12 @@ struct WordDetailView: View {
     private func sectionBody(_ s: CardSection) -> some View {
         switch s {
         case .meaning: meaningCard
-        case .example: WordExamplesCard(examples: examples, headword: headword)
+        case .example:
+            WordExamplesCard(examples: examples, headword: headword,
+                             known: SentenceReadings.known(headword: headword, pinyin: word?.pinyin, chunks: chunks),
+                             language: learningLang)
         case .examplesExtra, .webImages, .pronunciationTips, .mnemonic, .etymology: EmptyView()
-        case .usageChunks: chunkCard(chunks)
+        case .usageChunks: patternCard
         case .measureWords: measureCard(measures)
         case .relatedWords: relatedCard(extras?.allRelated ?? [])
         // 台湾メモ: no line under its sentences (owner 2026-10-15); the other prose sections keep theirs.
@@ -1029,27 +1038,35 @@ struct WordDetailView: View {
 
     /// refineUsageChunks (extras.ts): drop measure-word patterns, sentences, too-long chunks, headword-only, duplicates; keep 5.
     private func refinedChunks(_ raw: [UsageChunk]) -> [UsageChunk] {
-        let mwords = Set(measures.map(\.word))
         var seen = Set<String>()
         var out: [UsageChunk] = []
         for r in raw where !r.parts.isEmpty {
-            // docs/chunk-rules.md: one word is one block (C7), a Mandarin adjective gets its degree word (C8).
-            let c = UsageChunk(parts: ChunkRules.tidy(r.parts, headword: headword, target: learningLang, reader: L10n.lang), ja: r.ja)
-            guard ChunkRules.isPattern(original: r.parts, tidied: c.parts) else { continue }
-            let text = c.text
-            if tooLong(r) || text == headword { continue }
-            // R20: a chunk that does not contain the word it teaches ("很+甜" for 芒果) is not shown.
-            if !LanguageRules.mentionsHeadword(c.parts.map(\.text).joined(separator: " "), headword: headword, target: learningLang) { continue }
-            // C15: a pattern with a word cut out (嘴邊肉＋切) or a translation that copies the word (嘴邊肉をする).
-            if ChunkRules.isBroken(c, headword: headword, target: learningLang) { continue }
-            if text.contains(where: { "。！？!?".contains($0) }) { continue }
-            if c.parts.contains(where: { $0.pos.uppercased() == "M" || mwords.contains($0.text) }) { continue }
-            if mwords.contains(where: { !$0.isEmpty && text.contains($0) }) { continue }
-            if !seen.insert(text).inserted { continue }
+            guard let c = refineOne(r) else { continue }
+            if !seen.insert(c.text).inserted { continue }
             out.append(c)
             if out.count == 5 { break }
         }
         return out
+    }
+
+    /// One chunk in the shape the page shows it, or nil when it is not shown (the rules of `refinedChunks`, also for a
+    /// pattern's formula).
+    private func refineOne(_ r: UsageChunk) -> UsageChunk? {
+        guard !r.parts.isEmpty else { return nil }
+        let mwords = Set(measures.map(\.word))
+        // docs/chunk-rules.md: one word is one block (C7), a Mandarin adjective gets its degree word (C8).
+        let c = UsageChunk(parts: ChunkRules.tidy(r.parts, headword: headword, target: learningLang, reader: L10n.lang), ja: r.ja)
+        guard ChunkRules.isPattern(original: r.parts, tidied: c.parts) else { return nil }
+        let text = c.text
+        if tooLong(r) || text == headword { return nil }
+        // R20: a chunk that does not contain the word it teaches ("很+甜" for 芒果) is not shown.
+        if !LanguageRules.mentionsHeadword(c.parts.map(\.text).joined(separator: " "), headword: headword, target: learningLang) { return nil }
+        // C15: a pattern with a word cut out (嘴邊肉＋切) or a translation that copies the word (嘴邊肉をする).
+        if ChunkRules.isBroken(c, headword: headword, target: learningLang) { return nil }
+        if text.contains(where: { "。！？!?".contains($0) }) { return nil }
+        if c.parts.contains(where: { $0.pos.uppercased() == "M" || mwords.contains($0.text) }) { return nil }
+        if mwords.contains(where: { !$0.isEmpty && text.contains($0) }) { return nil }
+        return c
     }
 
     // MARK: - Headword edit & report
@@ -1090,7 +1107,12 @@ struct WordDetailView: View {
         // Writing the missing sections uses the AI: not without the consent (they stay empty, never "filling").
         guard AIConsent.shared.isGranted else { return }
         // 「例文」 shows the examples the card came with (the main one and `examples_extra`); more are never fetched here.
-        let missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
+        var missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
+        // 「例文」 is inside 「使い方パターン」 on a Mandarin card (2026-10-23): a card with neither patterns nor an example
+        // still has its example written, as it was when 「例文」 was a section of its own.
+        if examplesInPatterns, visibleSections.contains(.usageChunks), patterns.isEmpty, examples.isEmpty, !missing.contains(.example) {
+            missing.append(.example)
+        }
         guard !missing.isEmpty else { return }
         let wordId = current.wordId
         guard !Task.isCancelled else { return }
@@ -1164,8 +1186,8 @@ struct WordDetailView: View {
     private static func itemTitle(_ item: String?) -> String {
         switch item {
         case "pronunciation": L("発音・読み")
-        case "pos": L("品詞")
-        case let key?: CardSection(rawValue: key)?.title ?? key
+        // No part of speech on iOS (owner 2026-10-20), and an item the app does not know is never shown by its key.
+        case let key?: CardSection(rawValue: key)?.title ?? L("項目")
         default: L("項目")
         }
     }
@@ -1195,34 +1217,38 @@ struct WordDetailView: View {
         WordHighlight.marked(sentence, headword: headword)
     }
 
-    private func chunkCard(_ chunks: [UsageChunk]) -> some View {
-        let shown = Array(chunks.prefix(5))
-        let kinds = Set(shown.flatMap { $0.parts.map { ChunkKind(pos: $0.pos) } })
-        return SectionCard(title: L("使い方チャンク"), icon: "square.grid.2x2", supportsLayerEffects: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(shown.enumerated()), id: \.offset) { _, chunk in
-                    ChunkLineView(chunk: chunk, headword: headword, target: learningLang)
-                        .padding(.vertical, 14)
-                    Divider().overlay(Theme.border)
-                }
-                // The legend wraps between its items, never inside one (owner 2026-10-15: under the English UI
-                // "Stative verb (adjective)" and "Particle / preposition" broke into cramped lines).
-                FlowRow(spacing: 12) {
-                    ForEach(ChunkKind.allCases.filter { kinds.contains($0) }, id: \.self) { k in
-                        HStack(spacing: 5) {
-                            Circle().fill(k.ink).frame(width: 8, height: 8)
-                            Text(k.label(for: learningLang)).scaledFont(size: 13).foregroundStyle(Theme.muted)
-                                .lineLimit(1)
-                        }
-                        .fixedSize()
-                        .frame(minWidth: 56, alignment: .leading)
-                        .accessibilityElement(children: .combine)
-                    }
-                }
-                .padding(.top, 12)
-                // No hint under the legend about the dotted words (owner 2026-10-16): the dotted line says it.
-            }
+    /// 「使い方パターン」 (owner 2026-10-23): scene, formula and example as one unit per pattern, most used first; the
+    /// card's own examples and chunks the old way on a card made before. 「品詞」 at the top right turns the parts of
+    /// speech's colours on (off by default).
+    private var patternCard: some View {
+        SectionCard(title: CardSection.usageChunks.title, icon: CardSection.usageChunks.icon, supportsLayerEffects: false,
+                    accessory: AnyView(posChip)) {
+            PatternsCardContent(patterns: patterns, examples: examplesInPatterns ? examples : [], chunks: chunks,
+                                headword: headword, target: learningLang,
+                                known: SentenceReadings.known(headword: headword, pinyin: word?.pinyin,
+                                                              chunks: chunks + patterns.map(\.chunk)),
+                                refine: { refineOne($0) })
         }
+    }
+
+    private var posChip: some View {
+        Button {
+            Haptics.selection()
+            withAnimation(.snappy) { posColors.toggle() }
+        } label: {
+            Text(L("品詞"))
+                .scaledFont(size: 12, weight: .semibold)
+                .foregroundStyle(posColors ? Theme.primaryInk : Theme.muted)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5)
+                .background(posColors ? Theme.primary.opacity(0.12) : Theme.card, in: Capsule())
+                .overlay(Capsule().stroke(posColors ? Color.clear : Theme.border, lineWidth: 1))
+                .frame(minHeight: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(PressableStyle(scale: 0.95))
+        .accessibilityLabel(posColors ? L("品詞の色を隠す") : L("品詞の色を表示"))
+        .accessibilityIdentifier("patterns.pos")
     }
 
     private func measureCard(_ items: [MeasureWord]) -> some View {
@@ -1851,6 +1877,8 @@ struct SectionCard<Content: View>: View {
     let title: String
     let icon: String
     var supportsLayerEffects: Bool = true
+    /// A small control at the heading's right, before 「作り直す」 (the patterns card's 「品詞」).
+    var accessory: AnyView? = nil
     @ViewBuilder let content: Content
     @Environment(\.sectionRefresh) private var refresh
 
@@ -1864,6 +1892,7 @@ struct SectionCard<Content: View>: View {
                     .background(Theme.primary, in: Circle())
                 Text(title).scaledFont(size: 19, weight: .bold).foregroundStyle(Theme.foreground)
                 Spacer()
+                if let accessory { accessory }
                 if let refresh {
                     Button(action: refresh.action) {
                         // The button's mark crossfades while the section is being written (the reference video's
@@ -1907,10 +1936,13 @@ enum ChunkKind: CaseIterable, Hashable {
     init(pos: String) {
         let p = pos.uppercased()
         if p.hasPrefix("ADV") || p == "D" { self = .adverb }
-        // Japanese particles (を・に・が) and English prepositions / articles: the glue between the words.
-        else if ["P", "PART", "PREP", "DET", "ART"].contains(p) || p.contains("助詞") || p.contains("前置") { self = .particle }  // l10n-ignore (matching server POS)
-        else if p.hasPrefix("VS") || p == "A" || p == "C" || p.contains("形容") || p.contains("状態") { self = .stative }  // l10n-ignore (matching server POS)
-        else if p.hasPrefix("V") || p.contains("動") { self = .verb }  // l10n-ignore (matching server POS)
+        // Japanese particles (を・に・が) and English prepositions / articles: the glue between the words. Mandarin's
+        // 助詞 (Ptc: 的・了・嗎・把) and 接続詞 (Conj) too, and the old cards' role C (接続・介詞) as on the web
+        // (`pos.ts`) — they fell through to 名詞 and 状態動詞 (owner 2026-10-22: 「品詞をより高い精度に」).
+        else if ["P", "PART", "PREP", "DET", "ART", "PTC", "CONJ", "C"].contains(p)
+                    || p.contains("助詞") || p.contains("前置") || p.contains("接続") { self = .particle }  // l10n-ignore (matching server POS)
+        else if p.hasPrefix("VS") || p == "A" || p.hasPrefix("ADJ") || p.contains("形容") || p.contains("状態") { self = .stative }  // l10n-ignore (matching server POS)
+        else if p.hasPrefix("V") || p == "AUX" || p.contains("動") { self = .verb }  // l10n-ignore (matching server POS)
         else { self = .noun }
     }
 

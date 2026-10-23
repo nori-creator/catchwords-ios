@@ -129,4 +129,78 @@ final class ChunkReadingTests: XCTestCase {
         XCTAssertEqual(ChunkLineView.fitScales(base: 15), [1], "a compact chunk is at 15 pt already: it only wraps")
         XCTAssertEqual(ChunkLineView.fitScales(base: 40).last ?? 0, 0.8, accuracy: 0.001)
     }
+
+    /// The colour of each server POS (owner 2026-10-22: 「品詞をより高い精度に」): 助詞 (Ptc) and 接続詞 (Conj) were drawn
+    /// as 名詞, and the old cards' role C (接続・介詞) as 状態動詞.
+    func testEachPartOfSpeechHasItsColour() {
+        XCTAssertEqual(ChunkKind(pos: "Prep"), .particle, "用 in 用＋湯匙＋吃飯 (教育部 [介], TBCL Prep)")
+        XCTAssertEqual(ChunkKind(pos: "Ptc"), .particle, "的・了・嗎・把")
+        XCTAssertEqual(ChunkKind(pos: "Conj"), .particle)
+        XCTAssertEqual(ChunkKind(pos: "C"), .particle, "the old role code 接続・介詞, as on the web")
+        XCTAssertEqual(ChunkKind(pos: "Det"), .particle)
+        XCTAssertEqual(ChunkKind(pos: "V"), .verb)
+        XCTAssertEqual(ChunkKind(pos: "Vi"), .verb)
+        XCTAssertEqual(ChunkKind(pos: "V-sep"), .verb)
+        XCTAssertEqual(ChunkKind(pos: "Vaux"), .verb)
+        XCTAssertEqual(ChunkKind(pos: "Vs"), .stative)
+        XCTAssertEqual(ChunkKind(pos: "Vs-attr"), .stative)
+        XCTAssertEqual(ChunkKind(pos: "Vst"), .stative)
+        XCTAssertEqual(ChunkKind(pos: "Adv"), .adverb)
+        XCTAssertEqual(ChunkKind(pos: "N"), .noun)
+        XCTAssertEqual(ChunkKind(pos: "S"), .noun, "the old role code 主語")
+        XCTAssertEqual(ChunkKind(pos: "O"), .noun, "the old role code 目的語")
+    }
+}
+
+/// 「使い方パターン」 (owner 2026-10-23): the pattern rows decode leniently, the blocks get their roles, the formula is found
+/// in its example, and a sentence's words stay whole on a line.
+@MainActor
+final class UsagePatternTests: XCTestCase {
+    private let matong = ChunkPart(text: "馬桶", pos: "N")
+    private let stuck = ChunkPart(text: "塞住了", pos: "V", slot: true, ja: "詰まった",
+                                  alts: [ChunkAlt(text: "不通", ja: "流れない"), ChunkAlt(text: "壞了", ja: "壊れた")])
+
+    func testAPatternDecodesAndAnEmptyOneIsNotContent() throws {
+        let json = #"{"kind":"state","scene":"トイレが詰まった・流れない時","share":"45","chunk":{"parts":[{"text":"馬桶","pos":"N"},{"text":"塞住了","pos":"V"}],"ja":"トイレが詰まった"},"example":{"zh":"糟糕，馬桶塞住了！","ja":"やばい","chunk_in_example":true,"chunks":[{"text":"糟糕","pos":"Vs"},{"text":"，","pos":"Ptc"},{"text":"馬桶","pos":"N"},{"text":"塞住了","pos":"V"},{"text":"！","pos":"Ptc"}]},"note":""}"#
+        let p = try JSONDecoder().decode(UsagePattern.self, from: Data(json.utf8))
+        XCTAssertEqual(p.share, 45)
+        XCTAssertEqual(p.chunk.parts.count, 2)
+        XCTAssertTrue(p.example.chunkInExample)
+        XCTAssertEqual(p.example.words, ["糟糕", "，", "馬桶", "塞住了", "！"])
+        XCTAssertTrue(p.hasContent)
+        let empty = try JSONDecoder().decode(UsagePattern.self, from: Data(#"{"scene":"x"}"#.utf8))
+        XCTAssertFalse(empty.hasContent)
+    }
+
+    func testRolesAndTheBoldGlosses() {
+        let chunk = UsageChunk(parts: [matong, stuck], ja: "トイレが詰まった")
+        XCTAssertEqual(ChunkRules.role(matong, headword: "馬桶", target: "zh-TW"), .head)
+        XCTAssertEqual(ChunkRules.role(stuck, headword: "馬桶", target: "zh-TW"), .partner)
+        XCTAssertEqual(ChunkRules.role(ChunkPart(text: "很", pos: "Adv"), headword: "馬桶", target: "zh-TW"), .frame)
+        XCTAssertEqual(ChunkRules.role(ChunkPart(text: "用", pos: "Prep"), headword: "馬桶", target: "zh-TW"), .frame)
+        XCTAssertEqual(ChunkRules.partnerGlosses(chunk, headword: "馬桶", target: "zh-TW"), ["詰まった"])
+    }
+
+    func testTheFormulaIsFoundInItsExampleAlsoWithASwappedWord() {
+        let chunk = UsageChunk(parts: [matong, stuck], ja: "")
+        XCTAssertEqual(ChunkRules.spanText(of: chunk, in: "糟糕，馬桶塞住了，水完全沖不下去！", target: "zh-TW"), "馬桶塞住了")
+        XCTAssertEqual(ChunkRules.spanText(of: chunk, in: "馬桶壞了，不能用。", target: "zh-TW"), "馬桶壞了")
+        XCTAssertNil(ChunkRules.spanText(of: chunk, in: "請問廁所在哪裡？", target: "zh-TW"))
+    }
+
+    func testOnlyRealVariantsOpenTheWheel() {
+        XCTAssertTrue(ChunkRules.isSwappable(stuck, headword: "馬桶", target: "zh-TW"))
+        let degree = ChunkPart(text: "很", pos: "Adv", slot: true, alts: [ChunkAlt(text: "超", ja: ""), ChunkAlt(text: "非常", ja: "")])
+        XCTAssertFalse(ChunkRules.isSwappable(degree, headword: "芒果", target: "zh-TW"), "程度の語は入れ替えにしない")
+        let one = ChunkPart(text: "加熱", pos: "V", slot: true, alts: [ChunkAlt(text: "煮", ja: "")])
+        XCTAssertFalse(ChunkRules.isSwappable(one, headword: "滷味", target: "zh-TW"), "候補が1つでは入れ替えにしない")
+    }
+
+    func testWordsStayWholeOnALine() {
+        let chars = Array("糟糕，馬桶塞住了，水完全沖不下去！").map(String.init)
+        let groups = SentenceRuby.groups(chars, words: ["糟糕", "馬桶塞住了", "水", "完全", "沖不下去"])
+        XCTAssertEqual(groups.map { $0.map { chars[$0] }.joined() }, ["糟糕", "，", "馬桶塞住了", "，", "水", "完全", "沖不下去", "！"])
+        XCTAssertEqual(Sentences.unbreakable("水完全沖不下去！", words: ["沖不下去"]), "水完全沖\u{2060}不\u{2060}下\u{2060}去！")
+        XCTAssertEqual(SentenceRuby.groups(chars, words: []).count, chars.count, "no words: every character on its own")
+    }
 }
