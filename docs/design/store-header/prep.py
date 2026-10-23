@@ -28,7 +28,7 @@ BOXES = {
     "sign": (2380, 840, 2900, 1430),
 }
 # タグの付け根（物の範囲の中の割合）。アプリのタグと同じく、物の上の点から上へ出る
-ANCHOR = {"cup": (0.5, 0.52), "scooter": (0.24, 0.56), "sign": (0.5, 0.42)}
+ANCHOR = {"cup": (0.5, 0.6), "scooter": (0.12, 0.5), "sign": (0.5, 0.42)}
 
 
 def upscale(src, model):
@@ -71,8 +71,12 @@ def objects():
     masks = {}
     for k, (x0, y0, x1, y1) in BOXES.items():
         m = np.array(remove(cv2.cvtColor(im[y0:y1, x0:x1], cv2.COLOR_BGR2RGB), session=sess, only_mask=True))
+        # 半分透けた所（後ろの物が薄く残る）を捨て、いちばん大きい塊だけ残す
+        b = (m > 128).astype(np.uint8)
+        n, lab, st, _ = cv2.connectedComponentsWithStats(b)
+        b = (lab == 1 + int(np.argmax(st[1:, 4]))).astype(np.uint8) * 255
         full = np.zeros((H, W), np.uint8)
-        full[y0:y1, x0:x1] = m
+        full[y0:y1, x0:x1] = b
         masks[k] = full
     # バイクは手前のカップの後ろ: カップの分を引く
     masks["scooter"][cv2.dilate(masks["cup"], np.ones((9, 9), np.uint8)) > 100] = 0
