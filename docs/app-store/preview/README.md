@@ -75,18 +75,14 @@ ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,sampl
 
 886 × 1920・30 fps・h264・aac 48000 Hz 2ch・15〜30 秒であること。
 
-## 字幕
+## 字幕（オーナー 2026-10-23「このアプリ機能がよくわかり、魅力的に思えるように」）
 
 | 場面 | 日本語 | English |
 | --- | --- | --- |
-| 撮影〜待つ間 | 撮るだけで | Just take a photo |
-| タグが出る | 写った物に、名前のタグ | A name tag on every thing |
-| 言い方を選ぶ | 言い方を選べる | Choose how to say it |
+| 撮影 | 知らない物も、撮るだけ | Snap it, even if you can't name it |
+| タグが出る | AIが写った物を見つける | AI spots what's in your photo |
+| 言い方を選ぶ | 台湾の言い方を選べる | Pick how it's said in Taiwan |
 | GET | （字幕なし。アプリの「新しいことばをキャッチ！」を読ませる） | （同じ） |
-| 図鑑 | そのまま図鑑へ | Straight into your collection |
-| 単語ページ | 注音もピンインも、例文に | Zhuyin and pinyin on every example |
-| 復習 | 4択で復習 | Review with quick quizzes |
-| ホーム | 集めた日が、アルバムに | Every day becomes an album |
-| 最後 | 撮って覚える台湾華語 | Taiwanese Mandarin |
-
-最後の CatchWords の下の文はオーナーの指定（2026-10-23）。App Store のサブタイトル（`ios/metadata/app-info/*.json`）とは別。
+| 図鑑 | 自分だけの図鑑が どんどん増える | Your own collection keeps growing |
+| 単語ページ | 注音と発音で、すぐ覚えられる | Zhuyin and audio help it stick |
+| 最後 | 撮って覚える台湾華語 | Snap it. Learn Taiwanese Mandarin. |
