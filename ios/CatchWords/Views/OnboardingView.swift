@@ -617,7 +617,9 @@ private struct InterestTile: View {
                         Color.clear
                     }
                 }
-                .frame(height: 72)
+                // Every interest's picture is the same square, its sticker sized to the same visual area
+                // (`scripts/onboarding_stickers.py` › on_tile), so a pair of shoes and a street read alike.
+                .frame(width: 84, height: 84)
                 .shadow(color: Color(hex: 0x1C4A80).opacity(isOn ? 0.24 : 0.12), radius: isOn ? 8 : 4, y: isOn ? 6 : 3)
                 .rotationEffect(.degrees(isOn ? -4 : 0))
                 .scaleEffect(isOn ? 1.08 : 1)

@@ -32,23 +32,31 @@ OUT = SRC
 
 # 名前 → (元の写真, 切り方)。"cut" は物の形、"shaped" は角の丸い形（景色）。
 # 元の写真は blender/onboarding/sources/ に置いてある（アプリには入れない）。
-# gen_*: 2026-10-22〜 ElevenLabs（Seedream 5 Pro）で作った、白い背景の商品写真（切り抜きやすい）。
-# first_catch_*: Web 時代の写真。新しい写真ができたものから置き換える。
+# gen_*: 2026-10-22〜 ElevenLabs（Seedream 5 Pro）で作った、白い背景の商品写真（切り抜きやすい）。最初の画面の絵。
+# first_catch_*: Web 時代の写真。興味の9枚はこれを使う（オーナー 2026-10-23「興味関心は元の画像を使って進めて」）。
 STICKERS = {
     "cafe": ("gen_cafe", "cut"),
     "flower": ("first_catch_flower", "cut"),
     "cat": ("first_catch_cat", "cut"),
     "bubbletea": ("gen_bubbletea", "cut"),
-    "food": ("gen_food", "cut"),
+    "food": ("first_catch_interest_food", "cut"),
     "travel": ("first_catch_interest_travel", "shaped"),
     "animals": ("first_catch_interest_animals", "cut"),
-    "nature": ("gen_nature", "cut"),
+    "nature": ("first_catch_interest_nature", "shaped"),
     "city": ("first_catch_interest_city", "shaped"),
     "fashion": ("first_catch_interest_fashion", "cut"),
     "business": ("first_catch_interest_business", "cut"),
     "music": ("first_catch_interest_music", "cut"),
     "sports": ("first_catch_interest_sports", "cut"),
 }
+
+# 興味の9枚: 同じ大きさの正方形に、見た目の面積（白いふちを含む不透明な所）をそろえて置く
+# （オーナー 2026-10-23「画像のサイズや縮尺が変だから、自然になるようにして」: 細長い靴が枠いっぱい、景色の四角が大きすぎた）。
+INTERESTS = {"food", "travel", "animals", "nature", "city", "fashion", "business", "music", "sports"}
+TILE = 640
+# 正方形に対する不透明な所の割合と、はみ出さないための余白
+TILE_AREA = 0.36
+TILE_MARGIN = 0.06
 
 # 書き出しの長い辺（px）。画面では最大で約 200pt なので 3x でも足りる大きさ。
 LONG_SIDE = 700
@@ -126,6 +134,19 @@ def die_cut(rgba):
     return trim(white)
 
 
+def on_tile(rgba):
+    """正方形のキャンバスの真ん中に、見た目の面積が TILE_AREA になる大きさで置く（枠からははみ出さない）。"""
+    area = (np.asarray(rgba.getchannel("A")) > 128).sum()
+    k = (TILE_AREA * TILE * TILE / max(1, area)) ** 0.5
+    inner = TILE * (1 - 2 * TILE_MARGIN)
+    k = min(k, inner / max(rgba.size))
+    w, h = max(1, round(rgba.width * k)), max(1, round(rgba.height * k))
+    piece = rgba.resize((w, h), Image.LANCZOS)
+    tile = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    tile.alpha_composite(piece, ((TILE - w) // 2, (TILE - h) // 2))
+    return tile
+
+
 def main():
     flat = "--flat" in sys.argv
     cuts = sys.argv[sys.argv.index("--cuts") + 1] if "--cuts" in sys.argv else None
@@ -158,6 +179,8 @@ def main():
 
     for name in STICKERS:
         img = trim(Image.open(os.path.join(work, name + ".png")).convert("RGBA"))
+        if name in INTERESTS:
+            img = on_tile(img)
         img.save(os.path.join(OUT, f"onboarding_sticker_{name}.webp"), "WEBP", quality=88, method=6)
         print("wrote", f"onboarding_sticker_{name}.webp", img.size)
 
