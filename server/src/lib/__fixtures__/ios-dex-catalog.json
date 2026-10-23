@@ -1,0 +1,2915 @@
+[
+  {
+    "no": 1,
+    "emoji": "🧋",
+    "base": [
+      {
+        "id": "bubbletea",
+        "zh": "珍珠奶茶",
+        "en": "bubble tea",
+        "ja": "タピオカミルクティー",
+        "symbol": null,
+        "baseNo": 1
+      },
+      {
+        "id": "coffee",
+        "zh": "咖啡",
+        "en": "coffee",
+        "ja": "コーヒー",
+        "symbol": "cup.and.saucer",
+        "baseNo": 2
+      },
+      {
+        "id": "tea",
+        "zh": "茶",
+        "en": "tea",
+        "ja": "お茶",
+        "symbol": null,
+        "baseNo": 3
+      },
+      {
+        "id": "juice",
+        "zh": "果汁",
+        "en": "juice",
+        "ja": "ジュース",
+        "symbol": null,
+        "baseNo": 4
+      },
+      {
+        "id": "water",
+        "zh": "水",
+        "en": "water",
+        "ja": "水",
+        "symbol": "waterbottle",
+        "baseNo": 5
+      }
+    ],
+    "extra": [
+      {
+        "id": "soymilk",
+        "zh": "豆漿",
+        "en": "soy milk",
+        "ja": "豆乳",
+        "symbol": null
+      },
+      {
+        "id": "milk",
+        "zh": "牛奶",
+        "en": "milk",
+        "ja": "牛乳",
+        "symbol": null
+      },
+      {
+        "id": "blacktea",
+        "zh": "紅茶",
+        "en": "black tea",
+        "ja": "紅茶",
+        "symbol": null
+      },
+      {
+        "id": "greentea",
+        "zh": "綠茶",
+        "en": "green tea",
+        "ja": "緑茶",
+        "symbol": null
+      },
+      {
+        "id": "milktea",
+        "zh": "奶茶",
+        "en": "milk tea",
+        "ja": "ミルクティー",
+        "symbol": null
+      },
+      {
+        "id": "cola",
+        "zh": "可樂",
+        "en": "cola",
+        "ja": "コーラ",
+        "symbol": null
+      },
+      {
+        "id": "latte",
+        "zh": "拿鐵",
+        "en": "latte",
+        "ja": "ラテ",
+        "symbol": "cup.and.heat.waves"
+      },
+      {
+        "id": "soda",
+        "zh": "汽水",
+        "en": "soda",
+        "ja": "炭酸飲料",
+        "symbol": null
+      },
+      {
+        "id": "sportsdrink",
+        "zh": "運動飲料",
+        "en": "sports drink",
+        "ja": "スポーツドリンク",
+        "symbol": null
+      },
+      {
+        "id": "beer",
+        "zh": "啤酒",
+        "en": "beer",
+        "ja": "ビール",
+        "symbol": null
+      },
+      {
+        "id": "wintermelontea",
+        "zh": "冬瓜茶",
+        "en": "winter melon tea",
+        "ja": "冬瓜茶",
+        "symbol": null
+      },
+      {
+        "id": "yogurtdrink",
+        "zh": "優酪乳",
+        "en": "drinkable yogurt",
+        "ja": "飲むヨーグルト",
+        "symbol": null
+      },
+      {
+        "id": "hotcocoa",
+        "zh": "熱可可",
+        "en": "hot chocolate",
+        "ja": "ココア",
+        "symbol": null
+      },
+      {
+        "id": "wine",
+        "zh": "葡萄酒",
+        "en": "wine",
+        "ja": "ワイン",
+        "symbol": "wineglass"
+      }
+    ]
+  },
+  {
+    "no": 2,
+    "emoji": "🍜",
+    "base": [
+      {
+        "id": "rice",
+        "zh": "飯",
+        "en": "rice",
+        "ja": "ご飯",
+        "symbol": null,
+        "baseNo": 6
+      },
+      {
+        "id": "noodles",
+        "zh": "麵",
+        "en": "noodles",
+        "ja": "麺",
+        "symbol": null,
+        "baseNo": 7
+      },
+      {
+        "id": "bento",
+        "zh": "便當",
+        "en": "bento",
+        "ja": "弁当",
+        "symbol": null,
+        "baseNo": 8
+      },
+      {
+        "id": "dumplings",
+        "zh": "水餃",
+        "en": "dumplings",
+        "ja": "水餃子",
+        "symbol": null,
+        "baseNo": 9
+      },
+      {
+        "id": "bun",
+        "zh": "包子",
+        "en": "steamed bun",
+        "ja": "肉まん",
+        "symbol": null,
+        "baseNo": 10
+      }
+    ],
+    "extra": [
+      {
+        "id": "egg",
+        "zh": "蛋",
+        "en": "egg",
+        "ja": "卵",
+        "symbol": null
+      },
+      {
+        "id": "braisedporkrice",
+        "zh": "滷肉飯",
+        "en": "braised pork rice",
+        "ja": "魯肉飯",
+        "symbol": null
+      },
+      {
+        "id": "friedrice",
+        "zh": "炒飯",
+        "en": "fried rice",
+        "ja": "チャーハン",
+        "symbol": null
+      },
+      {
+        "id": "soup",
+        "zh": "湯",
+        "en": "soup",
+        "ja": "スープ",
+        "symbol": null
+      },
+      {
+        "id": "beefnoodles",
+        "zh": "牛肉麵",
+        "en": "beef noodle soup",
+        "ja": "牛肉麺",
+        "symbol": null
+      },
+      {
+        "id": "danbing",
+        "zh": "蛋餅",
+        "en": "egg crepe",
+        "ja": "ダンビン",
+        "symbol": null
+      },
+      {
+        "id": "sandwich",
+        "zh": "三明治",
+        "en": "sandwich",
+        "ja": "サンドイッチ",
+        "symbol": null
+      },
+      {
+        "id": "tofu",
+        "zh": "豆腐",
+        "en": "tofu",
+        "ja": "豆腐",
+        "symbol": null
+      },
+      {
+        "id": "porridge",
+        "zh": "粥",
+        "en": "congee",
+        "ja": "お粥",
+        "symbol": null
+      },
+      {
+        "id": "friedchicken",
+        "zh": "炸雞",
+        "en": "fried chicken",
+        "ja": "フライドチキン",
+        "symbol": null
+      },
+      {
+        "id": "stinkytofu",
+        "zh": "臭豆腐",
+        "en": "stinky tofu",
+        "ja": "臭豆腐",
+        "symbol": null
+      },
+      {
+        "id": "hotpot",
+        "zh": "火鍋",
+        "en": "hot pot",
+        "ja": "火鍋",
+        "symbol": null
+      },
+      {
+        "id": "scallionpancake",
+        "zh": "蔥油餅",
+        "en": "scallion pancake",
+        "ja": "ねぎ餅",
+        "symbol": null
+      },
+      {
+        "id": "hamburger",
+        "zh": "漢堡",
+        "en": "hamburger",
+        "ja": "ハンバーガー",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 3,
+    "emoji": "🍎",
+    "base": [
+      {
+        "id": "apple",
+        "zh": "蘋果",
+        "en": "apple",
+        "ja": "りんご",
+        "symbol": null,
+        "baseNo": 11
+      },
+      {
+        "id": "banana",
+        "zh": "香蕉",
+        "en": "banana",
+        "ja": "バナナ",
+        "symbol": null,
+        "baseNo": 12
+      },
+      {
+        "id": "mango",
+        "zh": "芒果",
+        "en": "mango",
+        "ja": "マンゴー",
+        "symbol": null,
+        "baseNo": 13
+      },
+      {
+        "id": "tomato",
+        "zh": "番茄",
+        "en": "tomato",
+        "ja": "トマト",
+        "symbol": null,
+        "baseNo": 14
+      },
+      {
+        "id": "cabbage",
+        "zh": "高麗菜",
+        "en": "cabbage",
+        "ja": "キャベツ",
+        "symbol": null,
+        "baseNo": 15
+      }
+    ],
+    "extra": [
+      {
+        "id": "orange",
+        "zh": "橘子",
+        "en": "orange",
+        "ja": "みかん",
+        "symbol": null
+      },
+      {
+        "id": "watermelon",
+        "zh": "西瓜",
+        "en": "watermelon",
+        "ja": "スイカ",
+        "symbol": null
+      },
+      {
+        "id": "guava",
+        "zh": "芭樂",
+        "en": "guava",
+        "ja": "グァバ",
+        "symbol": null
+      },
+      {
+        "id": "grapes",
+        "zh": "葡萄",
+        "en": "grapes",
+        "ja": "ぶどう",
+        "symbol": null
+      },
+      {
+        "id": "pineapple",
+        "zh": "鳳梨",
+        "en": "pineapple",
+        "ja": "パイナップル",
+        "symbol": null
+      },
+      {
+        "id": "papaya",
+        "zh": "木瓜",
+        "en": "papaya",
+        "ja": "パパイヤ",
+        "symbol": null
+      },
+      {
+        "id": "carrot",
+        "zh": "紅蘿蔔",
+        "en": "carrot",
+        "ja": "にんじん",
+        "symbol": "carrot"
+      },
+      {
+        "id": "onion",
+        "zh": "洋蔥",
+        "en": "onion",
+        "ja": "玉ねぎ",
+        "symbol": null
+      },
+      {
+        "id": "sweetpotato",
+        "zh": "地瓜",
+        "en": "sweet potato",
+        "ja": "さつまいも",
+        "symbol": null
+      },
+      {
+        "id": "corn",
+        "zh": "玉米",
+        "en": "corn",
+        "ja": "とうもろこし",
+        "symbol": null
+      },
+      {
+        "id": "strawberry",
+        "zh": "草莓",
+        "en": "strawberry",
+        "ja": "いちご",
+        "symbol": null
+      },
+      {
+        "id": "lemon",
+        "zh": "檸檬",
+        "en": "lemon",
+        "ja": "レモン",
+        "symbol": null
+      },
+      {
+        "id": "cucumber",
+        "zh": "小黃瓜",
+        "en": "cucumber",
+        "ja": "きゅうり",
+        "symbol": null
+      },
+      {
+        "id": "potato",
+        "zh": "馬鈴薯",
+        "en": "potato",
+        "ja": "じゃがいも",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 4,
+    "emoji": "🍰",
+    "base": [
+      {
+        "id": "bread",
+        "zh": "麵包",
+        "en": "bread",
+        "ja": "パン",
+        "symbol": null,
+        "baseNo": 16
+      },
+      {
+        "id": "cake",
+        "zh": "蛋糕",
+        "en": "cake",
+        "ja": "ケーキ",
+        "symbol": "birthday.cake",
+        "baseNo": 17
+      },
+      {
+        "id": "cookie",
+        "zh": "餅乾",
+        "en": "cookie",
+        "ja": "クッキー",
+        "symbol": null,
+        "baseNo": 18
+      },
+      {
+        "id": "icecream",
+        "zh": "冰淇淋",
+        "en": "ice cream",
+        "ja": "アイスクリーム",
+        "symbol": null,
+        "baseNo": 19
+      },
+      {
+        "id": "pineapplecake",
+        "zh": "鳳梨酥",
+        "en": "pineapple cake",
+        "ja": "パイナップルケーキ",
+        "symbol": null,
+        "baseNo": 20
+      }
+    ],
+    "extra": [
+      {
+        "id": "candy",
+        "zh": "糖果",
+        "en": "candy",
+        "ja": "飴",
+        "symbol": null
+      },
+      {
+        "id": "chocolate",
+        "zh": "巧克力",
+        "en": "chocolate",
+        "ja": "チョコレート",
+        "symbol": null
+      },
+      {
+        "id": "toast",
+        "zh": "吐司",
+        "en": "toast",
+        "ja": "食パン",
+        "symbol": null
+      },
+      {
+        "id": "shavedice",
+        "zh": "剉冰",
+        "en": "shaved ice",
+        "ja": "かき氷",
+        "symbol": null
+      },
+      {
+        "id": "chips",
+        "zh": "洋芋片",
+        "en": "potato chips",
+        "ja": "ポテトチップス",
+        "symbol": null
+      },
+      {
+        "id": "pudding",
+        "zh": "布丁",
+        "en": "pudding",
+        "ja": "プリン",
+        "symbol": null
+      },
+      {
+        "id": "douhua",
+        "zh": "豆花",
+        "en": "tofu pudding",
+        "ja": "豆花",
+        "symbol": null
+      },
+      {
+        "id": "donut",
+        "zh": "甜甜圈",
+        "en": "donut",
+        "ja": "ドーナツ",
+        "symbol": null
+      },
+      {
+        "id": "eggtart",
+        "zh": "蛋塔",
+        "en": "egg tart",
+        "ja": "エッグタルト",
+        "symbol": null
+      },
+      {
+        "id": "mochi",
+        "zh": "麻糬",
+        "en": "mochi",
+        "ja": "もち",
+        "symbol": null
+      },
+      {
+        "id": "taroballs",
+        "zh": "芋圓",
+        "en": "taro balls",
+        "ja": "タロイモ団子",
+        "symbol": null
+      },
+      {
+        "id": "waffle",
+        "zh": "鬆餅",
+        "en": "waffle",
+        "ja": "ワッフル",
+        "symbol": null
+      },
+      {
+        "id": "jelly",
+        "zh": "果凍",
+        "en": "jelly",
+        "ja": "ゼリー",
+        "symbol": null
+      },
+      {
+        "id": "popcorn",
+        "zh": "爆米花",
+        "en": "popcorn",
+        "ja": "ポップコーン",
+        "symbol": "popcorn"
+      }
+    ]
+  },
+  {
+    "no": 5,
+    "emoji": "🥢",
+    "base": [
+      {
+        "id": "cup",
+        "zh": "杯子",
+        "en": "cup",
+        "ja": "コップ",
+        "symbol": "mug",
+        "baseNo": 21
+      },
+      {
+        "id": "bowl",
+        "zh": "碗",
+        "en": "bowl",
+        "ja": "お椀",
+        "symbol": null,
+        "baseNo": 22
+      },
+      {
+        "id": "chopsticks",
+        "zh": "筷子",
+        "en": "chopsticks",
+        "ja": "箸",
+        "symbol": null,
+        "baseNo": 23
+      },
+      {
+        "id": "plate",
+        "zh": "盤子",
+        "en": "plate",
+        "ja": "皿",
+        "symbol": null,
+        "baseNo": 24
+      },
+      {
+        "id": "spoon",
+        "zh": "湯匙",
+        "en": "spoon",
+        "ja": "スプーン",
+        "symbol": null,
+        "baseNo": 25
+      }
+    ],
+    "extra": [
+      {
+        "id": "fork",
+        "zh": "叉子",
+        "en": "fork",
+        "ja": "フォーク",
+        "symbol": null
+      },
+      {
+        "id": "knife",
+        "zh": "刀子",
+        "en": "knife",
+        "ja": "ナイフ",
+        "symbol": null
+      },
+      {
+        "id": "straw",
+        "zh": "吸管",
+        "en": "straw",
+        "ja": "ストロー",
+        "symbol": null
+      },
+      {
+        "id": "papercup",
+        "zh": "紙杯",
+        "en": "paper cup",
+        "ja": "紙コップ",
+        "symbol": null
+      },
+      {
+        "id": "pot",
+        "zh": "鍋子",
+        "en": "pot",
+        "ja": "鍋",
+        "symbol": null
+      },
+      {
+        "id": "fryingpan",
+        "zh": "平底鍋",
+        "en": "frying pan",
+        "ja": "フライパン",
+        "symbol": "frying.pan"
+      },
+      {
+        "id": "glass",
+        "zh": "玻璃杯",
+        "en": "glass",
+        "ja": "グラス",
+        "symbol": null
+      },
+      {
+        "id": "kettle",
+        "zh": "水壺",
+        "en": "kettle",
+        "ja": "やかん",
+        "symbol": null
+      },
+      {
+        "id": "cuttingboard",
+        "zh": "砧板",
+        "en": "cutting board",
+        "ja": "まな板",
+        "symbol": null
+      },
+      {
+        "id": "bentobox",
+        "zh": "便當盒",
+        "en": "bento box",
+        "ja": "弁当箱",
+        "symbol": null
+      },
+      {
+        "id": "thermos",
+        "zh": "保溫瓶",
+        "en": "thermos",
+        "ja": "水筒",
+        "symbol": null
+      },
+      {
+        "id": "wok",
+        "zh": "炒鍋",
+        "en": "wok",
+        "ja": "中華鍋",
+        "symbol": null
+      },
+      {
+        "id": "teapot",
+        "zh": "茶壺",
+        "en": "teapot",
+        "ja": "急須",
+        "symbol": null
+      },
+      {
+        "id": "sponge",
+        "zh": "菜瓜布",
+        "en": "scrub sponge",
+        "ja": "スポンジ",
+        "symbol": null
+      },
+      {
+        "id": "dishsoap",
+        "zh": "洗碗精",
+        "en": "dish soap",
+        "ja": "食器用洗剤",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 6,
+    "emoji": "🛋️",
+    "base": [
+      {
+        "id": "chair",
+        "zh": "椅子",
+        "en": "chair",
+        "ja": "椅子",
+        "symbol": "chair",
+        "baseNo": 26
+      },
+      {
+        "id": "table",
+        "zh": "桌子",
+        "en": "table",
+        "ja": "テーブル",
+        "symbol": "table.furniture",
+        "baseNo": 27
+      },
+      {
+        "id": "bed",
+        "zh": "床",
+        "en": "bed",
+        "ja": "ベッド",
+        "symbol": "bed.double",
+        "baseNo": 28
+      },
+      {
+        "id": "sofa",
+        "zh": "沙發",
+        "en": "sofa",
+        "ja": "ソファ",
+        "symbol": "sofa",
+        "baseNo": 29
+      },
+      {
+        "id": "clock",
+        "zh": "時鐘",
+        "en": "clock",
+        "ja": "時計",
+        "symbol": "clock",
+        "baseNo": 30
+      }
+    ],
+    "extra": [
+      {
+        "id": "window",
+        "zh": "窗戶",
+        "en": "window",
+        "ja": "窓",
+        "symbol": "window.casement"
+      },
+      {
+        "id": "door",
+        "zh": "門",
+        "en": "door",
+        "ja": "ドア",
+        "symbol": "door.left.hand.closed"
+      },
+      {
+        "id": "light",
+        "zh": "電燈",
+        "en": "light",
+        "ja": "電気",
+        "symbol": "lightbulb"
+      },
+      {
+        "id": "desk",
+        "zh": "書桌",
+        "en": "desk",
+        "ja": "机",
+        "symbol": null
+      },
+      {
+        "id": "curtain",
+        "zh": "窗簾",
+        "en": "curtain",
+        "ja": "カーテン",
+        "symbol": "curtains.closed"
+      },
+      {
+        "id": "mirror",
+        "zh": "鏡子",
+        "en": "mirror",
+        "ja": "鏡",
+        "symbol": null
+      },
+      {
+        "id": "pillow",
+        "zh": "枕頭",
+        "en": "pillow",
+        "ja": "枕",
+        "symbol": null
+      },
+      {
+        "id": "blanket",
+        "zh": "被子",
+        "en": "blanket",
+        "ja": "布団",
+        "symbol": null
+      },
+      {
+        "id": "cabinet",
+        "zh": "櫃子",
+        "en": "cabinet",
+        "ja": "戸棚",
+        "symbol": "cabinet"
+      },
+      {
+        "id": "lamp",
+        "zh": "檯燈",
+        "en": "desk lamp",
+        "ja": "電気スタンド",
+        "symbol": "lamp.desk"
+      },
+      {
+        "id": "bookshelf",
+        "zh": "書架",
+        "en": "bookshelf",
+        "ja": "本棚",
+        "symbol": "books.vertical"
+      },
+      {
+        "id": "stairs",
+        "zh": "樓梯",
+        "en": "stairs",
+        "ja": "階段",
+        "symbol": "stairs"
+      },
+      {
+        "id": "alarmclock",
+        "zh": "鬧鐘",
+        "en": "alarm clock",
+        "ja": "目覚まし時計",
+        "symbol": "alarm"
+      },
+      {
+        "id": "calendar",
+        "zh": "月曆",
+        "en": "calendar",
+        "ja": "カレンダー",
+        "symbol": "calendar"
+      }
+    ]
+  },
+  {
+    "no": 7,
+    "emoji": "🔌",
+    "base": [
+      {
+        "id": "aircon",
+        "zh": "冷氣",
+        "en": "air conditioner",
+        "ja": "エアコン",
+        "symbol": "air.conditioner.horizontal",
+        "baseNo": 31
+      },
+      {
+        "id": "refrigerator",
+        "zh": "冰箱",
+        "en": "fridge",
+        "ja": "冷蔵庫",
+        "symbol": "refrigerator",
+        "baseNo": 32
+      },
+      {
+        "id": "tv",
+        "zh": "電視",
+        "en": "TV",
+        "ja": "テレビ",
+        "symbol": "tv",
+        "baseNo": 33
+      },
+      {
+        "id": "washingmachine",
+        "zh": "洗衣機",
+        "en": "washing machine",
+        "ja": "洗濯機",
+        "symbol": "washer",
+        "baseNo": 34
+      },
+      {
+        "id": "fan",
+        "zh": "電風扇",
+        "en": "electric fan",
+        "ja": "扇風機",
+        "symbol": "fan.desk",
+        "baseNo": 35
+      }
+    ],
+    "extra": [
+      {
+        "id": "ricecooker",
+        "zh": "電鍋",
+        "en": "rice cooker",
+        "ja": "炊飯器",
+        "symbol": null
+      },
+      {
+        "id": "microwave",
+        "zh": "微波爐",
+        "en": "microwave",
+        "ja": "電子レンジ",
+        "symbol": "microwave"
+      },
+      {
+        "id": "hairdryer",
+        "zh": "吹風機",
+        "en": "hair dryer",
+        "ja": "ドライヤー",
+        "symbol": null
+      },
+      {
+        "id": "remote",
+        "zh": "遙控器",
+        "en": "remote control",
+        "ja": "リモコン",
+        "symbol": "av.remote"
+      },
+      {
+        "id": "waterdispenser",
+        "zh": "飲水機",
+        "en": "water dispenser",
+        "ja": "ウォーターサーバー",
+        "symbol": null
+      },
+      {
+        "id": "dehumidifier",
+        "zh": "除濕機",
+        "en": "dehumidifier",
+        "ja": "除湿機",
+        "symbol": "dehumidifier"
+      },
+      {
+        "id": "vacuum",
+        "zh": "吸塵器",
+        "en": "vacuum cleaner",
+        "ja": "掃除機",
+        "symbol": null
+      },
+      {
+        "id": "hotwaterpot",
+        "zh": "熱水瓶",
+        "en": "electric water pot",
+        "ja": "電気ポット",
+        "symbol": null
+      },
+      {
+        "id": "oven",
+        "zh": "烤箱",
+        "en": "oven",
+        "ja": "オーブン",
+        "symbol": "oven"
+      },
+      {
+        "id": "airpurifier",
+        "zh": "空氣清淨機",
+        "en": "air purifier",
+        "ja": "空気清浄機",
+        "symbol": "air.purifier"
+      },
+      {
+        "id": "inductioncooker",
+        "zh": "電磁爐",
+        "en": "induction cooker",
+        "ja": "IHコンロ",
+        "symbol": "cooktop"
+      },
+      {
+        "id": "clothesdryer",
+        "zh": "烘衣機",
+        "en": "clothes dryer",
+        "ja": "衣類乾燥機",
+        "symbol": "dryer"
+      },
+      {
+        "id": "iron",
+        "zh": "熨斗",
+        "en": "iron",
+        "ja": "アイロン",
+        "symbol": null
+      },
+      {
+        "id": "toaster",
+        "zh": "烤麵包機",
+        "en": "toaster",
+        "ja": "トースター",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 8,
+    "emoji": "📱",
+    "base": [
+      {
+        "id": "phone",
+        "zh": "手機",
+        "en": "phone",
+        "ja": "スマホ",
+        "symbol": "iphone",
+        "baseNo": 36
+      },
+      {
+        "id": "computer",
+        "zh": "電腦",
+        "en": "computer",
+        "ja": "パソコン",
+        "symbol": "laptopcomputer",
+        "baseNo": 37
+      },
+      {
+        "id": "headphones",
+        "zh": "耳機",
+        "en": "headphones",
+        "ja": "イヤホン",
+        "symbol": "headphones",
+        "baseNo": 38
+      },
+      {
+        "id": "charger",
+        "zh": "充電器",
+        "en": "charger",
+        "ja": "充電器",
+        "symbol": "powerplug",
+        "baseNo": 39
+      },
+      {
+        "id": "camera",
+        "zh": "相機",
+        "en": "camera",
+        "ja": "カメラ",
+        "symbol": "camera",
+        "baseNo": 40
+      }
+    ],
+    "extra": [
+      {
+        "id": "powerbank",
+        "zh": "行動電源",
+        "en": "power bank",
+        "ja": "モバイルバッテリー",
+        "symbol": null
+      },
+      {
+        "id": "chargingcable",
+        "zh": "充電線",
+        "en": "charging cable",
+        "ja": "充電ケーブル",
+        "symbol": "cable.connector"
+      },
+      {
+        "id": "tablet",
+        "zh": "平板",
+        "en": "tablet",
+        "ja": "タブレット",
+        "symbol": "ipad"
+      },
+      {
+        "id": "phonecase",
+        "zh": "手機殼",
+        "en": "phone case",
+        "ja": "スマホケース",
+        "symbol": null
+      },
+      {
+        "id": "battery",
+        "zh": "電池",
+        "en": "battery",
+        "ja": "電池",
+        "symbol": "battery.100"
+      },
+      {
+        "id": "keyboard",
+        "zh": "鍵盤",
+        "en": "keyboard",
+        "ja": "キーボード",
+        "symbol": "keyboard"
+      },
+      {
+        "id": "computermouse",
+        "zh": "滑鼠",
+        "en": "computer mouse",
+        "ja": "マウス",
+        "symbol": "computermouse"
+      },
+      {
+        "id": "monitor",
+        "zh": "螢幕",
+        "en": "monitor",
+        "ja": "モニター",
+        "symbol": "display"
+      },
+      {
+        "id": "speaker",
+        "zh": "喇叭",
+        "en": "speaker",
+        "ja": "スピーカー",
+        "symbol": "hifispeaker"
+      },
+      {
+        "id": "usbdrive",
+        "zh": "隨身碟",
+        "en": "USB flash drive",
+        "ja": "USBメモリ",
+        "symbol": null
+      },
+      {
+        "id": "printer",
+        "zh": "印表機",
+        "en": "printer",
+        "ja": "プリンター",
+        "symbol": "printer"
+      },
+      {
+        "id": "smartwatch",
+        "zh": "智慧手錶",
+        "en": "smartwatch",
+        "ja": "スマートウォッチ",
+        "symbol": "applewatch"
+      },
+      {
+        "id": "microphone",
+        "zh": "麥克風",
+        "en": "microphone",
+        "ja": "マイク",
+        "symbol": "mic"
+      },
+      {
+        "id": "router",
+        "zh": "路由器",
+        "en": "router",
+        "ja": "ルーター",
+        "symbol": "wifi.router"
+      }
+    ]
+  },
+  {
+    "no": 9,
+    "emoji": "✏️",
+    "base": [
+      {
+        "id": "book",
+        "zh": "書",
+        "en": "book",
+        "ja": "本",
+        "symbol": "book.closed",
+        "baseNo": 41
+      },
+      {
+        "id": "pen",
+        "zh": "筆",
+        "en": "pen",
+        "ja": "ペン",
+        "symbol": "pencil",
+        "baseNo": 42
+      },
+      {
+        "id": "notebook",
+        "zh": "筆記本",
+        "en": "notebook",
+        "ja": "ノート",
+        "symbol": null,
+        "baseNo": 43
+      },
+      {
+        "id": "scissors",
+        "zh": "剪刀",
+        "en": "scissors",
+        "ja": "はさみ",
+        "symbol": "scissors",
+        "baseNo": 44
+      },
+      {
+        "id": "eraser",
+        "zh": "橡皮擦",
+        "en": "eraser",
+        "ja": "消しゴム",
+        "symbol": "eraser",
+        "baseNo": 45
+      }
+    ],
+    "extra": [
+      {
+        "id": "pencil",
+        "zh": "鉛筆",
+        "en": "pencil",
+        "ja": "鉛筆",
+        "symbol": null
+      },
+      {
+        "id": "paper",
+        "zh": "紙",
+        "en": "paper",
+        "ja": "紙",
+        "symbol": "doc"
+      },
+      {
+        "id": "comic",
+        "zh": "漫畫",
+        "en": "comic",
+        "ja": "漫画",
+        "symbol": null
+      },
+      {
+        "id": "ruler",
+        "zh": "尺",
+        "en": "ruler",
+        "ja": "定規",
+        "symbol": "ruler"
+      },
+      {
+        "id": "tape",
+        "zh": "膠帶",
+        "en": "tape",
+        "ja": "テープ",
+        "symbol": null
+      },
+      {
+        "id": "pencilcase",
+        "zh": "鉛筆盒",
+        "en": "pencil case",
+        "ja": "筆箱",
+        "symbol": null
+      },
+      {
+        "id": "marker",
+        "zh": "麥克筆",
+        "en": "marker",
+        "ja": "マーカー",
+        "symbol": null
+      },
+      {
+        "id": "glue",
+        "zh": "膠水",
+        "en": "glue",
+        "ja": "のり",
+        "symbol": null
+      },
+      {
+        "id": "envelope",
+        "zh": "信封",
+        "en": "envelope",
+        "ja": "封筒",
+        "symbol": "envelope"
+      },
+      {
+        "id": "newspaper",
+        "zh": "報紙",
+        "en": "newspaper",
+        "ja": "新聞",
+        "symbol": "newspaper"
+      },
+      {
+        "id": "magazine",
+        "zh": "雜誌",
+        "en": "magazine",
+        "ja": "雑誌",
+        "symbol": "magazine"
+      },
+      {
+        "id": "folder",
+        "zh": "資料夾",
+        "en": "folder",
+        "ja": "フォルダー",
+        "symbol": "folder"
+      },
+      {
+        "id": "stapler",
+        "zh": "釘書機",
+        "en": "stapler",
+        "ja": "ホッチキス",
+        "symbol": null
+      },
+      {
+        "id": "paperclip",
+        "zh": "迴紋針",
+        "en": "paper clip",
+        "ja": "クリップ",
+        "symbol": "paperclip"
+      },
+      {
+        "id": "dictionary",
+        "zh": "字典",
+        "en": "dictionary",
+        "ja": "辞書",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 10,
+    "emoji": "🪥",
+    "base": [
+      {
+        "id": "toothbrush",
+        "zh": "牙刷",
+        "en": "toothbrush",
+        "ja": "歯ブラシ",
+        "symbol": null,
+        "baseNo": 46
+      },
+      {
+        "id": "towel",
+        "zh": "毛巾",
+        "en": "towel",
+        "ja": "タオル",
+        "symbol": null,
+        "baseNo": 47
+      },
+      {
+        "id": "tissue",
+        "zh": "衛生紙",
+        "en": "tissue",
+        "ja": "ティッシュ",
+        "symbol": null,
+        "baseNo": 48
+      },
+      {
+        "id": "key",
+        "zh": "鑰匙",
+        "en": "key",
+        "ja": "鍵",
+        "symbol": "key",
+        "baseNo": 49
+      },
+      {
+        "id": "medicine",
+        "zh": "藥",
+        "en": "medicine",
+        "ja": "薬",
+        "symbol": "pills",
+        "baseNo": 50
+      }
+    ],
+    "extra": [
+      {
+        "id": "money",
+        "zh": "錢",
+        "en": "money",
+        "ja": "お金",
+        "symbol": "banknote"
+      },
+      {
+        "id": "plasticbag",
+        "zh": "塑膠袋",
+        "en": "plastic bag",
+        "ja": "ビニール袋",
+        "symbol": "bag"
+      },
+      {
+        "id": "toothpaste",
+        "zh": "牙膏",
+        "en": "toothpaste",
+        "ja": "歯磨き粉",
+        "symbol": null
+      },
+      {
+        "id": "coin",
+        "zh": "硬幣",
+        "en": "coin",
+        "ja": "硬貨",
+        "symbol": null
+      },
+      {
+        "id": "soap",
+        "zh": "肥皂",
+        "en": "soap",
+        "ja": "石けん",
+        "symbol": null
+      },
+      {
+        "id": "shampoo",
+        "zh": "洗髮精",
+        "en": "shampoo",
+        "ja": "シャンプー",
+        "symbol": null
+      },
+      {
+        "id": "trashbag",
+        "zh": "垃圾袋",
+        "en": "trash bag",
+        "ja": "ゴミ袋",
+        "symbol": null
+      },
+      {
+        "id": "transitcard",
+        "zh": "悠遊卡",
+        "en": "transit card",
+        "ja": "交通系ICカード",
+        "symbol": null
+      },
+      {
+        "id": "receipt",
+        "zh": "發票",
+        "en": "receipt",
+        "ja": "レシート",
+        "symbol": null
+      },
+      {
+        "id": "toilet",
+        "zh": "馬桶",
+        "en": "toilet",
+        "ja": "トイレ",
+        "symbol": "toilet"
+      },
+      {
+        "id": "sink",
+        "zh": "洗手台",
+        "en": "sink",
+        "ja": "洗面台",
+        "symbol": "sink"
+      },
+      {
+        "id": "wetwipes",
+        "zh": "濕紙巾",
+        "en": "wet wipes",
+        "ja": "ウェットティッシュ",
+        "symbol": null
+      },
+      {
+        "id": "creditcard",
+        "zh": "信用卡",
+        "en": "credit card",
+        "ja": "クレジットカード",
+        "symbol": "creditcard"
+      },
+      {
+        "id": "bandage",
+        "zh": "OK繃",
+        "en": "bandage",
+        "ja": "絆創膏",
+        "symbol": "bandage"
+      },
+      {
+        "id": "hanger",
+        "zh": "衣架",
+        "en": "hanger",
+        "ja": "ハンガー",
+        "symbol": "hanger"
+      }
+    ]
+  },
+  {
+    "no": 11,
+    "emoji": "👕",
+    "base": [
+      {
+        "id": "clothes",
+        "zh": "衣服",
+        "en": "clothes",
+        "ja": "服",
+        "symbol": "tshirt",
+        "baseNo": 51
+      },
+      {
+        "id": "pants",
+        "zh": "褲子",
+        "en": "pants",
+        "ja": "ズボン",
+        "symbol": null,
+        "baseNo": 52
+      },
+      {
+        "id": "jacket",
+        "zh": "外套",
+        "en": "jacket",
+        "ja": "上着",
+        "symbol": "jacket",
+        "baseNo": 53
+      },
+      {
+        "id": "skirt",
+        "zh": "裙子",
+        "en": "skirt",
+        "ja": "スカート",
+        "symbol": null,
+        "baseNo": 54
+      },
+      {
+        "id": "socks",
+        "zh": "襪子",
+        "en": "socks",
+        "ja": "靴下",
+        "symbol": null,
+        "baseNo": 55
+      }
+    ],
+    "extra": [
+      {
+        "id": "tshirt",
+        "zh": "T恤",
+        "en": "T-shirt",
+        "ja": "Tシャツ",
+        "symbol": null
+      },
+      {
+        "id": "shirt",
+        "zh": "襯衫",
+        "en": "shirt",
+        "ja": "シャツ",
+        "symbol": null
+      },
+      {
+        "id": "shorts",
+        "zh": "短褲",
+        "en": "shorts",
+        "ja": "短パン",
+        "symbol": null
+      },
+      {
+        "id": "jeans",
+        "zh": "牛仔褲",
+        "en": "jeans",
+        "ja": "ジーンズ",
+        "symbol": null
+      },
+      {
+        "id": "dress",
+        "zh": "洋裝",
+        "en": "dress",
+        "ja": "ワンピース",
+        "symbol": null
+      },
+      {
+        "id": "raincoat",
+        "zh": "雨衣",
+        "en": "raincoat",
+        "ja": "レインコート",
+        "symbol": null
+      },
+      {
+        "id": "sweater",
+        "zh": "毛衣",
+        "en": "sweater",
+        "ja": "セーター",
+        "symbol": null
+      },
+      {
+        "id": "hoodie",
+        "zh": "帽T",
+        "en": "hoodie",
+        "ja": "パーカー",
+        "symbol": null
+      },
+      {
+        "id": "uniform",
+        "zh": "制服",
+        "en": "uniform",
+        "ja": "制服",
+        "symbol": null
+      },
+      {
+        "id": "pajamas",
+        "zh": "睡衣",
+        "en": "pajamas",
+        "ja": "パジャマ",
+        "symbol": null
+      },
+      {
+        "id": "tanktop",
+        "zh": "背心",
+        "en": "tank top",
+        "ja": "タンクトップ",
+        "symbol": null
+      },
+      {
+        "id": "underwear",
+        "zh": "內衣",
+        "en": "underwear",
+        "ja": "下着",
+        "symbol": null
+      },
+      {
+        "id": "scarf",
+        "zh": "圍巾",
+        "en": "scarf",
+        "ja": "マフラー",
+        "symbol": null
+      },
+      {
+        "id": "necktie",
+        "zh": "領帶",
+        "en": "necktie",
+        "ja": "ネクタイ",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 12,
+    "emoji": "👟",
+    "base": [
+      {
+        "id": "shoes",
+        "zh": "鞋子",
+        "en": "shoes",
+        "ja": "靴",
+        "symbol": "shoe",
+        "baseNo": 56
+      },
+      {
+        "id": "hat",
+        "zh": "帽子",
+        "en": "hat",
+        "ja": "帽子",
+        "symbol": "hat.cap",
+        "baseNo": 57
+      },
+      {
+        "id": "glasses",
+        "zh": "眼鏡",
+        "en": "glasses",
+        "ja": "眼鏡",
+        "symbol": "eyeglasses",
+        "baseNo": 58
+      },
+      {
+        "id": "bag",
+        "zh": "包包",
+        "en": "bag",
+        "ja": "かばん",
+        "symbol": "handbag",
+        "baseNo": 59
+      },
+      {
+        "id": "umbrella",
+        "zh": "雨傘",
+        "en": "umbrella",
+        "ja": "傘",
+        "symbol": "umbrella",
+        "baseNo": 60
+      }
+    ],
+    "extra": [
+      {
+        "id": "watch",
+        "zh": "手錶",
+        "en": "watch",
+        "ja": "腕時計",
+        "symbol": "watch.analog"
+      },
+      {
+        "id": "backpack",
+        "zh": "背包",
+        "en": "backpack",
+        "ja": "リュック",
+        "symbol": "backpack"
+      },
+      {
+        "id": "mask",
+        "zh": "口罩",
+        "en": "face mask",
+        "ja": "マスク",
+        "symbol": null
+      },
+      {
+        "id": "slippers",
+        "zh": "拖鞋",
+        "en": "slippers",
+        "ja": "スリッパ",
+        "symbol": null
+      },
+      {
+        "id": "wallet",
+        "zh": "錢包",
+        "en": "wallet",
+        "ja": "財布",
+        "symbol": "wallet.bifold"
+      },
+      {
+        "id": "helmet",
+        "zh": "安全帽",
+        "en": "helmet",
+        "ja": "ヘルメット",
+        "symbol": "helmet"
+      },
+      {
+        "id": "sneakers",
+        "zh": "球鞋",
+        "en": "sneakers",
+        "ja": "スニーカー",
+        "symbol": "shoe.2"
+      },
+      {
+        "id": "sunglasses",
+        "zh": "太陽眼鏡",
+        "en": "sunglasses",
+        "ja": "サングラス",
+        "symbol": "sunglasses"
+      },
+      {
+        "id": "suitcase",
+        "zh": "行李箱",
+        "en": "suitcase",
+        "ja": "スーツケース",
+        "symbol": "suitcase.rolling"
+      },
+      {
+        "id": "belt",
+        "zh": "皮帶",
+        "en": "belt",
+        "ja": "ベルト",
+        "symbol": null
+      },
+      {
+        "id": "hairtie",
+        "zh": "髮圈",
+        "en": "hair tie",
+        "ja": "ヘアゴム",
+        "symbol": null
+      },
+      {
+        "id": "earrings",
+        "zh": "耳環",
+        "en": "earrings",
+        "ja": "イヤリング",
+        "symbol": null
+      },
+      {
+        "id": "necklace",
+        "zh": "項鍊",
+        "en": "necklace",
+        "ja": "ネックレス",
+        "symbol": null
+      },
+      {
+        "id": "ring",
+        "zh": "戒指",
+        "en": "ring",
+        "ja": "指輪",
+        "symbol": null
+      },
+      {
+        "id": "gloves",
+        "zh": "手套",
+        "en": "gloves",
+        "ja": "手袋",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 13,
+    "emoji": "🛵",
+    "base": [
+      {
+        "id": "scooter",
+        "zh": "機車",
+        "en": "scooter",
+        "ja": "バイク",
+        "symbol": "motorcycle",
+        "baseNo": 61
+      },
+      {
+        "id": "bus",
+        "zh": "公車",
+        "en": "bus",
+        "ja": "バス",
+        "symbol": "bus",
+        "baseNo": 62
+      },
+      {
+        "id": "bicycle",
+        "zh": "腳踏車",
+        "en": "bicycle",
+        "ja": "自転車",
+        "symbol": "bicycle",
+        "baseNo": 63
+      },
+      {
+        "id": "mrt",
+        "zh": "捷運",
+        "en": "subway",
+        "ja": "地下鉄",
+        "symbol": "tram.fill.tunnel",
+        "baseNo": 64
+      },
+      {
+        "id": "taxi",
+        "zh": "計程車",
+        "en": "taxi",
+        "ja": "タクシー",
+        "symbol": "car",
+        "baseNo": 65
+      }
+    ],
+    "extra": [
+      {
+        "id": "car",
+        "zh": "汽車",
+        "en": "car",
+        "ja": "車",
+        "symbol": "car.side"
+      },
+      {
+        "id": "train",
+        "zh": "火車",
+        "en": "train",
+        "ja": "電車",
+        "symbol": "train.side.front.car"
+      },
+      {
+        "id": "airplane",
+        "zh": "飛機",
+        "en": "airplane",
+        "ja": "飛行機",
+        "symbol": "airplane"
+      },
+      {
+        "id": "truck",
+        "zh": "卡車",
+        "en": "truck",
+        "ja": "トラック",
+        "symbol": null
+      },
+      {
+        "id": "hsr",
+        "zh": "高鐵",
+        "en": "high-speed rail",
+        "ja": "新幹線",
+        "symbol": null
+      },
+      {
+        "id": "boat",
+        "zh": "船",
+        "en": "boat",
+        "ja": "船",
+        "symbol": "ferry"
+      },
+      {
+        "id": "garbagetruck",
+        "zh": "垃圾車",
+        "en": "garbage truck",
+        "ja": "ゴミ収集車",
+        "symbol": null
+      },
+      {
+        "id": "ambulance",
+        "zh": "救護車",
+        "en": "ambulance",
+        "ja": "救急車",
+        "symbol": null
+      },
+      {
+        "id": "policecar",
+        "zh": "警車",
+        "en": "police car",
+        "ja": "パトカー",
+        "symbol": null
+      },
+      {
+        "id": "firetruck",
+        "zh": "消防車",
+        "en": "fire truck",
+        "ja": "消防車",
+        "symbol": null
+      },
+      {
+        "id": "kickscooter",
+        "zh": "滑板車",
+        "en": "kick scooter",
+        "ja": "キックボード",
+        "symbol": "scooter"
+      },
+      {
+        "id": "stroller",
+        "zh": "嬰兒車",
+        "en": "stroller",
+        "ja": "ベビーカー",
+        "symbol": "stroller"
+      },
+      {
+        "id": "cablecar",
+        "zh": "纜車",
+        "en": "cable car",
+        "ja": "ロープウェイ",
+        "symbol": "cablecar"
+      }
+    ]
+  },
+  {
+    "no": 14,
+    "emoji": "🏪",
+    "base": [
+      {
+        "id": "conveniencestore",
+        "zh": "便利商店",
+        "en": "convenience store",
+        "ja": "コンビニ",
+        "symbol": "storefront",
+        "baseNo": 66
+      },
+      {
+        "id": "temple",
+        "zh": "廟",
+        "en": "temple",
+        "ja": "お寺",
+        "symbol": null,
+        "baseNo": 67
+      },
+      {
+        "id": "school",
+        "zh": "學校",
+        "en": "school",
+        "ja": "学校",
+        "symbol": null,
+        "baseNo": 68
+      },
+      {
+        "id": "restaurant",
+        "zh": "餐廳",
+        "en": "restaurant",
+        "ja": "レストラン",
+        "symbol": "fork.knife",
+        "baseNo": 69
+      },
+      {
+        "id": "nightmarket",
+        "zh": "夜市",
+        "en": "night market",
+        "ja": "夜市",
+        "symbol": null,
+        "baseNo": 70
+      }
+    ],
+    "extra": [
+      {
+        "id": "house",
+        "zh": "房子",
+        "en": "house",
+        "ja": "家",
+        "symbol": "house"
+      },
+      {
+        "id": "building",
+        "zh": "大樓",
+        "en": "building",
+        "ja": "ビル",
+        "symbol": "building.2"
+      },
+      {
+        "id": "breakfastshop",
+        "zh": "早餐店",
+        "en": "breakfast shop",
+        "ja": "朝ごはん屋",
+        "symbol": null
+      },
+      {
+        "id": "park",
+        "zh": "公園",
+        "en": "park",
+        "ja": "公園",
+        "symbol": null
+      },
+      {
+        "id": "station",
+        "zh": "車站",
+        "en": "station",
+        "ja": "駅",
+        "symbol": null
+      },
+      {
+        "id": "hospital",
+        "zh": "醫院",
+        "en": "hospital",
+        "ja": "病院",
+        "symbol": "cross"
+      },
+      {
+        "id": "supermarket",
+        "zh": "超市",
+        "en": "supermarket",
+        "ja": "スーパー",
+        "symbol": "cart"
+      },
+      {
+        "id": "market",
+        "zh": "市場",
+        "en": "market",
+        "ja": "市場",
+        "symbol": "basket"
+      },
+      {
+        "id": "bank",
+        "zh": "銀行",
+        "en": "bank",
+        "ja": "銀行",
+        "symbol": "building.columns"
+      },
+      {
+        "id": "pharmacy",
+        "zh": "藥局",
+        "en": "pharmacy",
+        "ja": "薬局",
+        "symbol": null
+      },
+      {
+        "id": "cafe",
+        "zh": "咖啡廳",
+        "en": "café",
+        "ja": "カフェ",
+        "symbol": null
+      },
+      {
+        "id": "gasstation",
+        "zh": "加油站",
+        "en": "gas station",
+        "ja": "ガソリンスタンド",
+        "symbol": "fuelpump"
+      },
+      {
+        "id": "postoffice",
+        "zh": "郵局",
+        "en": "post office",
+        "ja": "郵便局",
+        "symbol": null
+      },
+      {
+        "id": "library",
+        "zh": "圖書館",
+        "en": "library",
+        "ja": "図書館",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 15,
+    "emoji": "🚦",
+    "base": [
+      {
+        "id": "trafficlight",
+        "zh": "紅綠燈",
+        "en": "traffic light",
+        "ja": "信号",
+        "symbol": null,
+        "baseNo": 71
+      },
+      {
+        "id": "signboard",
+        "zh": "招牌",
+        "en": "signboard",
+        "ja": "看板",
+        "symbol": "signpost.right",
+        "baseNo": 72
+      },
+      {
+        "id": "trashcan",
+        "zh": "垃圾桶",
+        "en": "trash can",
+        "ja": "ゴミ箱",
+        "symbol": "trash",
+        "baseNo": 73
+      },
+      {
+        "id": "streetlight",
+        "zh": "路燈",
+        "en": "streetlight",
+        "ja": "街灯",
+        "symbol": null,
+        "baseNo": 74
+      },
+      {
+        "id": "crosswalk",
+        "zh": "斑馬線",
+        "en": "crosswalk",
+        "ja": "横断歩道",
+        "symbol": null,
+        "baseNo": 75
+      }
+    ],
+    "extra": [
+      {
+        "id": "road",
+        "zh": "馬路",
+        "en": "road",
+        "ja": "道路",
+        "symbol": "road.lanes"
+      },
+      {
+        "id": "busstop",
+        "zh": "公車站",
+        "en": "bus stop",
+        "ja": "バス停",
+        "symbol": null
+      },
+      {
+        "id": "bench",
+        "zh": "長椅",
+        "en": "bench",
+        "ja": "ベンチ",
+        "symbol": null
+      },
+      {
+        "id": "mailbox",
+        "zh": "郵筒",
+        "en": "mailbox",
+        "ja": "ポスト",
+        "symbol": null
+      },
+      {
+        "id": "parkinglot",
+        "zh": "停車場",
+        "en": "parking lot",
+        "ja": "駐車場",
+        "symbol": "parkingsign"
+      },
+      {
+        "id": "bridge",
+        "zh": "橋",
+        "en": "bridge",
+        "ja": "橋",
+        "symbol": null
+      },
+      {
+        "id": "vendingmachine",
+        "zh": "販賣機",
+        "en": "vending machine",
+        "ja": "自動販売機",
+        "symbol": null
+      },
+      {
+        "id": "utilitypole",
+        "zh": "電線桿",
+        "en": "utility pole",
+        "ja": "電柱",
+        "symbol": null
+      },
+      {
+        "id": "sidewalk",
+        "zh": "人行道",
+        "en": "sidewalk",
+        "ja": "歩道",
+        "symbol": null
+      },
+      {
+        "id": "flag",
+        "zh": "旗子",
+        "en": "flag",
+        "ja": "旗",
+        "symbol": "flag"
+      },
+      {
+        "id": "trafficcone",
+        "zh": "三角錐",
+        "en": "traffic cone",
+        "ja": "カラーコーン",
+        "symbol": "cone"
+      },
+      {
+        "id": "firehydrant",
+        "zh": "消防栓",
+        "en": "fire hydrant",
+        "ja": "消火栓",
+        "symbol": null
+      },
+      {
+        "id": "atm",
+        "zh": "提款機",
+        "en": "ATM",
+        "ja": "ATM",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 16,
+    "emoji": "🐾",
+    "base": [
+      {
+        "id": "dog",
+        "zh": "狗",
+        "en": "dog",
+        "ja": "犬",
+        "symbol": "dog",
+        "baseNo": 76
+      },
+      {
+        "id": "cat",
+        "zh": "貓",
+        "en": "cat",
+        "ja": "猫",
+        "symbol": "cat",
+        "baseNo": 77
+      },
+      {
+        "id": "bird",
+        "zh": "鳥",
+        "en": "bird",
+        "ja": "鳥",
+        "symbol": "bird",
+        "baseNo": 78
+      },
+      {
+        "id": "fish",
+        "zh": "魚",
+        "en": "fish",
+        "ja": "魚",
+        "symbol": "fish",
+        "baseNo": 79
+      },
+      {
+        "id": "rabbit",
+        "zh": "兔子",
+        "en": "rabbit",
+        "ja": "うさぎ",
+        "symbol": "hare",
+        "baseNo": 80
+      }
+    ],
+    "extra": [
+      {
+        "id": "pigeon",
+        "zh": "鴿子",
+        "en": "pigeon",
+        "ja": "ハト",
+        "symbol": null
+      },
+      {
+        "id": "sparrow",
+        "zh": "麻雀",
+        "en": "sparrow",
+        "ja": "スズメ",
+        "symbol": null
+      },
+      {
+        "id": "mosquito",
+        "zh": "蚊子",
+        "en": "mosquito",
+        "ja": "蚊",
+        "symbol": null
+      },
+      {
+        "id": "ant",
+        "zh": "螞蟻",
+        "en": "ant",
+        "ja": "アリ",
+        "symbol": "ant"
+      },
+      {
+        "id": "cockroach",
+        "zh": "蟑螂",
+        "en": "cockroach",
+        "ja": "ゴキブリ",
+        "symbol": null
+      },
+      {
+        "id": "gecko",
+        "zh": "壁虎",
+        "en": "gecko",
+        "ja": "ヤモリ",
+        "symbol": "lizard"
+      },
+      {
+        "id": "butterfly",
+        "zh": "蝴蝶",
+        "en": "butterfly",
+        "ja": "チョウ",
+        "symbol": null
+      },
+      {
+        "id": "chicken",
+        "zh": "雞",
+        "en": "chicken",
+        "ja": "ニワトリ",
+        "symbol": null
+      },
+      {
+        "id": "duck",
+        "zh": "鴨子",
+        "en": "duck",
+        "ja": "アヒル",
+        "symbol": null
+      },
+      {
+        "id": "turtle",
+        "zh": "烏龜",
+        "en": "turtle",
+        "ja": "カメ",
+        "symbol": "tortoise"
+      },
+      {
+        "id": "squirrel",
+        "zh": "松鼠",
+        "en": "squirrel",
+        "ja": "リス",
+        "symbol": null
+      },
+      {
+        "id": "frog",
+        "zh": "青蛙",
+        "en": "frog",
+        "ja": "カエル",
+        "symbol": null
+      },
+      {
+        "id": "hamster",
+        "zh": "倉鼠",
+        "en": "hamster",
+        "ja": "ハムスター",
+        "symbol": null
+      },
+      {
+        "id": "ladybug",
+        "zh": "瓢蟲",
+        "en": "ladybug",
+        "ja": "テントウムシ",
+        "symbol": "ladybug"
+      }
+    ]
+  },
+  {
+    "no": 17,
+    "emoji": "🌿",
+    "base": [
+      {
+        "id": "flower",
+        "zh": "花",
+        "en": "flower",
+        "ja": "花",
+        "symbol": "camera.macro",
+        "baseNo": 81
+      },
+      {
+        "id": "tree",
+        "zh": "樹",
+        "en": "tree",
+        "ja": "木",
+        "symbol": "tree",
+        "baseNo": 82
+      },
+      {
+        "id": "grass",
+        "zh": "草",
+        "en": "grass",
+        "ja": "草",
+        "symbol": null,
+        "baseNo": 83
+      },
+      {
+        "id": "leaf",
+        "zh": "葉子",
+        "en": "leaf",
+        "ja": "葉っぱ",
+        "symbol": "leaf",
+        "baseNo": 84
+      },
+      {
+        "id": "pottedplant",
+        "zh": "盆栽",
+        "en": "potted plant",
+        "ja": "鉢植え",
+        "symbol": null,
+        "baseNo": 85
+      }
+    ],
+    "extra": [
+      {
+        "id": "banyan",
+        "zh": "榕樹",
+        "en": "banyan tree",
+        "ja": "ガジュマル",
+        "symbol": null
+      },
+      {
+        "id": "palmtree",
+        "zh": "椰子樹",
+        "en": "palm tree",
+        "ja": "ヤシの木",
+        "symbol": null
+      },
+      {
+        "id": "cactus",
+        "zh": "仙人掌",
+        "en": "cactus",
+        "ja": "サボテン",
+        "symbol": null
+      },
+      {
+        "id": "rose",
+        "zh": "玫瑰",
+        "en": "rose",
+        "ja": "バラ",
+        "symbol": null
+      },
+      {
+        "id": "bamboo",
+        "zh": "竹子",
+        "en": "bamboo",
+        "ja": "竹",
+        "symbol": null
+      },
+      {
+        "id": "sunflower",
+        "zh": "向日葵",
+        "en": "sunflower",
+        "ja": "ひまわり",
+        "symbol": null
+      },
+      {
+        "id": "moss",
+        "zh": "青苔",
+        "en": "moss",
+        "ja": "苔",
+        "symbol": null
+      },
+      {
+        "id": "mushroom",
+        "zh": "香菇",
+        "en": "mushroom",
+        "ja": "キノコ",
+        "symbol": null
+      },
+      {
+        "id": "cherryblossom",
+        "zh": "櫻花",
+        "en": "cherry blossom",
+        "ja": "桜",
+        "symbol": null
+      },
+      {
+        "id": "orchid",
+        "zh": "蘭花",
+        "en": "orchid",
+        "ja": "ラン",
+        "symbol": null
+      },
+      {
+        "id": "lotus",
+        "zh": "蓮花",
+        "en": "lotus",
+        "ja": "ハス",
+        "symbol": null
+      },
+      {
+        "id": "seed",
+        "zh": "種子",
+        "en": "seed",
+        "ja": "種",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 18,
+    "emoji": "⛅",
+    "base": [
+      {
+        "id": "sky",
+        "zh": "天空",
+        "en": "sky",
+        "ja": "空",
+        "symbol": "cloud.sun",
+        "baseNo": 86
+      },
+      {
+        "id": "cloud",
+        "zh": "雲",
+        "en": "cloud",
+        "ja": "雲",
+        "symbol": "cloud",
+        "baseNo": 87
+      },
+      {
+        "id": "mountain",
+        "zh": "山",
+        "en": "mountain",
+        "ja": "山",
+        "symbol": "mountain.2",
+        "baseNo": 88
+      },
+      {
+        "id": "sea",
+        "zh": "海",
+        "en": "sea",
+        "ja": "海",
+        "symbol": "water.waves",
+        "baseNo": 89
+      },
+      {
+        "id": "moon",
+        "zh": "月亮",
+        "en": "moon",
+        "ja": "月",
+        "symbol": "moon",
+        "baseNo": 90
+      }
+    ],
+    "extra": [
+      {
+        "id": "sun",
+        "zh": "太陽",
+        "en": "sun",
+        "ja": "太陽",
+        "symbol": "sun.max"
+      },
+      {
+        "id": "rain",
+        "zh": "雨",
+        "en": "rain",
+        "ja": "雨",
+        "symbol": "cloud.rain"
+      },
+      {
+        "id": "star",
+        "zh": "星星",
+        "en": "star",
+        "ja": "星",
+        "symbol": "star"
+      },
+      {
+        "id": "river",
+        "zh": "河",
+        "en": "river",
+        "ja": "川",
+        "symbol": null
+      },
+      {
+        "id": "rainbow",
+        "zh": "彩虹",
+        "en": "rainbow",
+        "ja": "虹",
+        "symbol": "rainbow"
+      },
+      {
+        "id": "sunset",
+        "zh": "夕陽",
+        "en": "sunset",
+        "ja": "夕日",
+        "symbol": "sun.horizon"
+      },
+      {
+        "id": "stone",
+        "zh": "石頭",
+        "en": "stone",
+        "ja": "石",
+        "symbol": null
+      },
+      {
+        "id": "wind",
+        "zh": "風",
+        "en": "wind",
+        "ja": "風",
+        "symbol": "wind"
+      },
+      {
+        "id": "beach",
+        "zh": "海灘",
+        "en": "beach",
+        "ja": "ビーチ",
+        "symbol": "beach.umbrella"
+      },
+      {
+        "id": "lightning",
+        "zh": "閃電",
+        "en": "lightning",
+        "ja": "雷",
+        "symbol": "cloud.bolt"
+      },
+      {
+        "id": "lake",
+        "zh": "湖",
+        "en": "lake",
+        "ja": "湖",
+        "symbol": null
+      },
+      {
+        "id": "puddle",
+        "zh": "水坑",
+        "en": "puddle",
+        "ja": "水たまり",
+        "symbol": null
+      },
+      {
+        "id": "fire",
+        "zh": "火",
+        "en": "fire",
+        "ja": "火",
+        "symbol": "flame"
+      },
+      {
+        "id": "sand",
+        "zh": "沙子",
+        "en": "sand",
+        "ja": "砂",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 19,
+    "emoji": "⚽",
+    "base": [
+      {
+        "id": "ball",
+        "zh": "球",
+        "en": "ball",
+        "ja": "ボール",
+        "symbol": "soccerball",
+        "baseNo": 91
+      },
+      {
+        "id": "toy",
+        "zh": "玩具",
+        "en": "toy",
+        "ja": "おもちゃ",
+        "symbol": "teddybear",
+        "baseNo": 92
+      },
+      {
+        "id": "guitar",
+        "zh": "吉他",
+        "en": "guitar",
+        "ja": "ギター",
+        "symbol": "guitars",
+        "baseNo": 93
+      },
+      {
+        "id": "gameconsole",
+        "zh": "遊戲機",
+        "en": "game console",
+        "ja": "ゲーム機",
+        "symbol": "gamecontroller",
+        "baseNo": 94
+      },
+      {
+        "id": "balloon",
+        "zh": "氣球",
+        "en": "balloon",
+        "ja": "風船",
+        "symbol": "balloon",
+        "baseNo": 95
+      }
+    ],
+    "extra": [
+      {
+        "id": "basketball",
+        "zh": "籃球",
+        "en": "basketball",
+        "ja": "バスケットボール",
+        "symbol": "basketball"
+      },
+      {
+        "id": "badminton",
+        "zh": "羽毛球",
+        "en": "badminton",
+        "ja": "バドミントン",
+        "symbol": null
+      },
+      {
+        "id": "baseball",
+        "zh": "棒球",
+        "en": "baseball",
+        "ja": "野球",
+        "symbol": "baseball"
+      },
+      {
+        "id": "tabletennis",
+        "zh": "桌球",
+        "en": "table tennis",
+        "ja": "卓球",
+        "symbol": null
+      },
+      {
+        "id": "clawmachine",
+        "zh": "夾娃娃機",
+        "en": "claw machine",
+        "ja": "クレーンゲーム",
+        "symbol": null
+      },
+      {
+        "id": "cards",
+        "zh": "撲克牌",
+        "en": "playing cards",
+        "ja": "トランプ",
+        "symbol": null
+      },
+      {
+        "id": "doll",
+        "zh": "娃娃",
+        "en": "doll",
+        "ja": "人形",
+        "symbol": null
+      },
+      {
+        "id": "puzzle",
+        "zh": "拼圖",
+        "en": "jigsaw puzzle",
+        "ja": "パズル",
+        "symbol": "puzzlepiece"
+      },
+      {
+        "id": "movie",
+        "zh": "電影",
+        "en": "movie",
+        "ja": "映画",
+        "symbol": "film"
+      },
+      {
+        "id": "piano",
+        "zh": "鋼琴",
+        "en": "piano",
+        "ja": "ピアノ",
+        "symbol": "pianokeys"
+      },
+      {
+        "id": "skateboard",
+        "zh": "滑板",
+        "en": "skateboard",
+        "ja": "スケボー",
+        "symbol": "skateboard"
+      },
+      {
+        "id": "dice",
+        "zh": "骰子",
+        "en": "dice",
+        "ja": "サイコロ",
+        "symbol": "dice"
+      },
+      {
+        "id": "kite",
+        "zh": "風箏",
+        "en": "kite",
+        "ja": "凧",
+        "symbol": null
+      }
+    ]
+  },
+  {
+    "no": 20,
+    "emoji": "🖐️",
+    "base": [
+      {
+        "id": "hand",
+        "zh": "手",
+        "en": "hand",
+        "ja": "手",
+        "symbol": "hand.raised",
+        "baseNo": 96
+      },
+      {
+        "id": "face",
+        "zh": "臉",
+        "en": "face",
+        "ja": "顔",
+        "symbol": "face.smiling",
+        "baseNo": 97
+      },
+      {
+        "id": "eye",
+        "zh": "眼睛",
+        "en": "eye",
+        "ja": "目",
+        "symbol": "eye",
+        "baseNo": 98
+      },
+      {
+        "id": "child",
+        "zh": "小孩",
+        "en": "child",
+        "ja": "子ども",
+        "symbol": "figure.child",
+        "baseNo": 99
+      },
+      {
+        "id": "friend",
+        "zh": "朋友",
+        "en": "friend",
+        "ja": "友だち",
+        "symbol": "person.2",
+        "baseNo": 100
+      }
+    ],
+    "extra": [
+      {
+        "id": "mouth",
+        "zh": "嘴巴",
+        "en": "mouth",
+        "ja": "口",
+        "symbol": "mouth"
+      },
+      {
+        "id": "nose",
+        "zh": "鼻子",
+        "en": "nose",
+        "ja": "鼻",
+        "symbol": "nose"
+      },
+      {
+        "id": "ear",
+        "zh": "耳朵",
+        "en": "ear",
+        "ja": "耳",
+        "symbol": "ear"
+      },
+      {
+        "id": "hair",
+        "zh": "頭髮",
+        "en": "hair",
+        "ja": "髪",
+        "symbol": null
+      },
+      {
+        "id": "foot",
+        "zh": "腳",
+        "en": "foot",
+        "ja": "足",
+        "symbol": null
+      },
+      {
+        "id": "finger",
+        "zh": "手指",
+        "en": "finger",
+        "ja": "指",
+        "symbol": "hand.point.up"
+      },
+      {
+        "id": "head",
+        "zh": "頭",
+        "en": "head",
+        "ja": "頭",
+        "symbol": null
+      },
+      {
+        "id": "mother",
+        "zh": "媽媽",
+        "en": "mother",
+        "ja": "お母さん",
+        "symbol": null
+      },
+      {
+        "id": "father",
+        "zh": "爸爸",
+        "en": "father",
+        "ja": "お父さん",
+        "symbol": null
+      },
+      {
+        "id": "baby",
+        "zh": "嬰兒",
+        "en": "baby",
+        "ja": "赤ちゃん",
+        "symbol": null
+      },
+      {
+        "id": "student",
+        "zh": "學生",
+        "en": "student",
+        "ja": "学生",
+        "symbol": null
+      },
+      {
+        "id": "teacher",
+        "zh": "老師",
+        "en": "teacher",
+        "ja": "先生",
+        "symbol": null
+      },
+      {
+        "id": "grandmother",
+        "zh": "阿嬤",
+        "en": "grandmother",
+        "ja": "おばあちゃん",
+        "symbol": null
+      },
+      {
+        "id": "shopowner",
+        "zh": "老闆",
+        "en": "shop owner",
+        "ja": "店主",
+        "symbol": null
+      }
+    ]
+  }
+]

@@ -1,0 +1,568 @@
+{
+  "_note": "同じ名の別の物に当たりやすい語の画像検索の見本（オーナー報告 2026-10-08 ②「レンコンを文字検索したのに蓮の花の画像しか出てこない」）。説明は実際の出所の書き方に似せた作り物。",
+  "lotusRoot": {
+    "unsplashFlowersOnly": {
+      "results": [
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/lotus-flower-1",
+            "small": "https://images.unsplash.com/lotus-flower-1-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "pink lotus flower in bloom",
+          "description": null,
+          "tags": [
+            {
+              "title": "lotus"
+            },
+            {
+              "title": "flower"
+            },
+            {
+              "title": "pink"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/lotus-pond-2",
+            "small": "https://images.unsplash.com/lotus-pond-2-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "lotus pond at sunrise",
+          "description": "lotus leaves on the water",
+          "tags": [
+            {
+              "title": "lotus"
+            },
+            {
+              "title": "pond"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/lotus-3",
+            "small": "https://images.unsplash.com/lotus-3-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "white lotus",
+          "description": null,
+          "tags": [
+            {
+              "title": "lotus"
+            },
+            {
+              "title": "zen"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/water-lily-4",
+            "small": "https://images.unsplash.com/water-lily-4-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "a pink water lily blossom",
+          "description": null,
+          "tags": [
+            {
+              "title": "blossom"
+            }
+          ]
+        }
+      ]
+    },
+    "unsplashMixed": {
+      "results": [
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/lotus-flower-1",
+            "small": "https://images.unsplash.com/lotus-flower-1-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "pink lotus flower in bloom",
+          "description": null,
+          "tags": [
+            {
+              "title": "lotus"
+            },
+            {
+              "title": "flower"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/lotus-pond-2",
+            "small": "https://images.unsplash.com/lotus-pond-2-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "lotus pond at sunrise",
+          "description": null,
+          "tags": [
+            {
+              "title": "lotus"
+            },
+            {
+              "title": "pond"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/renkon-3",
+            "small": "https://images.unsplash.com/renkon-3-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "sliced lotus root on a cutting board",
+          "description": null,
+          "tags": [
+            {
+              "title": "vegetable"
+            },
+            {
+              "title": "food"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/bowl-4",
+            "small": "https://images.unsplash.com/bowl-4-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "a bowl of food on a table",
+          "description": null,
+          "tags": [
+            {
+              "title": "food"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/renkon-dish-5",
+            "small": "https://images.unsplash.com/renkon-dish-5-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "stir fried lotus roots with peppers",
+          "description": null,
+          "tags": [
+            {
+              "title": "food"
+            }
+          ]
+        }
+      ]
+    },
+    "commons": {
+      "query": {
+        "pages": {
+          "1": {
+            "title": "File:Nelumbo nucifera flower.jpg",
+            "imageinfo": [
+              {
+                "url": "https://upload.wikimedia.org/x/Nelumbo_nucifera_flower.jpg",
+                "thumburl": "https://upload.wikimedia.org/thumb/x/960px-Nelumbo_nucifera_flower.jpg",
+                "descriptionurl": "https://commons.wikimedia.org/wiki/File:Nelumbo_nucifera_flower.jpg",
+                "extmetadata": {
+                  "Artist": {
+                    "value": "Photographer"
+                  },
+                  "LicenseShortName": {
+                    "value": "CC BY-SA 4.0"
+                  },
+                  "ImageDescription": {
+                    "value": "Sacred lotus flower (蓮の花)"
+                  },
+                  "Categories": {
+                    "value": "Nelumbo nucifera flowers|Lotus flowers"
+                  }
+                }
+              }
+            ]
+          },
+          "2": {
+            "title": "File:Lotus pond Taipei.jpg",
+            "imageinfo": [
+              {
+                "url": "https://upload.wikimedia.org/x/Lotus_pond_Taipei.jpg",
+                "thumburl": "https://upload.wikimedia.org/thumb/x/960px-Lotus_pond_Taipei.jpg",
+                "descriptionurl": "https://commons.wikimedia.org/wiki/File:Lotus_pond_Taipei.jpg",
+                "extmetadata": {
+                  "Artist": {
+                    "value": "Photographer"
+                  },
+                  "LicenseShortName": {
+                    "value": "CC BY-SA 4.0"
+                  },
+                  "ImageDescription": {
+                    "value": "Lotus pond in Taipei Botanical Garden"
+                  },
+                  "Categories": {
+                    "value": "Ponds in Taipei|Nelumbo nucifera"
+                  }
+                }
+              }
+            ]
+          },
+          "3": {
+            "title": "File:Renkon lotus root.jpg",
+            "imageinfo": [
+              {
+                "url": "https://upload.wikimedia.org/x/Renkon_lotus_root.jpg",
+                "thumburl": "https://upload.wikimedia.org/thumb/x/960px-Renkon_lotus_root.jpg",
+                "descriptionurl": "https://commons.wikimedia.org/wiki/File:Renkon_lotus_root.jpg",
+                "extmetadata": {
+                  "Artist": {
+                    "value": "Photographer"
+                  },
+                  "LicenseShortName": {
+                    "value": "CC BY-SA 4.0"
+                  },
+                  "ImageDescription": {
+                    "value": "Fresh lotus root (renkon) at a market"
+                  },
+                  "Categories": {
+                    "value": "Lotus roots (food)|Vegetables of Japan"
+                  }
+                }
+              }
+            ]
+          },
+          "4": {
+            "title": "File:Lotus root slices.jpg",
+            "imageinfo": [
+              {
+                "url": "https://upload.wikimedia.org/x/Lotus_root_slices.jpg",
+                "thumburl": "https://upload.wikimedia.org/thumb/x/960px-Lotus_root_slices.jpg",
+                "descriptionurl": "https://commons.wikimedia.org/wiki/File:Lotus_root_slices.jpg",
+                "extmetadata": {
+                  "Artist": {
+                    "value": "Photographer"
+                  },
+                  "LicenseShortName": {
+                    "value": "CC BY-SA 4.0"
+                  },
+                  "ImageDescription": {
+                    "value": "Lotus root slices, Taiwanese cooking"
+                  },
+                  "Categories": {
+                    "value": "Lotus roots (food)|Taiwanese cuisine"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "bambooShoot": {
+    "unsplash": {
+      "results": [
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/bamboo-forest-1",
+            "small": "https://images.unsplash.com/bamboo-forest-1-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "bamboo forest in Kyoto",
+          "description": "green bamboo grove",
+          "tags": [
+            {
+              "title": "bamboo"
+            },
+            {
+              "title": "forest"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/panda-2",
+            "small": "https://images.unsplash.com/panda-2-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "giant panda eating bamboo",
+          "description": null,
+          "tags": [
+            {
+              "title": "panda"
+            },
+            {
+              "title": "animal"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/shoots-3",
+            "small": "https://images.unsplash.com/shoots-3-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "fresh bamboo shoots at the market",
+          "description": null,
+          "tags": [
+            {
+              "title": "vegetable"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/shoot-dish-4",
+            "small": "https://images.unsplash.com/shoot-dish-4-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "boiled bamboo shoot salad",
+          "description": null,
+          "tags": [
+            {
+              "title": "food"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "peanut": {
+    "unsplash": {
+      "results": [
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/peanut-plant-1",
+            "small": "https://images.unsplash.com/peanut-plant-1-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "peanut plant growing in a field",
+          "description": null,
+          "tags": [
+            {
+              "title": "agriculture"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/peanut-flower-2",
+            "small": "https://images.unsplash.com/peanut-flower-2-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "yellow peanut flower",
+          "description": null,
+          "tags": [
+            {
+              "title": "flower"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/peanuts-3",
+            "small": "https://images.unsplash.com/peanuts-3-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "roasted peanuts in a bowl",
+          "description": null,
+          "tags": [
+            {
+              "title": "snack"
+            },
+            {
+              "title": "food"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/shells-4",
+            "small": "https://images.unsplash.com/shells-4-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "peanuts in shells",
+          "description": null,
+          "tags": [
+            {
+              "title": "nut"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "mouse": {
+    "unsplash": {
+      "results": [
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/rodent-1",
+            "small": "https://images.unsplash.com/rodent-1-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "a small brown mouse on the grass",
+          "description": null,
+          "tags": [
+            {
+              "title": "rodent"
+            },
+            {
+              "title": "animal"
+            },
+            {
+              "title": "wildlife"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/pet-mouse-2",
+            "small": "https://images.unsplash.com/pet-mouse-2-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "white pet mouse in a hand",
+          "description": null,
+          "tags": [
+            {
+              "title": "pet"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/device-3",
+            "small": "https://images.unsplash.com/device-3-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "wireless computer mouse on a desk",
+          "description": null,
+          "tags": [
+            {
+              "title": "technology"
+            }
+          ]
+        },
+        {
+          "urls": {
+            "regular": "https://images.unsplash.com/setup-4",
+            "small": "https://images.unsplash.com/setup-4-s"
+          },
+          "user": {
+            "name": "N",
+            "links": {
+              "html": "https://unsplash.com/@n"
+            }
+          },
+          "alt_description": "keyboard and mouse",
+          "description": null,
+          "tags": [
+            {
+              "title": "office"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

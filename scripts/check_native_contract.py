@@ -58,9 +58,7 @@ PENDING_WEB_DEPLOY = {
 # The iOS app works without them (explanations come back in Japanese until the patch is published), so they
 # are let through with a warning. Remove an entry as soon as the web's main has the language.
 PENDING_WEB_LANGUAGES = {
-    "es": "nori-creator/Lovable-catch-words-app#190",
-    "ko": "nori-creator/Lovable-catch-words-app#190",
-    "vi": "nori-creator/Lovable-catch-words-app#190",
+    # es / ko / vi (Lovable-catch-words-app#190) are in server/ now.
 }
 # The web's explanation languages before src/lib/explain-languages.ts existed.
 WEB_LANGUAGES_BEFORE_REGISTRY = {"ja", "en", "zh-TW"}

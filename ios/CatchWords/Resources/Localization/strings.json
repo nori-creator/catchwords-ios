@@ -8671,5 +8671,12 @@
   "es": "Ocultar colores de categoría gramatical",
   "ko": "품사 색 숨기기",
   "vi": "Ẩn màu từ loại"
+ },
+ "サイト": {
+  "en": "Website",
+  "zh-TW": "網站",
+  "es": "Sitio web",
+  "ko": "웹사이트",
+  "vi": "Trang web"
  }
 }

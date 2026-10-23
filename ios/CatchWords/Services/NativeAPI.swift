@@ -1,6 +1,6 @@
 import Foundation
 
-/// Calls the web app's own server functions (`POST /api/native-fn`).
+/// Calls the app's server functions (`POST` to the Edge Function `native-fn`, `server/` in this repository).
 ///
 /// Candidate naming, card generation, saving, re-encounters, speech and review grading are
 /// decided in the Lovable web app. Re-implementing them in Swift made the two apps drift
@@ -84,7 +84,7 @@ enum NativeAPI {
 
     private static func post(_ fn: String, _ data: [String: Any], timeout: TimeInterval,
                              asUser: String? = nil) async throws -> Data {
-        let url = AppConfig.webBaseURL.appendingPathComponent("api/native-fn")
+        let url = AppConfig.nativeFunctionURL
         let client = SupabaseClient.shared
         // An expiring token is refreshed first; a dead login throws `.unauthorized` (the app shows the
         // login screen), a network hiccup during the refresh is not an error here.
