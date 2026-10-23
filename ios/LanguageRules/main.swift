@@ -1,7 +1,7 @@
 // Language-mixing regression check (docs/language-rules.md).
 // Language-mixing and chunk rules (docs/chunk-rules.md) regression check.
 // CI: swiftc ios/Shared/DisplayLanguages.swift ios/CatchWords/Utilities/LanguageRules.swift ios/CatchWords/Utilities/ChunkRules.swift \
-//       ios/LanguageRules/main.swift -o lr
+//       ios/CatchWords/Utilities/Sentences.swift ios/LanguageRules/main.swift -o lr
 //     && ./lr ios/LanguageRules/cases.json
 import Foundation
 
@@ -23,15 +23,18 @@ struct Case: Decodable {
     let why: String
 }
 
-/// "跟:Prep+~男朋友:N+吵架:V" → parts. A leading ~ is a part the AI marked swappable (with one other word).
+/// "跟:Prep+~男朋友:N+吵架:V" → parts. A leading ~ is a part the AI marked swappable: with two other words (X, Y), or
+/// with the ones written after it ("~塞住了|不通|壞了:V").
 func parseChunk(_ spec: String) -> [ChunkPart] {
     spec.split(separator: "+").map { raw in
         var t = String(raw)
         let slot = t.hasPrefix("~")
         if slot { t.removeFirst() }
         let bits = t.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
-        return ChunkPart(text: bits[0], pos: bits.count > 1 ? bits[1] : "", slot: slot ? true : nil,
-                         alts: slot ? [ChunkAlt(text: "X", ja: "")] : nil)
+        let words = bits[0].split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        let alts = words.count > 1 ? Array(words.dropFirst()) : ["X", "Y"]
+        return ChunkPart(text: words[0], pos: bits.count > 1 ? bits[1] : "", slot: slot ? true : nil,
+                         alts: slot ? alts.map { ChunkAlt(text: $0, ja: "") } : nil)
     }
 }
 
@@ -81,6 +84,28 @@ for c in cases {
         // text = the chunk translation, chunk = its parts, source = headword, target = learning language.
         got = ChunkRules.isBroken(UsageChunk(parts: parseChunk(c.chunk ?? ""), ja: c.text), headword: c.source ?? "", target: c.target ?? "")
     case "resolveLanguage": got = LanguageRules.resolveWordLanguage(stored: c.reader, headword: c.text) == c.target
+    case "chunkRole":
+        // text = the chunk, source = headword; expected = the roles joined with +.
+        let roles = parseChunk(c.text).map { p -> String in
+            switch ChunkRules.role(p, headword: c.source ?? "", target: c.target ?? "") {
+            case .head: "head"
+            case .partner: "partner"
+            case .frame: "frame"
+            }
+        }.joined(separator: "+")
+        got = roles == (c.expected ?? "")
+        if !got { print("::error::\(c.id) [\(c.rule)] roles \(roles), expected \(c.expected ?? "") — \(c.why)") }
+    case "chunkSpan":
+        // text = the sentence, chunk = the formula; expected = the run of the formula in it, "-" for none.
+        let span = ChunkRules.spanText(of: UsageChunk(parts: parseChunk(c.chunk ?? ""), ja: ""), in: c.text, target: c.target ?? "") ?? "-"
+        got = span == (c.expected ?? "")
+        if !got { print("::error::\(c.id) [\(c.rule)] span \(span), expected \(c.expected ?? "") — \(c.why)") }
+    case "unbreakable":
+        // text = the sentence, source = its words (comma-separated); expected writes the joiner as _.
+        let words = (c.source ?? "").split(separator: ",").map(String.init)
+        let out = Sentences.unbreakable(c.text, words: words).replacingOccurrences(of: "\u{2060}", with: "_")
+        got = out == (c.expected ?? "")
+        if !got { print("::error::\(c.id) [\(c.rule)] joined \(out), expected \(c.expected ?? "") — \(c.why)") }
     default:
         print("::error::\(c.id): unknown fn \(c.fn)"); failed += 1; continue
     }
