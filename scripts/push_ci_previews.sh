@@ -15,6 +15,11 @@ set -uo pipefail
 url="$1"; dest="$2"; msg="$3"; shift 3
 export GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-ci-previews}" GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-ci-previews@users.noreply.github.com}"
 export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+# Never fetch a missing file's contents behind our back (2026-10-23: the push stalled while git pulled the branch's old
+# pictures one by one to use as delta bases, and GitHub cut the request off with HTTP 408). With no delta compression
+# and no thin pack, the push needs only this run's files.
+export GIT_NO_LAZY_FETCH=1
+pushcfg=(-c pack.window=0 -c pack.depth=0 -c http.postBuffer=524288000)
 for attempt in 1 2 3 4 5; do
   work="$(mktemp -d)"
   lease=""
@@ -39,9 +44,9 @@ for attempt in 1 2 3 4 5; do
   fi
   commit="$(git commit-tree "$tree" -m "$msg")"
   if [ -n "$lease" ]; then
-    git push --quiet --force-with-lease="refs/heads/ci-previews:$lease" origin "$commit:refs/heads/ci-previews" && { cd - >/dev/null; rm -rf "$work"; exit 0; }
+    git "${pushcfg[@]}" push --quiet --no-thin --force-with-lease="refs/heads/ci-previews:$lease" origin "$commit:refs/heads/ci-previews" && { cd - >/dev/null; rm -rf "$work"; exit 0; }
   else
-    git push --quiet origin "$commit:refs/heads/ci-previews" && { cd - >/dev/null; rm -rf "$work"; exit 0; }
+    git "${pushcfg[@]}" push --quiet --no-thin origin "$commit:refs/heads/ci-previews" && { cd - >/dev/null; rm -rf "$work"; exit 0; }
   fi
   cd - >/dev/null
   rm -rf "$work"
