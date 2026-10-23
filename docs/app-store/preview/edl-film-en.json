@@ -18,17 +18,10 @@
       "audio": "embedded"
     },
     {
-      "src": "E",
-      "in": 0.0,
-      "out": 2.4,
-      "audio": "embedded"
-    },
-    {
-      "src": "E",
-      "in": 5.9,
-      "out": 8.95,
-      "audio": "embedded",
-      "hold": 2.0
+      "src": "milktea",
+      "in": 4.955,
+      "out": 5.205,
+      "hold": 5.25
     }
   ],
   "captions": [
@@ -54,8 +47,8 @@
     },
     {
       "t0": 13.8,
-      "t1": 18.8,
-      "text": "Readings and real usage"
+      "t1": 16.9,
+      "text": "Look back anytime, with readings"
     }
   ],
   "taps": [],
