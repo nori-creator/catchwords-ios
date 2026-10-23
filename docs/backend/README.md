@@ -100,7 +100,7 @@
    **この画面を閉じると、二度と表示されません。** 3-2 が終わるまで閉じないでください。
 
 ### 3-2. GitHub の金庫に入れる
-1. 別のタブで https://github.com/nori-creator/rork-catchwords-728/settings/secrets/actions を開く
+1. 別のタブで https://github.com/nori-creator/catchwords-ios/settings/secrets/actions を開く
 2. 緑の **New repository secret** を押す
 3. **Name** に、次をそのまま入れる（全部大文字、間違えないようにコピーして貼る）
 
@@ -309,7 +309,7 @@ Claude が次を行います。
 **順番が大事**: 先に GitHub 側でドメインを登録してから、Cloudflare の DNS を書く（逆にすると、他人に頁を置かれる隙ができる）。
 
 ### 10-1. GitHub で Pages を有効にする
-1. https://github.com/nori-creator/rork-catchwords-728/settings/pages を開く
+1. https://github.com/nori-creator/catchwords-ios/settings/pages を開く
 2. **Build and deployment** の **Source** を **GitHub Actions** にする
 3. **Custom domain** に `catchwords.app` と入れて **Save**
    （まだ頁を公開していないので、確認の表示が赤でもよい）
@@ -346,7 +346,7 @@ Claude が次を行います。
 3. **Redirect URLs** に `https://catchwords.app/reset-password` を足す（`catchwords://auth-callback` は残す）
 
 ### 10-5. 公開の後（PR #46 を `main` に入れた後）
-1. https://github.com/nori-creator/rork-catchwords-728/settings/pages で **Enforce HTTPS** にチェック
+1. https://github.com/nori-creator/catchwords-ios/settings/pages で **Enforce HTTPS** にチェック
    （証明書の準備に数分〜1日かかる。チェックできるようになるまで待つ）
 2. https://catchwords.app/privacy が開けば完了
 

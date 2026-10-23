@@ -212,7 +212,7 @@ jobs:
       # キャッチの演出（v10 のスキャン、v6 の選ぶ画面・ゲット・図鑑へ）のコマ落ちを数える（オーナー 2026-10-20:
       # 「限界まで滑らかなアニメーション」）。アプリの FrameMeter（UITestTrace.swift）が 1 秒ごとに遅れたコマを書く。
       # 録画は CPU を使うので、数える回は録画しない。シミュレーターの数字なので、端末の値ではなく変更の前後の比較に使う。
-      # 録画は ci-previews に置く（Claude がお手本の動画とコマごとに比べる）。
+      # 録画は artifact（ios-check-report の videos/）に置く。ci-previews には入れない（履歴が膨らんだため、2026-10-23）。
       - name: キャッチの演出のコマ落ちを数え、動画で撮る
         continue-on-error: true
         run: |
@@ -353,33 +353,13 @@ jobs:
           SRC="$RUNNER_TEMP/report"
           [ -d "$SRC" ] || exit 0
           DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')"
-          # 切り抜きの確認も同じ枝に置くので、押し出しがぶつかったら ci-previews を浅く取り直して置き直す。
-          publish() {
-            DEST="$RUNNER_TEMP/previews-branch-$1"
-            rm -rf "$DEST"
-            # この実行の場所だけを取り出す（ほかの実行の画像は取らない）。枝をまるごと浅く取ると 5〜30 分かかった（10/16）。
-            git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" || return 1
-            cd "$DEST"
-            git sparse-checkout set --no-cone "/$DIR/" || return 1
-            git checkout --quiet ci-previews || return 1
-            rm -rf "$DIR" && mkdir -p "$DIR"
-            cp "$SRC"/*.png "$DIR"/ 2>/dev/null || true
-            [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$DIR"/ 2>/dev/null || true
-            [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.txt "$DIR"/ 2>/dev/null || true
-            # 「作り直す」の動き（-uiPreview regen の録画）
-            [ -f "$SRC/videos/scan-regen.mp4" ] && cp "$SRC/videos/scan-regen.mp4" "$DIR/regen.mp4" || true
-            # キャッチの演出の録画（お手本の動画と比べる）
-            for v in "$SRC"/videos/catch-*.mp4 "$SRC"/videos/scan-analyzing.mp4; do [ -f "$v" ] && cp "$v" "$DIR/" ; done
-            echo "${{ github.sha }}" > "$DIR/COMMIT"
-            git add -A
-            git -c user.name="ios-check" -c user.email="ios-check@users.noreply.github.com" commit --quiet -m "previews for $HEAD_REF @ ${{ github.sha }}" || return 0
-            git push --quiet origin ci-previews
-          }
-          for i in 1 2 3; do
-            ( publish "$i" ) && exit 0
-            sleep $((i * 5))
-          done
-          echo "::warning::ci-previews に置けませんでした"
+          # 枝は最新の 1 コミットだけ（scripts/push_ci_previews.sh）。録画は artifact（ios-check-report）にだけ残す。
+          STAGE="$RUNNER_TEMP/previews-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
+          cp "$SRC"/*.png "$STAGE"/ 2>/dev/null || true
+          [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$SRC"/previews/*.txt "$STAGE"/ 2>/dev/null || true
+          echo "${{ github.sha }}" > "$STAGE/COMMIT"
+          CI_PREVIEWS_REPLACE=1 bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            "$DIR" "previews for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
 
       - name: 結果を保存する
         if: always()
@@ -451,24 +431,9 @@ jobs:
           [ -d "$SRC" ] || exit 0
           [ -f "$SRC/summary.md" ] && cat "$SRC/summary.md" >> "$GITHUB_STEP_SUMMARY"
           DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-cutout"
-          publish() {
-            DEST="$RUNNER_TEMP/previews-branch-$1"
-            rm -rf "$DEST"
-            # この実行の場所だけを取り出す（ほかの実行の画像は取らない）。枝をまるごと浅く取ると 5〜30 分かかった（10/16）。
-            git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ci-previews "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$DEST" || return 1
-            cd "$DEST"
-            git sparse-checkout set --no-cone "/$DIR/" || return 1
-            git checkout --quiet ci-previews || return 1
-            rm -rf "$DIR" && mkdir -p "$DIR"
-            cp "$SRC"/* "$DIR"/ 2>/dev/null || true
-            echo "${{ github.sha }}" > "$DIR/COMMIT"
-            git add -A
-            git -c user.name="ios-check" -c user.email="ios-check@users.noreply.github.com" commit --quiet -m "cut-out harness for $HEAD_REF @ ${{ github.sha }}" || return 0
-            git push --quiet origin ci-previews
-          }
-          for i in 1 2 3; do
-            ( publish "$i" ) && exit 0
-            sleep $((i * 5))
-          done
-          echo "::warning::ci-previews に置けませんでした"
+          STAGE="$RUNNER_TEMP/cutout-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
+          cp "$SRC"/* "$STAGE"/ 2>/dev/null || true
+          echo "${{ github.sha }}" > "$STAGE/COMMIT"
+          CI_PREVIEWS_REPLACE=1 bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            "$DIR" "cut-out harness for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
 

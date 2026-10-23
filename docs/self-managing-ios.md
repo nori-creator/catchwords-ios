@@ -11,7 +11,7 @@
 | 言葉 | 意味 |
 |---|---|
 | **GitHub** | コードの保管庫。変更の履歴がすべて残る。Rork をやめても消えない。 |
-| **リポジトリ** | GitHub 上の1つのプロジェクトの箱。iOS 版は `nori-creator/rork-catchwords-728`。 |
+| **リポジトリ** | GitHub 上の1つのプロジェクトの箱。iOS 版は `nori-creator/catchwords-ios`。 |
 | **PR（プルリクエスト）** | 「この変更を入れてよいか」の提案書。中身を見てから本体（main）に取り込む。 |
 | **GitHub Actions** | GitHub が貸してくれる Mac で、決まった作業を自動でやる仕組み。「ワークフロー」はその作業手順書。 |
 | **Secrets** | GitHub に預ける秘密の値（鍵など）。コードには書かず、画面からも読めない。 |
@@ -56,7 +56,7 @@ iOS 版の AI・保存は、Web 版のサーバ（`/api/native-fn`）を通り�
 
 ### 2-1. コードが GitHub にそろっているか確かめる
 
-- GitHub の `nori-creator/rork-catchwords-728` を開き、最新の変更が main に入っていることを見る。
+- GitHub の `nori-creator/catchwords-ios` を開き、最新の変更が main に入っていることを見る。
 - Rork の GitHub 連携は有料プランの機能です。解約前に、最後の同期が終わっていることを確かめてください。
 
 ### 2-2. App Store Connect API キーを作る
