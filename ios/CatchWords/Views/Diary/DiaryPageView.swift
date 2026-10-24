@@ -162,10 +162,11 @@ struct DiaryPageView: View {
                 }
             }
             .padding(.horizontal, 10)
-            let formulas = words.flatMap { formulas(of: $0) }
-            if !formulas.isEmpty {
+            // (`shown`, not `formulas`: inside its own closure that name would be the array being declared.)
+            let shown = words.flatMap { formulas(of: $0) }
+            if !shown.isEmpty {
                 FlowRow(spacing: 8) {
-                    ForEach(Array(formulas.enumerated()), id: \.offset) { _, f in
+                    ForEach(Array(shown.enumerated()), id: \.offset) { _, f in
                         formulaChip(f.text, headword: f.headword)
                     }
                 }
