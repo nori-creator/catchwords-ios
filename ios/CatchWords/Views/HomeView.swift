@@ -24,6 +24,11 @@ struct HomeView: View {
     @State private var jumpCount = 0
     /// Moves the page while a photo is carried to the screen's top or bottom edge (`AlbumAutoScroll`).
     @State private var autoScroll = AlbumAutoScroll()
+    /// A wide screen (the regular width class: iPhone Duo open): the album is a book, one day a spread, its diary on
+    /// the right page (`BookSpreadView`, owner 2026-10-24). The iPhone (compact) keeps the one vertical scroll.
+    @Environment(\.horizontalSizeClass) private var widthClass
+    /// The day whose diary is open as a sheet (the iPhone's home: 「日記」 on a day).
+    @State private var diaryDay: DiaryDay?
 
     private struct MemorialDay: Identifiable {
         let n: Int
@@ -84,15 +89,31 @@ struct HomeView: View {
                                 .frame(height: 440)
                                 .tourAnchor(.album)
                         } else {
-                            HomeAlbum(
-                                days: AlbumDay.days(from: dex.albumStickers, today: today),
-                                // A re-encounter's page opens its word.
-                                onOpen: { router.detailSticker = dex.albumOwner($0) },
-                                onCamera: { router.tab = .camera },
-                                onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
-                                finishRequest: finishEditing
-                            )
-                            .transition(.opacity)
+                            let days = AlbumDay.days(from: dex.albumStickers, today: today)
+                            if widthClass == .regular {
+                                BookSpreadView(
+                                    days: days,
+                                    // A re-encounter's page opens its word.
+                                    onOpen: { router.detailSticker = dex.albumOwner($0) },
+                                    onCamera: { router.tab = .camera },
+                                    onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
+                                    finishRequest: finishEditing,
+                                    jumpDay: calendarDay,
+                                    jumpCount: jumpCount
+                                )
+                                .transition(.opacity)
+                            } else {
+                                HomeAlbum(
+                                    days: days,
+                                    // A re-encounter's page opens its word.
+                                    onOpen: { router.detailSticker = dex.albumOwner($0) },
+                                    onCamera: { router.tab = .camera },
+                                    onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
+                                    finishRequest: finishEditing,
+                                    onDiary: { diaryDay = DiaryDay(day: $0) }
+                                )
+                                .transition(.opacity)
+                            }
                         }
                     }
                     .padding(.horizontal, 12)
@@ -231,6 +252,27 @@ struct HomeView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        // The day's diary (the iPhone's home; on a wide screen it is the spread's right page).
+        .sheet(item: $diaryDay) { d in
+            NavigationStack {
+                ScrollView {
+                    DiaryPageView(day: d.day, standalone: true)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 40)
+                }
+                .background(HomeBackground())
+                .scrollDismissesKeyboard(.interactively)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { SoundService.shared.pon(open: false); diaryDay = nil } label: { Image(systemName: "xmark") }
+                            .accessibilityLabel(L("閉じる"))
+                    }
+                }
+            }
+            .environment(\.colorScheme, .light)  // paper, like the album
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
         .sheet(isPresented: $showStats) {
             UserStatsPanel(
                 onSettings: { showStats = false; router.tab = .settings },
@@ -357,6 +399,8 @@ struct HomeAlbum: View {
     let onCamera: () -> Void
     var onEditingChange: ((Bool) -> Void)? = nil
     var finishRequest: Int = 0
+    /// 「日記」 on a day's date: opens that day's diary page (2026-10-24).
+    var onDiary: ((Date) -> Void)? = nil
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
@@ -389,6 +433,22 @@ struct HomeAlbum: View {
                     Text(L("\(d.items.count)語"))
                         .font(AppFont.mono(14, weight: .semibold))
                         .foregroundStyle(Color(hex: 0x33291F, opacity: 0.5))
+                }
+                if let onDiary {
+                    Button {
+                        SoundService.shared.pon(open: true)
+                        onDiary(d.day)
+                    } label: {
+                        Image(systemName: "book.pages")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color(hex: 0x33291F))
+                            .frame(width: 36, height: 36)
+                            .background(Color(hex: 0x33291F, opacity: 0.07), in: Circle())
+                    }
+                    .buttonStyle(PressableStyle(scale: 0.92))
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 8 }
+                    .accessibilityLabel(L("日記"))
+                    .accessibilityIdentifier("home.diary")
                 }
             }
             .padding(.horizontal, 10)

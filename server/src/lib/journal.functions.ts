@@ -90,18 +90,36 @@ type SupabaseLike = {
   from: (table: string) => any;
 };
 
-async function getTodaysCaptures(supabase: SupabaseLike, userId: string) {
-  const today = taipeiDay();
-  const start = new Date(`${today}T00:00:00+08:00`).toISOString();
+/**
+ * The last day a diary may be written for. The app's day is Taipei's (`taipeiDay`), but the iOS app keys each page
+ * by the phone's own calendar day (the home album's days, `AlbumDay.days`): a phone east of Taipei (Japan, Korea)
+ * is already on the next date for an hour each night, so one day past Taipei's today is allowed. Anything later is a
+ * future day (owner: 「未来の日には書けない」).
+ */
+export function latestDiaryDay(now: Date = new Date()): string {
+  return taipeiDay(new Date(now.getTime() + 24 * 3600 * 1000));
+}
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The photos taken on one app day (`day`: `YYYY-MM-DD`, Taipei's calendar; today when not given), oldest first —
+ * the diary's material for that day (iOS 2026-10-24: a diary page per day of the album, so a past day is corrected
+ * against that day's photos, not today's).
+ */
+async function getCapturesOn(supabase: SupabaseLike, userId: string, day: string = taipeiDay()) {
+  const start = new Date(`${day}T00:00:00+08:00`);
+  const end = new Date(start.getTime() + 24 * 3600 * 1000);
   const { data, error } = await supabase
     .from("stickers")
     .select("id, caption, location_name, created_at, word:words(headword, meaning_ja)")
     .eq("user_id", userId)
-    .gte("created_at", start)
+    .gte("created_at", start.toISOString())
+    .lt("created_at", end.toISOString())
     .order("created_at", { ascending: true })
     .limit(12);
   if (error) throw internalFailure("journal", error, "日記を読み込めませんでした");
-  return { today, stickers: (data ?? []) as TodaysCapture[] };
+  return { today: day, stickers: (data ?? []) as TodaysCapture[] };
 }
 
 function describeCaptures(stickers: TodaysCapture[]) {
@@ -121,7 +139,11 @@ function describeCaptures(stickers: TodaysCapture[]) {
     .join("\n");
 }
 
-const CorrectInput = z.object({ draft: z.string().min(1).max(2000) });
+/** `date`: the diary page's day (iOS, a page per day). Absent (the web's diary): today. */
+const CorrectInput = z.object({
+  draft: z.string().min(1).max(2000),
+  date: z.string().regex(DAY).optional(),
+});
 
 export const correctMyJournal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -130,8 +152,9 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const { supabase, userId } = context;
+    if (data.date && data.date > latestDiaryDay()) throw new Error("未来の日の日記は書けません");
     await assertWithinDailyCap(userId, "correction");
-    const { today, stickers } = await getTodaysCaptures(supabase, userId);
+    const { today, stickers } = await getCapturesOn(supabase, userId, data.date);
 
     const ai = await getAiFor("journal", "journal_correct");
 
@@ -221,7 +244,7 @@ export const correctMyJournal = createServerFn({ method: "POST" })
  * 日付は本棚の本の「その日」。未来の日には書けない（台湾時間の今日まで）。
  */
 const DiaryInput = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: z.string().regex(DAY),
   text: z.string().max(4000),
 });
 
@@ -230,8 +253,7 @@ export const saveMyDiary = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => DiaryInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const today = taipeiDay();
-    if (data.date > today) throw new Error("未来の日の日記は書けません");
+    if (data.date > latestDiaryDay()) throw new Error("未来の日の日記は書けません");
     const text = data.text.trim();
     const { data: row, error } = await supabase
       .from("journal_entries")
@@ -261,24 +283,23 @@ export const listMyDiaryMonth = createServerFn({ method: "GET" })
     const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
     const { data: rows, error } = await supabase
       .from("journal_entries")
-      .select("entry_date, user_draft, correction, body_zh")
+      .select("*")
       .eq("user_id", userId)
       .gte("entry_date", `${data.month}-01`)
       .lt("entry_date", `${next}-01`)
       .order("entry_date", { ascending: true })
       .limit(31);
     if (error) throw internalFailure("journal", error, "日記を読み込めませんでした");
-    return (rows ?? []).map(
-      (r: {
-        entry_date: string;
-        user_draft: string | null;
-        correction: string | null;
-        body_zh: string | null;
-      }) => ({
-        date: r.entry_date,
-        text: r.user_draft ?? r.correction ?? r.body_zh ?? "",
-      }),
-    );
+    // `date` / `text` as the web's shelf reads them; the correction with its notes for the iOS diary page
+    // (2026-10-24), which shows the red-pen version under the learner's own text.
+    return (rows ?? []).map(toJournalEntry).map((r) => ({
+      date: r.entry_date,
+      text: r.user_draft ?? r.correction ?? r.body_zh ?? "",
+      correction: r.correction,
+      feedback: r.feedback_ja,
+      native_phrases: r.native_phrases ?? [],
+      used_sticker_ids: r.used_sticker_ids ?? [],
+    }));
   });
 
 // ============================================================================
@@ -340,7 +361,7 @@ export const getJournalPrompts = createServerFn({ method: "GET" })
       throw e;
     }
     const { supabase, userId } = context;
-    const { stickers } = await getTodaysCaptures(supabase, userId);
+    const { stickers } = await getCapturesOn(supabase, userId);
     // **今日の材料が無ければ何も出さない。** 上限も使わない(AIを呼ばない)。
     if (stickers.length === 0) return null;
 
