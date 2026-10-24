@@ -27,12 +27,12 @@
   "ko": "매년 자동 갱신",
   "vi": "Tự động gia hạn hằng năm"
  },
- "1日3回の上限がなくなります": {
-  "en": "No more 3-a-day limit",
-  "zh-TW": "不再有每天 3 次的限制",
-  "es": "Sin el límite de 3 al día",
-  "ko": "하루 3회 제한이 없어져요",
-  "vi": "Không còn giới hạn 3 lần mỗi ngày"
+ "1日5回の上限がなくなります": {
+  "en": "No more 5-a-day limit",
+  "zh-TW": "不再有每天 5 次的限制",
+  "es": "Sin el límite de 5 al día",
+  "ko": "하루 5회 제한이 없어져요",
+  "vi": "Không còn giới hạn 5 lần mỗi ngày"
  },
  "1日、どれくらい\n学びたい？": {
   "en": "A little time,\nevery day.",

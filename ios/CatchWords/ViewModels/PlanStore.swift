@@ -7,10 +7,11 @@ import StoreKit
 @Observable
 final class PlanStore {
     /// Owner decision 2026-10-21 (free with ads, no subscription yet): 10 catches a day for the first 7 days
-    /// (the collection grows while the app is new — endowment), then 3 a day. Observed beta use (13 learners,
-    /// 2026-08/10): median 1 catch a day, 9 days in 10 at 3 or fewer, so 3 binds only on heavy days. Reviews and
-    /// the dex are never limited. A catch counts when it is saved (`recordCatch`); the shutter needs one left.
-    static let freeCatchesPerDay = 3
+    /// (the collection grows while the app is new — endowment), then 5 a day (owner 2026-10-24: 3 felt too few for
+    /// photographing things on a walk, and the drop from 10 is smaller). Observed beta use (13 learners, 2026-08/10):
+    /// median 1 catch a day, 9 days in 10 at 3 or fewer. Reviews and the dex are never limited. A catch counts when
+    /// it is saved (`recordCatch`); the shutter needs one left.
+    static let freeCatchesPerDay = 5
     static let welcomeCatchesPerDay = 10
     static let welcomeDays = 7
     /// Extra catches a learner can earn in a day (a rewarded ad: `grantBonusCatch`).
