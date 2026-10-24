@@ -27,12 +27,12 @@
   "ko": "매년 자동 갱신",
   "vi": "Tự động gia hạn hằng năm"
  },
- "1日3回の上限がなくなります": {
-  "en": "No more 3-a-day limit",
-  "zh-TW": "不再有每天 3 次的限制",
-  "es": "Sin el límite de 3 al día",
-  "ko": "하루 3회 제한이 없어져요",
-  "vi": "Không còn giới hạn 3 lần mỗi ngày"
+ "1日5回の上限がなくなります": {
+  "en": "No more 5-a-day limit",
+  "zh-TW": "不再有每天 5 次的限制",
+  "es": "Sin el límite de 5 al día",
+  "ko": "하루 5회 제한이 없어져요",
+  "vi": "Không còn giới hạn 5 lần mỗi ngày"
  },
  "1日、どれくらい\n学びたい？": {
   "en": "A little time,\nevery day.",
@@ -8622,6 +8622,90 @@
   "es": "Se quitó del álbum",
   "ko": "앨범에서 뺐어요",
   "vi": "Đã gỡ khỏi album"
+ },
+ "カメラのシャッター音": {
+  "en": "Camera shutter sound",
+  "zh-TW": "相機快門聲",
+  "es": "Sonido del obturador",
+  "ko": "카메라 셔터 소리",
+  "vi": "Âm chụp ảnh"
+ },
+ "今日のキャッチはここまでです": {
+  "en": "That’s all your catches for today",
+  "zh-TW": "今天的捕捉次數已用完",
+  "es": "Ya no te quedan capturas por hoy",
+  "ko": "오늘 캐치는 여기까지예요",
+  "vi": "Hôm nay bạn đã hết lượt bắt"
+ },
+ "明日はまた{1}回撮れます。": {
+  "en": "Tomorrow you can take {1} photos again.",
+  "zh-TW": "明天又可以拍 {1} 次。",
+  "es": "Mañana podrás hacer {1} fotos de nuevo.",
+  "ko": "내일 다시 {1}회 찍을 수 있어요.",
+  "vi": "Ngày mai bạn lại chụp được {1} lần."
+ },
+ "図鑑の単語の復習は、いつでも何回でもできます。": {
+  "en": "You can review the words in your Collection any time, as often as you like.",
+  "zh-TW": "圖鑑裡的單字隨時都能複習，次數不限。",
+  "es": "Puedes repasar las palabras de tu colección cuando quieras, sin límite.",
+  "ko": "도감의 단어 복습은 언제든지 몇 번이든 할 수 있어요.",
+  "vi": "Bạn có thể ôn tập từ trong bộ sưu tập bất cứ lúc nào, không giới hạn."
+ },
+ "はじめの{1}日間は1日{2}回、そのあとは1日{3}回撮れます。": {
+  "en": "For your first {1} days you can take {2} photos a day, then {3} a day.",
+  "zh-TW": "前 {1} 天每天可以拍 {2} 次，之後每天 {3} 次。",
+  "es": "Los primeros {1} días puedes hacer {2} fotos al día; después, {3} al día.",
+  "ko": "처음 {1}일 동안은 하루 {2}회, 그 후에는 하루 {3}회 찍을 수 있어요.",
+  "vi": "Trong {1} ngày đầu, bạn chụp được {2} lần mỗi ngày, sau đó {3} lần mỗi ngày."
+ },
+ "1日{1}回撮れます。": {
+  "en": "You can take {1} photos a day.",
+  "zh-TW": "每天可以拍 {1} 次。",
+  "es": "Puedes hacer {1} fotos al día.",
+  "ko": "하루 {1}회 찍을 수 있어요.",
+  "vi": "Bạn chụp được {1} lần mỗi ngày."
+ },
+ "広告を見て1回ふやす": {
+  "en": "Watch an ad for 1 more",
+  "zh-TW": "看廣告多拍 1 次",
+  "es": "Ver un anuncio para 1 más",
+  "ko": "광고 보고 1회 더 받기",
+  "vi": "Xem quảng cáo để thêm 1 lượt"
+ },
+ "広告を読み込んでいます…": {
+  "en": "Loading the ad…",
+  "zh-TW": "正在載入廣告…",
+  "es": "Cargando el anuncio…",
+  "ko": "광고를 불러오는 중…",
+  "vi": "Đang tải quảng cáo…"
+ },
+ "今日はあと{1}回ふやせます": {
+  "en": "You can add {1} more today",
+  "zh-TW": "今天還能再增加 {1} 次",
+  "es": "Hoy puedes añadir {1} más",
+  "ko": "오늘 {1}회 더 늘릴 수 있어요",
+  "vi": "Hôm nay bạn còn thêm được {1} lượt"
+ },
+ "今は広告がありません。しばらくしてからお試しください。": {
+  "en": "No ad is available right now. Please try again later.",
+  "zh-TW": "目前沒有可播放的廣告，請稍後再試。",
+  "es": "Ahora no hay anuncios disponibles. Inténtalo más tarde.",
+  "ko": "지금은 광고가 없어요. 잠시 후 다시 시도해 주세요.",
+  "vi": "Hiện chưa có quảng cáo. Vui lòng thử lại sau."
+ },
+ "1回ふえました": {
+  "en": "You got 1 more",
+  "zh-TW": "多了 1 次",
+  "es": "Tienes 1 más",
+  "ko": "1회 늘었어요",
+  "vi": "Đã thêm 1 lượt"
+ },
+ "広告のプライバシー設定": {
+  "en": "Ad privacy choices",
+  "zh-TW": "廣告隱私設定",
+  "es": "Privacidad de anuncios",
+  "ko": "광고 개인정보 설정",
+  "vi": "Quyền riêng tư quảng cáo"
  },
  "外した写真 {1}": {
   "en": "Removed photos {1}",

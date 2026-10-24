@@ -1,15 +1,29 @@
 import SwiftUI
 import StoreKit
 
-/// Freemium: free users get 3 catches per day (Tokyo-day boundary like the server's `startOfTokyoDay`).
+/// Freemium: a daily number of catches on the app's Taipei calendar day (`SRS.taipeiDay`, like the web).
 /// Pro = StoreKit subscription OR `profiles.plan == "pro"` (so web Stripe subscribers stay Pro on iPhone),
 /// but only once in-app purchase is offered too (`inAppPurchaseAvailable`, App Review Guideline 3.1.3(b)).
 @Observable
 final class PlanStore {
-    static let freeCatchesPerDay = 3
-    /// PRODUCT.md: "Initial public testing is a free beta. Do not prematurely hard-code a restrictive
-    /// daily Catch limit without observing behavior." Off until real usage decides Free/Pro.
-    static let catchLimitEnabled = false
+    /// Owner decision 2026-10-21 (free with ads, no subscription yet): 10 catches a day for the first 7 days
+    /// (the collection grows while the app is new — endowment), then 5 a day (owner 2026-10-24: 3 felt too few for
+    /// photographing things on a walk, and the drop from 10 is smaller). Observed beta use (13 learners, 2026-08/10):
+    /// median 1 catch a day, 9 days in 10 at 3 or fewer. Reviews and the dex are never limited. A catch counts when
+    /// it is saved (`recordCatch`); the shutter needs one left.
+    static let freeCatchesPerDay = 5
+    static let welcomeCatchesPerDay = 10
+    static let welcomeDays = 7
+    /// Extra catches a learner can earn in a day (a rewarded ad: `grantBonusCatch`).
+    static let maxBonusPerDay = 2
+    /// On since 2026-10-21 (owner decision above). Off under `-uiDemo` (DEBUG only: the UI tests catch many times a day).
+    static var catchLimitEnabled: Bool {
+        #if DEBUG
+        return !DemoBackend.isOn
+        #else
+        return true
+        #endif
+    }
     /// The first App Store version is free only: no "Upgrade to Pro", no purchase / restore buttons
     /// (the products are not set up in App Store Connect and the server does not check Apple purchases
     /// yet). Flip together with `catchLimitEnabled` when Pro launches; the StoreKit code stays as is.
@@ -32,6 +46,8 @@ final class PlanStore {
     var isStorePro: Bool = false
     var isServerPro: Bool = false
     var usedToday: Int = 0
+    /// Catches earned today (rewarded ads), at most `maxBonusPerDay`.
+    var bonusToday: Int = 0
     var isPurchasing: Bool = false
     var message: String?
 
@@ -44,12 +60,18 @@ final class PlanStore {
     /// `profiles.plan`), so a StoreKit-only Pro does NOT count here — offering those buttons would only fail.
     /// Also off while in-app purchase is unavailable: web Pro alone must not unlock them here (3.1.3(b)).
     var serverGrantsPro: Bool { Self.inAppPurchaseAvailable && isServerPro }
-    var remainingToday: Int { max(0, Self.freeCatchesPerDay - usedToday) }
+    /// Today's free catches: `welcomeCatchesPerDay` during the first `welcomeDays` days, then `freeCatchesPerDay`.
+    var dailyLimit: Int { Self.limit(onDay: Self.dayKey()) }
+    /// Tomorrow's free catches (what the limit sheet promises).
+    var tomorrowLimit: Int { Self.limit(onDay: SRS.taipeiDay(Date().addingTimeInterval(86_400))) }
+    var remainingToday: Int { max(0, dailyLimit + bonusToday - usedToday) }
+    var canEarnBonus: Bool { bonusToday < Self.maxBonusPerDay }
     var canCatch: Bool { !Self.catchLimitEnabled || isPro || remainingToday > 0 }
 
     private var updatesTask: Task<Void, Never>?
 
     init() {
+        _ = Self.firstDay   // the welcome week starts on the first launch
         loadUsage()
         updatesTask = Task { [weak self] in
             for await update in Transaction.updates {
@@ -151,21 +173,68 @@ final class PlanStore {
     func recordCatch() {
         loadUsage()
         usedToday += 1
-        UserDefaults.standard.set(usedToday, forKey: "plan.used")
-        UserDefaults.standard.set(Self.dayKey(), forKey: "plan.day")
+        saveUsage()
     }
 
     /// A catch counted at the flick whose background save then failed: it does not use up a catch.
     func undoCatch() {
         loadUsage()
         usedToday = max(0, usedToday - 1)
-        UserDefaults.standard.set(usedToday, forKey: "plan.used")
-        UserDefaults.standard.set(Self.dayKey(), forKey: "plan.day")
+        saveUsage()
+    }
+
+    /// One more catch today (a rewarded ad watched to the end). False when today's extras are used up.
+    @discardableResult
+    func grantBonusCatch() -> Bool {
+        loadUsage()
+        guard canEarnBonus else { return false }
+        bonusToday += 1
+        saveUsage()
+        return true
     }
 
     private func loadUsage() {
-        let day = UserDefaults.standard.string(forKey: "plan.day")
-        usedToday = day == Self.dayKey() ? UserDefaults.standard.integer(forKey: "plan.used") : 0
+        let d = UserDefaults.standard
+        let today = d.string(forKey: "plan.day") == Self.dayKey()
+        usedToday = today ? d.integer(forKey: "plan.used") : 0
+        bonusToday = today ? d.integer(forKey: "plan.bonus") : 0
+    }
+
+    private func saveUsage() {
+        let d = UserDefaults.standard
+        d.set(usedToday, forKey: "plan.used")
+        d.set(bonusToday, forKey: "plan.bonus")
+        d.set(Self.dayKey(), forKey: "plan.day")
+    }
+
+    /// The day of the first launch (Taipei calendar). Kept in the Keychain so deleting and reinstalling the app
+    /// does not start a new welcome week.
+    static let firstDay: String = {
+        let account = "plan.firstDay"
+        if let data = KeychainStore.load(account: account), let day = String(data: data, encoding: .utf8),
+           day.count == 10 {
+            return day
+        }
+        let today = SRS.taipeiDay(Date())
+        KeychainStore.save(Data(today.utf8), account: account)
+        return today
+    }()
+
+    /// The free catches on a Taipei day (`yyyy-MM-dd`): the welcome amount for the first `welcomeDays` days.
+    static func limit(onDay day: String, firstDay: String = PlanStore.firstDay) -> Int {
+        guard let n = daysBetween(firstDay, day) else { return freeCatchesPerDay }
+        return n < welcomeDays ? welcomeCatchesPerDay : freeCatchesPerDay
+    }
+
+    /// Whole days from `a` to `b` (both `yyyy-MM-dd`); nil when either does not parse.
+    static func daysBetween(_ a: String, _ b: String) -> Int? {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        guard let da = f.date(from: a), let db = f.date(from: b) else { return nil }
+        return Int((db.timeIntervalSince(da) / 86_400).rounded())
     }
 
     /// The app's "today" is one calendar everywhere: Taiwan midnight, like the web (`SRS.taipeiDay`).

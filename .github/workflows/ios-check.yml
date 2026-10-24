@@ -92,6 +92,7 @@ jobs:
             -scheme CatchWords \
             -destination "platform=iOS Simulator,id=$UDID" \
             -only-testing:CatchWordsTests/DexCatalogSymbolTests \
+            -only-testing:CatchWordsTests/PlanLimitTests \
             -only-testing:CatchWordsTests/QuizPoolTests \
             -only-testing:CatchWordsTests/CardCatchPickTests \
             -only-testing:CatchWordsTests/MeaningGlossTests \

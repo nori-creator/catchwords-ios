@@ -19,7 +19,7 @@ struct PaywallView: View {
     private var benefits: [(String, String, String)] {
         var list: [(String, String, String)] = []
         if PlanStore.catchLimitEnabled {
-            list.append(("infinity", L("撮影・キャッチが無制限"), L("1日3回の上限がなくなります")))
+            list.append(("infinity", L("撮影・キャッチが無制限"), L("1日5回の上限がなくなります")))
         }
         if PlanStore.serverVerifiesAppStore {
             list.append(("wand.and.stars", L("解説の作り直し"), L("気になるカードをいつでも作り直せます")))

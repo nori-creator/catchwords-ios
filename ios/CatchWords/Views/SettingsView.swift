@@ -372,6 +372,11 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("settings.aiConsent")
                 Link(destination: AppConfig.tokushohoURL) { legalLabel(L("特定商取引法に基づく表記")) }
+                // Google's consent choices for ads, where the learner's region needs them (EEA/UK).
+                if RewardedAds.shared.privacyOptionsRequired {
+                    Button { RewardedAds.shared.presentPrivacyOptions() } label: { legalLabel(L("広告のプライバシー設定")) }
+                        .buttonStyle(.plain)
+                }
                 Link(destination: AppConfig.supportURL) { legalLabel(L("お問い合わせ・サポート")) }
                     .accessibilityIdentifier("settings.support")
             }
