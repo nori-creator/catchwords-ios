@@ -104,6 +104,18 @@ for c in cases {
         let span = ChunkRules.spanText(of: UsageChunk(parts: parseChunk(c.chunk ?? ""), ja: ""), in: c.text, target: c.target ?? "") ?? "-"
         got = span == (c.expected ?? "")
         if !got { print("::error::\(c.id) [\(c.rule)] span \(span), expected \(c.expected ?? "") — \(c.why)") }
+    case "legacyPatterns":
+        // chunk = the formulas joined by " / ", text = the sentences "zh=scene" joined by " / "; expected = one letter pair per
+        // block in order: CE (formula with its sentence), C (formula alone), E (sentence alone), joined by +.
+        let chunks = (c.chunk ?? "").components(separatedBy: " / ").filter { !$0.isEmpty }.map { UsageChunk(parts: parseChunk($0), ja: "") }
+        let examples = c.text.components(separatedBy: " / ").filter { !$0.isEmpty }.map { e -> ChunkRules.LegacyExample in
+            let kv = e.split(separator: "=", maxSplits: 1).map(String.init)
+            return ChunkRules.LegacyExample(zh: kv[0], ja: "", scene: kv.count > 1 ? kv[1] : "")
+        }
+        let out = ChunkRules.patternsFromLegacy(chunks: chunks, examples: examples, headword: c.source ?? "", target: c.target ?? "zh-TW")
+            .map { ($0.chunk.parts.isEmpty ? "" : "C") + ($0.example.zh.isEmpty ? "" : "E") }.joined(separator: "+")
+        got = out == (c.expected ?? "")
+        if !got { print("::error::\(c.id) [\(c.rule)] blocks \(out), expected \(c.expected ?? "") — \(c.why)") }
     case "unbreakable":
         // text = the sentence, source = its words (comma-separated); expected writes the joiner as _.
         let words = (c.source ?? "").split(separator: ",").map(String.init)

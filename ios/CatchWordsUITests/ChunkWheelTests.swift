@@ -7,6 +7,19 @@ final class ChunkWheelTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiPreview", "detail", "-ui.lang", "ja",
                                "-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
+        // Warm-up, not checked: the first wheel on a freshly booted CI simulator loads the system's symbol assets and
+        // Japanese line-break dictionary, and the screen stops answering long enough for the UI query to time out
+        // (owner 2026-10-23: the test failed on every run). A phone in use has them loaded; the checked pass below is
+        // a fresh launch with the same limits as before.
+        app.launch()
+        let warm = app.buttons["早餐店"].firstMatch
+        if warm.waitForExistence(timeout: 120) {
+            if !warm.isHittable { app.swipeUp() }
+            warm.tap()
+            _ = app.pickerWheels.firstMatch.waitForExistence(timeout: 120)
+        }
+        app.terminate()
+
         app.launch()
         // The 早餐店 of 在＋早餐店＋點＋鐵板麵 is the swappable block of the preview (C5 2026-10-23: a degree word no
         // longer opens the wheel, and 蘑菇＋鐵板麵 is one word by C7).

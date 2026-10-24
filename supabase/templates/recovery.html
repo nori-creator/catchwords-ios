@@ -1,0 +1,41 @@
+<div style="max-width:480px;margin:0 auto;padding:24px;font-family:-apple-system,'Hiragino Sans','PingFang TC','Apple SD Gothic Neo',sans-serif">
+<p style="margin:0 0 24px;font-size:20px;font-weight:700;color:#1c1c1e">CatchWords</p>
+{{ $l := or .Data.ui_language "" }}
+{{ if eq $l "ja" }}
+<div lang="ja">
+  <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1c1c1e">下のボタンを押すと、パスワードを設定するページが開きます。そこで新しいパスワードを決めてください。</p>
+  <p style="margin:0"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#1c1c1e;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none">パスワードを設定する</a></p>
+  <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6e6e73">このメールに心当たりがない場合は、何もしなくて大丈夫です。</p>
+</div>
+{{ else if eq $l "zh-TW" }}
+<div lang="zh-TW">
+  <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1c1c1e">請按下方按鈕，在開啟的頁面中設定新密碼。</p>
+  <p style="margin:0"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#1c1c1e;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none">設定密碼</a></p>
+  <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6e6e73">如果這不是你本人的操作，請忽略這封郵件。</p>
+</div>
+{{ else if eq $l "es" }}
+<div lang="es">
+  <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1c1c1e">Toca el botón de abajo para abrir la página donde puedes elegir una contraseña nueva.</p>
+  <p style="margin:0"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#1c1c1e;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none">Establecer contraseña</a></p>
+  <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6e6e73">Si no fuiste tú, puedes ignorar este correo.</p>
+</div>
+{{ else if eq $l "ko" }}
+<div lang="ko">
+  <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1c1c1e">아래 버튼을 누르면 새 비밀번호를 정할 수 있는 페이지가 열립니다.</p>
+  <p style="margin:0"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#1c1c1e;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none">비밀번호 설정</a></p>
+  <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6e6e73">본인이 요청하지 않았다면 이 메일은 무시하셔도 됩니다.</p>
+</div>
+{{ else if eq $l "vi" }}
+<div lang="vi">
+  <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1c1c1e">Hãy nhấn nút bên dưới để mở trang đặt mật khẩu mới.</p>
+  <p style="margin:0"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#1c1c1e;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none">Đặt mật khẩu</a></p>
+  <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6e6e73">Nếu đây không phải là bạn, hãy bỏ qua email này.</p>
+</div>
+{{ else }}
+<div lang="en">
+  <p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#1c1c1e">Tap the button below to open the page where you can choose a new password.</p>
+  <p style="margin:0"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#1c1c1e;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none">Set password</a></p>
+  <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6e6e73">If this wasn&#x27;t you, you can ignore this email.</p>
+</div>
+{{ end }}
+</div>

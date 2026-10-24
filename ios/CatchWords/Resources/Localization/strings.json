@@ -8762,5 +8762,12 @@
   "es": "Sitio web",
   "ko": "웹사이트",
   "vi": "Trang web"
+ },
+ "使い方": {
+  "en": "Usage",
+  "zh-TW": "用法",
+  "es": "Uso",
+  "ko": "사용법",
+  "vi": "Cách dùng"
  }
 }

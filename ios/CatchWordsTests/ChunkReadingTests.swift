@@ -172,6 +172,35 @@ final class UsagePatternTests: XCTestCase {
         XCTAssertFalse(empty.hasContent)
     }
 
+    /// An older card (no patterns): 找＋電視遙控器 pairs with the sentence that holds it; 按＋電視遙控器 has no sentence and
+    /// stands alone; the sentence no formula is in keeps its scene; nothing is dropped and the order is pairs → formulas → sentences.
+    func testAnOlderCardPairsItsFormulasWithItsExamples() {
+        let remote = ChunkPart(text: "電視遙控器", pos: "N")
+        let find = UsageChunk(parts: [ChunkPart(text: "找", pos: "V"), remote], ja: "テレビのリモコンを探す")
+        let press = UsageChunk(parts: [ChunkPart(text: "按", pos: "V"), remote], ja: "テレビのリモコンを押す")
+        let examples = [
+            ChunkRules.LegacyExample(zh: "電視遙控器在哪裡？", ja: "テレビのリモコンはどこ？", scene: "リモコンが見当たらないとき"),
+            ChunkRules.LegacyExample(zh: "我在找電視遙控器。", ja: "リモコンを探している。", scene: "探しているとき", words: ["我", "在", "找", "電視遙控器", "。"]),
+        ]
+        let out = ChunkRules.patternsFromLegacy(chunks: [find, press], examples: examples, headword: "電視遙控器", target: "zh-TW")
+        XCTAssertEqual(out.count, 3)
+        XCTAssertEqual(out[0].scene, "探しているとき")
+        XCTAssertEqual(out[0].chunk.text, "找電視遙控器")
+        XCTAssertEqual(out[0].example.zh, "我在找電視遙控器。")
+        XCTAssertTrue(out[0].example.chunkInExample)
+        XCTAssertEqual(out[0].example.words, ["我", "在", "找", "電視遙控器", "。"])
+        XCTAssertEqual(out[1].chunk.text, "按電視遙控器")
+        XCTAssertEqual(out[1].scene, "")
+        XCTAssertEqual(out[1].example.zh, "")
+        XCTAssertTrue(out[2].chunk.parts.isEmpty)
+        XCTAssertEqual(out[2].example.zh, "電視遙控器在哪裡？")
+        XCTAssertEqual(out[2].scene, "リモコンが見当たらないとき")
+        XCTAssertEqual(ChunkRules.circledNumber(1), "①")
+        XCTAssertEqual(ChunkRules.circledNumber(20), "⑳")
+        XCTAssertEqual(ChunkRules.circledNumber(21), "21.")
+        XCTAssertEqual(ChunkRules.circledNumber(0), "")
+    }
+
     func testRolesAndTheBoldGlosses() {
         let chunk = UsageChunk(parts: [matong, stuck], ja: "トイレが詰まった")
         XCTAssertEqual(ChunkRules.role(matong, headword: "馬桶", target: "zh-TW"), .head)

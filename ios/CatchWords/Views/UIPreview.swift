@@ -124,6 +124,8 @@ struct UIPreviewRoot: View {
             case "patterns": PatternsPreview(pref: "zhuyin", pos: false)
             case "patterns-pinyin": PatternsPreview(pref: "pinyin", pos: false)
             case "patterns-pos": PatternsPreview(pref: "zhuyin", pos: true)
+            // An older card (no usage_patterns): its examples and formulas paired up and numbered the same way.
+            case "patterns-legacy": PatternsPreview(pref: "pinyin", pos: false, legacy: true)
             case "jadetail": LanguageCardPreview(kind: .ja)
             case "quiz": ReviewPreview(learning: "zh-TW", answered: false)
             case "answer": ReviewPreview(learning: "zh-TW", answered: true)
@@ -1543,9 +1545,12 @@ private struct CameraBlockedPreview: View {
 /// writes them (`usage_patterns`: scene, formula with readings and one swappable block, example cut into words, note),
 /// through the same reader-language filter as real cards.
 private struct PatternsPreview: View {
-    init(pref: String, pos: Bool) {
+    private let legacy: Bool
+
+    init(pref: String, pos: Bool, legacy: Bool = false) {
         UserDefaults.standard.set(pref, forKey: "reading.pref")
         UserDefaults.standard.set(pos, forKey: "chunk.posColors")
+        self.legacy = legacy
     }
 
     private static func pick(_ ja: String, _ en: String, _ zh: String) -> String {
@@ -1613,8 +1618,41 @@ private struct PatternsPreview: View {
                        caption: nil, locationName: nil, takenAt: Date(), captureType: "photo", word: word)
     }
 
+    /// 電視遙控器 as the owner's 2026-10-23 evening screenshot had it: two examples and two formulas, no patterns. 找＋電視遙控器
+    /// pairs with its sentence; 按＋電視遙控器 has none; the first sentence belongs to no formula.
+    private static var legacySticker: Sticker {
+        let obj: [String: Any] = [
+            "id": "w-remote", "headword": "電視遙控器", "language": "zh-TW", "reading_zhuyin": "ㄉㄧㄢˋ ㄕˋ ㄧㄠˊ ㄎㄨㄥˋ ㄑㄧˋ",
+            "pinyin": "diànshì yáokòngqì", "meaning_ja": pick("テレビのリモコン", "TV remote", "電視遙控器"), "part_of_speech": "N", "level": "TOCFL-3",
+            "example_sentence": "電視遙控器在哪裡？", "example_translation": pick("テレビのリモコンはどこ？", "Where's the TV remote?", ""),
+            "extras": [
+                "explain_lang": L10n.lang,
+                "example_scene": pick("家の中でリモコンが見当たらないとき", "When the remote is nowhere to be found at home", "在家裡找不到遙控器的時候"),
+                "example_scene_for": "電視遙控器在哪裡？",
+                "examples_extra": [["zh": "我在找電視遙控器，你有看到嗎？", "ja": pick("テレビのリモコンを探してるんだけど、見なかった？", "I'm looking for the TV remote, have you seen it?", ""),
+                                    "scene": pick("リモコンを探しているとき", "When looking for the remote", "在找遙控器的時候"), "scene_for": "我在找電視遙控器，你有看到嗎？",
+                                    "chunks": [["text": "我", "pos": "N"], ["text": "在", "pos": "Adv"], ["text": "找", "pos": "V"], ["text": "電視遙控器", "pos": "N"], ["text": "，", "pos": "Ptc"],
+                                               ["text": "你", "pos": "N"], ["text": "有", "pos": "V"], ["text": "看到", "pos": "V"], ["text": "嗎", "pos": "Ptc"], ["text": "？", "pos": "Ptc"]]]],
+                "usage_chunks": [
+                    ["parts": [["text": "找", "pos": "V", "pinyin": "zhǎo", "zhuyin": "ㄓㄠˇ", "ja": pick("探す", "look for", "找")],
+                               ["text": "電視遙控器", "pos": "N", "pinyin": "diàn shì yáo kòng qì", "zhuyin": "ㄉㄧㄢˋ ㄕˋ ㄧㄠˊ ㄎㄨㄥˋ ㄑㄧˋ"]],
+                     "ja": pick("テレビのリモコンを探す", "look for the TV remote", "找電視遙控器")],
+                    ["parts": [["text": "按", "pos": "V", "pinyin": "àn", "zhuyin": "ㄢˋ", "ja": pick("押す", "press", "按")],
+                               ["text": "電視遙控器", "pos": "N", "pinyin": "diàn shì yáo kòng qì", "zhuyin": "ㄉㄧㄢˋ ㄕˋ ㄧㄠˊ ㄎㄨㄥˋ ㄑㄧˋ"]],
+                     "ja": pick("テレビのリモコンを押す", "press the TV remote", "按電視遙控器")],
+                ],
+                "measure_words": [["word": "一支", "zhuyin": "ㄧˋ ㄓ", "pinyin": "yì zhī", "note": pick("リモコンを数える時の量詞。", "The measure word for a remote.", "")]],
+            ],
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        let word = (try? JSONDecoder().decode(Word.self, from: data))
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
+        return Sticker(id: "patterns-legacy", wordId: "w-remote", objectImageUrl: nil, cutoutImageUrl: nil, selfieImageUrl: nil,
+                       caption: nil, locationName: nil, takenAt: Date(), captureType: "photo", word: word)
+    }
+
     var body: some View {
-        WordDetailView(sticker: Self.sticker, previewFocus: .usageChunks)
+        WordDetailView(sticker: legacy ? Self.legacySticker : Self.sticker, previewFocus: .usageChunks)
     }
 }
 
