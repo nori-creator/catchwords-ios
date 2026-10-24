@@ -97,6 +97,10 @@ nonisolated extension DemoDatabase {
             result = ["saved": true]
         case "saveAlbumLayout": result = saveAlbumLayout(DJ.list(data["items"]))
 
+        // Diary (journal_entries; Services/DiaryStore.swift)
+        case "listMyDiaryMonth": result = diaryMonth(DJ.str(data["month"]) ?? "")
+        case "saveMyDiary": result = saveDiary(date: DJ.str(data["date"]) ?? "", text: DJ.str(data["text"]) ?? "")
+
         // Review, stats, account
         case "gradeReview": return gradeReview(data)
         case "getMyStats": result = myStats()
@@ -119,6 +123,34 @@ nonisolated extension DemoDatabase {
 
     private func notFound() -> DemoResponse {
         .error(404, "not found")
+    }
+
+    // MARK: - Diary (server journal.functions.ts)
+
+    private func diaryRow(_ date: String) -> [String: Any]? {
+        rows("journal_entries").first { DJ.str($0["entry_date"]) == date }
+    }
+
+    /// `listMyDiaryMonth` {month}: the month's pages, oldest first, in the shape `DiaryEntry` reads.
+    private func diaryMonth(_ month: String) -> [[String: Any]] {
+        rows("journal_entries")
+            .filter { (DJ.str($0["entry_date"]) ?? "").hasPrefix(month) }
+            .sorted { (DJ.str($0["entry_date"]) ?? "") < (DJ.str($1["entry_date"]) ?? "") }
+            .map { r in
+                ["date": r["entry_date"] ?? "", "text": r["user_draft"] ?? "", "correction": r["correction"] ?? NSNull(),
+                 "feedback": r["feedback_ja"] ?? NSNull(), "native_phrases": r["native_phrases"] ?? [Any](),
+                 "used_sticker_ids": r["used_sticker_ids"] ?? [Any]()]
+            }
+    }
+
+    /// `saveMyDiary` {date, text}: the text as typed, one row a day.
+    private func saveDiary(date: String, text: String) -> [String: Any] {
+        if diaryRow(date) != nil {
+            update("journal_entries", where: { DJ.str($0["entry_date"]) == date }) { $0["user_draft"] = text }
+        } else {
+            insert("journal_entries", ["id": DJ.uuid(), "entry_date": date, "user_draft": text, "created_at": DJ.now()])
+        }
+        return diaryRow(date) ?? [:]
     }
 
     // MARK: - AI consent (web patch docs/web-changes/, docs/ios-spec/23-ai-consent.md)

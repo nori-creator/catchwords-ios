@@ -145,6 +145,9 @@ struct UIPreviewRoot: View {
             case "done": DonePreview()
             case "home": HomePreview()
             case "home-again": HomePreview(metAgain: true)
+            // The diary (2026-10-24): today's page as the iPhone's sheet shows it, and the album as a book on a wide screen.
+            case "diary": DiaryPreview()
+            case "spread": SpreadPreview()
             case "camblocked": CameraBlockedPreview()
             case "homeload": VStack(spacing: 20) {
                 AlbumSkeleton().frame(height: 440)
@@ -1804,5 +1807,99 @@ private struct MapPreview: View {
 
     var body: some View {
         DexMapView(stickers: Self.stickers) { _ in }
+    }
+}
+
+// MARK: - Diary (2026-10-24)
+
+/// Today's two words — 鐵板麵 with the formulas natives use it in, 芒果 — and today's page with a few lines written. Shared by
+/// `-uiPreview diary` and `-uiPreview spread`.
+private enum DiaryFixtures {
+    static func seed(_ dex: DexStore) {
+        let now = Date()
+        let noodles = sticker("diary-noodles", "鐵板麵", zhuyin: "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ", hue: 0.08, at: now.addingTimeInterval(-3 * 3600),
+                              place: "早餐店",
+                              formulas: [[("點", "V"), ("一份", "M"), ("鐵板麵", "N")], [("鐵板麵", "N"), ("很", "Adv"), ("香", "Vs")]])
+        let mango = sticker("diary-mango", "芒果", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ", hue: 0.12, at: now.addingTimeInterval(-50 * 60),
+                            place: "水果攤", formulas: [[("芒果", "N"), ("很", "Adv"), ("甜", "Vs")]])
+        dex.stickers = [mango, noodles]
+        dex.hasLoaded = true
+
+        DiaryStore.shared.seedForPreview([DiaryEntry(date: DiaryStore.key(now), text: "今天早餐我吃了鐵板麵，非常好吃。下午在水果攤買了芒果。")])  // l10n-ignore (learning-language sample)
+    }
+
+    /// A word with a photo, a cut-out and its formulas (`usage_patterns`), kept in memory (no network in the preview).
+    private static func sticker(_ id: String, _ head: String, zhuyin: String, hue: CGFloat, at: Date, place: String,
+                                formulas: [[(String, String)]]) -> Sticker {
+        let photo = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 450)).image { ctx in
+            UIColor(hue: hue, saturation: 0.25, brightness: 0.95, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 450))
+            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 150, y: 90, width: 300, height: 270))
+        }
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        let cutout = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 270), format: format).image { ctx in
+            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: 300, height: 270))
+        }
+        ImageCache.shared.set(photo, for: "preview/\(id).jpg")
+        ImageCache.shared.set(cutout, for: "preview/\(id)-cutout.png")
+        let patterns: [[String: Any]] = formulas.map { parts in
+            ["scene": "", "chunk": ["parts": parts.map { ["text": $0.0, "pos": $0.1] }, "ja": ""], "example": ["zh": "", "ja": ""]]
+        }
+        let obj: [String: Any] = [
+            "id": "w-\(id)", "headword": head, "language": "zh-TW", "reading_zhuyin": zhuyin, "meaning_ja": "",
+            "extras": ["explain_lang": L10n.lang, "usage_patterns": patterns],
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        let word = (try? JSONDecoder().decode(Word.self, from: data))
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
+        return Sticker(id: id, wordId: "w-\(id)", objectImageUrl: "preview/\(id).jpg", cutoutImageUrl: "preview/\(id)-cutout.png",
+                       selfieImageUrl: nil, caption: nil, locationName: place, takenAt: at, captureType: "photo", word: word)
+    }
+}
+
+/// `-uiPreview diary`: today's diary page as the iPhone's home opens it (a sheet).
+private struct DiaryPreview: View {
+    @Environment(DexStore.self) private var dex
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                DiaryPageView(day: Date(), standalone: true)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 40)
+            }
+            .background(HomeBackground())
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {} label: { Image(systemName: "xmark") }
+                        .accessibilityLabel(L("閉じる"))
+                }
+            }
+        }
+        .environment(\.colorScheme, .light)
+        .task { DiaryFixtures.seed(dex) }
+    }
+}
+
+/// `-uiPreview spread`: the home on a wide screen (the regular width class — iPhone Duo's inner display), drawn at
+/// 1024 pt and scaled to the simulator's width: the day's paper on the left, its diary on the right, the spine between.
+private struct SpreadPreview: View {
+    @Environment(DexStore.self) private var dex
+    private static let width: CGFloat = 1024
+
+    var body: some View {
+        GeometryReader { geo in
+            let scale = geo.size.width / Self.width
+            HomeView()
+                .environment(\.horizontalSizeClass, .regular)
+                .environment(\.colorScheme, .light)
+                .frame(width: Self.width, height: geo.size.height / max(scale, 0.01))
+                .scaleEffect(scale, anchor: .topLeading)
+        }
+        .ignoresSafeArea()
+        .task { DiaryFixtures.seed(dex) }
     }
 }

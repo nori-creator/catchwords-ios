@@ -8685,5 +8685,47 @@
   "es": "Uso",
   "ko": "사용법",
   "vi": "Cách dùng"
+ },
+ "日記": {
+  "en": "Diary",
+  "zh-TW": "日記",
+  "es": "Diario",
+  "ko": "일기",
+  "vi": "Nhật ký"
+ },
+ "この日のことば": {
+  "en": "Words from this day",
+  "zh-TW": "這一天的單字",
+  "es": "Palabras de este día",
+  "ko": "이날의 단어",
+  "vi": "Từ của ngày này"
+ },
+ "この日のことを{1}で書いてみよう": {
+  "en": "Write about this day in {1}",
+  "zh-TW": "用{1}寫寫這一天吧",
+  "es": "Escribe sobre este día en {1}",
+  "ko": "이날의 일을 {1}로 써 보세요",
+  "vi": "Hãy viết về ngày này bằng {1}"
+ },
+ "押すと日記に入ります": {
+  "en": "Tap to add it to the diary",
+  "zh-TW": "點一下就會加進日記",
+  "es": "Toca para añadirlo al diario",
+  "ko": "누르면 일기에 들어갑니다",
+  "vi": "Nhấn để thêm vào nhật ký"
+ },
+ "日記を保存できませんでした": {
+  "en": "Could not save the diary",
+  "zh-TW": "無法儲存日記",
+  "es": "No se pudo guardar el diario",
+  "ko": "일기를 저장하지 못했어요",
+  "vi": "Không thể lưu nhật ký"
+ },
+ "日記を読み込めませんでした": {
+  "en": "Could not load the diary",
+  "zh-TW": "無法載入日記",
+  "es": "No se pudo cargar el diario",
+  "ko": "일기를 불러오지 못했어요",
+  "vi": "Không thể tải nhật ký"
  }
 }
