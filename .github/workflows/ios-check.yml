@@ -366,7 +366,8 @@ jobs:
           for f in "$STAGE"/*.png; do [ -f "$f" ] && sips --resampleWidth 603 "$f" >/dev/null 2>&1 || true; done
           du -sh "$STAGE" || true
           echo "${{ github.sha }}" > "$STAGE/COMMIT"
-          CI_PREVIEWS_REPLACE=1 bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+          # API で置く（ブランチを取り出さない — 10/25、取り出すだけで 5 分を超え、3 回続けて 12 分の上限で止まった）。
+          GITHUB_TOKEN="${{ github.token }}" python3 scripts/push_ci_previews_api.py "${{ github.repository }}" \
             "$DIR" "previews for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
 
       - name: 結果を保存する
