@@ -73,13 +73,13 @@ nonisolated struct PageCurlGeometry: Equatable {
     }
 }
 
-/// A page being turned (`BookSpreadView`), drawn over the spread it uncovers: the leaf's front (the page being turned)
-/// and its back (the page it becomes), each its own layer with its own shader (Shaders/Effects.metal `pageCurlFront`
-/// / `pageCurlBack`). The back page is drawn mirrored on the leaf and reflected over the fold (`backReflection`), so
-/// the shaders only move a sample within the roll. (One layer with both sides had to sample the back a spread's width
-/// away: with that much room the layer was too big and nothing was drawn, without it the back came out blank — CI
-/// `spread-curl` / `spread-curl-late`, 2026-10-25.) Animatable, so a turn let go of runs on by itself, frame by frame,
-/// from wherever the finger left it.
+/// A page being turned (`BookSpreadView`), drawn over the spread it uncovers: the leaf's shadow, its front (the page
+/// being turned) and its back (the page it becomes), each its own layer with its own shader (Shaders/Effects.metal
+/// `pageCurlShadow` / `pageCurlFront` / `pageCurlBack`). The back page is drawn mirrored on the leaf and reflected
+/// over the fold (`backReflection`), so the shaders only move a sample within the roll. (One layer with both sides had
+/// to sample the back a spread's width away: with that much room the layer was too big and nothing was drawn, without
+/// it the back came out blank — CI `spread-curl` / `spread-curl-late`, 2026-10-25.) Animatable, so a turn let go of
+/// runs on by itself, frame by frame, from wherever the finger left it.
 ///
 /// A backward turn (the left page coming back over to the right) is a forward one in a mirror: its pages go in
 /// mirrored, and the whole leaf is mirrored back.
@@ -119,6 +119,17 @@ struct PageCurlLeaf<Front: View, Back: View>: View, Animatable {
         let dir = CGPoint(x: g.dir.dx, y: g.dir.dy)
         let on = g.lifted && size.width > 1
         return ZStack(alignment: .topLeading) {
+            // The leaf's shadow on the page it uncovers, its own plain layer (Shaders/Effects.metal `pageCurlShadow`).
+            Rectangle()
+                .fill(.black)
+                .frame(width: page.width, height: page.height)
+                .colorEffect(
+                    ShaderLibrary.pageCurlShadow(.float2(CGPoint(x: g.fold.x - page.width, y: g.fold.y)), .float2(dir),
+                                                 .float(g.radius)),
+                    isEnabled: on
+                )
+                .opacity(on ? 1 : 0)
+                .offset(x: page.width)
             front
                 .frame(width: page.width, height: page.height)
                 .offset(x: page.width)

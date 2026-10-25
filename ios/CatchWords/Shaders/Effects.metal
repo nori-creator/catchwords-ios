@@ -183,18 +183,14 @@ static bool curlInLeaf(float2 s, float2 size, float spine) {
 ///   left); a backward turn is the same drawn in a mirror (`PageCurlLeaf`).
 
 /// The leaf's front, the page being turned (the layer's right half): flat up to the fold, shaded a little where the
-/// roll hangs over it; then the lower half of the roll, turning away from the light; past the roll only the leaf's
-/// shadow on the page beneath, darkest by the roll. Used with `maxSampleOffset` of at least 0.6 × the largest radius.
+/// roll hangs over it; then the lower half of the roll, turning away from the light; past the roll nothing (the leaf's
+/// shadow is `pageCurlShadow`, its own layer). Used with `maxSampleOffset` of at least 0.6 × the largest radius.
 [[ stitchable ]] half4 pageCurlFront(float2 position, SwiftUI::Layer layer, float2 size, float2 fold, float2 dir,
                                      float radius, float spine) {
     float r = max(radius, 0.0001);
     float x = dot(position - fold, dir);
     float2 base = position - dir * x;
-    if (x > r) {
-        float d = x - r;
-        float a = 0.30 * exp(-d / (r * 1.4 + 10.0));
-        return half4(0.0, 0.0, 0.0, half(a));
-    }
+    if (x > r) { return half4(0.0); }
     if (x >= 0.0) {
         float2 s = base + dir * (r * asin(clamp(x / r, -1.0, 1.0)));
         if (!curlInLeaf(s, size, spine)) { return half4(0.0); }
@@ -228,4 +224,16 @@ static bool curlInLeaf(float2 s, float2 size, float spine) {
     c.rgb *= half(shade);
     if (x >= 0.0 && x > r * 0.86) { c.rgb = min(half3(c.a), c.rgb + half3(0.05) * c.a); }
     return c;
+}
+
+/// The shadow a leaf being turned casts on the page it uncovers: darkest by the roll, gone a few roll-widths away. A
+/// colour effect on a plain rectangle the size of that page (`PageCurlLeaf`), not part of the front's layer: drawn
+/// there, the see-through shadow came out as dark blocks wherever the page held text or pictures (CI `spread-curl`,
+/// 2026-10-25). `fold` is in the rectangle's own points.
+[[ stitchable ]] half4 pageCurlShadow(float2 position, half4 color, float2 fold, float2 dir, float radius) {
+    float r = max(radius, 0.0001);
+    float x = dot(position - fold, dir);
+    if (x <= r) { return half4(0.0); }
+    float a = 0.30 * exp(-(x - r) / (r * 1.4 + 10.0));
+    return half4(0.0, 0.0, 0.0, half(a));
 }

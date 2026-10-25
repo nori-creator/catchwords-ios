@@ -310,6 +310,9 @@ struct BookCoverFlip: View, Animatable {
 
     private static let cloth = Color(hex: 0x1C2742)
     private static let band = Color(hex: 0x8E2A2A)
+    /// Square at the spine, rounded at the fore-edge.
+    private static let shape = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 12,
+                                                      topTrailingRadius: 12, style: .continuous)
 
     var body: some View {
         let open = -angle
@@ -325,8 +328,13 @@ struct BookCoverFlip: View, Animatable {
                     .opacity(1 - PageCurlGeometry.smoothstep(130, 178, CGFloat(open)))
             }
         }
-        // Lit as it turns: darker the more it faces away from the light.
-        .overlay(Color.black.opacity(dim).allowsHitTesting(false))
+        // Lit as it turns: darker the more it faces away from the light. In the cover's own shape (a plain rectangle
+        // greyed the desk at the rounded corners — CI `spread-cover`, 2026-10-25), mirrored with the inside.
+        .overlay(
+            Self.shape.fill(Color.black.opacity(dim))
+                .scaleEffect(x: open <= 90 ? 1 : -1, y: 1)
+                .allowsHitTesting(false)
+        )
         // A gentle perspective: at 0.45 the near edge of a page-sized cover swelled past the book's top and bottom as it
         // stood up (CI `spread`, 2026-10-25).
         .rotation3DEffect(.degrees(angle), axis: (x: 0, y: 1, z: 0), anchor: .leading, perspective: 0.2)
@@ -336,8 +344,7 @@ struct BookCoverFlip: View, Animatable {
 
     private var front: some View {
         ZStack {
-            UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 12,
-                                   topTrailingRadius: 12, style: .continuous)
+            Self.shape
                 .fill(Self.cloth)
                 .colorEffect(ShaderLibrary.paperGrain(.float(0.07)))
             // The weave: fine diagonal threads.
@@ -351,8 +358,7 @@ struct BookCoverFlip: View, Animatable {
                     x += 3
                 }
             }
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 12,
-                                              topTrailingRadius: 12, style: .continuous))
+            .clipShape(Self.shape)
             // The spine's hinge: a pressed groove near the fold.
             HStack(spacing: 0) {
                 Color.clear.frame(width: 14)
@@ -390,8 +396,7 @@ struct BookCoverFlip: View, Animatable {
     }
 
     private var inside: some View {
-        UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 12,
-                               topTrailingRadius: 12, style: .continuous)
+        Self.shape
             .fill(tone.edge)
             .colorEffect(ShaderLibrary.paperGrain(.float(0.05)))
     }
