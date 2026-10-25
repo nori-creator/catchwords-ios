@@ -424,12 +424,10 @@ struct WordDetailView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(colors: [Color(light: 0xEAF3FE, dark: 0x0F2442), Theme.card], startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: .rect(cornerRadius: 26, style: .continuous)
-        )
-        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Theme.border, lineWidth: 1))
-        .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
+        // 版25 (owner 2026-10-25: 「見出しの単語の背景白なのに…背景色ついてる。白にして」): a white card like the others.
+        .background(Theme.card, in: .rect(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Theme.border, lineWidth: 1))
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
     }
 
     /// web ReportButton: let the AI find what is wrong, or point at the item yourself. At the bottom of the page,
