@@ -148,10 +148,14 @@ struct BookSpreadView: View {
                 .simultaneousGesture(swipe, including: editing ? .subviews : .all)
             }
 
-            // The ribbon, hanging from the top edge just right of the spine.
+            // The ribbon, hanging from the top edge in the gutter, centred 14 pt right of the spine (its 44 pt frame is
+            // centred on it), clear of the running head at 30 pt (centred at 32 pt it covered the head's first letter —
+            // CI `spread`, 2026-10-25). Tucked away while a page turns: drawn over the leaf, it floated on top of the
+            // turning page (CI `spread-curl-late`).
             BookRibbon(onToday: index == 0 && turn == nil) { riffleToToday() }
-                .offset(x: size.width / 2 + 10, y: -8)
-                .opacity(coverUp ? 0 : 1)
+                .offset(x: size.width / 2 + 14 - 22, y: -8)
+                .opacity(coverUp || turn != nil ? 0 : 1)
+                .animation(.easeOut(duration: 0.15), value: turn == nil)
 
             // The outer edges, where a finger takes the page.
             if !reduceMotion && !editing {
