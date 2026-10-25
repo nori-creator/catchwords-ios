@@ -214,6 +214,9 @@ nonisolated enum ReaderLanguage {
             w.extras = extras.map { scrub($0, reader: reader) }
         } else if let extras = shared.extras, sharedForReader {
             w.extras = scrub(extras, reader: reader)
+        } else {
+            // `w` started as a copy of the shared row: its notes must be cleared here, not just left unset.
+            w.extras = nil
         }
         // S8 (owner 2026-10-25「表示言語が異なる場合は全く共有しない。完全に分ける」): the shared notes of another reader's
         // language give nothing — not even their learning-language parts (chunks, measure words); the page writes this
