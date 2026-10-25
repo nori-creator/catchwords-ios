@@ -117,20 +117,15 @@ struct WordDetailView: View {
         return own.isEmpty ? [current.placeholderImageUrl].compactMap { $0 } : own
     }
 
-    var body: some View {
+    /// The page itself: the top bar, the jump chips and the scrolling cards (kept apart from `body`'s alerts and tasks
+    /// so the compiler can check each in reasonable time).
+    private var page: some View {
         VStack(spacing: 0) {
             topBar
             ScrollViewReader { proxy in
             VStack(spacing: 0) {
             // The chips that take the page to a section (§0), under the top bar, staying while the page scrolls.
-            if !jumpSections.isEmpty {
-                SectionJumpBar(sections: jumpSections, target: learningLang) { s in
-                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(s.id, anchor: .top) }
-                }
-                .padding(.vertical, 2)
-                .background(Theme.background)
-                .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
-            }
+            if !jumpSections.isEmpty { jumpBar(proxy) }
             ScrollView {
                 VStack(spacing: 14) {
                     if isUnsaved { unsavedBanner }
@@ -178,6 +173,32 @@ struct WordDetailView: View {
         .onChange(of: reviewOn) { _, _ in revealed = [] }
         .onChange(of: reviewHideRaw) { _, _ in revealed = [] }
         .onChange(of: current.id) { _, _ in revealed = [] }
+    }
+
+    /// The jump chips under the top bar (§0).
+    private func jumpBar(_ proxy: ScrollViewProxy) -> some View {
+        SectionJumpBar(sections: jumpSections, target: learningLang) { s in
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(s.id, anchor: .top) }
+        }
+        .padding(.vertical, 2)
+        .background(Theme.background)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
+    }
+
+    /// Once the page is on screen: the hero's picture, and the previews' starting state.
+    private func pageAppeared() {
+        applyHeroRole(animated: false)
+        if previewSelfieOriginal { selfieOriginal = true }
+        if previewPanel {
+            Task {
+                try? await Task.sleep(for: .milliseconds(700))
+                showSections = true
+            }
+        }
+    }
+
+    var body: some View {
+        page
         .alert(L("ひと言"), isPresented: $editingCaption) {
             TextField(L("その場のメモ"), text: $captionDraft)
             Button(L("キャンセル"), role: .cancel) {}
@@ -216,13 +237,7 @@ struct WordDetailView: View {
         }
         .onAppear { prefs.use(learningLang) }
         .onChange(of: learningLang) { _, l in prefs.use(l) }
-        .onAppear {
-            applyHeroRole(animated: false)
-            if previewSelfieOriginal { selfieOriginal = true }
-            if previewPanel {
-                Task { try? await Task.sleep(for: .milliseconds(700)); showSections = true }
-            }
-        }
+        .onAppear { pageAppeared() }
         .aiConsentSheet(isPresented: $askAIConsent)
         .sheet(isPresented: $pickingHero) {
             HeroPhotoPickerSheet(sticker: current, onPick: { role in
