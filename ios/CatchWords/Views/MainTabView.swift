@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 enum AppTab: Int, CaseIterable, Identifiable {
     case home, dex, camera, review, settings
@@ -37,6 +38,13 @@ final class AppRouter {
     var landing: CatchLandingController?
     var detailSticker: Sticker?
     var showPaywall: Bool = false
+    /// Today's free catches (`CatchLimitSheet`): opened when they run out, or from the camera's counter.
+    var showCatchLimit: Bool = false
+
+    /// No catch left today: the paywall once Pro is sold, until then the limit sheet (come back tomorrow).
+    func showLimitReached() {
+        if PlanStore.paywallEnabled { showPaywall = true } else { showCatchLimit = true }
+    }
     /// Home's 「解析待ち」 banner: open the camera with its waiting list showing.
     var openPending: Bool = false
     /// True while the camera "machine" (live preview / selfie / analyzing) fills the screen.
@@ -50,7 +58,11 @@ final class AppRouter {
     /// the bar slides back in once the word has landed). Shown, it is always on top (MainTabView). 2026-10-15 (UI tour,
     /// ja/en): after a typed word landed, the review and settings tabs could not be reached — the tab bar was still in
     /// the screen's tree but out of sight, and taps on it went to the dex page under it.
-    var hidesTabBar: Bool { cameraFullScreen || landing != nil }
+    var hidesTabBar: Bool { cameraFullScreen || landing != nil || praise != nil }
+    /// A new word was saved (`CaptureView.finishSave`, not a re-encounter): the praise flow looks at it (`PraiseFlow`).
+    var caughtNew: CaughtWord?
+    /// The praise on screen (`PraiseCelebrationView`), over every tab (owner 2026-10-25).
+    var praise: PraiseMoment?
     /// First-run tour over the real screens (FirstCatchFlow's experience steps).
     var tour: TourStep = .off
     /// The word caught during the tour (used by the Dex / word / review steps).
@@ -130,6 +142,9 @@ struct MainTabView: View {
     @Environment(\.appReduceMotion) private var reduceMotion
     @Namespace private var detailZoom
     @State private var flightToken = 0
+    @Environment(ProfileStore.self) private var profile
+    /// The system's App Store rating sheet (App Review Guideline 5.6.1: no custom review prompts).
+    @Environment(\.requestReview) private var requestReview
 
     init() {
         _tourPending = AppStorage(wrappedValue: false, TourStep.pendingStorageKey(for: SupabaseClient.shared.userId))
@@ -169,6 +184,19 @@ struct MainTabView: View {
         }
         .overlay {
             if let landing = router.landing { CatchLandingOverlay(controller: landing) }
+        }
+        .overlay {
+            if let moment = router.praise {
+                PraiseCelebrationView(moment: moment) {
+                    withAnimation(.easeOut(duration: 0.3)) { router.praise = nil }
+                }
+                .transition(.opacity)
+            }
+        }
+        .onChange(of: router.caughtNew) { _, caught in
+            guard let caught else { return }
+            let start = profile.createdAt
+            Task { await PraiseFlow.afterCatch(caught, router: router, dex: dex, start: start, requestReview: requestReview) }
         }
         .overlay(alignment: .top) {
             if let notice = router.notice {
@@ -265,6 +293,10 @@ struct MainTabView: View {
             PaywallView()
                 .statusBarTone(.automatic)
         }
+        .sheet(isPresented: $router.showCatchLimit) {
+            CatchLimitSheet()
+                .presentationDetents([.medium])
+        }
     }
 
     /// A tap on the camera tab: its icon flies into the shutter (skipped with Reduce Motion).
@@ -349,13 +381,12 @@ struct MainTabView: View {
 }
 
 /// TabBar.tsx: floating capsule (87.6% width, ~55pt, full-capsule corners), a bubble exactly one
-/// cell wide that slides between cells. The camera sits in the same row, same size (blue icon).
+/// cell wide that slides between cells.
 /// It stays the same white strip on the camera too (owner request 2026-10-02: no dark glass there),
 /// only fully opaque so the dark machine behind it does not grey it.
 ///
-/// This is the only shipped look (owner 2026-10-16: 「タブバーを元に戻して」 — the App Store screenshots show it). The
-/// raised blue camera disc (B) is kept for a later release (docs/backlog.md): a developer can see it on the device from
-/// 設定 › 開発者 › 開発者の試し (`DevChoices.tabBar`), nobody else ever does.
+/// The camera is the raised blue disc (B) for everyone (owner 2026-10-25: 「開発者の試しの下のバーのカメラを浮いた丸に
+/// 変更して」). It was a developer's trial from 2026-10-16 (docs/backlog.md); the flat blue icon in the row is gone.
 struct CapsuleTabBar: View {
     @Binding var selection: AppTab
     var onCamera: Bool
@@ -365,18 +396,10 @@ struct CapsuleTabBar: View {
     @Namespace private var bubble
     /// Taps per tab: drives each icon's bounce, so only the tab just chosen bounces.
     @State private var bounces: [AppTab: Int] = [:]
-    @AppStorage(DevChoices.tabBarKey) private var variant: String = DevChoices.tabBarDefault
 
-    /// The bar's height; variant B's disc rises `raise` points above its top edge.
+    /// The bar's height; the camera disc rises `raise` points above its top edge.
     static let height: CGFloat = 58
     static let raise: CGFloat = 16
-
-    /// Variant B (not shipped): only for a signed-in developer who chose it (the server's admin answer, never the stored
-    /// choice alone). Owner 2026-10-20: a look that changes after review for ordinary users would be a hidden feature
-    /// (App Review 2.3.1), so on any other account the stored choice is ignored.
-    private var raised: Bool {
-        variant == DevChoices.tabBarRaised && (AdminAccess.shared.isAdmin || DevChoices.previewing)
-    }
 
     var body: some View {
         GeometryReader { geo in
@@ -384,7 +407,7 @@ struct CapsuleTabBar: View {
             HStack(spacing: 0) {
                 ForEach(AppTab.allCases) { tab in
                     if tab == .camera {
-                        cameraCell
+                        raisedCameraDisc.tourAnchor(.cameraTab)
                     } else {
                         cell(tab)
                     }
@@ -393,10 +416,9 @@ struct CapsuleTabBar: View {
             .frame(width: width, height: Self.height)
             .background {
                 Capsule().fill(Theme.card.opacity(onCamera ? 1 : 0.9)).background(.regularMaterial, in: Capsule())
-                    // B: the edge goes under the items, so the raised disc is never crossed by it.
-                    .overlay { if raised { Capsule().stroke(Theme.border, lineWidth: 1) } }
+                    // The edge goes under the items, so the raised disc is never crossed by it.
+                    .overlay { Capsule().stroke(Theme.border, lineWidth: 1) }
             }
-            .overlay { if !raised { Capsule().stroke(Theme.border, lineWidth: 1) } }
             .shadow(color: .black.opacity(onCamera ? 0.3 : 0.1), radius: 16, y: 6)
             .frame(maxWidth: .infinity)
         }
@@ -404,7 +426,7 @@ struct CapsuleTabBar: View {
         .animation(.easeInOut(duration: 0.25), value: onCamera)
     }
 
-    private func cell(_ tab: AppTab, iconColor: Color? = nil) -> some View {
+    private func cell(_ tab: AppTab) -> some View {
         let isOn = selection == tab
         let tint = isOn ? Theme.primary : Theme.foreground.opacity(0.75)
         return Button { select(tab) } label: {
@@ -412,7 +434,7 @@ struct CapsuleTabBar: View {
                 Image(systemName: tab.icon)
                     .font(.system(size: 19, weight: .regular))
                     .frame(height: 21)
-                    .foregroundStyle(isOn ? Theme.primary : (iconColor ?? tint))
+                    .foregroundStyle(tint)
                     .symbolEffect(.bounce, value: bounces[tab, default: 0])
                 Text(tab.title).font(.system(size: 10, weight: .medium))
             }
@@ -433,21 +455,9 @@ struct CapsuleTabBar: View {
         .accessibilityIdentifier("tab.\(String(describing: tab))")
     }
 
-    /// The camera cell: the same size and height as every other tab, in one row
-    /// (owner request 2026-09-30: no raised disc). The icon stays blue so it is still easy to find.
-    /// A developer's device that chose B shows the raised disc instead (same identifier, label and tour anchor).
-    @ViewBuilder private var cameraCell: some View {
-        if raised {
-            raisedCameraDisc.tourAnchor(.cameraTab)
-        } else {
-            cell(.camera, iconColor: Theme.primary)
-                .tourAnchor(.cameraTab)
-        }
-    }
-
-    /// Variant B, for a later release (docs/backlog.md): a filled blue disc with the white camera, standing up over the
-    /// bar's top edge with a soft shadow. It is drawn above the bar and still takes the tap there (nothing clips it);
-    /// the bar's own height does not change, so the landing's hide / show and the safe area are as before.
+    /// The camera: a filled blue disc with the white camera, standing up over the bar's top edge with a soft shadow. It is
+    /// drawn above the bar and still takes the tap there (nothing clips it); the bar's own height does not change, so the
+    /// landing's hide / show and the safe area are as before.
     private var raisedCameraDisc: some View {
         let isOn = selection == .camera
         let size: CGFloat = 56

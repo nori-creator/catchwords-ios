@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 /// Screens the GitHub "iOS check" opens directly (launch argument `-uiPreview <name>`), so changes to
 /// animation and design can be photographed on the simulator without an iPhone, a login, or the network.
@@ -29,8 +30,8 @@ enum UIPreview {
             parts.removeLast()
         }
         L10n.lang = lang
-        for key in ["reading.pref", "chunk.posColors", DevChoices.tabBarKey, PaperTone.storageKey, PageRule.storageKey,
-                    InkTone.storageKey] + DevChoices.retiredKeys {
+        for key in ["reading.pref", "chunk.posColors", PaperTone.storageKey, PageRule.storageKey, InkTone.storageKey]
+                    + DevChoices.retiredKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
         return (parts.joined(separator: "-"), dark)
@@ -88,8 +89,6 @@ struct UIPreviewRoot: View {
             case "picker4": PickerPreview(desk: .placed)
             case "picker4-nopos": PickerPreview(desk: .unplaced)
             case "tabbar": TabBarPreview()
-            // The raised camera disc kept for a later release (developer's trial only, docs/backlog.md).
-            case "tabbar-b": TabBarPreview(variant: DevChoices.tabBarRaised)
             case "readings": ChunkReadingsPreview(pref: "zhuyin")
             case "readings-pinyin": ChunkReadingsPreview(pref: "pinyin")
             // A narrow card: the chunks shrink to stay on one line, down to 80% (owner 2026-10-16), and only then wrap.
@@ -108,6 +107,12 @@ struct UIPreviewRoot: View {
             case "scanslow": ScanPreview(namesAfter: 6.0).uiReady("preview")
             case "hero": HeroPickerPreview()
             case "memorial": MemorialPreview()
+            // The praise after a catch (owner 2026-10-25): a top % among all users, and the first to catch a word.
+            case "praise": PraisePreview(kind: .wordsTop)
+            case "praise-first": PraisePreview(kind: .firstCatcher)
+            case "praise-retention": PraisePreview(kind: .retentionTop)
+            // The system's rating sheet asked on the word after a praise (in a debug build iOS always shows it).
+            case "review-ask": ReviewAskPreview()
             case "carousel": CarouselPreview()
             case "detail": DetailPreview()
             case "tips": TipsPreview()
@@ -633,18 +638,12 @@ private struct LandingPreview: View {
     }
 }
 
-/// The tab bar over the home album's paper, over a map-like ground and over the camera's dark machine: as shipped
-/// (`-uiPreview tabbar`, the original look — owner 2026-10-16), or with the raised camera disc kept for later
-/// (`-uiPreview tabbar-b`, `DevChoices.tabBar`).
+/// The tab bar over the home album's paper, over a map-like ground and over the camera's dark machine, with the raised
+/// camera disc (`-uiPreview tabbar`, owner 2026-10-25).
 private struct TabBarPreview: View {
     @State private var home: AppTab = .home
     @State private var dex: AppTab = .dex
     @State private var camera: AppTab = .camera
-
-    init(variant: String = DevChoices.tabBarDefault) {
-        UserDefaults.standard.set(variant, forKey: DevChoices.tabBarKey)
-        DevChoices.previewing = true
-    }
 
     var body: some View {
         VStack(spacing: 28) {
@@ -710,6 +709,39 @@ private struct MemorialPreview: View {
         MemorialReveal(n: 30, words: 48, photos: Self.photos) {}
     }
 }
+/// The praise after a catch (`PraiseCelebrationView`), from a made-up standing.
+private struct PraisePreview: View {
+    let kind: PraiseMoment.Kind
+
+    var body: some View {
+        let standing = MyStanding(words: .init(rank: 4, total: 120, topPercent: 4, count: 86),
+                                  activeDays: nil,
+                                  retention: .init(rank: 2, total: 120, topPercent: 2, count: 86, active: 30, days: 35),
+                                  category: nil, firstCatcher: kind == .firstCatcher)
+        let options = PraiseMoment.options(standing: standing, headword: "芒果", totalWords: 86, start: nil,  // l10n-ignore (target word)
+                                           image: PreviewFixtures.subject)
+        if let moment = options.first(where: { $0.kind == kind }) {
+            PraiseCelebrationView(moment: moment) {}
+                .uiReady("preview")
+        }
+    }
+}
+
+/// The App Store rating sheet (`requestReview`) over the dex, as it comes after the catch that follows a praise.
+private struct ReviewAskPreview: View {
+    @Environment(\.requestReview) private var requestReview
+
+    var body: some View {
+        AppBackground()
+            .task {
+                try? await Task.sleep(for: .milliseconds(800))
+                requestReview()
+                try? await Task.sleep(for: .seconds(2))
+                UIReady.mark("preview")
+            }
+    }
+}
+
 /// The dex slide view (white cards on a ring in the pale blue room), opened on the second card.
 private struct CarouselPreview: View {
     private static let stickers: [Sticker] = {

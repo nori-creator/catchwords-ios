@@ -165,6 +165,12 @@ struct CaptureView: View {
             }
         }
         .onAppear { takePendingRequest() }
+        // The rewarded ad is loaded ahead once the day's last free catch is near (`CatchLimitSheet`).
+        .task(id: plan.remainingToday) {
+            if PlanStore.catchLimitEnabled, !plan.isPro, plan.remainingToday <= 1, plan.canEarnBonus {
+                RewardedAds.shared.prepare()
+            }
+        }
         .onChange(of: router.openPending) { _, _ in takePendingRequest() }
         .sheet(isPresented: $showPending) {
             PendingListView { item in
@@ -174,7 +180,7 @@ struct CaptureView: View {
                     retryUnsaved(item)
                     return
                 }
-                guard plan.canCatch else { router.showPaywall = true; return }
+                guard plan.canCatch else { router.showLimitReached(); return }
                 vm.restore(item)
             }
             .presentationDetents([.medium, .large])
@@ -491,14 +497,17 @@ struct CaptureView: View {
         Group {
             if plan.isPro {
                 Label("PRO", systemImage: "infinity").foregroundStyle(Theme.gold)
-            } else {
+            } else if plan.dailyLimit + plan.bonusToday <= 5 {
                 HStack(spacing: 4) {
-                    ForEach(0..<PlanStore.freeCatchesPerDay, id: \.self) { i in
+                    ForEach(0..<(plan.dailyLimit + plan.bonusToday), id: \.self) { i in
                         Circle()
                             .fill(i < plan.remainingToday ? Theme.primaryBright : .white.opacity(0.22))
                             .frame(width: 6, height: 6)
                     }
                 }
+            } else {
+                // The welcome week (10 a day): a number reads better than ten dots.
+                Text(L("今日あと\(plan.remainingToday)回")).foregroundStyle(.white)
             }
         }
         .scaledFont(size: 11, weight: .bold)
@@ -506,7 +515,7 @@ struct CaptureView: View {
         .frame(minHeight: 30)
         .background(.white.opacity(0.1), in: Capsule())
         .contentShape(Capsule())
-        .onTapGesture { if PlanStore.paywallEnabled, !plan.isPro { router.showPaywall = true } }
+        .onTapGesture { if PlanStore.paywallEnabled, !plan.isPro { router.showPaywall = true } else if !plan.isPro { router.showCatchLimit = true } }
         .accessibilityLabel(plan.isPro ? "Pro" : L("今日あと\(plan.remainingToday)回"))
     }
 
@@ -553,7 +562,7 @@ struct CaptureView: View {
             }
             return
         }
-        guard plan.canCatch else { router.showPaywall = true; return }
+        guard plan.canCatch else { router.showLimitReached(); return }
         // The shutter sound, the white flash, the shutter and viewfinder hide.
         shutterSound()
         let shotAt = CCClock.now
@@ -601,7 +610,7 @@ struct CaptureView: View {
     }
 
     private func beginAnalyze(_ img: UIImage, askSelfie: Bool) {
-        guard plan.canCatch else { router.showPaywall = true; return }
+        guard plan.canCatch else { router.showLimitReached(); return }
         vm.analyze(img, askSelfie: askSelfie)
         dex.refreshPending()
     }
@@ -653,13 +662,15 @@ struct CaptureView: View {
                           goal: CatchGoal.make(headword: want.headword, stickers: dex.stickers, lang: NativeAPI.targetLanguage))
         // This screen goes away with the tab: the background save holds what it needs itself.
         let model = vm, store = dex, planStore = plan, nav = router
+        // The cut-out of this catch, for a praise that says the learner was the first to catch it.
+        let cutout = vm.cutout ?? vm.stickerFallback()
         Task {
             try? await Task.sleep(for: .milliseconds(700))
             model.reset()
         }
         Task {
             await Self.finishSave(draft, provisional: local.sticker.id, ts: local.ts, pendingId: pendingId,
-                                  cardLater: cardLater, dex: store, plan: planStore, router: nav)
+                                  cardLater: cardLater, cutout: cutout, dex: store, plan: planStore, router: nav)
         }
         return true
     }
@@ -741,7 +752,7 @@ struct CaptureView: View {
     /// filled into the saved word when it arrives (a card that fails leaves the word as saved — the detail page
     /// writes the notes when it is opened, as for any word without them).
     private static func finishSave(_ draft: CatchDraft, provisional: String, ts: Int, pendingId: String?,
-                                   cardLater: Task<CardDetails?, Never>? = nil,
+                                   cardLater: Task<CardDetails?, Never>? = nil, cutout: UIImage? = nil,
                                    dex: DexStore, plan: PlanStore, router: AppRouter) async {
         do {
             let outcome = try await dex.save(draft, ts: ts, replacing: provisional, holdCategory: true) { saved in
@@ -757,6 +768,10 @@ struct CaptureView: View {
                     waited += 1
                 }
                 dex.settleLanding(savedId)
+            }
+            // A new word: the praise flow decides whether this one is praised (rarely) or asks for a review.
+            if case .created(let saved) = outcome {
+                router.caughtNew = CaughtWord(wordId: saved.wordId, headword: draft.candidate.headword, image: cutout)
             }
             if let cardLater, case .created(let saved) = outcome, !saved.wordId.isEmpty {
                 Task { if let card = await cardLater.value { await dex.fillCard(wordId: saved.wordId, card: card) } }

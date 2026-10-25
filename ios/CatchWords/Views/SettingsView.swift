@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import UserNotifications
+import StoreKit
 
 /// settings.tsx: small grey section titles outside white cards; every choice is a row of pills with a
 /// sliding blue capsule; language/level open a wheel card. Order matches the web app.
@@ -39,6 +40,10 @@ struct SettingsView: View {
     @State private var showAIConsentSettings: Bool = false
     @State private var showAdminAi: Bool = false
     @State private var adminScreen: AdminScreen?
+    /// 開発者の「褒める演出とレビュー画面を試す」: the praise shown now (`PraiseCelebrationView`).
+    @State private var praiseTrial: PraiseMoment?
+    @State private var praiseLoading = false
+    @Environment(\.requestReview) private var requestReview
 
     var body: some View {
         ScrollView {
@@ -97,6 +102,15 @@ struct SettingsView: View {
         .sheet(item: $adminScreen) { screen in
             NavigationStack { screen.view }
                 .presentationBackground(Theme.background)
+        }
+        .fullScreenCover(item: $praiseTrial, onDismiss: {
+            // As after a real praise: the system's rating sheet (in TestFlight iOS does not show it).
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                requestReview()
+            }
+        }) { moment in
+            PraiseCelebrationView(moment: moment) { praiseTrial = nil }
         }
         .sheet(isPresented: $showAIConsentSettings) {
             AIConsentSettingsSheet()
@@ -322,25 +336,29 @@ struct SettingsView: View {
                 devRow(icon: "exclamationmark.bubble", title: L("報告された誤り"), id: "settings.adminReports") { adminScreen = .reports }
                 Divider().overlay(Theme.border)
                 devRow(icon: "cpu", title: L("AI の設定（開発者）"), id: "settings.adminAi") { showAdminAi = true }
-                Divider().overlay(Theme.border).padding(.bottom, 8)
-                developerTrials
+                Divider().overlay(Theme.border)
+                devRow(icon: "sparkles", title: L("褒める演出とレビュー画面を試す"), id: "settings.praiseTrial") { tryPraise() }
             }
         }
     }
 
-    @AppStorage(DevChoices.tabBarKey) private var tabBarVariant: String = DevChoices.tabBarDefault
-
-    /// 開発者の試し (owner 2026-10-15): the camera tab's look to compare on the device — the original one, shipped, or
-    /// B, kept for a later release (owner 2026-10-16). The 設定 sound (A), the app's own wheel (owner 2026-10-20) and the
-    /// shutter sound (B, owner 2026-10-21) were decided and left the trials.
-    private var developerTrials: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(L("開発者の試し（端末で比べて選ぶ）")).scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
-            label(L("下のバーのカメラ"))
-            ChoicePills(options: [(DevChoices.tabBarDefault, L("元のデザイン")), (DevChoices.tabBarRaised, L("B 浮いた丸（将来）"))],
-                        selection: Binding(get: { tabBarVariant == DevChoices.tabBarRaised ? DevChoices.tabBarRaised : DevChoices.tabBarDefault },
-                                           set: { tabBarVariant = $0 }))
-                .accessibilityIdentifier("settings.dev.tabbar")
+    /// The praise a catch would bring, now, from this account's real standing (a different one each time), and on
+    /// close the review sheet. Nothing is recorded: the real schedule (`PraiseSchedule`) is untouched.
+    private func tryPraise() {
+        guard !praiseLoading else { return }
+        praiseLoading = true
+        Task { @MainActor in
+            defer { praiseLoading = false }
+            let latest = dex.stickers.max(by: { $0.takenAt < $1.takenAt })
+            var input: [String: Any] = [:]
+            if let id = latest?.wordId, !id.isEmpty { input["word_id"] = id }
+            let standing = try? await NativeAPI.call("getMyStanding", input, as: MyStanding.self, timeout: 10)
+            // The latest word's cut-out as the camera would hand it (only from what this phone already keeps).
+            var image: UIImage?
+            if let path = latest?.cutoutImageUrl ?? latest?.heroPath { image = await ImageCache.shared.cached(for: path) }
+            let options = PraiseMoment.options(standing: standing, headword: latest?.word?.headword ?? "",
+                                               totalWords: dex.stickers.count, start: profile.createdAt, image: image)
+            praiseTrial = PraiseMoment.pick(options, recent: [])
         }
     }
 
@@ -372,6 +390,11 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("settings.aiConsent")
                 Link(destination: AppConfig.tokushohoURL) { legalLabel(L("特定商取引法に基づく表記")) }
+                // Google's consent choices for ads, where the learner's region needs them (EEA/UK).
+                if RewardedAds.shared.privacyOptionsRequired {
+                    Button { RewardedAds.shared.presentPrivacyOptions() } label: { legalLabel(L("広告のプライバシー設定")) }
+                        .buttonStyle(.plain)
+                }
                 Link(destination: AppConfig.supportURL) { legalLabel(L("お問い合わせ・サポート")) }
                     .accessibilityIdentifier("settings.support")
             }
