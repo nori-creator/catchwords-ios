@@ -7,16 +7,21 @@ import Foundation
 nonisolated struct UsageChunk: Codable, Sendable, Hashable {
     var parts: [ChunkPart]
     var ja: String
+    /// 「ひと言解説」 under the light bulb (server `usage_chunks[].note`, 2026-10-25): one sentence in the reader's language.
+    /// nil on older cards — then the bulb is not drawn (docs/word-detail-design.md §3).
+    var note: String?
 
-    init(parts: [ChunkPart], ja: String) {
+    init(parts: [ChunkPart], ja: String, note: String? = nil) {
         self.parts = parts
         self.ja = ja
+        self.note = note
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         parts = (try? c.decode([ChunkPart].self, forKey: .parts)) ?? []
         ja = (try? c.decode(String.self, forKey: .ja)) ?? ""
+        note = ChunkPart.reading(try? c.decodeIfPresent(String.self, forKey: .note))
     }
 
     var text: String { parts.map(\.text).joined() }
@@ -431,7 +436,8 @@ nonisolated enum ChunkRules {
     // MARK: - C18 Roles (what each block is to the learner)
 
     /// Glue words of a Mandarin formula, drawn faint: never what the learner is to remember about the word.
-    static let frameWords: Set<String> = ["的", "了", "把", "被", "在", "跟", "給", "也", "都", "就", "不", "沒", "和", "對", "從", "往", "幫", "替", "著", "過", "嗎", "吧", "呢", "是", "有"]  // l10n-ignore (Mandarin words)
+    /// 版25 (owner 2026-10-24): the helping verbs 要・會・能・可以 are glue too — black with no box, like 很.
+    static let frameWords: Set<String> = ["的", "了", "把", "被", "在", "跟", "給", "也", "都", "就", "不", "沒", "和", "對", "從", "往", "幫", "替", "著", "過", "嗎", "吧", "呢", "是", "有", "要", "會", "能", "可以"]  // l10n-ignore (Mandarin words)
 
     /// A part-of-speech tag of glue (pos.ts): prepositions, particles, conjunctions, determiners, and the old role mark C.
     static func isGluePos(_ pos: String) -> Bool {
@@ -521,5 +527,129 @@ nonisolated enum ChunkRules {
         guard !notes.isEmpty else { return out }
         let l = DisplayLanguages.find(reader) ?? DisplayLanguages.find(DisplayLanguages.fallback)!
         return out + l.openBracket + notes.joined(separator: l.listSeparator) + l.closeBracket
+    }
+
+    // MARK: - 版25 The chunk inside an example (docs/word-detail-design.md §4, §10)
+
+    /// Where a chunk stands in an example sentence: the chunk's place in the card's order (its number is `chunk + 1`), the
+    /// run's first character and length (in `Character`s of the sentence), and for each character of the run the part it
+    /// belongs to (a swappable part's other word counts as that part).
+    nonisolated struct ExampleHit: Sendable, Hashable {
+        var chunk: Int
+        var start: Int
+        var length: Int
+        var parts: [ChunkPart]
+    }
+
+    /// The first chunk (in the card's order) whose characters stand in the sentence as one run — as written, or with a
+    /// swappable part's other word in its place (the same search as `spanText`). nil when none does (then the example has
+    /// no number and no colours). Mandarin and Japanese only (their chunks are written without spaces).
+    static func exampleHit(sentence: String, chunks: [UsageChunk], target: String) -> ExampleHit? {
+        guard target != "en" else { return nil }
+        let chars = Array(sentence)
+        guard !chars.isEmpty else { return nil }
+        for (index, chunk) in chunks.enumerated() {
+            let parts = chunk.parts.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
+            guard !parts.isEmpty else { continue }
+            let own = parts.map { $0.text.trimmingCharacters(in: .whitespaces) }
+            var candidates = [own]
+            for (i, p) in parts.enumerated() where p.slot == true {
+                for a in p.alts ?? [] {
+                    let t = a.text.trimmingCharacters(in: .whitespaces)
+                    guard !t.isEmpty, t != own[i] else { continue }
+                    var swapped = own
+                    swapped[i] = t
+                    candidates.append(swapped)
+                }
+            }
+            for texts in candidates {
+                let run = Array(texts.joined())
+                guard !run.isEmpty, let at = firstRun(run, in: chars) else { continue }
+                var each: [ChunkPart] = []
+                for (i, t) in texts.enumerated() { each.append(contentsOf: Array(repeating: parts[i], count: t.count)) }
+                return ExampleHit(chunk: index, start: at, length: run.count, parts: each)
+            }
+        }
+        return nil
+    }
+
+    /// The first place `run` stands in `chars`.
+    private static func firstRun(_ run: [Character], in chars: [Character]) -> Int? {
+        guard run.count <= chars.count else { return nil }
+        var i = 0
+        while i + run.count <= chars.count {
+            if Array(chars[i..<(i + run.count)]) == run { return i }
+            i += 1
+        }
+        return nil
+    }
+
+    /// Marks that never begin a line (they go with the run before them) and that never end one (with the run after).
+    static let closingMarks: Set<String> = ["，", "。", "！", "？", "、", "；", "：", "…", "」", "』", "）", ")", ",", ".", "!", "?", ";", ":", "～", "~"]  // l10n-ignore (punctuation)
+    static let openingMarks: Set<String> = ["「", "『", "（", "("]  // l10n-ignore (punctuation)
+
+    /// The runs of an example's characters that stay on one line (§4): the chunk's run (`span`), each of the sentence's
+    /// `words` (longest first, so 馬桶刷 is kept before 馬桶), every other character alone; a closing mark joins the run
+    /// before it and an opening mark the run after it, so no line starts with 「，」. Returns the characters' indexes per run.
+    static func exampleGroups(_ chars: [String], words: [String], span: Range<Int>?) -> [[Int]] {
+        guard !chars.isEmpty else { return [] }
+        guard chars.count > 1 else { return [[0]] }
+        // joined[k]: characters k and k + 1 stay on the same line.
+        var joined = [Bool](repeating: false, count: chars.count)
+        let wordChars = words.map { Array($0.trimmingCharacters(in: .whitespaces)).map(String.init) }
+            .filter { $0.count > 1 }
+            .sorted { $0.count > $1.count }
+        for w in wordChars {
+            var i = 0
+            while i + w.count <= chars.count {
+                if Array(chars[i..<(i + w.count)]) == w {
+                    for k in i..<(i + w.count - 1) { joined[k] = true }
+                    i += w.count
+                } else {
+                    i += 1
+                }
+            }
+        }
+        if let span, span.lowerBound >= 0, span.upperBound <= chars.count, span.count > 1 {
+            for k in span.lowerBound..<(span.upperBound - 1) { joined[k] = true }
+        }
+        for i in chars.indices {
+            if closingMarks.contains(chars[i]), i > 0 { joined[i - 1] = true }
+            if openingMarks.contains(chars[i]), i < chars.count - 1 { joined[i] = true }
+        }
+        var out: [[Int]] = []
+        var run: [Int] = []
+        for i in chars.indices {
+            run.append(i)
+            if !joined[i] {
+                out.append(run)
+                run = []
+            }
+        }
+        if !run.isEmpty { out.append(run) }
+        return out
+    }
+
+    /// Lines of runs, greedily (§4): each line takes the runs that fit — `first` wide for the first line (the speaker
+    /// sits at its end), `rest` wide for the others — with `gap` between two runs. A run wider than a line still gets
+    /// a line of its own (never cut). `widths`: each run's own width. Returns the runs' indexes per line.
+    static func lines(widths: [Double], gap: Double, first: Double, rest: Double) -> [[Int]] {
+        var out: [[Int]] = []
+        var line: [Int] = []
+        var used = 0.0
+        for (i, w) in widths.enumerated() {
+            let room = out.isEmpty ? first : rest
+            let need = line.isEmpty ? w : used + gap + w
+            if line.isEmpty || need <= room + 0.0001 {
+                line.append(i)
+                used = need
+            } else {
+                out.append(line)
+                line = [i]
+                used = w
+            }
+        }
+        if !line.isEmpty { out.append(line) }
+        return out
     }
 }

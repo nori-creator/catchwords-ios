@@ -277,12 +277,16 @@ nonisolated struct RelatedWord: Codable, Sendable, Hashable {
     var kind: String
     var note: String
     var reading: String
+    /// The word's short meaning in the reader's language (server `related_words[].gloss`, 2026-10-25), drawn to the
+    /// right of the word. "" on older cards — then nothing is drawn there (docs/word-detail-design.md §6).
+    var gloss: String
 
-    init(word: String, kind: String, note: String = "", reading: String = "") {
+    init(word: String, kind: String, note: String = "", reading: String = "", gloss: String = "") {
         self.word = word
         self.kind = kind
         self.note = note
         self.reading = reading
+        self.gloss = gloss
     }
 
     init(from decoder: Decoder) throws {
@@ -292,6 +296,7 @@ nonisolated struct RelatedWord: Codable, Sendable, Hashable {
         kind = ["syn", "ant", "rel"].contains(k) ? k : "rel"
         note = (try? c.decode(String.self, forKey: .note)) ?? ""
         reading = (try? c.decode(String.self, forKey: .reading)) ?? ""
+        gloss = ((try? c.decode(String.self, forKey: .gloss)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

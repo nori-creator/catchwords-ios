@@ -122,6 +122,37 @@ for c in cases {
         let out = Sentences.unbreakable(c.text, words: words).replacingOccurrences(of: "\u{2060}", with: "_")
         got = out == (c.expected ?? "")
         if !got { print("::error::\(c.id) [\(c.rule)] joined \(out), expected \(c.expected ?? "") — \(c.why)") }
+    case "exampleHit":
+        // text = the sentence, chunk = the chunks joined by " / " in the card's order; expected = "number:start:length"
+        // (number 1-based, start in characters) and the parts' texts per character joined by ",", or "-" for none.
+        let chunks = (c.chunk ?? "").components(separatedBy: " / ").filter { !$0.isEmpty }.map { UsageChunk(parts: parseChunk($0), ja: "") }
+        let out: String
+        if let hit = ChunkRules.exampleHit(sentence: c.text, chunks: chunks, target: c.target ?? "zh-TW") {
+            out = "\(hit.chunk + 1):\(hit.start):\(hit.length) " + hit.parts.map(\.text).joined(separator: ",")
+        } else {
+            out = "-"
+        }
+        got = out == (c.expected ?? "")
+        if !got { print("::error::\(c.id) [\(c.rule)] hit \(out), expected \(c.expected ?? "") — \(c.why)") }
+    case "exampleGroups":
+        // text = the sentence, source = its words (comma-separated), chunk = "start:length" of the chunk's run or "";
+        // expected = the runs joined by "|".
+        let chars = Array(c.text).map(String.init)
+        let words = (c.source ?? "").split(separator: ",").map(String.init)
+        let bits = (c.chunk ?? "").split(separator: ":").compactMap { Int($0) }
+        let span = bits.count == 2 ? bits[0]..<(bits[0] + bits[1]) : nil
+        let out = ChunkRules.exampleGroups(chars, words: words, span: span).map { g in g.map { chars[$0] }.joined() }.joined(separator: "|")
+        got = out == (c.expected ?? "")
+        if !got { print("::error::\(c.id) [\(c.rule)] runs \(out), expected \(c.expected ?? "") — \(c.why)") }
+    case "exampleLines":
+        // text = the runs' widths (comma-separated), source = "gap,first,rest"; expected = the runs per line, lines joined by "|".
+        let widths = c.text.split(separator: ",").compactMap { Double($0) }
+        let g = (c.source ?? "").split(separator: ",").compactMap { Double($0) }
+        let out = g.count == 3
+            ? ChunkRules.lines(widths: widths, gap: g[0], first: g[1], rest: g[2]).map { $0.map(String.init).joined(separator: ",") }.joined(separator: "|")
+            : "?"
+        got = out == (c.expected ?? "")
+        if !got { print("::error::\(c.id) [\(c.rule)] lines \(out), expected \(c.expected ?? "") — \(c.why)") }
     default:
         print("::error::\(c.id): unknown fn \(c.fn)"); failed += 1; continue
     }

@@ -440,7 +440,10 @@ final class SoundService {
         return task
     }
 
-    func speak(_ text: String) {
+    /// `rate`: how fast, 1 = as recorded (the word page's 「発音の速さ」 0.6–1.2, × 0.7 on a long press — docs/word-detail-design.md
+    /// §9). The server's recording plays at that rate (AVAudioPlayer keeps its pitch, from 0.5 to 2); the device voice
+    /// speaks at its usual pace times it.
+    func speak(_ text: String, rate: Double = 1) {
         guard !text.isEmpty else { return }
         speakToken += 1
         let token = speakToken
@@ -465,9 +468,13 @@ final class SoundService {
             if let data, let player = try? AVAudioPlayer(data: data) {
                 voicePlayer = player
                 player.volume = 1
+                if abs(rate - 1) > 0.001 {
+                    player.enableRate = true
+                    player.rate = Float(min(2, max(0.5, rate)))
+                }
                 player.play()
             } else {
-                speakOnDevice(text)
+                speakOnDevice(text, rate: rate)
             }
         }
     }
@@ -485,21 +492,21 @@ final class SoundService {
     }
 
     /// Device voice fallback: always the text's own language's voice (never a "close" language).
-    private func speakOnDevice(_ text: String) {
+    private func speakOnDevice(_ text: String, rate: Double = 1) {
         let token = speakToken
         Task {
             guard let voice = await voice(for: Self.language(of: text)), token == speakToken else { return }
-            say(text, voice: voice)
+            say(text, voice: voice, rate: rate)
         }
     }
 
-    private func say(_ text: String, voice: AVSpeechSynthesisVoice) {
+    private func say(_ text: String, voice: AVSpeechSynthesisVoice, rate: Double = 1) {
         let synthesizer = self.synthesizer ?? AVSpeechSynthesizer()
         self.synthesizer = synthesizer
         if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = voice
-        utterance.rate = 0.42
+        utterance.rate = min(AVSpeechUtteranceMaximumSpeechRate, max(AVSpeechUtteranceMinimumSpeechRate, Float(0.42 * rate)))
         utterance.pitchMultiplier = 1.02
         synthesizer.speak(utterance)
     }

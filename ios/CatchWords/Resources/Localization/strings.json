@@ -8930,5 +8930,33 @@
   "es": "Toca para ir al ejemplo que la usa",
   "ko": "누르면 이 표현을 쓴 예문으로 이동",
   "vi": "Chạm để đến câu ví dụ dùng cụm từ này"
+ },
+ "チャンク": {
+  "en": "Chunks",
+  "zh-TW": "組塊",
+  "es": "Expresiones",
+  "ko": "표현",
+  "vi": "Cụm từ"
+ },
+ "使われ方": {
+  "en": "In use",
+  "zh-TW": "實際用法",
+  "es": "Uso real",
+  "ko": "쓰임",
+  "vi": "Thực tế"
+ },
+ "項目へ移る": {
+  "en": "Jump to a section",
+  "zh-TW": "跳到項目",
+  "es": "Ir a una sección",
+  "ko": "항목으로 이동",
+  "vi": "Đi đến mục"
+ },
+ "ブラウザで開く": {
+  "en": "Opens in the browser",
+  "zh-TW": "在瀏覽器開啟",
+  "es": "Se abre en el navegador",
+  "ko": "브라우저에서 열림",
+  "vi": "Mở trong trình duyệt"
  }
 }

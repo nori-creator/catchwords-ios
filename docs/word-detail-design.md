@@ -1,7 +1,7 @@
-# 単語の詳細（台湾華語）— 版24 の設計書（アプリで完全に再現するため）
+# 単語の詳細（台湾華語）— 版25 の設計書（アプリで完全に再現するため）
 
-オーナーが決めた見た目と動きを、iOS の画面で**1対1で**作るための設計書。正は模型の版24
-（https://claude.ai/artifact/GWwf6QQp7KQjZSG3tM9g3N の「版24」）。ここに無い値を勝手に決めない — 迷ったら模型を測る。
+オーナーが決めた見た目と動きを、iOS の画面で**1対1で**作るための設計書。正は模型の版25
+（https://claude.ai/artifact/GWwf6QQp7KQjZSG3tM9g3N の「版25」）。ここに無い値を勝手に決めない — 迷ったら模型を測る。
 
 決定の出どころ: `CLAUDE.md`「チャンクの決定」、`docs/chunk-rules.md` C21〜C24、`docs/language-rules.md`。
 数値は pt（iOS の論理単位）。字の大きさは `scaledFont(size:)` を通す（iPhone の文字サイズ設定に追従）うえで、
@@ -192,9 +192,27 @@
 - 共通の表記（TOCFL・NEW・No.・OK・Google・YouTube・Threads・Dcard・YouGlish）は訳さない（R25）。
 
 ## 12. 作った後の確かめ（PR の前に CI で）
-1. `-uiPreview` に `word-detail-v24`（水晶手鍊の固定データ: note・gloss・例文3つ、注音 / ピンイン、標準 / 特大、light / dark、
-   6言語）を足し、模型と並べて目で比べる。
+1. `-uiPreview word25…`（水晶手鍊の固定データ: note・gloss・例文3つ、`Views/UIPreview.swift` の `Word25Preview`）を
+   CI（`.github/workflows/ios-check.yml`）が撮る。`word25`（上）/ `-chunks`（初回の案内つき）/ `-pinyin` / `-examples` /
+   `-pinyinex` / `-xl`（特大）/ `-small`（小）/ `-related` / `-memo` / `-links` / `-review` / `-reviewzh` / `-panel`、
+   ダークと en・zh・es・ko・vi。模型と並べて目で比べる。デモのサーバは この語の例文だけ読み（ピンイン）を返す。
 2. 単体試験: 例文が使うチャンクの番号と色の範囲、程度の語が入れ替えにならない、note / gloss が無い古い語で電球・訳が
    出ない、例文の字の大きさが 2行に入るまで下がり 16 で止まる。
 3. `ios/LanguageRules/cases.json`: note・gloss の言語の混ざり（6言語の組み合わせ）。
 4. `scripts/check_l10n.py`・`check_server_text.py`・`check_native_contract.py --web server`・サーバの `npm test`。
+
+## 13. 実装の場所（版25、2026-10-25）
+
+| 部品 | ファイル |
+|---|---|
+| 字の中心の揃え（`VerticalAlignment.hanCenter`）・発音ボタン（`DetailSpeakButton`、長押し 0.7 倍）・番号（`DetailNumber`）・復習のぼかし（`ReviewMask` / `.reviewBlur`）・例文の2行（`ExampleSentenceView`）・台湾メモの罫線（`RuledMemo`）・リンクの2列（`UsageLinkGrid`）・項目へ飛ぶ札（`SectionJumpBar`）・初回の案内（`SwapCoachMark`） | `ios/CatchWords/Views/WordDetailParts.swift` |
+| チャンクの箱（枠と ＋・番号・電球・ホイール・決して改行しない） | `ios/CatchWords/Views/ChunkLineView.swift` |
+| 例文のカード（番号・灰色の箱・発音・訳・光る縁） | `ios/CatchWords/Views/WordExampleCards.swift`（`DetailExamplesCard` / `DetailExampleRow`） |
+| 設定パネル（項目・復習・文字と音） | `ios/CatchWords/Views/SectionsPanel.swift` |
+| 量詞・関連語・台湾メモ・リンク・並び・復習の数 | `ios/CatchWords/Views/WordDetailView.swift` |
+| 例文の中のチャンク（`exampleHit`）・塊（`exampleGroups`）・行（`lines`）・つなぎの語（要・會・能・可以） | `ios/CatchWords/Utilities/ChunkRules.swift`（`ios/LanguageRules/cases.json` の `V25-*`） |
+| 項目の並び（例文が「使い方チャンク」の下に戻る `withExampleAfterChunks`） | `ios/CatchWords/Models/CardSection.swift` |
+| 文字の大きさ（`pageTextScale`）・発音の速さ（`SoundService.speak(_:rate:)`） | `Utilities/ScaledFont.swift`・`Services/SoundService.swift` |
+| ロゴ（YouTube・Threads・Google の SVG） | `ios/CatchWords/Assets.xcassets/Logo*.imageset` |
+
+保存する設定の鍵: `detail.review`・`detail.reviewHide`（tr / zh）・`detail.textScale`・`detail.speechRate`・`coach.chunkSwap`。

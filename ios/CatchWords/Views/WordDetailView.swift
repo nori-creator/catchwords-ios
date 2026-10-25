@@ -15,11 +15,23 @@ struct WordDetailView: View {
     var previewFocus: CardSection? = nil
     /// DEBUG preview: the selfie side opens on the selfie as it was taken (its 「元の写真」).
     var previewSelfieOriginal: Bool = false
+    /// DEBUG preview: the settings panel (「表示する項目と順番」) opens by itself.
+    var previewPanel: Bool = false
 
     @State private var isAddingSelfie: Bool = false
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
-    /// 「品詞」 on the patterns card: the blocks in their parts of speech's colours (off by default, owner 2026-10-23).
-    @AppStorage("chunk.posColors") private var posColors: Bool = false
+    /// The page's own settings (docs/word-detail-design.md §9, `SectionsPanel`): 復習モード and what it blurs, and the
+    /// page's text size.
+    @AppStorage("detail.review") private var reviewOn: Bool = false
+    @AppStorage("detail.reviewHide") private var reviewHideRaw: String = ReviewHide.translation.rawValue
+    @AppStorage("detail.textScale") private var textScale: Double = 1
+    /// The first-swap hint was seen (once for the app, not per word — §3).
+    @AppStorage("coach.chunkSwap") private var swapCoachSeen: Bool = false
+    /// The parts the learner tapped open while 復習モード blurs them.
+    @State private var revealed: Set<String> = []
+    /// The example a chunk's number just took the page to (its box glows for a moment), and where to scroll.
+    @State private var flashExample: Int?
+    @State private var scrollTarget: String?
     @State private var autoplayed: String = ""
     @State private var prefs: CardPrefsStore = .shared
     @State private var showSections: Bool = false
@@ -109,6 +121,16 @@ struct WordDetailView: View {
         VStack(spacing: 0) {
             topBar
             ScrollViewReader { proxy in
+            VStack(spacing: 0) {
+            // The chips that take the page to a section (§0), under the top bar, staying while the page scrolls.
+            if !jumpSections.isEmpty {
+                SectionJumpBar(sections: jumpSections, target: learningLang) { s in
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(s.id, anchor: .top) }
+                }
+                .padding(.vertical, 2)
+                .background(Theme.background)
+                .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
+            }
             ScrollView {
                 VStack(spacing: 14) {
                     if isUnsaved { unsavedBanner }
@@ -132,6 +154,9 @@ struct WordDetailView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 40)
+                // 「文字の大きさ」 and 復習モード of the page's settings (§9) reach every part of the page.
+                .environment(\.pageTextScale, CGFloat(textScale))
+                .environment(\.reviewMask, reviewMask)
             }
             .background(
                 LinearGradient(colors: [Theme.background, Theme.backgroundDeep], startPoint: .top, endPoint: .bottom)
@@ -142,8 +167,17 @@ struct WordDetailView: View {
                     Task { try? await Task.sleep(for: .milliseconds(400)); proxy.scrollTo(f.id, anchor: .top) }
                 }
             }
+            .onChange(of: scrollTarget) { _, target in
+                guard let target else { return }
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .center) }
+                scrollTarget = nil
+            }
+            }
             }
         }
+        .onChange(of: reviewOn) { _, _ in revealed = [] }
+        .onChange(of: reviewHideRaw) { _, _ in revealed = [] }
+        .onChange(of: current.id) { _, _ in revealed = [] }
         .alert(L("ひと言"), isPresented: $editingCaption) {
             TextField(L("その場のメモ"), text: $captionDraft)
             Button(L("キャンセル"), role: .cancel) {}
@@ -185,6 +219,9 @@ struct WordDetailView: View {
         .onAppear {
             applyHeroRole(animated: false)
             if previewSelfieOriginal { selfieOriginal = true }
+            if previewPanel {
+                Task { try? await Task.sleep(for: .milliseconds(700)); showSections = true }
+            }
         }
         .aiConsentSheet(isPresented: $askAIConsent)
         .sheet(isPresented: $pickingHero) {
@@ -284,6 +321,18 @@ struct WordDetailView: View {
                 .foregroundStyle(isUnsaved ? Theme.primaryInk : Theme.muted)
                 .accessibilityElement(children: .combine)
             }
+            // 「復習中 {1} / {2}」: how many of the blurred parts have been looked at (§9).
+            if reviewOn, !reviewKeys.isEmpty {
+                Text(L("復習中 \(reviewKeys.filter { revealed.contains($0) }.count) / \(reviewKeys.count)"))
+                    .scaledFont(size: 12, weight: .bold, monospacedDigit: true)
+                    .foregroundStyle(Theme.primaryInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Theme.primary.opacity(0.1), in: Capsule())
+                    .accessibilityIdentifier("detail.reviewCount")
+            }
             Spacer()
             Button {
                 Haptics.selection()
@@ -300,9 +349,10 @@ struct WordDetailView: View {
             .accessibilityLabel(L("表示する項目と順番"))
             .accessibilityIdentifier("detail.sections")
             .popover(isPresented: $showSections, arrowEdge: .top) {
-                SectionsPanel(prefs: prefs)
+                SectionsPanel(prefs: prefs, sampleWord: headword, sampleMeaning: word?.meaningJa ?? "")
                     .accessibilityIdentifier("detail.sections.panel")
                     .presentationCompactAdaptation(.popover)
+                    .presentationBackground(Theme.background.mix(with: Theme.primary, by: 0.06))
             }
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
@@ -327,8 +377,10 @@ struct WordDetailView: View {
     /// 項目の余白を減らして」); the error report moved to the bottom of the page, beside 削除 (as on the web).
     private var heroCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 10) {
-                ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: 38, weight: .heavy, pinyin: word?.pinyin, language: learningLang)
+            // The speaker on the middle of the characters, even with pinyin over them (§1).
+            HStack(alignment: .hanCenter, spacing: 10) {
+                ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: 38 * CGFloat(textScale), weight: .heavy,
+                               pinyin: word?.pinyin, language: learningLang)
                     .opacity(isSavingHead ? 0.4 : 1)
                 Button {
                     headDraft = headword
@@ -344,7 +396,7 @@ struct WordDetailView: View {
                 .disabled(isSavingHead || isProvisional)
                 .accessibilityLabel(L("単語を直す"))
                 Spacer(minLength: 8)
-                PronounceCircle(text: headword, size: 50)
+                DetailSpeakButton(text: headword, style: .hero)
             }
             // No part of speech (owner 2026-10-20: 「品詞の欄消していいわ。このアプリ内の単語はすべて名詞だから」) and no
             // register chip (2026-10-15): both are still decoded, just not shown.
@@ -917,11 +969,45 @@ struct WordDetailView: View {
     private var examples: [ExampleItem] {
         ExampleItem.all(sentence: word?.exampleSentence, translation: word?.exampleTranslation, extras: extras, target: learningLang)
     }
+    /// 「使い方チャンク」 in the server's order (= most natural and frequent first, owner 2026-10-25), as shown: numbered 1, 2, 3…
     private var chunks: [UsageChunk] { refinedChunks(extras?.usageChunks ?? []) }
-    /// 「使い方パターン」 (server `usage_patterns`; empty on cards made before 2026-10-23).
-    private var patterns: [UsagePattern] { (extras?.usagePatterns ?? []).filter(\.hasContent) }
-    /// 「例文」 is drawn inside 「使い方パターン」 when the language's card has no 「例文」 of its own (Taiwan Mandarin).
-    private var examplesInPatterns: Bool { !CardSection.sections(for: learningLang).contains(.example) }
+    /// For each example, the chunk it uses (its number and colours, §4/§10).
+    private var exampleHits: [ChunkRules.ExampleHit?] {
+        let chunks = self.chunks
+        return examples.map { ChunkRules.exampleHit(sentence: $0.sentence, chunks: chunks, target: learningLang) }
+    }
+    /// The sections with something to show, for the jump chips (§0).
+    private var jumpSections: [CardSection] { visibleSections.filter { hasContent($0) } }
+
+    /// What 復習モード blurs (§9).
+    private var reviewHide: ReviewHide { ReviewHide(rawValue: reviewHideRaw) ?? .translation }
+
+    private var reviewMask: ReviewMask {
+        ReviewMask(on: reviewOn, hide: reviewHide, shown: revealed) { key in
+            withAnimation(.easeOut(duration: 0.25)) { _ = revealed.insert(key) }
+        }
+    }
+
+    /// Every part 復習モード blurs on this page now (the count 「復習中 {1} / {2}」): the meaning, each chunk's translation
+    /// and each example's translation — or each chunk and each example sentence — of the sections shown.
+    private var reviewKeys: [String] {
+        let shown = Set(jumpSections)
+        var keys: [String] = []
+        switch reviewHide {
+        case .translation:
+            if shown.contains(.meaning) { keys.append("meaning-tr") }
+            if shown.contains(.usageChunks) {
+                keys += chunks.indices.filter { !chunks[$0].ja.isEmpty }.map { "chunk-\($0)-tr" }
+            }
+            if shown.contains(.example) {
+                keys += examples.indices.filter { !(examples[$0].translation ?? "").isEmpty }.map { "ex-\($0)-tr" }
+            }
+        case .target:
+            if shown.contains(.usageChunks) { keys += chunks.indices.map { "chunk-\($0)-zh" } }
+            if shown.contains(.example) { keys += examples.indices.map { "ex-\($0)-zh" } }
+        }
+        return keys
+    }
     private var measures: [MeasureWord] { (extras?.measureWords ?? []).filter { !$0.word.isEmpty } }
     private var taiwanText: String { nonEmpty([extras?.taiwanNote, extras?.trivia, extras?.usageNote]) }
     private var forms: [(String, String)] {
@@ -944,7 +1030,7 @@ struct WordDetailView: View {
         case .example: !examples.isEmpty
         // Gone from the word page (owner 2026-10-15, `CardSection.isRemoved`), whatever an older card still holds.
         case .examplesExtra, .webImages, .pronunciationTips, .mnemonic, .etymology: false
-        case .usageChunks: !patterns.isEmpty || !chunks.isEmpty || (examplesInPatterns && !examples.isEmpty)
+        case .usageChunks: !chunks.isEmpty
         case .measureWords: !measures.isEmpty
         case .relatedWords: !(extras?.allRelated.isEmpty ?? true) || !(extras?.synonymDiff ?? "").isEmpty
         case .taiwanNote: learningLang == "zh-TW" && !taiwanText.isEmpty
@@ -1000,15 +1086,20 @@ struct WordDetailView: View {
         switch s {
         case .meaning: meaningCard
         case .example:
-            WordExamplesCard(examples: examples, headword: headword,
-                             known: SentenceReadings.known(headword: headword, pinyin: word?.pinyin, chunks: chunks),
-                             language: learningLang)
+            // The chunks' numbers only when 「使い方チャンク」 is shown too (a number with nothing to point at would puzzle).
+            DetailExamplesCard(examples: examples, headword: headword,
+                               chunks: visibleSections.contains(.usageChunks) ? chunks : [],
+                               known: SentenceReadings.known(headword: headword, pinyin: word?.pinyin, chunks: chunks),
+                               language: learningLang, flash: flashExample)
         case .examplesExtra, .webImages, .pronunciationTips, .mnemonic, .etymology: EmptyView()
-        case .usageChunks: patternCard
+        case .usageChunks: chunkCard
         case .measureWords: measureCard(measures)
         case .relatedWords: relatedCard(extras?.allRelated ?? [])
-        // 台湾メモ: no line under its sentences (owner 2026-10-15); the other prose sections keep theirs.
-        case .taiwanNote: textCard(s.title, icon: s.icon, taiwanText, ruled: false)
+        // 台湾メモ: a ruled notebook page, one sentence a paragraph (§7).
+        case .taiwanNote:
+            SectionCard(title: s.title(for: learningLang), icon: s.icon) {
+                RuledMemo(text: taiwanText)
+            }
         case .realUsage: realUsageCard
         case .forms: formsCard
         case .countability: countabilityCard
@@ -1055,7 +1146,8 @@ struct WordDetailView: View {
         guard !r.parts.isEmpty else { return nil }
         let mwords = Set(measures.map(\.word))
         // docs/chunk-rules.md: one word is one block (C7), a Mandarin adjective gets its degree word (C8).
-        let c = UsageChunk(parts: ChunkRules.tidy(r.parts, headword: headword, target: learningLang, reader: L10n.lang), ja: r.ja)
+        let c = UsageChunk(parts: ChunkRules.tidy(r.parts, headword: headword, target: learningLang, reader: L10n.lang), ja: r.ja,
+                           note: r.note)
         guard ChunkRules.isPattern(original: r.parts, tidied: c.parts) else { return nil }
         let text = c.text
         if tooLong(r) || text == headword { return nil }
@@ -1107,12 +1199,7 @@ struct WordDetailView: View {
         // Writing the missing sections uses the AI: not without the consent (they stay empty, never "filling").
         guard AIConsent.shared.isGranted else { return }
         // 「例文」 shows the examples the card came with (the main one and `examples_extra`); more are never fetched here.
-        var missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
-        // 「例文」 is inside 「使い方パターン」 on a Mandarin card (2026-10-23): a card with neither patterns nor an example
-        // still has its example written, as it was when 「例文」 was a section of its own.
-        if examplesInPatterns, visibleSections.contains(.usageChunks), patterns.isEmpty, examples.isEmpty, !missing.contains(.example) {
-            missing.append(.example)
-        }
+        let missing = visibleSections.filter { !$0.isExternal && !hasContent($0) && Self.wantsAutoFill($0, extras: extras) }
         guard !missing.isEmpty else { return }
         let wordId = current.wordId
         guard !Task.isCancelled else { return }
@@ -1217,69 +1304,111 @@ struct WordDetailView: View {
         WordHighlight.marked(sentence, headword: headword)
     }
 
-    /// 「使い方パターン」 (owner 2026-10-23): scene, formula and example as one unit per pattern, most used first; the
-    /// card's own examples and chunks the old way on a card made before. 「品詞」 at the top right turns the parts of
-    /// speech's colours on (off by default).
-    private var patternCard: some View {
-        SectionCard(title: CardSection.usageChunks.title, icon: CardSection.usageChunks.icon, supportsLayerEffects: false,
-                    accessory: AnyView(posChip)) {
-            PatternsCardContent(patterns: patterns, examples: examplesInPatterns ? examples : [], chunks: chunks,
-                                headword: headword, target: learningLang,
-                                known: SentenceReadings.known(headword: headword, pinyin: word?.pinyin,
-                                                              chunks: chunks + patterns.map(\.chunk)),
-                                refine: { refineOne($0) })
+    /// 「使い方チャンク」 (§3, 版25): each chunk in its own grey box — its number (tap: the example that uses it), the
+    /// blocks on one line, the speaker, the translation and the bulb with its one-line note — in the server's order, and
+    /// the colours' names at the bottom (only the parts of speech that occur).
+    private var chunkCard: some View {
+        let coach = coachChunk
+        return SectionCard(title: CardSection.usageChunks.title(for: learningLang), icon: CardSection.usageChunks.icon,
+                           supportsLayerEffects: false) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(chunks.enumerated()), id: \.offset) { i, c in
+                    ChunkLineView(chunk: c, headword: headword, target: learningLang, number: i + 1,
+                                  onNumber: numberAction(i), showCoach: coach == i,
+                                  dismissCoach: { withAnimation(.easeOut(duration: 0.2)) { swapCoachSeen = true } },
+                                  reviewKey: "chunk-\(i)")
+                        .padding(.top, 10)
+                        .padding(.bottom, 10)
+                        .padding(.leading, 8)
+                        .padding(.trailing, 12)
+                        .background(Theme.secondary, in: .rect(cornerRadius: 18, style: .continuous))
+                }
+                chunkLegend
+            }
         }
     }
 
-    private var posChip: some View {
-        Button {
+    /// The first chunk with a dashed word, while the first-swap hint has not been seen (nil: no hint).
+    private var coachChunk: Int? {
+        guard !swapCoachSeen else { return nil }
+        return chunks.firstIndex { c in
+            c.parts.contains { p in
+                ChunkRules.role(p, headword: headword, target: learningLang) != .head
+                    && ChunkRules.isSwappable(p, headword: headword, target: learningLang)
+            }
+        }
+    }
+
+    /// What a chunk's number does: go to the first example that uses that chunk and make its box glow (§3). nil when no
+    /// shown example uses it.
+    private func numberAction(_ chunk: Int) -> (() -> Void)? {
+        guard visibleSections.contains(.example),
+              let example = exampleHits.firstIndex(where: { $0?.chunk == chunk }) else { return nil }
+        return {
             Haptics.selection()
-            withAnimation(.snappy) { posColors.toggle() }
-        } label: {
-            Text(L("品詞"))
-                .scaledFont(size: 12, weight: .semibold)
-                .foregroundStyle(posColors ? Theme.primaryInk : Theme.muted)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 5)
-                .background(posColors ? Theme.primary.opacity(0.12) : Theme.card, in: Capsule())
-                .overlay(Capsule().stroke(posColors ? Color.clear : Theme.border, lineWidth: 1))
-                .frame(minHeight: 44)
-                .contentShape(.rect)
+            scrollTarget = "example-\(example)"
+            withAnimation(.easeOut(duration: 0.2)) { flashExample = example }
+            Task {
+                try? await Task.sleep(for: .milliseconds(1200))
+                if flashExample == example { withAnimation(.easeOut(duration: 0.3)) { flashExample = nil } }
+            }
         }
-        .buttonStyle(PressableStyle(scale: 0.95))
-        .accessibilityLabel(posColors ? L("品詞の色を隠す") : L("品詞の色を表示"))
-        .accessibilityIdentifier("patterns.pos")
     }
 
+    /// The colours' names under the chunks: only the parts of speech of the boxed words that occur (the word itself and
+    /// the glue are black, with no box, and are not named — §3).
+    private var chunkLegend: some View {
+        let kinds = Set(chunks.flatMap(\.parts).filter { ChunkRules.role($0, headword: headword, target: learningLang) == .partner }
+            .map { ChunkKind(pos: $0.pos) })
+        let shown = ChunkKind.allCases.filter { kinds.contains($0) }
+        return HStack(spacing: 12) {
+            ForEach(shown, id: \.self) { k in
+                HStack(spacing: 5) {
+                    Circle().fill(k.ink).frame(width: 8, height: 8)
+                    Text(k.label).scaledFont(size: 13).foregroundStyle(Theme.muted).lineLimit(1)
+                }
+            }
+        }
+        .padding(.top, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// 「量詞」 (§5): a grey box per measure word — 一條 black and heavy, the word grey, on one line (smaller when long, never
+    /// wrapped), the speaker on the characters' middle — and its note under it.
     private func measureCard(_ items: [MeasureWord]) -> some View {
         SectionCard(title: L("量詞"), icon: "number") {
             VStack(spacing: 10) {
                 ForEach(items, id: \.word) { m in
-                    HStack(alignment: .center, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            // Shown as it is said, with the word itself: 一 + the measure word + the noun (「一份蛋糕」),
-                            // on one line — a step smaller when it is long, never wrapped (owner 2026-10-20). The measure
-                            // word leads in black and heavy; the noun beside it is grey and regular, so no colour other
-                            // than the headword's blue is needed (owner 2026-10-20).
-                            let said = m.word.hasPrefix("一") ? m.word : "一" + m.word  // l10n-ignore (target word)
-                            let reading = m.word.hasPrefix("一") ? m.zhuyin : m.zhuyin.map { "ㄧ " + $0 }  // l10n-ignore (target word)
-                            let pinyin = m.word.hasPrefix("一") ? m.pinyin : m.pinyin.map { "yī " + $0 }  // l10n-ignore (target word)
+                    // Shown as it is said, with the word itself: 一 + the measure word + the noun (「一份蛋糕」).
+                    let said = m.word.hasPrefix("一") ? m.word : "一" + m.word  // l10n-ignore (target word)
+                    let reading = m.word.hasPrefix("一") ? m.zhuyin : m.zhuyin.map { "ㄧ " + $0 }  // l10n-ignore (target word)
+                    let pinyin = m.word.hasPrefix("一") ? m.pinyin : m.pinyin.map { "yī " + $0 }  // l10n-ignore (target word)
+                    let scale = CGFloat(textScale)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .hanCenter, spacing: 12) {
                             ViewThatFits(in: .horizontal) {
-                                measureLine(said, reading: reading, pinyin: pinyin, size: 26)
-                                measureLine(said, reading: reading, pinyin: pinyin, size: 22)
-                                measureLine(said, reading: reading, pinyin: pinyin, size: 18)
-                                measureLine(said, reading: reading, pinyin: pinyin, size: 15)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 26 * scale)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 22 * scale)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 18 * scale)
+                                measureLine(said, reading: reading, pinyin: pinyin, size: 15 * scale)
                             }
-                            if let n = m.note, !n.isEmpty {
-                                Text(n).scaledFont(size: 15).foregroundStyle(Theme.muted).lineSpacing(4)
-                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            DetailSpeakButton(text: said + headword)
                         }
-                        Spacer(minLength: 0)
-                        PronounceCircle(text: (m.word.hasPrefix("一") ? m.word : "一" + m.word) + headword, size: 50)  // l10n-ignore (target word)
+                        if let n = m.note?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty {
+                            Text(n)
+                                .scaledFont(size: 15)
+                                .foregroundStyle(Theme.muted)
+                                .lineSpacing(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 16)
-                    .background(Theme.secondary, in: .rect(cornerRadius: 26, style: .continuous))
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                    .padding(.leading, 14)
+                    .padding(.trailing, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.secondary, in: .rect(cornerRadius: 20, style: .continuous))
                 }
             }
         }
@@ -1287,9 +1416,9 @@ struct WordDetailView: View {
 
     /// 「一份」 and the word it counts, side by side on one line, each with its reading as the headword draws it.
     private func measureLine(_ said: String, reading: String?, pinyin: String?, size: CGFloat) -> some View {
-        // Both at one size, so the characters and their readings stand on the same lines (owner 2026-10-20: the
-        // smaller noun's characters and pinyin sat lower — 「高さがずれて、違和感がある」); weight and colour tell them apart.
-        HStack(alignment: .bottom, spacing: size * 0.2) {
+        // Both at one size, so the characters and their readings stand on the same lines (owner 2026-10-20); weight and
+        // colour tell them apart.
+        HStack(alignment: .bottom, spacing: size * 0.25) {
             ZhuyinWordView(headword: said, zhuyin: reading, size: size, weight: .heavy, pinyin: pinyin, language: "zh-TW")
             ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: size, weight: .regular,
                            color: Theme.muted, pinyin: word?.pinyin, language: "zh-TW")
@@ -1297,32 +1426,18 @@ struct WordDetailView: View {
         .fixedSize()
     }
 
+    /// 「類義語・反義語・関連語」 (§6): each word under its kind's coloured tag, in a grey box — the word and its reading, its
+    /// short meaning to its right, the speaker at the far right — and how it differs under it. No bulb.
     private func relatedCard(_ items: [RelatedWord]) -> some View {
-        let groups: [(String, String)] = [("syn", L("類義語")), ("ant", L("反義語")), ("rel", L("関連語"))]
+        let order = ["syn", "ant", "rel"]
+        let rows = order.flatMap { kind in items.filter { $0.kind == kind } }
         let diff = (extras?.synonymDiff ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return SectionCard(title: L("類義語・反義語・関連語"), icon: "point.3.connected.trianglepath.dotted") {
-            VStack(alignment: .leading, spacing: 16) {
-                ForEach(groups, id: \.0) { kind, label in
-                    let rows = items.filter { $0.kind == kind }
-                    if !rows.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(label).scaledFont(size: 14).foregroundStyle(Theme.muted)
-                            ForEach(rows, id: \.word) { r in
-                                HStack(alignment: .center, spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        relatedPill(r, kind: kind)
-                                        if !r.note.isEmpty {
-                                            Text(r.note).scaledFont(size: 15).foregroundStyle(Theme.muted).lineSpacing(4)
-                                        }
-                                    }
-                                    Spacer(minLength: 0)
-                                    PronounceCircle(text: r.word, size: 50)
-                                }
-                            }
-                        }
-                    }
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, r in
+                    relatedRow(r)
                 }
-                // How the near-synonyms differ: it made the section count as filled but was never drawn.
+                // How the near-synonyms differ.
                 if !diff.isEmpty {
                     SentenceRows(text: diff, color: Theme.muted)
                 }
@@ -1330,25 +1445,69 @@ struct WordDetailView: View {
         }
     }
 
-    /// A word pill with its zhuyin beside each character: plain for synonyms, violet for related words,
-    /// rose for antonyms (web RelatedWords).
-    private func relatedPill(_ r: RelatedWord, kind: String) -> some View {
-        let tint: Color = switch kind {
-        case "rel": Color(hex: 0x3B3FB6)
-        case "ant": Color(hex: 0xC2410C)
-        default: Theme.foreground
+    /// The kind's colours (§6): text and tag fill, light and dark.
+    private static func relatedColors(_ kind: String) -> (ink: Color, fill: Color) {
+        switch kind {
+        case "syn": (Color(light: 0x12805C, dark: 0x4CD49A), Color(light: 0xE3F5EC, dark: 0x0F2E22))
+        case "ant": (Color(light: 0xC2410C, dark: 0xFF9A5C), Color(light: 0xFFEDE3, dark: 0x36190B))
+        default: (Color(light: 0x6D4AC9, dark: 0xB49BFF), Color(light: 0xEFEAFB, dark: 0x241B3F))
         }
-        let fill: Color = switch kind {
-        case "rel": Color(hex: 0xE4E6FB)
-        case "ant": Color(hex: 0xFDE7DC)
-        default: Theme.card
+    }
+
+    private func relatedRow(_ r: RelatedWord) -> some View {
+        let colors = Self.relatedColors(r.kind)
+        let label = r.kind == "syn" ? L("類義語") : r.kind == "ant" ? L("反義語") : L("関連語")
+        let size = 24 * CGFloat(textScale)
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .scaledFont(size: 12, weight: .bold)
+                .foregroundStyle(colors.ink)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 2)
+                .background(colors.fill, in: .rect(cornerRadius: 7, style: .continuous))
+                .padding(.leading, 2)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .hanCenter, spacing: 16) {
+                    ViewThatFits(in: .horizontal) {
+                        relatedWord(r, size: size)
+                        relatedWord(r, size: size * 0.85)
+                        relatedWord(r, size: size * 0.7)
+                    }
+                    .layoutPriority(1)
+                    if !r.gloss.isEmpty {
+                        Text(r.gloss)  // lang-ok: ReaderLanguage.clean (related_words gloss)
+                            .scaledFont(size: 15, weight: .medium)
+                            .foregroundStyle(Theme.muted)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Spacer(minLength: 0)
+                    }
+                    DetailSpeakButton(text: r.word, style: .small)
+                }
+                if !r.note.isEmpty {
+                    Text(r.note)
+                        .scaledFont(size: 14)
+                        .foregroundStyle(Theme.muted)
+                        .lineSpacing(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+            .padding(.leading, 14)
+            .padding(.trailing, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.secondary, in: .rect(cornerRadius: 14, style: .continuous))
         }
-        return ZhuyinWordView(headword: r.word, zhuyin: r.reading.isEmpty ? nil : r.reading, size: 30, weight: .bold,
-                              color: tint, readingColor: tint.opacity(0.6), language: learningLang)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 8)
-            .background(fill, in: Capsule())
-            .overlay(Capsule().stroke(kind == "syn" ? Theme.border : .clear, lineWidth: 1.2))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func relatedWord(_ r: RelatedWord, size: CGFloat) -> some View {
+        ZhuyinWordView(headword: r.word, zhuyin: r.reading.isEmpty ? nil : r.reading, size: size, weight: .bold,
+                       color: Theme.foreground, language: learningLang)
+            .fixedSize()
     }
 
     // MARK: - English sections
@@ -1552,64 +1711,49 @@ struct WordDetailView: View {
         return NativeAPI.targetLanguage
     }
 
-    /// real-usage-links.ts: where native speakers of the learning language actually use the word.
-    private var realUsageLinks: [(emoji: String, label: String, url: String)] {
+    /// real-usage-links.ts: where native speakers of the learning language actually use the word. Each with its service's
+    /// icon (§8: YouTube, Threads and Google with their own marks; Dcard, the MOE dictionary and YouGlish drawn plainly).
+    private var realUsageLinks: [UsageLink] {
         let q = headword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? headword
         let path = headword.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? headword
         switch linkLanguage {
         case "en":
             return [
-                ("🎬", L("YouTubeで聞く"), "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=US&hl=en"),
-                ("🗣️", L("YouGlishで発音例"), "https://youglish.com/pronounce/\(path)/english/us"),
-                ("💬", L("Redditで見る"), "https://www.reddit.com/search/?q=\(q)"),
-                ("📷", L("Instagram で見る"), "https://www.instagram.com/explore/tags/\(path)/"),
-                ("📰", L("英語のサイトで検索"), "https://www.google.com/search?q=\(q)&hl=en&gl=US&cr=countryUS&lr=lang_en"),
-                ("📖", "Merriam-Webster", "https://www.merriam-webster.com/dictionary/\(path)"),  // l10n-ignore (name)
+                UsageLink(icon: .youtube, label: L("YouTubeで聞く"), url: "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=US&hl=en"),
+                UsageLink(icon: .youglish, label: L("YouGlishで発音例"), url: "https://youglish.com/pronounce/\(path)/english/us"),
+                UsageLink(icon: .generic("💬"), label: L("Redditで見る"), url: "https://www.reddit.com/search/?q=\(q)"),
+                UsageLink(icon: .generic("📷"), label: L("Instagram で見る"), url: "https://www.instagram.com/explore/tags/\(path)/"),
+                UsageLink(icon: .google, label: L("英語のサイトで検索"), url: "https://www.google.com/search?q=\(q)&hl=en&gl=US&cr=countryUS&lr=lang_en"),
+                UsageLink(icon: .generic("📖"), label: "Merriam-Webster", url: "https://www.merriam-webster.com/dictionary/\(path)"),  // l10n-ignore (name)
             ]
         case "ja":
             return [
-                ("🎬", L("YouTubeで聞く"), "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=JP&hl=ja"),
-                ("🗣️", L("YouGlishで発音例"), "https://youglish.com/pronounce/\(path)/japanese"),
-                ("💬", L("Xで見る"), "https://x.com/search?q=\(q)&lang=ja"),
-                ("🙋", L("Yahoo!知恵袋で見る"), "https://chiebukuro.yahoo.co.jp/search?p=\(q)"),
-                ("📰", L("日本のサイトで検索"), "https://www.google.com/search?q=\(q)&hl=ja&gl=JP&cr=countryJP&lr=lang_ja"),
-                ("📖", L("Weblio辞書"), "https://www.weblio.jp/content/\(path)"),
-                ("📚", L("コトバンク"), "https://kotobank.jp/search?q=\(q)"),
-                ("🔎", "Jisho.org", "https://jisho.org/search/\(path)"),
+                UsageLink(icon: .youtube, label: L("YouTubeで聞く"), url: "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=JP&hl=ja"),
+                UsageLink(icon: .youglish, label: L("YouGlishで発音例"), url: "https://youglish.com/pronounce/\(path)/japanese"),
+                UsageLink(icon: .generic("💬"), label: L("Xで見る"), url: "https://x.com/search?q=\(q)&lang=ja"),
+                UsageLink(icon: .generic("🙋"), label: L("Yahoo!知恵袋で見る"), url: "https://chiebukuro.yahoo.co.jp/search?p=\(q)"),
+                UsageLink(icon: .google, label: L("日本のサイトで検索"), url: "https://www.google.com/search?q=\(q)&hl=ja&gl=JP&cr=countryJP&lr=lang_ja"),
+                UsageLink(icon: .generic("📖"), label: L("Weblio辞書"), url: "https://www.weblio.jp/content/\(path)"),
+                UsageLink(icon: .generic("📚"), label: L("コトバンク"), url: "https://kotobank.jp/search?q=\(q)"),
+                UsageLink(icon: .generic("🔎"), label: "Jisho.org", url: "https://jisho.org/search/\(path)"),
             ]
         default:
+            // 「台湾のサイトで検索」 is 「Google検索」 now (§8); the search is the same (Taiwan's results).
             return [
-                ("🎬", L("YouTubeで聞く"), "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=TW&hl=zh-TW"),
-                ("🗣️", L("YouGlishで発音例"), "https://youglish.com/pronounce/\(path)/chinese/tw"),
-                ("💬", L("Dcardで見る"), "https://www.dcard.tw/search?query=\(q)"),
-                ("🧵", L("Threads で見る"), "https://www.threads.com/search?q=\(q)"),
-                ("📰", L("台湾のサイトで検索"), "https://www.google.com/search?q=\(q)&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW"),
-                ("📖", L("教育部國語辭典簡編本"), "https://dict.concised.moe.edu.tw/search.jsp?word=\(q)"),
+                UsageLink(icon: .youtube, label: L("YouTubeで聞く"), url: "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=TW&hl=zh-TW"),
+                UsageLink(icon: .youglish, label: L("YouGlishで発音例"), url: "https://youglish.com/pronounce/\(path)/chinese/tw"),
+                UsageLink(icon: .dcard, label: L("Dcardで見る"), url: "https://www.dcard.tw/search?query=\(q)"),
+                UsageLink(icon: .threads, label: L("Threads で見る"), url: "https://www.threads.com/search?q=\(q)"),
+                UsageLink(icon: .google, label: L("Google検索"), url: "https://www.google.com/search?q=\(q)&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW"),
+                UsageLink(icon: .moe, label: L("教育部國語辭典簡編本"), url: "https://dict.concised.moe.edu.tw/search.jsp?word=\(q)"),
             ]
         }
     }
 
+    /// 「実際の使われ方」 in two columns (§8).
     private var realUsageCard: some View {
         SectionCard(title: L("実際の使われ方"), icon: "film") {
-            VStack(spacing: 10) {
-                ForEach(realUsageLinks, id: \.label) { link in
-                    Button {
-                        if let url = URL(string: link.url) { openURL(url) }
-                    } label: {
-                        HStack(spacing: 14) {
-                            Text(link.emoji).scaledFont(size: 20)
-                            Text(link.label).scaledFont(size: 17, weight: .semibold).foregroundStyle(Theme.foreground)
-                            Spacer()
-                            Image(systemName: "arrow.up.right.square").scaledFont(size: 16).foregroundStyle(Theme.muted)
-                        }
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 50)
-                        .background(Theme.secondary, in: Capsule())
-                        .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.98))
-                }
-            }
+            UsageLinkGrid(links: realUsageLinks)
         }
     }
 
@@ -1872,25 +2016,31 @@ struct SentenceRows: View {
     static func hairline(_ scale: CGFloat) -> CGFloat { 2 / max(1, scale) }
 }
 
-/// White section card with a blue round icon and title (card-sections + section-icon.ts).
+/// White section card with a blue round icon and title (card-sections + section-icon.ts). 版25 (§1): corner 24, inside
+/// 16, a 34 pt icon and a 17 pt title, 12 pt above the content.
 struct SectionCard<Content: View>: View {
     let title: String
     let icon: String
     var supportsLayerEffects: Bool = true
-    /// A small control at the heading's right, before 「作り直す」 (the patterns card's 「品詞」).
+    /// A small control at the heading's right, before 「作り直す」.
     var accessory: AnyView? = nil
     @ViewBuilder let content: Content
     @Environment(\.sectionRefresh) private var refresh
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 34, height: 34)
                     .background(Theme.primary, in: Circle())
-                Text(title).scaledFont(size: 19, weight: .bold).foregroundStyle(Theme.foreground)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .scaledFont(size: 17, weight: .bold)
+                    .foregroundStyle(Theme.foreground)
+                    .lineLimit(2)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer()
                 if let accessory { accessory }
                 if let refresh {
@@ -1921,11 +2071,11 @@ struct SectionCard<Content: View>: View {
                     .animation(.easeOut(duration: 0.25), value: refresh?.running == true)
             }
         }
-        .padding(18)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: .rect(cornerRadius: 28, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(Theme.border, lineWidth: 1))
-        .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
+        .background(Theme.card, in: .rect(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Theme.border, lineWidth: 1))
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
     }
 }
 
@@ -1946,30 +2096,29 @@ enum ChunkKind: CaseIterable, Hashable {
         else { self = .noun }
     }
 
+    /// The colours of 版25 (docs/word-detail-design.md §1), brighter on the dark appearance.
     var ink: Color {
         switch self {
-        case .noun: Theme.primary
-        case .verb: Color(hex: 0xFF3B30)  // vivid (owner 2026-10-23 evening), near iOS systemRed
-        case .stative: Color(hex: 0x2FA84F)
-        case .adverb: Color(hex: 0xA08A2E)
-        case .particle: Color(hex: 0x7C8798)
+        case .noun: Color(light: 0x0083FF, dark: 0x4DA3FF)
+        case .verb: Color(light: 0xFF3B30, dark: 0xFF6B63)  // vivid (owner 2026-10-23 evening), near iOS systemRed
+        case .stative: Color(light: 0x2FA84F, dark: 0x4CD07D)
+        case .adverb: Color(light: 0xA08A2E, dark: 0xD9B850)
+        case .particle: Color(light: 0x7C8798, dark: 0x99A6B8)
         }
     }
 
+    /// The everyday names (owner 2026-10-24: 「品詞の名前は一般的な呼び方」): 名詞・動詞・形容詞・副詞・前置詞.
     var label: String {
         switch self {
         case .noun: L("名詞")
         case .verb: L("動詞")
-        case .stative: L("状態動詞(形容詞)")
+        case .stative: L("形容詞")
         case .adverb: L("副詞")
-        case .particle: L("助詞・前置詞")
+        case .particle: L("前置詞")
         }
     }
 
-    /// 「状態動詞」 is a Mandarin grammar term; English and Japanese call it an adjective.
-    func label(for target: String) -> String {
-        self == .stative && target != "zh-TW" ? L("形容詞") : label
-    }
+    func label(for target: String) -> String { label }
 }
 
 /// A section being written by the server: the card's frame with a soft moving sheen.

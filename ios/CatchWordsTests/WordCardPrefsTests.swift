@@ -21,6 +21,21 @@ final class WordCardPrefsTests: XCTestCase {
         XCTAssertEqual(hidden, [.measureWords], "only 台湾メモ is shown again; the rest stays as chosen")
     }
 
+    /// 版25 (owner 2026-10-24/25): 「例文」 is a card again, right under 「使い方チャンク」 — on a new install and on an order
+    /// saved while it was inside 「使い方」; an order that already places it keeps it there.
+    @MainActor
+    func testExampleCardComesBackUnderTheChunks() {
+        XCTAssertEqual(CardSection.sections(for: "zh-TW"),
+                       [.meaning, .usageChunks, .example, .measureWords, .relatedWords, .taiwanNote, .realUsage])
+        XCTAssertEqual(CardSection.defaultOrder(for: "zh-TW"),
+                       [.meaning, .usageChunks, .example, .measureWords, .relatedWords, .taiwanNote, .realUsage])
+        let saved: [CardSection] = [.meaning, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
+        XCTAssertEqual(CardPrefsStore.withExampleAfterChunks(saved + [.example], saved: saved),
+                       [.meaning, .usageChunks, .example, .measureWords, .relatedWords, .taiwanNote, .realUsage])
+        let placed: [CardSection] = [.example, .meaning, .usageChunks]
+        XCTAssertEqual(CardPrefsStore.withExampleAfterChunks(placed, saved: placed), placed)
+    }
+
     @MainActor
     func testSavedOrderWithoutRealUsagePutsTaiwanNoteLast() {
         let (order, hidden) = CardPrefsStore.taiwanNoteAboveRealUsage(order: [.meaning, .taiwanNote, .example], hidden: [])

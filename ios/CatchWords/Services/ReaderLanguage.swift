@@ -204,6 +204,8 @@ nonisolated enum ReaderLanguage {
         e.usageChunks = e.usageChunks?.map { c in
             var c = c
             if drop(c.ja, nil, false) { c.ja = "" }
+            // The bulb's one-line note is the reader's (docs/word-detail-design.md §11, server `scrubExtrasForReader`).
+            if let n = c.note, drop(n, nil, false) { c.note = nil }
             // A swappable part's meaning and its choices' meanings are in the reader's language too (R6).
             c.parts = c.parts.map { p in
                 var p = p
@@ -238,6 +240,8 @@ nonisolated enum ReaderLanguage {
         e.relatedWords = e.relatedWords?.map { r in
             var r = r
             if drop(r.note, nil, false) { r.note = "" }
+            // The word's short meaning beside it: a word, so all-kanji is fine for a Japanese reader (§6).
+            if drop(r.gloss, nil, true) { r.gloss = "" }
             return r
         }
         // English and Japanese sections: the explanatory parts are in the reader's language; the
