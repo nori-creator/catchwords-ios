@@ -103,6 +103,8 @@ final class DexStore {
     private var sharedWords: [String: Word] = [:]
     /// word id → this reader's explanation (for `readerKey`).
     private var explanations: [String: ReaderLanguage.Explanation] = [:]
+    /// word id → the examples and chunks of this reader's level band (`getWordExplanation` → `level`, docs/sharing-rules.md).
+    private var levels: [String: ReaderLanguage.LevelContent] = [:]
     /// word id → the meaning written in the reader's language (`getReaderMeanings`).
     private var readerMeanings: [String: String] = [:]
     /// The display language the two tables above were read for.
@@ -112,7 +114,7 @@ final class DexStore {
         "id,word_id,object_image_url,cutout_image_url,selfie_image_url,caption,location_name,lat,lng,taken_at,capture_type,shelf_key"
     /// Columns that came with later migrations (the web reads them the same way, in stages). If the
     /// server doesn't have one yet the dex still loads without it.
-    nonisolated(unsafe) private static var optionalColumns = ["hero_role", "placeholder_image_url", "placeholder_credit"]
+    nonisolated(unsafe) private static var optionalColumns = ["hero_role", "placeholder_image_url", "placeholder_credit", "level_band"]
     private static var selectColumns: String {
         ([baseColumns] + optionalColumns + ["word:words(*)"]).joined(separator: ",")
     }
@@ -1149,6 +1151,7 @@ final class DexStore {
         if readerKey != L10n.lang {
             readerKey = L10n.lang
             explanations = [:]
+            levels = [:]
             readerMeanings = [:]
         }
         let out = rows.map(applyReader)
@@ -1160,8 +1163,11 @@ final class DexStore {
     private func applyReader(_ s: Sticker) -> Sticker {
         guard let shared = sharedWords[s.wordId] ?? s.word else { return s }
         var s = s
+        // A word saved under the band rule shows only its band's examples and chunks — none until they are read (S6).
+        let level = levels[s.wordId] ?? (ReaderLanguage.LevelContent.isBand(s.levelBand)
+            ? ReaderLanguage.LevelContent(band: s.levelBand ?? "") : nil)
         s.word = ReaderLanguage.resolve(shared, explanation: explanations[s.wordId],
-                                        readerMeaning: readerMeanings[s.wordId], reader: L10n.lang)
+                                        readerMeaning: readerMeanings[s.wordId], reader: L10n.lang, level: level)
         // Still landing: the category it landed in (`settleLanding`).
         if let held = heldCategories[s.id] {
             s.word?.categoryKey = held.key
@@ -1175,6 +1181,7 @@ final class DexStore {
         guard readerKey != L10n.lang else { return }
         readerKey = L10n.lang
         explanations = [:]
+        levels = [:]
         readerMeanings = [:]
         stickers = stickers.map(applyReader)
         let ids = Array(Set(stickers.map(\.wordId)))
@@ -1210,18 +1217,19 @@ final class DexStore {
     /// this reader, write one (`generateCard` → `updateWordExtras`, which files it under the reader's
     /// key on the server) in the background.
     func loadExplanation(wordId: String, target: String) async {
-        struct Res: Decodable { let picked: ReaderLanguage.Explanation?; let unavailable: Bool? }
+        struct Res: Decodable { let picked: ReaderLanguage.Explanation?; let unavailable: Bool?; let level: ReaderLanguage.LevelContent? }
         let lang = L10n.lang
         let l1 = ReaderLanguage.l1(native: ReaderLanguage.native, target: target)
         guard let r = try? await NativeAPI.call("getWordExplanation", ["word_id": wordId, "explain_lang": lang, "l1": l1],
                                                 as: Res.self, timeout: 20),
               lang == L10n.lang else { return }
         if let p = r.picked { explanations[wordId] = p } else { explanations.removeValue(forKey: wordId) }
+        if let lv = r.level { levels[wordId] = lv } else { levels.removeValue(forKey: wordId) }
         stickers = stickers.map { $0.wordId == wordId ? applyReader($0) : $0 }
         if r.unavailable == true { return }
         await ProfileStore.syncLanguageToServer()
         // Writing a new explanation uses the AI (`generateCard`): only with the AI consent.
-        guard AIConsent.shared.isGranted, ReaderLanguage.serverWritesIn(lang), ReaderLanguage.needsGeneration(r.picked, lang: lang, l1: l1),
+        guard AIConsent.shared.isGranted, ReaderLanguage.serverWritesIn(lang), ReaderLanguage.needsGeneration(r.picked, lang: lang, l1: l1, level: r.level),
               let shared = sharedWords[wordId], !generatingWords.contains(wordId) else { return }
         generatingWords.insert(wordId)
         Task {
@@ -1232,6 +1240,7 @@ final class DexStore {
                                                         as: Res.self, timeout: 20),
                   let p = again.picked else { return }
             explanations[wordId] = p
+            if let lv = again.level { levels[wordId] = lv }
             stickers = stickers.map { $0.wordId == wordId ? applyReader($0) : $0 }
         }
     }
@@ -1757,7 +1766,25 @@ final class DexStore {
         let r = try? await NativeAPI.call("regenerateCardSection", [
             "word_id": wordId, "section": section, "only_if_empty": onlyIfEmpty,
         ], as: Res.self, timeout: 60)
-        return r?.ok == true || r?.filled == true
+        let ok = r?.ok == true || r?.filled == true
+        // The section is written to this reader's rows (their language's, and for examples and chunks their band's —
+        // docs/sharing-rules.md): read those again, or the page keeps showing what it read before.
+        if r?.filled == true { await rereadExplanation(wordId: wordId) }
+        return ok
+    }
+
+    /// Reads this reader's explanation and band content of the word again (no generation — `loadExplanation` does that).
+    private func rereadExplanation(wordId: String) async {
+        struct Res: Decodable { let picked: ReaderLanguage.Explanation?; let level: ReaderLanguage.LevelContent? }
+        let lang = L10n.lang
+        let target = sharedWords[wordId]?.language ?? language
+        let l1 = ReaderLanguage.l1(native: ReaderLanguage.native, target: target)
+        guard let r = try? await NativeAPI.call("getWordExplanation", ["word_id": wordId, "explain_lang": lang, "l1": l1],
+                                                as: Res.self, timeout: 20),
+              lang == L10n.lang else { return }
+        if let p = r.picked { explanations[wordId] = p }
+        if let lv = r.level { levels[wordId] = lv }
+        stickers = stickers.map { $0.wordId == wordId ? applyReader($0) : $0 }
     }
 
     /// Web `reportAndFixSection`: the AI finds which item is wrong (from the one-line note and what is
@@ -1823,6 +1850,7 @@ final class DexStore {
         forcedAt = [:]
         sharedWords = [:]
         explanations = [:]
+        levels = [:]
         readerMeanings = [:]
         signed = [:]
         reviews = [:]

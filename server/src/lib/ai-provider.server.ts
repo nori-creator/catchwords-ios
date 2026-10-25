@@ -1103,9 +1103,13 @@ export async function explanationLanguageRule(
  * 話が渡る**状態になっていた。画面には出ないので、出来上がった中身を
  * 読むまで気づけない種類の壊れ方。文は `level-instruction.ts` が組む。
  */
-export async function levelInstruction(userId: string): Promise<string> {
+export async function levelInstruction(
+  userId: string,
+  /** 帯の代表の級（`docs/sharing-rules.md` S7）。渡せばその人の級の代わりに使う。 */
+  override?: { current: string; goal: string } | null,
+): Promise<string> {
   const [{ current, goal }, target] = await Promise.all([
-    getUserLevels(userId),
+    override ? Promise.resolve(override) : getUserLevels(userId),
     getUserTargetLanguage(userId),
   ]);
   const [{ targetProfile }, { levelRuleText }] = await Promise.all([

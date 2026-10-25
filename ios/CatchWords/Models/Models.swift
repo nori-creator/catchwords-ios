@@ -20,7 +20,8 @@ nonisolated struct Word: Codable, Sendable, Hashable {
     let partOfSpeech: String?
     /// `var`: a word just saved keeps the category it landed in until its landing is over (`DexStore.settleLanding`).
     var categoryKey: String?
-    let exampleSentence: String?
+    /// `var`: a word under the band rule shows its band's main example (`ReaderLanguage.resolve`, docs/sharing-rules.md S6).
+    var exampleSentence: String?
     var exampleTranslation: String?
     var extras: WordExtras?
     /// `words.language` (null on old rows = 台湾華語).
@@ -524,6 +525,9 @@ nonisolated struct Sticker: Codable, Sendable, Identifiable, Hashable {
     var placeholderImageUrl: String? = nil
     /// Who made that stand-in picture (`stickers.placeholder_credit`): shown on it, as Unsplash asks.
     var placeholderCredit: PlaceholderCredit? = nil
+    /// The level band the word was saved with (`stickers.level_band`, docs/sharing-rules.md S4): "A>B" = its examples
+    /// and chunks are that band's; "legacy" = saved before the rule (read as before); nil = not written yet / unknown.
+    var levelBand: String? = nil
 
     nonisolated struct PlaceholderCredit: Codable, Sendable, Hashable {
         var name: String?
@@ -550,6 +554,7 @@ nonisolated struct Sticker: Codable, Sendable, Identifiable, Hashable {
         case heroRole = "hero_role"
         case placeholderImageUrl = "placeholder_image_url"
         case placeholderCredit = "placeholder_credit"
+        case levelBand = "level_band"
         case wordId = "word_id"
         case shelfKey = "shelf_key"
         case objectImageUrl = "object_image_url"

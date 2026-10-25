@@ -1089,6 +1089,11 @@ struct WordDetailView: View {
         Task {
             let ok = await dex.fillSection(wordId: wordId, section: s.rawValue, onlyIfEmpty: false)
             await dex.reload(stickerId: current.id)
+            // ↻ on the examples or chunks moves the word to the learner's band now (docs/sharing-rules.md S5): the other
+            // of the two is then that band's — written here if the band has none yet.
+            if ok, s == .example || s == .usageChunks {
+                await dex.loadExplanation(wordId: wordId, target: word?.language ?? NativeAPI.targetLanguage)
+            }
             withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) { _ = refreshing.remove(s) }
             if ok { Haptics.success() } else { Haptics.warning(); showToast(L("作り直せませんでした。少し待ってからお試しください")) }
         }

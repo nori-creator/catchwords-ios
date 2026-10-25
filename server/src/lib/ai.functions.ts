@@ -78,6 +78,7 @@ import {
   type GeneratedCard,
   type GeneratedCardReply,
 } from "./card-schema";
+import { bandGenLevels, bandLevels, isLevelSection, withoutLevelExtras } from "./level-content";
 import {
   CARD_REUSE_VERSION,
   candidateCard,
@@ -1239,10 +1240,17 @@ export const generateCard = createServerFn({ method: "POST" })
      * 保存の後も残る。その文を「与えられた文」として指示に入れ、その文のための札と、それ以外のパターンだけを
      * 書かせる（新しい文をメインに書くと、その札は保存で外れ、古い文に札が付かないまま数だけ増える）。
      */
-    const existingMain = readExistingMainSentence(cardAdmin, {
+    const legacyMain = readExistingMainSentence(cardAdmin, {
       language: targetProfile(data.targetLanguage).code,
       headword: data.headword,
     });
+    /**
+     * **この人の帯**（`docs/sharing-rules.md`）。帯の付いた語の例文・チャンクは、その帯の級（代表の級 — S7）で作り、
+     * メインの例文もその帯の行の物だけを「決まった文」にする（別の帯・共有の行の文は使わない）。古い語は今までどおり。
+     */
+    const bandInfo = import("./level-content.server").then((m) =>
+      m.callerBandForHeadword(cardAdmin, context.userId, targetProfile(data.targetLanguage).code, data.headword),
+    );
     const reservation = reserveAiCallFor(context.userId, "card").then(
       (r) => ({ ok: true as const, usageId: r.usageId }),
       (error: unknown) => ({ ok: false as const, error }),
@@ -1251,7 +1259,7 @@ export const generateCard = createServerFn({ method: "POST" })
     // 前は 10 回の往復を1つずつ待っていた（ほとんどが同じ profiles の行）。枠の確保が
     // 断られたら、控えを返せない時はここで止まる（AI は呼ばない）。
     // 級は現在と目標の両方を読む（例文は「現在の級で読める・目標の級まで」— `exampleLevelRule`）。
-    const [ai, levels, levelRule, langRule, explainLang, l1Gram, l1Info, pro] = await Promise.all([
+    const [ai, userLevels, userLevelRule, langRule, explainLang, l1Gram, l1Info, pro, { band, wordId: bandWordId }] = await Promise.all([
       getAiFor("card", "card"),
       getUserLevels(context.userId),
       levelInstruction(context.userId),
@@ -1266,10 +1274,22 @@ export const generateCard = createServerFn({ method: "POST" })
       l1Rule(context.userId, "wordorder"),
       getLearnerL1(context.userId),
       isProUser(context.userId),
+      bandInfo,
     ]);
+    const levels = band ? bandLevels(band, targetProfile(data.targetLanguage).levels) : userLevels;
+    const levelRule = band ? await levelInstruction(context.userId, levels) : userLevelRule;
+    const existingMain: Promise<string | null> = band
+      ? bandWordId
+        ? import("./level-content.server")
+            .then((m) =>
+              m.readLevelContent(cardAdmin, bandWordId, explanationKey(explainLang, l1Info.code), band),
+            )
+            .then((r) => r?.example_sentence ?? null)
+        : Promise.resolve(null)
+      : legacyMain;
     const genKey: CardGenKey = {
       v: CARD_REUSE_VERSION,
-      levels: `${levels.current}>${levels.goal}`,
+      levels: band ? bandGenLevels(band) : `${levels.current}>${levels.goal}`,
       model: pro ? ai.modelRichPremium : ai.modelRich,
       pro,
       sections: data.sections ? [...data.sections].sort() : null,
@@ -2024,7 +2044,16 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           card: { ...out, gen: genKey },
         })),
       );
-      const trusted = trustedCardFrom(out);
+      const made = trustedCardFrom(out);
+      // 帯の付いた語の例文・チャンクは、共有の行の空きにも入れない（帯の行が受け持つ — S6）。
+      const trusted = band
+        ? {
+            ...made,
+            example_sentence: undefined,
+            example_translation: undefined,
+            extras: withoutLevelExtras(made.extras),
+          }
+        : made;
       await runAfterResponse("generateCard: fill shared word", () =>
         fillSharedWordFromCard(supabaseAdmin, {
           language: cardLanguage,
@@ -2535,6 +2564,8 @@ type SectionProposal = {
   sharedRow: Parameters<typeof claimSharedRowLanguage>[1];
   readerKey: { explainLang: string; l1: string };
   readerPatch: Parameters<typeof mergeIntoReaderExplanation>[3];
+  /** 帯の行に書く（例文・チャンクで、帯の付いた語 — `docs/sharing-rules.md` S6）。古い語は null。 */
+  levelBand?: string | null;
 };
 
 async function runSectionRegen(
@@ -2590,14 +2621,43 @@ async function runSectionRegen(
    */
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: word, error } = await supabaseAdmin
+  const { data: wordRow, error } = await supabaseAdmin
     .from("words")
     .select(
       "id, headword, language, meaning_ja, part_of_speech, source, example_sentence, example_translation, extras",
     )
     .eq("id", data.word_id)
     .maybeSingle();
-  if (error || !word) throw new Error("単語が見つかりません");
+  if (error || !wordRow) throw new Error("単語が見つかりません");
+  /**
+   * **例文・チャンクは、その人の帯の行だけを読み書きする**（`docs/sharing-rules.md` S5・S6）。帯の付いた語では、
+   * 共有の語の行と言語の置き場の例文・チャンクを見ない・書かない: 以下の「語の行」は、例文の列と extras をその帯の
+   * 行の物に差し替えた写し（意味などはそのまま）。↻（作り直しを押した時）は今の帯で作り直し、札もその帯に移す
+   * （古い語もここで新しい分け方になる）。
+   */
+  const levelMod = isLevelSection(data.section) ? await import("./level-content.server") : null;
+  const levelBand = levelMod
+    ? mode === "write" && !data.only_if_empty && (await levelMod.levelContentAvailable(supabaseAdmin))
+      ? await levelMod.profileLevelBand(userId)
+      : await levelMod.callerLevelBand(supabaseAdmin, userId, data.word_id)
+    : null;
+  const bandKey = levelBand
+    ? explanationKey(await getExplanationLanguage(userId), (await getLearnerL1(userId)).code)
+    : null;
+  const bandRow =
+    levelMod && levelBand && bandKey
+      ? await levelMod.readLevelContent(supabaseAdmin, data.word_id, bandKey, levelBand, { exact: true })
+      : null;
+  const word = levelBand
+    ? {
+        ...wordRow,
+        // 帯の行の物は人が確かめた例文ではない（`verified` の守りは共有の行の物）。
+        source: "ai",
+        example_sentence: bandRow?.example_sentence ?? null,
+        example_translation: bandRow?.example_translation ?? null,
+        extras: bandRow?.extras ?? {},
+      }
+    : wordRow;
 
   // すでに埋まっている節を、裏の自動生成が上書きしない。
   // **判定は画面と同じ関数**(`card-sections.ts`)。ここに写しを置くと、
@@ -2627,17 +2687,28 @@ async function runSectionRegen(
     await getExplanationLanguage(userId),
     (await getLearnerL1(userId)).code,
   );
-  const readerRow =
-    mode === "write" ? await readReaderExplanation(supabaseAdmin, data.word_id, readerKey) : null;
+  const readerRow = levelBand
+    ? {
+        // 帯の行は、まだ無くても書く先がある（作る）。
+        meaning: "",
+        example_translation: bandRow?.example_translation ?? null,
+        extras: normalizeExtras(bandRow?.extras ?? {}),
+        source: "ai",
+      }
+    : mode === "write"
+      ? await readReaderExplanation(supabaseAdmin, data.word_id, readerKey)
+      : null;
   /**
    * **共有の行に書くのは、その行の言語の人だけ**（2026-10-20「決して言語が混ざらないようにして」、
    * `mayWriteSharedReaderText`）。別の言語の人が作り直した意味・例文・解説を共有の行に書くと、行の
    * 目印（`explain_lang`）と中身の言語が食い違い、目印でも文字でも見分けられない行になる。
    */
-  const sharedWritable = mayWriteSharedReaderText(
-    word as Parameters<typeof mayWriteSharedReaderText>[0],
-    readerKey.explainLang,
-  );
+  const sharedWritable =
+    !levelBand &&
+    mayWriteSharedReaderText(
+      word as Parameters<typeof mayWriteSharedReaderText>[0],
+      readerKey.explainLang,
+    );
   if (mode === "write" && !readerRow && !sharedWritable) {
     // 書く先が無い（共有の行は別の言語の行、その人の行はまだ無い）。その人の行は、単語の詳細の
     // 自動生成（`generateCard` → `updateWordExtras`）が全部の項目つきで作る。AI は呼ばない。
@@ -2719,7 +2790,8 @@ async function runSectionRegen(
     sharedExtrasLang === regenLang && readerText(sharedMainScene, regenLang, mainSentence).trim()
       ? sharedMainScene
       : "";
-  const needMainLabel = mainUsable && !readerMainScene && !sharedSceneForReader;
+  // 帯の行の札は、その文を作った時に一緒に書く（ここで後から付けない）。
+  const needMainLabel = !levelBand && mainUsable && !readerMainScene && !sharedSceneForReader;
   /** 人が確かめた語（verified）の例文は書き換えないので、例文を作り直す時もその文を決まった文として扱う。 */
   const fixedExampleMain = data.section === "example" && word.source === "verified" && mainUsable;
   const mainLabelRule = (extraOpts: { translation: boolean }) =>
@@ -3172,6 +3244,7 @@ async function runSectionRegen(
         sharedRow: word as SectionProposal["sharedRow"],
         readerKey,
         readerPatch: readerPatch(),
+        levelBand,
       },
     };
   }
@@ -3185,6 +3258,18 @@ async function runSectionRegen(
    * 一瞬に縮む。万一消えた項目は「まだ無い」に戻るだけで、次に開いたとき
    * 裏でもう一度作られる（壊れた中身は残らない）。
    */
+  // 帯の付いた語の例文・チャンクは、その帯の行だけに書く（S6）。↻ なら札もその帯に移す（S5）。
+  if (levelMod && levelBand && bandKey) {
+    const ok = await levelMod.mergeIntoLevelContent(supabaseAdmin, data.word_id, bandKey, levelBand, {
+      ...readerPatch(),
+      example_sentence: (baseUpdate.example_sentence as string | undefined) ?? null,
+      example_translation: (baseUpdate.example_translation as string | undefined) ?? null,
+    });
+    if (ok && mode === "write" && !data.only_if_empty) {
+      await levelMod.pinStickerBand(supabaseAdmin, userId, data.word_id, levelBand, { replace: true });
+    }
+    return { ok: true, section: data.section, filled: ok };
+  }
   // その人向けの解説の行にも重ねる（画面はこちらを出す）。
   if (readerRow) {
     await mergeIntoReaderExplanation(supabaseAdmin, data.word_id, readerKey, readerPatch());
@@ -3441,6 +3526,22 @@ async function fixReportedWordItemImpl(
 
   // 共有の行が報告した人の言語の行でなければ、その人の言語の解説の行だけを直す
   // （別の言語の文を共有の行に書かない — `SectionProposal.sharedWritable`）。
+  // 帯の付いた語の例文・チャンクは、その帯の行だけを直す（`docs/sharing-rules.md` S6）。
+  if (proposal.levelBand) {
+    const { mergeIntoLevelContent } = await import("./level-content.server");
+    const fixed = await mergeIntoLevelContent(
+      supabaseAdmin,
+      p.wordId,
+      proposal.readerKey,
+      proposal.levelBand,
+      {
+        ...proposal.readerPatch,
+        example_sentence: (proposal.baseUpdate.example_sentence as string | undefined) ?? null,
+        example_translation: (proposal.baseUpdate.example_translation as string | undefined) ?? null,
+      },
+    );
+    return { fixed, by: verdict.by, item };
+  }
   if (!proposal.sharedWritable) {
     const fixed = await mergeIntoReaderExplanation(
       supabaseAdmin,

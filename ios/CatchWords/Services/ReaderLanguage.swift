@@ -117,8 +117,69 @@ nonisolated enum ReaderLanguage {
         }
     }
 
-    /// web `needsGeneration`: there is no explanation for exactly this reader yet (or it is empty).
-    static func needsGeneration(_ picked: Explanation?, lang: String, l1: String) -> Bool {
+    // MARK: - Level content (word_level_content, docs/sharing-rules.md)
+
+    /// The example sentences and chunks of the reader's level band (server `getWordExplanation` → `level`). Present only
+    /// for a word saved under the band rule (S4); nil for a word saved before it (`legacy`), which reads its examples and
+    /// chunks as before.
+    nonisolated struct LevelContent: Decodable, Sendable, Hashable {
+        let band: String
+        let exampleSentence: String?
+        let exampleTranslation: String?
+        let extras: WordExtras?
+
+        enum CodingKeys: String, CodingKey {
+            case band, extras
+            case exampleSentence = "example_sentence"
+            case exampleTranslation = "example_translation"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            band = (try? c.decode(String.self, forKey: .band)) ?? ""
+            exampleSentence = try? c.decodeIfPresent(String.self, forKey: .exampleSentence)
+            exampleTranslation = try? c.decodeIfPresent(String.self, forKey: .exampleTranslation)
+            extras = try? c.decodeIfPresent(WordExtras.self, forKey: .extras)
+        }
+
+        init(band: String, exampleSentence: String? = nil, exampleTranslation: String? = nil, extras: WordExtras? = nil) {
+            self.band = band
+            self.exampleSentence = exampleSentence
+            self.exampleTranslation = exampleTranslation
+            self.extras = extras
+        }
+
+        /// A band key ("A>B"), not "legacy" or empty (server `isLevelBandKey`).
+        static func isBand(_ v: String?) -> Bool {
+            guard let v, v.count == 3 else { return false }
+            let c = Array(v)
+            return "ABC".contains(c[0]) && c[1] == ">" && "ABC".contains(c[2])
+        }
+
+        /// The band's main example has been written (else the page asks for it).
+        var hasContent: Bool { !(exampleSentence ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    /// `e` with its examples and chunks (S2: `LEVEL_EXTRAS_KEYS` on the server) replaced by `level`'s — none of the
+    /// language row's own are kept (S6).
+    static func withLevelExtras(_ e: WordExtras, _ level: WordExtras?) -> WordExtras {
+        var e = e
+        e.exampleScene = level?.exampleScene
+        e.exampleSceneFor = level?.exampleSceneFor
+        e.exampleChunks = level?.exampleChunks
+        e.exampleV = level?.exampleV
+        e.examplePatternCount = level?.examplePatternCount
+        e.examplesExtra = level?.examplesExtra
+        e.usageChunks = level?.usageChunks
+        e.usagePatterns = level?.usagePatterns
+        e.usageV = level?.usageV
+        return e
+    }
+
+    /// web `needsGeneration`: there is no explanation for exactly this reader yet (or it is empty) — or, for a word
+    /// under the band rule, its band has no examples yet.
+    static func needsGeneration(_ picked: Explanation?, lang: String, l1: String, level: LevelContent? = nil) -> Bool {
+        if let level, !level.hasContent { return true }
         guard let p = picked else { return true }
         if p.explainLang != lang || p.l1 != l1 { return true }
         if p.meaning.trimmingCharacters(in: .whitespaces).isEmpty { return true }
@@ -130,7 +191,8 @@ nonisolated enum ReaderLanguage {
     /// The word as this reader should see it: their explanation when there is one; the shared row's
     /// reader-language text only when that row was written for this very reader's language; nothing
     /// (rather than another language) otherwise.
-    static func resolve(_ shared: Word, explanation picked: Explanation?, readerMeaning: String?, reader: String) -> Word {
+    static func resolve(_ shared: Word, explanation picked: Explanation?, readerMeaning: String?, reader: String,
+                        level: LevelContent? = nil) -> Word {
         var w = shared
         // Only an explanation written for this reader's language (one read for the language before a switch is not).
         let explanation = picked?.explainLang == reader ? picked : nil
@@ -150,10 +212,18 @@ nonisolated enum ReaderLanguage {
             var extras = explanation.extras
             if let mark = extras?.explainLang?.trimmingCharacters(in: .whitespaces), !mark.isEmpty, mark != reader { extras = nil }
             w.extras = extras.map { scrub($0, reader: reader) }
-        } else if let extras = shared.extras {
-            // The shared notes of another reader's language: the learning-language parts (chunks, forms, kanji,
-            // counters, the picture words) are still this word's, every explaining text is emptied.
-            w.extras = sharedForReader ? scrub(extras, reader: reader) : learningOnly(extras)
+        } else if let extras = shared.extras, sharedForReader {
+            w.extras = scrub(extras, reader: reader)
+        }
+        // S8 (owner 2026-10-25「表示言語が異なる場合は全く共有しない。完全に分ける」): the shared notes of another reader's
+        // language give nothing — not even their learning-language parts (chunks, measure words); the page writes this
+        // reader's own.
+        // S6: a word saved under the band rule shows its band's examples and chunks only (empty until written).
+        if let level {
+            w.extras = withLevelExtras(w.extras ?? WordExtras(), level.extras.map { scrub($0, reader: reader) })
+            w.exampleSentence = level.exampleSentence
+            let tr = (level.exampleTranslation ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            w.exampleTranslation = !tr.isEmpty && !looksWrong(tr, reader: reader, source: level.exampleSentence) ? tr : nil
         }
         // What is kept is this reader's: marked so. A word resolved again for another reader (the dex copy kept on the
         // phone, a language switch before the server's read) then never passes for its shared row's language — an
@@ -177,14 +247,6 @@ nonisolated enum ReaderLanguage {
         clean(e, kanaReader: L10n.language(reader).script == .kana) { text, source, hanOnlyOk in
             looksWrong(text, reader: reader, source: source, hanOnlyOk: hanOnlyOk)
         }
-    }
-
-    /// Every explaining text emptied, the learning-language parts kept: the shared notes of a word whose
-    /// notes were written for another reader's language.
-    static func learningOnly(_ e: WordExtras) -> WordExtras {
-        var e = clean(e, kanaReader: false) { _, _, _ in true }
-        e.explainLang = nil
-        return e
     }
 
     /// Empties each reader-language text `drop(text, source, hanOnlyOk)` says to drop. The one list of the extras'
