@@ -56,20 +56,44 @@ nonisolated struct PageCurlGeometry: Equatable {
         return PageCurlGeometry(fold: fold, dir: CGVector(dx: ux, dy: uy), radius: max(0.0001, radius), lifted: true)
     }
 
+    /// Where the leaf's back lies flat: the back page, drawn mirrored on the right half (the leaf), reflected over the
+    /// line half a roll's length past the fold — a point `x` before the fold shows the leaf at `π r − x` past it.
+    /// Its own inverse, so it is also the transform that draws the back page there.
+    var backReflection: CGAffineTransform {
+        let a = dir.dx, b = dir.dy
+        let along = a * fold.x + b * fold.y
+        let shift = 2 * along + .pi * radius
+        return CGAffineTransform(a: 1 - 2 * a * a, b: -2 * a * b, c: -2 * a * b, d: 1 - 2 * b * b,
+                                 tx: a * shift, ty: b * shift)
+    }
+
     static func smoothstep(_ a: CGFloat, _ b: CGFloat, _ x: CGFloat) -> CGFloat {
         let t = min(1, max(0, (x - a) / (b - a)))
         return t * t * (3 - 2 * t)
     }
 }
 
-/// Draws its content (a whole spread laid out for the turn, see `pageCurl`) as a page being turned. Animatable, so a
-/// turn let go of runs on by itself, frame by frame, from wherever the finger left it.
-struct PageCurl: ViewModifier, Animatable {
+/// A page being turned (`BookSpreadView`), drawn over the spread it uncovers: the leaf's front (the page being turned)
+/// and its back (the page it becomes), each its own layer with its own shader (Shaders/Effects.metal `pageCurlFront`
+/// / `pageCurlBack`). The back page is drawn mirrored on the leaf and reflected over the fold (`backReflection`), so
+/// the shaders only move a sample within the roll. (One layer with both sides had to sample the back a spread's width
+/// away: with that much room the layer was too big and nothing was drawn, without it the back came out blank — CI
+/// `spread-curl` / `spread-curl-late`, 2026-10-25.) Animatable, so a turn let go of runs on by itself, frame by frame,
+/// from wherever the finger left it.
+///
+/// A backward turn (the left page coming back over to the right) is a forward one in a mirror: its pages go in
+/// mirrored, and the whole leaf is mirrored back.
+struct PageCurlLeaf<Front: View, Back: View>: View, Animatable {
     var progress: CGFloat
     var liftY: CGFloat
     var grabY: CGFloat
     var direction: PageTurnDirection
+    /// The whole spread.
     var size: CGSize
+    /// The page being turned (the right page going forward, the left one going back).
+    let front: Front
+    /// The page it becomes once it has landed.
+    let back: Back
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(progress, liftY) }
@@ -79,23 +103,44 @@ struct PageCurl: ViewModifier, Animatable {
         }
     }
 
-    func body(content: Content) -> some View {
+    /// Room the shaders sample around a point: within the roll, at most 0.6 of its largest radius (44 pt).
+    private static var sampleRoom: CGSize { CGSize(width: 30, height: 30) }
+
+    var body: some View {
         let g = PageCurlGeometry.make(progress: progress, liftY: liftY, grabY: grabY, size: size)
-        content
-            .layerEffect(
-                ShaderLibrary.pageCurl(
-                    .float2(size),
-                    .float2(g.fold),
-                    .float2(CGPoint(x: g.dir.dx, y: g.dir.dy)),
-                    .float(g.radius),
-                    .float(size.width / 2),
-                    .float(direction == .backward ? 1 : 0)
-                ),
-                // Every sample stays inside the spread (the back is the spread's own left half), so the layer needs no
-                // room around it. A spread's size here padded the layer to three spreads each way — 9000 px wide on
-                // iPhone Duo at 3×, past what Metal draws — and the leaf was not drawn at all (CI `spread-curl`).
-                maxSampleOffset: .zero,
-                isEnabled: size.width > 1
-            )
+        let flip: CGFloat = direction == .backward ? -1 : 1
+        leaf(g, front: front.scaleEffect(x: flip, y: 1), back: back.scaleEffect(x: flip, y: 1))
+            .scaleEffect(x: flip, y: 1)
+            .frame(width: size.width, height: size.height)
+    }
+
+    private func leaf(_ g: PageCurlGeometry, front: some View, back: some View) -> some View {
+        let page = CGSize(width: size.width / 2, height: size.height)
+        let dir = CGPoint(x: g.dir.dx, y: g.dir.dy)
+        let on = g.lifted && size.width > 1
+        return ZStack(alignment: .topLeading) {
+            front
+                .frame(width: page.width, height: page.height)
+                .offset(x: page.width)
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
+                .layerEffect(
+                    ShaderLibrary.pageCurlFront(.float2(size), .float2(g.fold), .float2(dir), .float(g.radius),
+                                                .float(page.width)),
+                    maxSampleOffset: Self.sampleRoom,
+                    isEnabled: on
+                )
+            back
+                .frame(width: page.width, height: page.height)
+                .scaleEffect(x: -1, y: 1)
+                .offset(x: page.width)
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
+                .transformEffect(g.backReflection)
+                .layerEffect(
+                    ShaderLibrary.pageCurlBack(.float2(g.fold), .float2(dir), .float(g.radius)),
+                    maxSampleOffset: Self.sampleRoom,
+                    isEnabled: on
+                )
+                .opacity(on ? 1 : 0)
+        }
     }
 }

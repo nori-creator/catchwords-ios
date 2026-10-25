@@ -111,6 +111,30 @@ final class DiaryTests: XCTestCase {
         }
     }
 
+    func testALandedBackLiesOnTheLeftPage() {
+        // Landed: the back (drawn mirrored on the right page) is reflected over the spine onto the left page.
+        let g = PageCurlGeometry.make(progress: 1, liftY: 500, grabY: 700, size: spread)
+        let p = CGPoint(x: 600, y: 120).applying(g.backReflection)
+        XCTAssertEqual(p.x, 400, accuracy: 0.05)
+        XCTAssertEqual(p.y, 120, accuracy: 0.05)
+    }
+
+    func testTheBacksReflectionIsItsOwnInverse() {
+        let g = PageCurlGeometry.make(progress: 0.2, liftY: 650, grabY: 780, size: spread)
+        let q = CGPoint(x: 870, y: 410)
+        let back = q.applying(g.backReflection).applying(g.backReflection)
+        XCTAssertEqual(back.x, q.x, accuracy: 0.001)
+        XCTAssertEqual(back.y, q.y, accuracy: 0.001)
+    }
+
+    func testAPointBeforeTheFoldShowsTheLeafPastTheRoll() {
+        // A point `x` before the fold shows the leaf `π r − x` past it (the paper's length round the half roll).
+        let g = PageCurlGeometry.make(progress: 0.3, liftY: 600, grabY: 600, size: spread)
+        let p = CGPoint(x: g.fold.x - 50, y: 300)
+        let leaf = p.applying(g.backReflection)
+        XCTAssertEqual(leaf.x - g.fold.x, .pi * g.radius + 50, accuracy: 0.01)
+    }
+
     func testTheRollNeverOutgrowsTheDistanceTravelled() {
         let g = PageCurlGeometry.make(progress: 0.01, liftY: 600, grabY: 600, size: spread)
         // 1 % of the way: the edge moved 10 pt, so the roll is at most 10 / π.

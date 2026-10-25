@@ -196,11 +196,11 @@ struct BookSpreadView: View {
                     leftPage(t.direction == .forward ? here : there, live: false).frame(width: page.width, height: page.height)
                     rightPage(t.direction == .forward ? there : here, live: false).frame(width: page.width, height: page.height)
                 }
-                HStack(spacing: 0) {
-                    leftPage(t.direction == .forward ? there : here, live: false).frame(width: page.width, height: page.height)
-                    rightPage(t.direction == .forward ? here : there, live: false).frame(width: page.width, height: page.height)
-                }
-                .modifier(PageCurl(progress: progress, liftY: liftY, grabY: grabY, direction: t.direction, size: size))
+                // Going forward the right page goes over and becomes the next day's left page; going back the left page
+                // comes over and becomes the day before's right page.
+                PageCurlLeaf(progress: progress, liftY: liftY, grabY: grabY, direction: t.direction, size: size,
+                             front: t.direction == .forward ? AnyView(rightPage(here, live: false)) : AnyView(leftPage(here, live: false)),
+                             back: t.direction == .forward ? AnyView(leftPage(there, live: false)) : AnyView(rightPage(there, live: false)))
             }
             .allowsHitTesting(false)
         }

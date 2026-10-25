@@ -327,7 +327,9 @@ struct BookCoverFlip: View, Animatable {
         }
         // Lit as it turns: darker the more it faces away from the light.
         .overlay(Color.black.opacity(dim).allowsHitTesting(false))
-        .rotation3DEffect(.degrees(angle), axis: (x: 0, y: 1, z: 0), anchor: .leading, perspective: 0.45)
+        // A gentle perspective: at 0.45 the near edge of a page-sized cover swelled past the book's top and bottom as it
+        // stood up (CI `spread`, 2026-10-25).
+        .rotation3DEffect(.degrees(angle), axis: (x: 0, y: 1, z: 0), anchor: .leading, perspective: 0.2)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
