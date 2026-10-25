@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containsChunk, exampleLength, EXAMPLE_MAX_HAN, pickExamplePatterns } from "./example-patterns";
+import { containsChunk, exampleLength, EXAMPLE_MAX_HAN, examplePatternsRule, pickExamplePatterns, REAL_NAMES_RULE } from "./example-patterns";
 import { gateUsageChunks } from "./chunk-quality";
 
 /** オーナー 2026-10-25: 例文は必ず2行以内（24字まで）・型を字のまま含む例文を先に・ひと言解説は訳の言い直しにしない。 */
@@ -42,5 +42,32 @@ describe("ひと言解説の門", () => {
   });
   it("ふつうの解説は残す", () => {
     expect(gateUsageChunks([chunk("戴 は身につける物ぜんぶに使う。服と靴だけは 穿。")], ctx).kept[0].note).toContain("穿");
+  });
+});
+
+/** オーナー 2026-10-25: 実在の名前は、台湾の人が実際にそう言うのが最も自然な時だけ例文に入れる（C26）。 */
+describe("例文の実在の名前", () => {
+  const rule = examplePatternsRule({
+    headword: "便當",
+    targetName: "台湾華語",
+    nl: "日本語",
+    max: 3,
+    levelRule: "",
+    sourceRule: "",
+    chunkRoles: "N/V",
+  });
+  it("絶対ルールに e として入る", () => {
+    expect(rule).toContain(`e. ${REAL_NAMES_RULE}`);
+  });
+  it("自然な時は入れ、無理に足さない・作らない・最近のニュースを書かない", () => {
+    expect(REAL_NAMES_RULE).toContain("7-11");
+    expect(REAL_NAMES_RULE).toContain("足さない");
+    expect(REAL_NAMES_RULE).toContain("作らない");
+    expect(REAL_NAMES_RULE).toContain("ニュース");
+  });
+  it("見本の良い例文は 24字以内", () => {
+    for (const s of ["我去7-11買個便當", "中秋節快到了，要買月餅嗎？", "颱風天騎車要穿雨衣喔", "搭捷運要刷悠遊卡"]) {
+      expect(exampleLength(s)).toBeLessThanOrEqual(EXAMPLE_MAX_HAN);
+    }
   });
 });
