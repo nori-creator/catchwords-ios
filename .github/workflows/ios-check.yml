@@ -31,8 +31,9 @@ permissions:
 jobs:
   build-and-shoot:
     runs-on: macos-26
-    # 撮影までで 45〜55 分（10/16 の実行）。ci-previews に置くのは自分の場所だけを取り出して数秒で済ませる。
-    timeout-minutes: 75
+    # 撮影までで 45〜55 分（10/16 の実行）。版25 の見本を足して 55 分ほど（10/25）。ci-previews に置くのは自分の場所だけを
+    # 取り出して数秒で済ませるが、10/25 に一度 25 分止まったので、その手順にだけ 12 分の上限を付け、結果の保存まで届くようにする。
+    timeout-minutes: 95
     steps:
       - uses: actions/checkout@v4
 
@@ -347,6 +348,8 @@ jobs:
 
       - name: 見本の画面を ci-previews ブランチに置く（Claude が読める場所）
         if: always()
+        timeout-minutes: 12
+        continue-on-error: true
         env:
           HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |
