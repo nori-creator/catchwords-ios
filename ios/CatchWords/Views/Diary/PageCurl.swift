@@ -91,7 +91,10 @@ struct PageCurl: ViewModifier, Animatable {
                     .float(size.width / 2),
                     .float(direction == .backward ? 1 : 0)
                 ),
-                maxSampleOffset: size,
+                // Every sample stays inside the spread (the back is the spread's own left half), so the layer needs no
+                // room around it. A spread's size here padded the layer to three spreads each way — 9000 px wide on
+                // iPhone Duo at 3×, past what Metal draws — and the leaf was not drawn at all (CI `spread-curl`).
+                maxSampleOffset: .zero,
                 isEnabled: size.width > 1
             )
     }

@@ -188,7 +188,8 @@ static half4 curlSample(SwiftUI::Layer layer, float2 s, float2 size, float mirro
 /// - size: the spread in points. - fold: a point of the fold line. - dir: unit vector across the fold, towards the
 ///   lifted edge. - spine: the spine's x. - mirror: 1 turns the other way (the left page back to the right): the same
 ///   geometry on the spread seen in a mirror.
-/// Used with `.layerEffect(…, maxSampleOffset: size)` (the back is sampled up to a spread's width away).
+/// Used with `.layerEffect(…, maxSampleOffset: .zero)`: the back is sampled up to a spread's width away, but always
+/// inside the layer's own bounds.
 [[ stitchable ]] half4 pageCurl(float2 position, SwiftUI::Layer layer, float2 size, float2 fold, float2 dir,
                                 float radius, float spine, float mirror) {
     const float PI = 3.14159265;
