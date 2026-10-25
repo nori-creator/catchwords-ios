@@ -78,7 +78,14 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         entries = list(pool.map(blob, files))
     print(f"ci-previews: {len(entries)} blobs in {time.time() - started:.0f}s")
-    leaf = call("POST", f"/repos/{repo}/git/trees", {"tree": entries}, token)["sha"]
+    # Built 50 entries at a time on top of the last part: one call with all ~350 timed out on GitHub's side
+    # (HTTP 422 "Consider building the tree incrementally", 2026-10-25).
+    leaf = None
+    for i in range(0, len(entries), 50):
+        body = {"tree": entries[i:i + 50]}
+        if leaf:
+            body["base_tree"] = leaf
+        leaf = call("POST", f"/repos/{repo}/git/trees", body, token)["sha"]
 
     parts = [p for p in dest.strip("/").split("/") if p]
     for attempt in range(5):
