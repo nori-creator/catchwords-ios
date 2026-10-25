@@ -1842,6 +1842,10 @@ struct Word25Preview: View {
         // The first-swap hint only on the chunks' own shot.
         d.set(!(variant == "chunks" || variant == "coach"), forKey: "coach.chunkSwap")
         panel = variant == "panel"
+        // No server here: the examples' readings (shown with ピンイン) come from the preview's own table.
+        SentenceReadings.shared.seedForPreview(Self.demoReadings([
+            "我每天都戴水晶手鍊，聽說可以帶來好運。", "老闆說這條水晶手鍊招財，我就買了。", "你看這條水晶手鍊很精緻，送你！",
+        ]))
         focus = switch variant {
         case "chunks", "coach", "pinyin", "review", "reviewzh": .usageChunks
         case "examples", "pinyinex", "xl", "small": .example
@@ -1957,6 +1961,14 @@ struct Word25Preview: View {
                                      es: "Piedras preciosas en general. El cristal cuenta, pero suele indicar algo más caro.",
                                      ko: "보석 전반. 수정도 들지만 더 비싼 것을 가리킬 때가 많다.",
                                      vi: "Đá quý nói chung. Pha lê cũng tính, nhưng thường chỉ thứ đắt hơn.")])
+        related.append(["word": "珠寶", "kind": "rel", "reading": "ㄓㄨ ㄅㄠˇ",
+                        "gloss": pick("ジュエリー", en: "jewelry", zh: "珠寶", es: "joyería", ko: "주얼리", vi: "trang sức"),
+                        "note": pick("ジュエリー全般。水晶手鍊よりも高級な貴金属製品を指す傾向がある。",
+                                     en: "Jewelry in general; it tends to mean precious-metal pieces, pricier than a 水晶手鍊.",
+                                     zh: "泛指珠寶首飾，多半指比水晶手鍊更貴的貴金屬飾品。",
+                                     es: "Joyería en general; suele indicar piezas de metal precioso, más caras que un 水晶手鍊.",
+                                     ko: "주얼리 전반. 水晶手鍊보다 비싼 귀금속 제품을 가리키는 경향이 있다.",
+                                     vi: "Trang sức nói chung; thường chỉ đồ kim loại quý, đắt hơn 水晶手鍊.")])
         related.append(["word": "手錶", "kind": "rel", "reading": "ㄕㄡˇ ㄅㄧㄠˇ",
                         "gloss": pick("腕時計", en: "watch", zh: "手錶", es: "reloj", ko: "손목시계", vi: "đồng hồ đeo tay"),
                         "note": pick("腕時計。ブレスレットと一緒に重ね付けされることが多い。",

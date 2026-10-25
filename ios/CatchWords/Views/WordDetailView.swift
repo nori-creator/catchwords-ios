@@ -1115,7 +1115,9 @@ struct WordDetailView: View {
         case .relatedWords: relatedCard(extras?.allRelated ?? [])
         // 台湾メモ: a ruled notebook page, one sentence a paragraph (§7).
         case .taiwanNote:
-            SectionCard(title: s.title(for: learningLang), icon: s.icon) {
+            // The memo is a UILabel (fixed line height): UIKit views cannot be drawn into the regenerate dust's Metal
+            // layer effect — the card showed SwiftUI's yellow "unsupported" sign instead of the text (CI 2026-10-25).
+            SectionCard(title: s.title(for: learningLang), icon: s.icon, supportsLayerEffects: false) {
                 RuledMemo(text: taiwanText)
             }
         case .realUsage: realUsageCard
@@ -1376,8 +1378,10 @@ struct WordDetailView: View {
     /// The colours' names under the chunks: only the parts of speech of the boxed words that occur (the word itself and
     /// the glue are black, with no box, and are not named — §3).
     private var chunkLegend: some View {
+        // 名詞 always (版25): the word itself is a noun (every word in the app is — owner 2026-10-20) and is blue in the
+        // examples; then the parts of speech of the words used with it.
         let kinds = Set(chunks.flatMap(\.parts).filter { ChunkRules.role($0, headword: headword, target: learningLang) == .partner }
-            .map { ChunkKind(pos: $0.pos) })
+            .map { ChunkKind(pos: $0.pos) }).union([.noun])
         let shown = ChunkKind.allCases.filter { kinds.contains($0) }
         return HStack(spacing: 12) {
             ForEach(shown, id: \.self) { k in
