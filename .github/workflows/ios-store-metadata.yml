@@ -3,7 +3,7 @@
 # 何をするか:
 #   ios/metadata の文言（説明文・キーワード・サブタイトル・宣伝文・サポート URL など）と、
 #   docs/app-store/review-notes.en.txt（審査メモ = App Review Information の Notes）を、
-#   App Store Connect の版 1.0.0 に入れる（scripts/asc_push_metadata.py）。
+#   App Store Connect の版 1.0.4 に入れる（scripts/asc_push_metadata.py）。
 #   審査用アカウント・連絡先・ビルド・価格・配信国には触らず、審査にも出さない。
 #
 # 使い方: GitHub → Actions →「App Store metadata（文言を入れる）」→ Run workflow
@@ -73,7 +73,7 @@ jobs:
           extra=""
           [ "$NOTES" = "true" ] && extra="--notes docs/app-store/review-notes.en.txt"
           [ "$APPLY" = "true" ] && extra="$extra --apply"
-          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/asc_push_metadata.py com.nori.catchwords ios/metadata 1.0.0 $extra \
+          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/asc_push_metadata.py com.nori.catchwords ios/metadata 1.0.4 $extra \
             | tee "$RUNNER_TEMP/out/plan.md"
           status=$?
           cat "$RUNNER_TEMP/out/plan.md" >> "$GITHUB_STEP_SUMMARY"
