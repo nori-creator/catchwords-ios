@@ -1836,15 +1836,17 @@ private struct MapPreview: View {
 private enum DiaryFixtures {
     static func seed(_ dex: DexStore) {
         let now = Date()
-        let noodles = sticker("diary-noodles", "鐵板麵", zhuyin: "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ", hue: 0.08, at: now.addingTimeInterval(-3 * 3600),
+        // Times inside today and yesterday whatever the hour CI runs at (3 hours ago was yesterday before 3 a.m.).
+        let today = Calendar.current.startOfDay(for: now)
+        let noodles = sticker("diary-noodles", "鐵板麵", zhuyin: "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ", hue: 0.08, at: today.addingTimeInterval(8 * 3600),
                               place: "早餐店",
                               formulas: [[("點", "V"), ("一份", "M"), ("鐵板麵", "N")], [("鐵板麵", "N"), ("很", "Adv"), ("香", "Vs")]])
-        let mango = sticker("diary-mango", "芒果", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ", hue: 0.12, at: now.addingTimeInterval(-50 * 60),
+        let mango = sticker("diary-mango", "芒果", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ", hue: 0.12, at: today.addingTimeInterval(15 * 3600),
                             place: "水果攤", formulas: [[("芒果", "N"), ("很", "Adv"), ("甜", "Vs")]])
-        let yesterday = now.addingTimeInterval(-86_400)
-        let tea = sticker("diary-tea", "珍珠奶茶", zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", hue: 0.07, at: yesterday.addingTimeInterval(-2 * 3600),
+        let yesterday = today.addingTimeInterval(-86_400)
+        let tea = sticker("diary-tea", "珍珠奶茶", zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", hue: 0.07, at: yesterday.addingTimeInterval(16 * 3600),
                           place: "飲料店", formulas: [[("一杯", "M"), ("珍珠奶茶", "N")]])
-        let umbrella = sticker("diary-umbrella", "雨傘", zhuyin: "ㄩˇ ㄙㄢˇ", hue: 0.62, at: yesterday.addingTimeInterval(-3600),
+        let umbrella = sticker("diary-umbrella", "雨傘", zhuyin: "ㄩˇ ㄙㄢˇ", hue: 0.62, at: yesterday.addingTimeInterval(9 * 3600),
                                place: "捷運站", formulas: [[("帶", "V"), ("雨傘", "N")]])
         dex.stickers = [mango, noodles, umbrella, tea]
         dex.hasLoaded = true
@@ -2018,7 +2020,9 @@ private struct SpreadPreview: View {
             .environment(\.colorScheme, .light)
             .frame(width: Self.canvas.width, height: Self.canvas.height)
             .scaleEffect(scale, anchor: .topLeading)
-            .frame(width: geo.size.width, height: Self.canvas.height * scale)
+            // The canvas is wider than the screen: pinned to the leading edge (centred, its scaled copy would sit off
+            // the left of the screen and only its right quarter would show).
+            .frame(width: geo.size.width, height: Self.canvas.height * scale, alignment: .topLeading)
             .frame(maxHeight: .infinity)
         }
         .background(Color.black)
@@ -2092,7 +2096,7 @@ private struct DuoCanvas<Content: View>: View {
                 .frame(width: Self.canvas.width, height: Self.canvas.height)
                 .clipped()
                 .scaleEffect(scale, anchor: .topLeading)
-                .frame(width: geo.size.width, height: Self.canvas.height * scale)
+                .frame(width: geo.size.width, height: Self.canvas.height * scale, alignment: .topLeading)
                 .frame(maxHeight: .infinity)
         }
         .background(Color.black)
