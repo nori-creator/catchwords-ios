@@ -52,6 +52,25 @@ final class PraiseScheduleTests: XCTestCase {
         XCTAssertEqual(PraiseMoment.options(standing: few, headword: "芒果", totalWords: 3, start: nil).map(\.kind), [.totalWords])  // l10n-ignore (target word)
     }
 
+    func testTheBiggerSoundingFigureIsShown() {
+        func r(_ rank: Int, _ top: Int) -> MyStanding.Rank { .init(rank: rank, total: 100, topPercent: top, count: 1) }
+        XCTAssertTrue(PraiseMoment.prefersRank(r(2, 2)))      // 2位 over 上位2%
+        XCTAssertFalse(PraiseMoment.prefersRank(r(5, 5)))     // 上位5% over 5位
+        XCTAssertTrue(PraiseMoment.prefersRank(r(7, 20)))     // 7位 over 上位20%
+        XCTAssertFalse(PraiseMoment.prefersRank(r(15, 15)))   // 上位15% over 15位
+        // Third of only five people is still shown: a podium place.
+        XCTAssertTrue(PraiseMoment.flatters(.init(rank: 3, total: 5, topPercent: 60, count: 1)))
+    }
+
+    func testRetentionIsAPlaceWithItsDetail() {
+        let s = MyStanding(words: nil, activeDays: nil,
+                           retention: .init(rank: 2, total: 40, topPercent: 5, count: 86, active: 30, days: 35),
+                           category: nil, firstCatcher: false)
+        let m = PraiseMoment.options(standing: s, headword: "", totalWords: 10, start: nil).first
+        XCTAssertEqual(m?.kind, .retentionTop)
+        XCTAssertEqual(m?.to, 2)
+    }
+
     func testPickAvoidsTheLastKinds() {
         let opts = PraiseMoment.options(standing: nil, headword: "", totalWords: 10,
                                         start: Date().addingTimeInterval(-70 * day))

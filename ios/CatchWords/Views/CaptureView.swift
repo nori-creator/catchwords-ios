@@ -662,13 +662,15 @@ struct CaptureView: View {
                           goal: CatchGoal.make(headword: want.headword, stickers: dex.stickers, lang: NativeAPI.targetLanguage))
         // This screen goes away with the tab: the background save holds what it needs itself.
         let model = vm, store = dex, planStore = plan, nav = router
+        // The cut-out of this catch, for a praise that says the learner was the first to catch it.
+        let cutout = vm.cutout ?? vm.stickerFallback()
         Task {
             try? await Task.sleep(for: .milliseconds(700))
             model.reset()
         }
         Task {
             await Self.finishSave(draft, provisional: local.sticker.id, ts: local.ts, pendingId: pendingId,
-                                  cardLater: cardLater, dex: store, plan: planStore, router: nav)
+                                  cardLater: cardLater, cutout: cutout, dex: store, plan: planStore, router: nav)
         }
         return true
     }
@@ -750,7 +752,7 @@ struct CaptureView: View {
     /// filled into the saved word when it arrives (a card that fails leaves the word as saved — the detail page
     /// writes the notes when it is opened, as for any word without them).
     private static func finishSave(_ draft: CatchDraft, provisional: String, ts: Int, pendingId: String?,
-                                   cardLater: Task<CardDetails?, Never>? = nil,
+                                   cardLater: Task<CardDetails?, Never>? = nil, cutout: UIImage? = nil,
                                    dex: DexStore, plan: PlanStore, router: AppRouter) async {
         do {
             let outcome = try await dex.save(draft, ts: ts, replacing: provisional, holdCategory: true) { saved in
@@ -769,7 +771,7 @@ struct CaptureView: View {
             }
             // A new word: the praise flow decides whether this one is praised (rarely) or asks for a review.
             if case .created(let saved) = outcome {
-                router.caughtNew = CaughtWord(wordId: saved.wordId, headword: draft.candidate.headword)
+                router.caughtNew = CaughtWord(wordId: saved.wordId, headword: draft.candidate.headword, image: cutout)
             }
             if let cardLater, case .created(let saved) = outcome, !saved.wordId.isEmpty {
                 Task { if let card = await cardLater.value { await dex.fillCard(wordId: saved.wordId, card: card) } }

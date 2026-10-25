@@ -15,6 +15,8 @@ struct PraiseCelebrationView: View {
     @State private var phase: Phase = .count
     @State private var value: Int
     @State private var task: Task<Void, Never>?
+    /// The caught thing's cut-out has popped in (first catcher).
+    @State private var imageIn = false
 
     init(moment: PraiseMoment, onDone: @escaping () -> Void) {
         self.moment = moment
@@ -37,6 +39,20 @@ struct PraiseCelebrationView: View {
             Confetti(active: phase != .count && !reduceMotion)
                 .ignoresSafeArea()
             VStack(spacing: 12) {
+                if let image = moment.image {
+                    // The thing the learner was first to catch, lifted out of the photo (owner 2026-10-25).
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 180, maxHeight: 180)
+                        .shadow(color: .black.opacity(0.45), radius: 14, y: 8)
+                        .shadow(color: Theme.gold.opacity(phase == .count ? 0 : 0.55), radius: 28)
+                        .scaleEffect(imageIn ? (phase == .burst ? 1.06 : 1) : 0.3)
+                        .rotationEffect(.degrees(imageIn ? 0 : -12))
+                        .opacity(imageIn ? 1 : 0)
+                        .padding(.bottom, 6)
+                        .accessibilityHidden(true)
+                }
                 Text(kicker)
                     .font(.system(size: 15, weight: .bold))
                     .tracking(4)
@@ -94,10 +110,14 @@ struct PraiseCelebrationView: View {
 
     private func run() {
         if reduceMotion {
-            value = moment.to; phase = .ready
+            value = moment.to; phase = .ready; imageIn = true
             return
         }
         task = Task { @MainActor in
+            if moment.image != nil {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { imageIn = true }
+                Haptics.impact(.light)
+            }
             try? await Task.sleep(for: .milliseconds(250))
             // 1) The number counts to the learner's place (ease-out: it slows before the end — one beat of suspense).
             let distance = abs(moment.to - moment.from)
@@ -129,7 +149,7 @@ struct PraiseCelebrationView: View {
         guard phase != .leaving else { return }
         if phase != .ready {
             task?.cancel()
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { value = moment.to; phase = .ready }
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { value = moment.to; phase = .ready; imageIn = true }
             return
         }
         Haptics.impact(.medium)
@@ -170,7 +190,8 @@ enum PraiseFlow {
             // Read while the landing plays; offline or a slow answer leaves the learner's own counts.
             let input: [String: Any] = caught.wordId.isEmpty ? [:] : ["word_id": caught.wordId]
             let standing = try? await NativeAPI.call("getMyStanding", input, as: MyStanding.self, timeout: 8, asUser: uid)
-            let options = PraiseMoment.options(standing: standing, headword: caught.headword, totalWords: total, start: start)
+            let options = PraiseMoment.options(standing: standing, headword: caught.headword, totalWords: total, start: start,
+                                               image: caught.image)
             guard let moment = PraiseMoment.pick(options, recent: schedule.recentKinds) else { return }
             // Still covered (a word sheet, the paywall…): this praise is skipped, and the next catch may bring one.
             guard await waitForCalm(router), SupabaseClient.shared.userId == uid, router.praise == nil else { return }
@@ -201,4 +222,6 @@ struct CaughtWord: Equatable {
     let id = UUID()
     let wordId: String
     let headword: String
+    /// The cut-out of the thing caught (or the photo when it could not be cut out).
+    var image: UIImage? = nil
 }

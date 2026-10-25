@@ -4,7 +4,13 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { readAllPages } from "./pagination";
 import { taipeiDay } from "./taipei-day";
-import { countByUser, distinctDaysByUser, standingOf, type Standing } from "./standing";
+import {
+  countByUser,
+  distinctDaysByUser,
+  retentionByUser,
+  standingOf,
+  type Standing,
+} from "./standing";
 
 /**
  * **全利用者の中での自分の位置**（iOS の「ほめる演出」。オーナー指示 2026-10-25）。
@@ -17,6 +23,7 @@ import { countByUser, distinctDaysByUser, standingOf, type Standing } from "./st
  *
  * - `words`: 集めた語の数（札の数）の順位
  * - `activeDays`: 使った日（撮った日か復習した日。台湾の暦日）の数の順位 — 「続けている」ことの順位
+ * - `retention`: 継続率（使い始めてからの日数のうち使った日の割合）の順位。使い始めて7日以上の人だけで比べる
  * - `category`: 今集めた語と同じ分類（`category_key`）の語の数の順位（例: 食べ物）
  * - `firstCatcher`: 今集めた語を、自分より前に集めた人がいない（全利用者の中で最初）
  */
@@ -30,6 +37,10 @@ const Input = z.object({
 export type MyStanding = {
   words: (Standing & { count: number }) | null;
   activeDays: (Standing & { count: number }) | null;
+  /** `count` は継続率（%）。`active` 日 ÷ `days` 日。 */
+  retention:
+    | (Standing & { count: number; active: number; days: number })
+    | null;
   category: (Standing & { count: number; key: string }) | null;
   firstCatcher: boolean;
 };
@@ -41,7 +52,8 @@ export const getMyStanding = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => Input.parse(input ?? {}))
   .handler(async ({ context, data }): Promise<MyStanding> => {
     const { userId } = context;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } =
+      await import("@/integrations/supabase/client.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabaseAdmin as any;
 
@@ -56,7 +68,7 @@ export const getMyStanding = createServerFn({ method: "POST" })
       categoryKey = (w?.category_key as string | null) ?? null;
     }
 
-    const [stickers, reviewed] = await Promise.all([
+    const [stickers, reviewed, profiles] = await Promise.all([
       readAllPages<{
         user_id: string;
         word_id: string;
@@ -73,22 +85,59 @@ export const getMyStanding = createServerFn({ method: "POST" })
         READ,
       ),
       readAllPages<{ user_id: string; reviewed_at: string }>(
-        (a, b) => db.from("review_history").select("user_id, reviewed_at").order("id").range(a, b),
+        (a, b) =>
+          db
+            .from("review_history")
+            .select("user_id, reviewed_at")
+            .order("id")
+            .range(a, b),
+        READ,
+      ),
+      readAllPages<{ id: string; created_at: string }>(
+        (a, b) =>
+          db.from("profiles").select("id, created_at").order("id").range(a, b),
         READ,
       ),
     ]);
-    if (stickers.truncated || reviewed.truncated) {
-      console.warn("[getMyStanding] read was cut short; the ranks are approximate");
+    if (stickers.truncated || reviewed.truncated || profiles.truncated) {
+      console.warn(
+        "[getMyStanding] read was cut short; the ranks are approximate",
+      );
     }
 
     const wordCounts = countByUser(stickers.rows);
     const myWords = wordCounts.get(userId) ?? 0;
 
     const days = distinctDaysByUser([
-      ...stickers.rows.map((s) => ({ user_id: s.user_id, day: taipeiDay(s.created_at) })),
-      ...reviewed.rows.map((r) => ({ user_id: r.user_id, day: taipeiDay(r.reviewed_at) })),
+      ...stickers.rows.map((s) => ({
+        user_id: s.user_id,
+        day: taipeiDay(s.created_at),
+      })),
+      ...reviewed.rows.map((r) => ({
+        user_id: r.user_id,
+        day: taipeiDay(r.reviewed_at),
+      })),
     ]);
     const myDays = days.get(userId) ?? 0;
+
+    const retention = retentionByUser(
+      days,
+      new Map(profiles.rows.map((p) => [p.id, taipeiDay(p.created_at)])),
+      taipeiDay(new Date()),
+    );
+    const myRetention = retention.get(userId) ?? null;
+    let retentionStanding: MyStanding["retention"] = null;
+    if (myRetention) {
+      const rates = new Map([...retention].map(([uid, r]) => [uid, r.rate]));
+      const s = standingOf(myRetention.rate, rates, userId);
+      if (s)
+        retentionStanding = {
+          ...s,
+          count: myRetention.rate,
+          active: myRetention.active,
+          days: myRetention.days,
+        };
+    }
 
     let category: MyStanding["category"] = null;
     if (categoryKey) {
@@ -106,9 +155,13 @@ export const getMyStanding = createServerFn({ method: "POST" })
       const same = stickers.rows.filter((s) => s.word_id === data.word_id);
       const mineFirst = same
         .filter((s) => s.user_id === userId)
-        .reduce<string | null>((m, s) => (m == null || s.created_at < m ? s.created_at : m), null);
+        .reduce<
+          string | null
+        >((m, s) => (m == null || s.created_at < m ? s.created_at : m), null);
       if (mineFirst != null) {
-        firstCatcher = !same.some((s) => s.user_id !== userId && s.created_at < mineFirst);
+        firstCatcher = !same.some(
+          (s) => s.user_id !== userId && s.created_at < mineFirst,
+        );
       }
     }
 
@@ -117,6 +170,7 @@ export const getMyStanding = createServerFn({ method: "POST" })
     return {
       words: ws ? { ...ws, count: myWords } : null,
       activeDays: ds ? { ...ds, count: myDays } : null,
+      retention: retentionStanding,
       category,
       firstCatcher,
     };

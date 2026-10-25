@@ -36,7 +36,10 @@ export function standingOf(
     if (n > mine) above += 1;
   }
   const rank = above + 1;
-  const topPercent = Math.min(100, Math.max(1, Math.ceil((rank / total) * 100)));
+  const topPercent = Math.min(
+    100,
+    Math.max(1, Math.ceil((rank / total) * 100)),
+  );
   return { rank, total, topPercent };
 }
 
@@ -48,7 +51,9 @@ export function countByUser(rows: { user_id: string }[]): Map<string, number> {
 }
 
 /** 利用者ごとの「使った日」（日付の文字列）の数。同じ日に何回使っても1日。 */
-export function distinctDaysByUser(rows: { user_id: string; day: string }[]): Map<string, number> {
+export function distinctDaysByUser(
+  rows: { user_id: string; day: string }[],
+): Map<string, number> {
   const days = new Map<string, Set<string>>();
   for (const r of rows) {
     let s = days.get(r.user_id);
@@ -56,4 +61,32 @@ export function distinctDaysByUser(rows: { user_id: string; day: string }[]): Ma
     s.add(r.day);
   }
   return new Map([...days].map(([uid, s]) => [uid, s.size]));
+}
+
+/** 継続率を比べるのは、使い始めてこの日数以上の人だけ（1日目の人は誰でも 100% になるため）。 */
+export const RETENTION_MIN_DAYS = 7;
+
+/**
+ * **継続率**（オーナー指示 2026-10-25「継続率が全ユーザーの何位何％タイプも入れて」）:
+ * 使い始めた日（台湾の暦日）から今日までの日数のうち、使った日（撮った日か復習した日）の割合（%、0〜100）。
+ * 使い始めて `RETENTION_MIN_DAYS` 日未満の人は入れない。
+ */
+export function retentionByUser(
+  activeDays: Map<string, number>,
+  startDay: Map<string, string>,
+  today: string,
+): Map<string, { rate: number; active: number; days: number }> {
+  const out = new Map<string, { rate: number; active: number; days: number }>();
+  const dayMs = 86_400_000;
+  const t = Date.parse(`${today}T00:00:00Z`);
+  for (const [uid, start] of startDay) {
+    const s = Date.parse(`${start}T00:00:00Z`);
+    if (!Number.isFinite(s) || !Number.isFinite(t)) continue;
+    const days = Math.floor((t - s) / dayMs) + 1;
+    if (days < RETENTION_MIN_DAYS) continue;
+    const active = Math.min(days, activeDays.get(uid) ?? 0);
+    if (active <= 0) continue;
+    out.set(uid, { rate: Math.round((active / days) * 100), active, days });
+  }
+  return out;
 }

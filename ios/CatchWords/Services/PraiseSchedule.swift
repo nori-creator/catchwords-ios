@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// When the app praises the learner after a catch, and when it then asks for an App Store review (owner 2026-10-25:
 /// 「ランダムで…ユーザーを褒める…祝福のアニメーション」「頻繁にその演出を出すと慣れるから、必ず頻度を絞って」「褒めた後に…
@@ -105,16 +106,20 @@ nonisolated struct MyStanding: Decodable, Equatable {
         let topPercent: Int
         let count: Int
         var key: String? = nil
+        /// Retention only: the days used (`active`) out of the days since the start (`days`); `count` is the rate (%).
+        var active: Int? = nil
+        var days: Int? = nil
     }
     let words: Rank?
     let activeDays: Rank?
+    var retention: Rank? = nil
     let category: Rank?
     let firstCatcher: Bool
 }
 
 /// What one praise says. Built from the standing (when the server answered) and what the device knows.
 nonisolated struct PraiseMoment: Identifiable, Equatable {
-    enum Kind: String, CaseIterable { case firstCatcher, wordsTop, daysTop, categoryTop, totalWords, months }
+    enum Kind: String, CaseIterable { case firstCatcher, wordsTop, daysTop, retentionTop, categoryTop, totalWords, months }
 
     let id = UUID()
     let kind: Kind
@@ -127,19 +132,49 @@ nonisolated struct PraiseMoment: Identifiable, Equatable {
     let format: @Sendable (Int) -> String
     /// The line under the number.
     let caption: String
-    /// What the learner did to get here (praise the effort, not the person — Mueller & Dweck 1998), or the next goal.
+    /// What the learner did to get here (praise the effort, not the person — Mueller & Dweck 1998), or the detail
+    /// behind the number.
     let note: String
+    /// The first catcher: the cut-out of the thing just caught, shown above the words (owner 2026-10-25).
+    var image: UIImage? = nil
 
     static func == (a: PraiseMoment, b: PraiseMoment) -> Bool { a.id == b.id }
 
     /// A comparison with others is shown only when it flatters and means something: at least `minPeople` to compare
-    /// with, and the learner in the top `maxTopPercent` (social comparison lifts only when it goes your way —
-    /// Festinger 1954; a vague "you're great" convinces less than a true, specific number).
+    /// with, and the learner in the top `maxTopPercent` or among the first `maxRank` (social comparison lifts only when
+    /// it goes your way — Festinger 1954; a vague "you're great" convinces less than a true, specific number).
     static let minPeople = 5
     static let maxTopPercent = 30
+    static let maxRank = 3
 
-    /// The praises this catch could show, strongest first.
-    static func options(standing: MyStanding?, headword: String, totalWords: Int, start: Date?, now: Date = Date()) -> [PraiseMoment] {
+    static func flatters(_ r: MyStanding.Rank) -> Bool {
+        r.total >= minPeople && (r.topPercent <= maxTopPercent || r.rank <= maxRank)
+    }
+
+    /// Rank or top %: whichever sounds bigger (owner 2026-10-25: 「何位と何%はユーザーが嬉しいと思う、すごいと思えるほうを
+    /// 優先して」). A podium place (1st–3rd) is the rank; then a top 10% or better is the %; then a place in the first ten
+    /// is the rank; otherwise the %.
+    static func prefersRank(_ r: MyStanding.Rank) -> Bool {
+        if r.rank <= 3 { return true }
+        if r.topPercent <= 10 { return false }
+        return r.rank <= 10
+    }
+
+    /// The big number for a place among all users, and the other figure as the line under it.
+    private static func place(_ kind: Kind, _ r: MyStanding.Rank, title: String, note: String) -> PraiseMoment {
+        if prefersRank(r) {
+            return PraiseMoment(kind: kind, from: min(r.total, 50), to: r.rank, title: title,
+                                format: { L("\($0)位") },
+                                caption: L("全ユーザーの上位\(r.topPercent)%"), note: note)
+        }
+        return PraiseMoment(kind: kind, from: 100, to: r.topPercent, title: title,
+                            format: { L("上位\($0)%") },
+                            caption: r.rank <= 100 ? L("全ユーザーの中で\(r.rank)位") : L("全ユーザーの中で"), note: note)
+    }
+
+    /// The praises this catch could show, strongest first. `image`: the cut-out of the word just caught.
+    static func options(standing: MyStanding?, headword: String, totalWords: Int, start: Date?, image: UIImage? = nil,
+                        now: Date = Date()) -> [PraiseMoment] {
         var out: [PraiseMoment] = []
         let note = effortNote(totalWords)
         if let s = standing {
@@ -148,32 +183,22 @@ nonisolated struct PraiseMoment: Identifiable, Equatable {
                                         title: L("「\(headword)」を獲得したのは"),
                                         format: { L("\($0)人目") },
                                         caption: L("全ユーザーの中で、あなたが初めてです"),
-                                        note: note))
+                                        note: note, image: image))
             }
-            if let w = s.words, w.total >= minPeople, w.topPercent <= maxTopPercent {
-                out.append(PraiseMoment(kind: .wordsTop, from: 100, to: w.topPercent,
-                                        title: L("集めた単語の数は"),
-                                        format: { L("上位\($0)%") },
-                                        caption: w.rank <= 100 ? L("全ユーザーの中で\(w.rank)位") : L("全ユーザーの中で"),
-                                        note: note))
+            if let w = s.words, flatters(w) {
+                out.append(place(.wordsTop, w, title: L("集めた単語の数は"), note: note))
             }
-            if let d = s.activeDays, d.total >= minPeople, d.topPercent <= maxTopPercent {
-                let byRank = d.rank <= 10
-                let rankText: @Sendable (Int) -> String = { L("\($0)位") }
-                let topText: @Sendable (Int) -> String = { L("上位\($0)%") }
-                out.append(PraiseMoment(kind: .daysTop, from: byRank ? min(d.total, 50) : 100, to: byRank ? d.rank : d.topPercent,
-                                        title: L("学んだ日数は"),
-                                        format: byRank ? rankText : topText,
-                                        caption: L("\(d.count)日、続けてきました"),
-                                        note: L("続けてきたことが、いちばんの力です")))
+            if let r = s.retention, flatters(r), let active = r.active, let days = r.days {
+                out.append(place(.retentionTop, r, title: L("継続率は"),
+                                 note: L("継続率\(r.count)%（\(days)日のうち\(active)日学びました）")))
             }
-            if let c = s.category, let key = c.key, c.total >= minPeople, c.count >= 3, c.topPercent <= maxTopPercent {
+            if let d = s.activeDays, flatters(d) {
+                out.append(place(.daysTop, d, title: L("学んだ日数は"), note: L("\(d.count)日、続けてきました")))
+            }
+            if let c = s.category, let key = c.key, c.count >= 3, flatters(c) {
                 let label = Category.label(for: key)
-                out.append(PraiseMoment(kind: .categoryTop, from: 100, to: c.topPercent,
-                                        title: L("\(label)の単語の数は"),
-                                        format: { L("上位\($0)%") },
-                                        caption: L("\(label)の単語を\(c.count)語集めました"),
-                                        note: note))
+                out.append(place(.categoryTop, c, title: L("\(label)の単語の数は"),
+                                 note: L("\(label)の単語を\(c.count)語集めました")))
             }
         }
         if let start {
@@ -205,7 +230,7 @@ nonisolated struct PraiseMoment: Identifiable, Equatable {
         if let first = pool.first(where: { $0.kind == .firstCatcher }), roll < 0.6 { return first }
         let weighted = pool.flatMap { m -> [PraiseMoment] in
             switch m.kind {
-            case .wordsTop, .daysTop, .categoryTop, .firstCatcher: [m, m]
+            case .wordsTop, .daysTop, .retentionTop, .categoryTop, .firstCatcher: [m, m]
             case .totalWords, .months: [m]
             }
         }

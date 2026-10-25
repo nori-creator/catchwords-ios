@@ -353,8 +353,11 @@ struct SettingsView: View {
             var input: [String: Any] = [:]
             if let id = latest?.wordId, !id.isEmpty { input["word_id"] = id }
             let standing = try? await NativeAPI.call("getMyStanding", input, as: MyStanding.self, timeout: 10)
+            // The latest word's cut-out as the camera would hand it (only from what this phone already keeps).
+            var image: UIImage?
+            if let path = latest?.cutoutImageUrl ?? latest?.heroPath { image = await ImageCache.shared.cached(for: path) }
             let options = PraiseMoment.options(standing: standing, headword: latest?.word?.headword ?? "",
-                                               totalWords: dex.stickers.count, start: profile.createdAt)
+                                               totalWords: dex.stickers.count, start: profile.createdAt, image: image)
             praiseTrial = PraiseMoment.pick(options, recent: [])
         }
     }

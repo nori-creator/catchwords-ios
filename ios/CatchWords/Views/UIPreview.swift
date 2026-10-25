@@ -107,8 +107,9 @@ struct UIPreviewRoot: View {
             case "hero": HeroPickerPreview()
             case "memorial": MemorialPreview()
             // The praise after a catch (owner 2026-10-25): a top % among all users, and the first to catch a word.
-            case "praise": PraisePreview(first: false)
-            case "praise-first": PraisePreview(first: true)
+            case "praise": PraisePreview(kind: .wordsTop)
+            case "praise-first": PraisePreview(kind: .firstCatcher)
+            case "praise-retention": PraisePreview(kind: .retentionTop)
             // The system's rating sheet asked on the word after a praise (in a debug build iOS always shows it).
             case "review-ask": ReviewAskPreview()
             case "carousel": CarouselPreview()
@@ -689,13 +690,16 @@ private struct MemorialPreview: View {
 }
 /// The praise after a catch (`PraiseCelebrationView`), from a made-up standing.
 private struct PraisePreview: View {
-    let first: Bool
+    let kind: PraiseMoment.Kind
 
     var body: some View {
         let standing = MyStanding(words: .init(rank: 4, total: 120, topPercent: 4, count: 86),
-                                  activeDays: nil, category: nil, firstCatcher: first)
-        let options = PraiseMoment.options(standing: standing, headword: "芒果", totalWords: 86, start: nil)  // l10n-ignore (target word)
-        if let moment = options.first(where: { $0.kind == (first ? PraiseMoment.Kind.firstCatcher : PraiseMoment.Kind.wordsTop) }) {
+                                  activeDays: nil,
+                                  retention: .init(rank: 2, total: 120, topPercent: 2, count: 86, active: 30, days: 35),
+                                  category: nil, firstCatcher: kind == .firstCatcher)
+        let options = PraiseMoment.options(standing: standing, headword: "芒果", totalWords: 86, start: nil,  // l10n-ignore (target word)
+                                           image: PreviewFixtures.subject)
+        if let moment = options.first(where: { $0.kind == kind }) {
             PraiseCelebrationView(moment: moment) {}
                 .uiReady("preview")
         }

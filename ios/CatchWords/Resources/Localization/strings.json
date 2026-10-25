@@ -8902,5 +8902,26 @@
   "es": "Probar el elogio y la ventana de reseña",
   "ko": "칭찬 연출과 리뷰 화면 체험하기",
   "vi": "Thử hiệu ứng khen và màn hình đánh giá"
+ },
+ "全ユーザーの上位{1}%": {
+  "en": "Top {1}% of all users",
+  "zh-TW": "所有使用者中的前 {1}%",
+  "es": "El {1}% superior de todos los usuarios",
+  "ko": "전체 사용자 중 상위 {1}%",
+  "vi": "Nhóm {1}% đầu trong tất cả người dùng"
+ },
+ "継続率{1}%（{2}日のうち{3}日学びました）": {
+  "en": "Consistency {1}% (you studied {3} of {2} days)",
+  "zh-TW": "持續率 {1}%（{2} 天中學習了 {3} 天）",
+  "es": "Constancia del {1}% (estudiaste {3} de {2} días)",
+  "ko": "지속률 {1}% ({2}일 중 {3}일 공부했어요)",
+  "vi": "Tỷ lệ duy trì {1}% (bạn đã học {3} trên {2} ngày)"
+ },
+ "継続率は": {
+  "en": "Your consistency",
+  "zh-TW": "你的持續率",
+  "es": "Tu constancia",
+  "ko": "지속률은",
+  "vi": "Tỷ lệ duy trì của bạn"
  }
 }
