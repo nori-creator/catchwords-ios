@@ -391,7 +391,7 @@ struct MemorialReveal: View {
 }
 
 /// Slowly turning light rays behind the number.
-private struct Rays: View {
+struct Rays: View {
     /// False while the rays are hidden or Reduce Motion is on: the timeline stops redrawing every frame.
     var turning: Bool = true
 

@@ -1,30 +1,15 @@
 import Foundation
 
-/// 設定 › 開発者 › 開発者の試し: an alternative a developer can see on the device before it ships. Only the camera tab's
-/// look is left (the sound choices were decided, owner 2026-10-16). A plain UserDefaults key, read where the bar is
-/// drawn; nothing here reaches the server.
+/// 設定 › 開発者 › 開発者の試し was where a developer compared an alternative look on the device before it shipped. Every
+/// trial is decided now (the sounds 2026-10-16/20, the shutter 2026-10-21, the camera disc 2026-10-25: 「開発者の試しの
+/// 下のバーのカメラを浮いた丸に変更して」), so the trials section is gone and only the clean-up of their stored keys is left.
 nonisolated enum DevChoices {
-    /// The camera item of the tab bar. "original" (the default, and the only shipped look): the bar as it was before
-    /// 2026-10-15, the blue camera icon in the row. "b": the blue disc raised above the bar's edge, kept for a later
-    /// release (docs/backlog.md). A new key (2026-10-16): the owner's iPad still held "b" from the trial under the old
-    /// key and showed the raised disc; that key is removed once at launch (`migrate`), so B shows only if picked again.
-    static let tabBarKey = "dev.tabbar.choice.v2"
-    static let tabBarDefault = "original"
-    static let tabBarRaised = "b"
-    /// The keys of the earlier trials (the old tab-bar choice, the sound choices, the 設定 wheel and the shutter —
-    /// decided, owner 2026-10-20: sound A and the app's own wheel; 2026-10-21: shutter B), removed at launch.
-    static let retiredKeys = ["dev.tabbar.variant", "dev.sfx.timeline", "dev.sfx.picker", "dev.sfx.settings", "dev.settings.wheel",
-                              "dev.sfx.shutter"]
+    /// The keys of the earlier trials (the tab-bar choices, the sound choices, the 設定 wheel and the shutter), removed
+    /// at launch.
+    static let retiredKeys = ["dev.tabbar.variant", "dev.tabbar.choice.v2", "dev.sfx.timeline", "dev.sfx.picker",
+                              "dev.sfx.settings", "dev.settings.wheel", "dev.sfx.shutter"]
 
-    static var tabBar: String {
-        UserDefaults.standard.string(forKey: tabBarKey) == tabBarRaised ? tabBarRaised : tabBarDefault
-    }
-
-    /// The simulator previews (`-uiPreview tabbar-b`) draw a developer's choice without an account behind them.
-    nonisolated(unsafe) static var previewing = false
-
-    /// Once per launch, before anything is drawn: the retired trial keys go (a stored "b" from the old trial never
-    /// brings the raised disc back on its own).
+    /// Once per launch, before anything is drawn: the retired trial keys go.
     static func migrate() {
         for key in retiredKeys where UserDefaults.standard.object(forKey: key) != nil {
             UserDefaults.standard.removeObject(forKey: key)

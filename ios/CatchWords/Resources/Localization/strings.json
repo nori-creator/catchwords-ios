@@ -8441,34 +8441,6 @@
   "ko": "읽는 법",
   "vi": "Cách đọc"
  },
- "開発者の試し（端末で比べて選ぶ）": {
-  "en": "Developer trials (compare on the device)",
-  "zh-TW": "開發者試用（在裝置上比較）",
-  "es": "Pruebas del desarrollador (comparar en el dispositivo)",
-  "ko": "개발자 테스트 (기기에서 비교해 선택)",
-  "vi": "Thử nghiệm của nhà phát triển (so sánh trên thiết bị)"
- },
- "下のバーのカメラ": {
-  "en": "Camera in the bottom bar",
-  "zh-TW": "底部列的相機",
-  "es": "Cámara en la barra inferior",
-  "ko": "하단 바의 카메라",
-  "vi": "Camera ở thanh dưới"
- },
- "元のデザイン": {
-  "en": "Original design",
-  "zh-TW": "原本的設計",
-  "es": "Diseño original",
-  "ko": "기존 디자인",
-  "vi": "Thiết kế gốc"
- },
- "B 浮いた丸（将来）": {
-  "en": "B Raised disc (later)",
-  "zh-TW": "B 浮起的圓形（之後）",
-  "es": "B Disco elevado (más adelante)",
-  "ko": "B 떠 있는 원 (나중에)",
-  "vi": "B Hình tròn nổi (sau này)"
- },
  "マップの一覧をスクロールする音": {
   "en": "Map list scroll sound",
   "zh-TW": "地圖列表捲動的聲音",
@@ -8769,5 +8741,187 @@
   "es": "Uso",
   "ko": "사용법",
   "vi": "Cách dùng"
+ },
+ "1枚ずつ撮り続けてきた積み重ねです": {
+  "en": "It all comes from taking one photo after another",
+  "zh-TW": "這是你一張一張拍下來的累積",
+  "es": "Es el fruto de ir haciendo foto tras foto",
+  "ko": "한 장 한 장 찍어 온 노력이 쌓인 결과예요",
+  "vi": "Đây là thành quả của từng tấm ảnh bạn đã chụp"
+ },
+ "{1}か月": {
+  "en": "{1} months",
+  "zh-TW": "{1} 個月",
+  "es": "{1} meses",
+  "ko": "{1}개월",
+  "vi": "{1} tháng"
+ },
+ "{1}の単語の数は": {
+  "en": "Your {1} words",
+  "zh-TW": "你的「{1}」單字數",
+  "es": "Tus palabras de {1}",
+  "ko": "{1} 단어 수는",
+  "vi": "Số từ chủ đề {1} của bạn"
+ },
+ "{1}の単語を{2}語集めました": {
+  "en": "You've collected {2} {1} words",
+  "zh-TW": "收集了 {2} 個「{1}」的單字",
+  "es": "Has reunido {2} palabras de {1}",
+  "ko": "{1} 단어를 {2}개 모았어요",
+  "vi": "Bạn đã thu thập {2} từ chủ đề {1}"
+ },
+ "{1}人目": {
+  "en": "No. {1}",
+  "zh-TW": "第 {1} 人",
+  "es": "N.º {1}",
+  "ko": "{1}번째",
+  "vi": "Người thứ {1}"
+ },
+ "{1}位": {
+  "en": "No. {1}",
+  "zh-TW": "第 {1} 名",
+  "es": "Puesto {1}",
+  "ko": "{1}위",
+  "vi": "Hạng {1}"
+ },
+ "{1}日、続けてきました": {
+  "en": "You've kept going for {1} days",
+  "zh-TW": "你已經持續了 {1} 天",
+  "es": "Llevas {1} días sin parar",
+  "ko": "{1}일 동안 꾸준히 해 왔어요",
+  "vi": "Bạn đã kiên trì {1} ngày"
+ },
+ "「{1}」を獲得したのは": {
+  "en": "You caught “{1}”",
+  "zh-TW": "獲得「{1}」的人之中",
+  "es": "Atrapaste «{1}»",
+  "ko": "‘{1}’를 획득한 건",
+  "vi": "Bạn đã bắt được “{1}”"
+ },
+ "これまでに獲得した単語": {
+  "en": "Words you've caught so far",
+  "zh-TW": "到目前為止獲得的單字",
+  "es": "Palabras atrapadas hasta ahora",
+  "ko": "지금까지 획득한 단어",
+  "vi": "Số từ bạn đã bắt được"
+ },
+ "すごい！": {
+  "en": "Amazing!",
+  "zh-TW": "太厲害了！",
+  "es": "¡Increíble!",
+  "ko": "대단해요!",
+  "vi": "Tuyệt vời!"
+ },
+ "やったね！": {
+  "en": "You did it!",
+  "zh-TW": "做到了！",
+  "es": "¡Lo lograste!",
+  "ko": "해냈어요!",
+  "vi": "Bạn làm được rồi!"
+ },
+ "上位{1}%": {
+  "en": "Top {1}%",
+  "zh-TW": "前 {1}%",
+  "es": "{1}% superior",
+  "ko": "상위 {1}%",
+  "vi": "Nhóm {1}% đầu"
+ },
+ "使い始めて": {
+  "en": "You've been using CatchWords for",
+  "zh-TW": "開始使用 CatchWords 已經",
+  "es": "Llevas usando CatchWords",
+  "ko": "CatchWords를 사용한 지",
+  "vi": "Bạn đã dùng CatchWords được"
+ },
+ "全ユーザーの中で": {
+  "en": "Among all users",
+  "zh-TW": "在所有使用者之中",
+  "es": "Entre todos los usuarios",
+  "ko": "전체 사용자 중에서",
+  "vi": "Trong số tất cả người dùng"
+ },
+ "全ユーザーの中で{1}位": {
+  "en": "No. {1} among all users",
+  "zh-TW": "在所有使用者中排第 {1} 名",
+  "es": "Puesto {1} entre todos los usuarios",
+  "ko": "전체 사용자 중 {1}위",
+  "vi": "Hạng {1} trong số tất cả người dùng"
+ },
+ "全ユーザーの中で、あなたが初めてです": {
+  "en": "You're the first of all users to catch it",
+  "zh-TW": "在所有使用者中，你是第一個",
+  "es": "Eres el primero de todos los usuarios en atraparla",
+  "ko": "전체 사용자 중 당신이 처음이에요",
+  "vi": "Bạn là người đầu tiên trong tất cả người dùng"
+ },
+ "学んだ日数は": {
+  "en": "Days you've studied",
+  "zh-TW": "你的學習天數",
+  "es": "Tus días de estudio",
+  "ko": "공부한 날 수는",
+  "vi": "Số ngày bạn đã học"
+ },
+ "次の目標の{1}語まで、あと{2}語": {
+  "en": "{2} more to your next goal of {1} words",
+  "zh-TW": "距離下一個目標 {1} 個單字，還差 {2} 個",
+  "es": "Faltan {2} para tu próxima meta de {1} palabras",
+  "ko": "다음 목표 {1}개까지 {2}개 남았어요",
+  "vi": "Còn {2} từ nữa là đến mục tiêu {1} từ"
+ },
+ "毎日の小さな1枚が、ここまで来ました": {
+  "en": "One small photo a day brought you here",
+  "zh-TW": "每天的一小張，累積到了這裡",
+  "es": "Una pequeña foto cada día te trajo hasta aquí",
+  "ko": "매일의 작은 한 장이 여기까지 왔어요",
+  "vi": "Mỗi ngày một tấm ảnh nhỏ đã đưa bạn đến đây"
+ },
+ "続けてきたことが、いちばんの力です": {
+  "en": "Keeping at it is your greatest strength",
+  "zh-TW": "堅持下去，就是最大的力量",
+  "es": "Ser constante es tu mayor fuerza",
+  "ko": "꾸준함이 가장 큰 힘이에요",
+  "vi": "Kiên trì chính là sức mạnh lớn nhất"
+ },
+ "身の回りのものが、少しずつ言葉になっています": {
+  "en": "Things around you are turning into words",
+  "zh-TW": "身邊的東西，正一點一點變成語言",
+  "es": "Las cosas a tu alrededor se están convirtiendo en palabras",
+  "ko": "주변의 것들이 조금씩 말이 되고 있어요",
+  "vi": "Mọi thứ quanh bạn đang dần thành từ ngữ"
+ },
+ "集めた単語の数は": {
+  "en": "Words you've collected",
+  "zh-TW": "你收集的單字數",
+  "es": "Tus palabras reunidas",
+  "ko": "모은 단어 수는",
+  "vi": "Số từ bạn đã thu thập"
+ },
+ "褒める演出とレビュー画面を試す": {
+  "en": "Try the praise and the review sheet",
+  "zh-TW": "試看看稱讚動畫與評分畫面",
+  "es": "Probar el elogio y la ventana de reseña",
+  "ko": "칭찬 연출과 리뷰 화면 체험하기",
+  "vi": "Thử hiệu ứng khen và màn hình đánh giá"
+ },
+ "全ユーザーの上位{1}%": {
+  "en": "Top {1}% of all users",
+  "zh-TW": "所有使用者中的前 {1}%",
+  "es": "El {1}% superior de todos los usuarios",
+  "ko": "전체 사용자 중 상위 {1}%",
+  "vi": "Nhóm {1}% đầu trong tất cả người dùng"
+ },
+ "継続率{1}%（{2}日のうち{3}日学びました）": {
+  "en": "Consistency {1}% (you studied {3} of {2} days)",
+  "zh-TW": "持續率 {1}%（{2} 天中學習了 {3} 天）",
+  "es": "Constancia del {1}% (estudiaste {3} de {2} días)",
+  "ko": "지속률 {1}% ({2}일 중 {3}일 공부했어요)",
+  "vi": "Tỷ lệ duy trì {1}% (bạn đã học {3} trên {2} ngày)"
+ },
+ "継続率は": {
+  "en": "Your consistency",
+  "zh-TW": "你的持續率",
+  "es": "Tu constancia",
+  "ko": "지속률은",
+  "vi": "Tỷ lệ duy trì của bạn"
  }
 }
