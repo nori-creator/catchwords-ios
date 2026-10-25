@@ -130,6 +130,10 @@ struct UIPreviewRoot: View {
             case "jadetail": LanguageCardPreview(kind: .ja)
             case "quiz": ReviewPreview(learning: "zh-TW", answered: false)
             case "answer": ReviewPreview(learning: "zh-TW", answered: true)
+            // iPhone Duo open (2026-10-25): the quiz with the photo on the left and the choices on the right, and the dex,
+            // on a Duo-shaped canvas in the regular width class.
+            case "quiz-duo": DuoCanvas { ReviewPreview(learning: "zh-TW", answered: false) }
+            case "dex-duo": DuoCanvas { DexView() }
             case "jaquiz": ReviewPreview(learning: "ja", answered: false)
             case "enanswer": ReviewPreview(learning: "en", answered: true)
             case "endetail": LanguageCardPreview(kind: .en)
@@ -2070,5 +2074,28 @@ private struct DiaryLookBackPreview: View {
             DiaryFixtures.seed(dex)
             seeded = true
         }
+    }
+}
+
+/// A screen as iPhone Duo's inner display shows it: drawn on a 1000 × 860 pt canvas in the regular width class and
+/// scaled to the simulator's width (as `SpreadPreview` draws the book).
+private struct DuoCanvas<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    private static var canvas: CGSize { CGSize(width: 1000, height: 860) }
+
+    var body: some View {
+        GeometryReader { geo in
+            let scale = geo.size.width / Self.canvas.width
+            content()
+                .environment(\.horizontalSizeClass, .regular)
+                .environment(\.colorScheme, .light)
+                .frame(width: Self.canvas.width, height: Self.canvas.height)
+                .clipped()
+                .scaleEffect(scale, anchor: .topLeading)
+                .frame(width: geo.size.width, height: Self.canvas.height * scale)
+                .frame(maxHeight: .infinity)
+        }
+        .background(Color.black)
+        .ignoresSafeArea()
     }
 }

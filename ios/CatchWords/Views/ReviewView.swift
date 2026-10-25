@@ -471,6 +471,7 @@ struct QuizCard: View {
     let onBadge: () -> Void
 
     @State private var picked: String?
+    @Environment(\.horizontalSizeClass) private var widthClass
     /// The question and the four choices together (measured; they never depend on the photo's height).
     @State private var lowerHeight: CGFloat = 0
     @State private var started: Date = Date()
@@ -489,8 +490,14 @@ struct QuizCard: View {
     /// which this changes).
     private var compact: Bool { (fitHeight ?? 1000) < 460 }
 
-    /// The photo's height: what is left of `fitHeight`, kept between a small but readable picture and 300 pt.
+    /// A wide screen (iPhone Duo open, owner 2026-10-25: 「iphone duoで復習モードは左側に撮った画像、右側に４択の選択を
+    /// 表示して」): the photo on the left, the question and the choices on the right, until the card is answered.
+    private var sideBySide: Bool { widthClass == .regular && !isAnswered }
+
+    /// The photo's height: what is left of `fitHeight`, kept between a small but readable picture and 300 pt. Side by
+    /// side, the card's whole height (up to 520 pt).
     private var photoHeight: CGFloat {
+        if sideBySide { return min(520, max(240, (fitHeight ?? 420) - Self.cardPadding * 2)) }
         guard let fitHeight, lowerHeight > 0 else { return compact ? 120 : 200 }
         let left = fitHeight - lowerHeight - Self.gap - Self.cardPadding * 2
         return min(300, max(64, left))
@@ -502,7 +509,8 @@ struct QuizCard: View {
     private var liveMeaning: String { ReaderLanguage.gloss((dex.sticker(id: card.sticker.id) ?? card.sticker).word?.meaningJa ?? "") }
 
     var body: some View {
-        VStack(spacing: Self.gap) {
+        let layout = sideBySide ? AnyLayout(HStackLayout(alignment: .center, spacing: 22)) : AnyLayout(VStackLayout(spacing: Self.gap))
+        layout {
             if isAnswered {
                 // Answered: the photo makes way for the answer sheet; the quiz label and the memory badge stay.
                 HStack {
@@ -527,6 +535,7 @@ struct QuizCard: View {
                 let path = pic?.path
                 let isCutout = pic?.isCutout == true
                 (isCutout ? Color.clear : Theme.secondary)
+                    .frame(maxWidth: .infinity)
                     .frame(height: photoHeight)
                     .overlay {
                         StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
@@ -555,6 +564,7 @@ struct QuizCard: View {
                 }
                 .offset(x: shake)
             }
+            .frame(maxWidth: sideBySide ? .infinity : nil)
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { h in
