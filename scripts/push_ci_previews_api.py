@@ -36,7 +36,8 @@ def call(method, path, body=None, token=None):
                 return json.loads(r.read() or b"null")
         except urllib.error.HTTPError as e:
             if e.code == 404 or e.code == 422 or attempt == 4:
-                raise
+                detail = e.read().decode(errors="replace")[:300]
+                raise RuntimeError(f"{method} {path.split('?')[0]} → HTTP {e.code}: {detail}") from e
         except (urllib.error.URLError, TimeoutError):
             if attempt == 4:
                 raise
@@ -56,7 +57,13 @@ def subtree_sha(tree_sha, name, repo, token):
 def main():
     repo, dest, msg, *paths = sys.argv[1:]
     token = os.environ.get("GITHUB_TOKEN", "")
-    files = [p for p in paths if os.path.isfile(p) and not p.lower().endswith((".mp4", ".mov"))]
+    # One file per name: the tree refuses two entries with the same path (422 on 2026-10-25, when a shot was both in
+    # the report and in its previews folder). The later one wins, like a copy into one folder would.
+    by_name = {}
+    for p in paths:
+        if os.path.isfile(p) and not p.lower().endswith((".mp4", ".mov")):
+            by_name[os.path.basename(p)] = p
+    files = list(by_name.values())
     if not token or not files:
         print("ci-previews: nothing to put (no token or no files)")
         return
@@ -79,8 +86,8 @@ def main():
             ref = call("GET", f"/repos/{repo}/git/ref/heads/{BRANCH}", token=token)
             old = ref["object"]["sha"]
             root = call("GET", f"/repos/{repo}/git/commits/{old}", token=token)["tree"]["sha"]
-        except urllib.error.HTTPError as e:
-            if e.code != 404:
+        except RuntimeError as e:
+            if "HTTP 404" not in str(e):
                 raise
             old, root = None, None
         # Walk down DEST_DIR's parents on the current branch, then rebuild them bottom-up around the new leaf.
