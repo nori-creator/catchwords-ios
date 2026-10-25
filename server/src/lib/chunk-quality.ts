@@ -342,8 +342,11 @@ export function tidyForStorage(chunk: AiUsageChunk, ctx: ChunkGateContext): Usag
     }
     return out;
   });
+  const ja = (chunk.ja ?? "").trim();
+  // ひと言解説: 訳の言い直し（同じ文）と、長すぎる物（1文の約束を破った物）は保存しない — 電球を出さない方がよい。
   const note = (chunk.note ?? "").trim();
-  return note ? { parts, ja: (chunk.ja ?? "").trim(), note } : { parts, ja: (chunk.ja ?? "").trim() };
+  const sameAsJa = note && translationKey(note) === translationKey(ja);
+  return note && !sameAsJa && [...note].length <= 80 ? { parts, ja, note } : { parts, ja };
 }
 
 /** 自己点検の欄だけを外す（形を変えない）。 */
