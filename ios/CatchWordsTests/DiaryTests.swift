@@ -33,6 +33,45 @@ final class DiaryTests: XCTestCase {
         XCTAssertEqual(e.nativePhrases, [])
     }
 
+    // MARK: Correcting (2026-10-25)
+
+    func testATextIsCutIntoSentencesAndTheLastUnfinishedOneWaits() {
+        let parts = DiaryStore.sentences(in: "今天很熱。我說：「好熱！」\n晚上吃麵")
+        XCTAssertEqual(parts.map { $0.text }, ["今天很熱。", "我說：「好熱！」", "晚上吃麵"])
+        XCTAssertEqual(parts.map { $0.finished }, [true, true, false])
+    }
+
+    func testANewLineFinishesASentenceWithoutPunctuation() {
+        let parts = DiaryStore.sentences(in: "早安\n\n我去公園?")
+        XCTAssertEqual(parts.map { $0.text }, ["早安", "我去公園?"])
+        XCTAssertEqual(parts.map { $0.finished }, [true, true])
+    }
+
+    func testASentenceCheckReadsTheServersAnswer() throws {
+        let json = #"{"ok":false,"issues":[{"wrong":"個","fix":"顆","kind":"measure","explain":"x"},{"wrong":"","fix":"a","kind":"word","explain":""}],"natural":"我買了三顆芒果。","natural_note":"y"}"#
+        let c = try JSONDecoder().decode(SentenceCheck.self, from: Data(json.utf8))
+        XCTAssertEqual(c.issues.map(\.wrong), ["個"], "an issue without its wrong part is dropped")
+        XCTAssertFalse(c.ok)
+        XCTAssertEqual(c.naturalNote, "y")
+        XCTAssertTrue(c.hasNote)
+    }
+
+    func testAFineSentenceHasNoNote() throws {
+        let c = try JSONDecoder().decode(SentenceCheck.self, from: Data(#"{"ok":true,"issues":[],"natural":"","natural_note":""}"#.utf8))
+        XCTAssertTrue(c.ok)
+        XCTAssertFalse(c.hasNote)
+    }
+
+    func testACorrectionReadsItsListsAndTheStoredColumns() throws {
+        let json = #"{"correction":"我買了三顆芒果。","feedback_ja":"よく書けました","mistakes":[{"wrong":"三個芒果","fix":"三顆芒果","explain":"量詞"}],"tendencies":["量詞",""],"native_phrases":[{"zh":"好好吃喔","ja":"おいしい","note":""}]}"#
+        let c = try JSONDecoder().decode(DiaryCorrection.self, from: Data(json.utf8))
+        XCTAssertEqual(c.natural, "我買了三顆芒果。")
+        XCTAssertEqual(c.feedback, "よく書けました")
+        XCTAssertEqual(c.mistakes.map(\.fix), ["三顆芒果"])
+        XCTAssertEqual(c.tendencies, ["量詞"])
+        XCTAssertEqual(c.phrases.map(\.zh), ["好好吃喔"])
+    }
+
     // MARK: The page curl's geometry (`PageCurlGeometry`, the book on a wide screen)
 
     private let spread = CGSize(width: 1000, height: 800)

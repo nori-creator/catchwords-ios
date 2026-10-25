@@ -67,6 +67,9 @@ export const IOS_AI_TASKS: readonly AiTask[] = [
   "correction_judge",
   "image_sense",
   "image_verify",
+  // 日記（iOS 2026-10-25: 書いている間の1文ずつの添削と、書き終えた時の添削）
+  "journal_sentence",
+  "journal_correct",
 ];
 
 const L = (ja: string, en: string, zh: string): Label => ({
@@ -179,7 +182,19 @@ const TASK_TEXT: Record<string, { label: Label; description: Label }> = {
   },
   journal_correct: {
     label: L("日記の添削", "Diary correction", "日記的批改"),
-    description: L("Web 版の日記", "Web diary", "網頁版的日記"),
+    description: L(
+      "書き終えた日記の一番自然な全文と、その日の間違い・傾向・使うと自然なフレーズの解説",
+      "The most natural version of a finished diary, with today's mistakes, tendencies and phrases to use",
+      "寫完的日記最自然的全文，以及當天的錯誤、傾向和自然的說法",
+    ),
+  },
+  journal_sentence: {
+    label: L("日記の1文ずつの添削", "Diary sentence check", "日記的逐句批改"),
+    description: L(
+      "書いている間、文を書き終えるたびにその1文の間違いと一番自然な言い方を出す（速いモデル）",
+      "While writing, checks each finished sentence and gives the most natural way to say it (fast model)",
+      "寫的時候，每寫完一句就指出錯誤和最自然的說法（快速模型）",
+    ),
   },
   journal_prompts: {
     label: L("日記の書き出しの質問", "Diary prompts", "日記的提問"),

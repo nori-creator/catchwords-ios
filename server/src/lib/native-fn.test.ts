@@ -19,6 +19,7 @@ describe("native-fn allowlist", () => {
       "saveMyCategory",
       "deleteMyCategory",
       "correctMyJournal",
+      "checkDiarySentence",
       "getJournalPrompts",
       "listJournal",
       "getMyStats",

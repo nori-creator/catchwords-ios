@@ -20,7 +20,8 @@ import SwiftUI
 ///   while the book slides from the middle to its open place.
 ///
 /// - 「振り返る」 on the diary (owner 2026-10-25) opens on the left page: the day's timeline and its words' 使い方 are read
-///   on the left while the diary stays open on the right (`DiaryLookBack`). Turning the page closes it.
+///   on the left while the diary stays open on the right (`DiaryLookBack`). The finished diary's correction opens there
+///   too (`DiaryCorrectionView`). Turning the page closes either.
 ///
 /// Reduced motion: no cover, and pages change with a fade instead of a curl.
 struct BookSpreadView: View {
@@ -39,8 +40,9 @@ struct BookSpreadView: View {
     var heldTurn: (direction: PageTurnDirection, progress: CGFloat, lift: CGFloat)? = nil
     /// Previews (CI's video): turn to the next day by itself this long after appearing.
     var demoTurnAfter: Double? = nil
-    /// Previews: 「振り返る」 open on the first spread's left page, on its first word.
+    /// Previews: 「振り返る」 open on the first spread's left page, on its first word; or its correction.
     var startsLookedBack: Bool = false
+    var startsCorrected: Bool = false
 
     /// A turn in progress: which way, and to which spread.
     private struct Turn: Equatable {
@@ -67,8 +69,13 @@ struct BookSpreadView: View {
     @State private var leftReveal: Double = BookSpreadView.coverOpenedThisLaunch ? 1 : 0
     /// A day's photos are being rearranged: the page holds still, no turning.
     @State private var editing = false
-    /// 「振り返る」 open on the left page: its day, and the word it opened on.
-    @State private var lookBack: (day: Date, focus: String?)?
+    /// What the left page shows instead of the day's paper: 「振り返る」 (and the word it opened on) or the correction.
+    private enum Panel {
+        case lookBack(focus: String?)
+        case correction
+    }
+
+    @State private var panel: (day: Date, kind: Panel)?
     @Environment(DexStore.self) private var dex
     @AppStorage(PaperTone.storageKey) private var paperRaw: String = PaperTone.cream.rawValue
     @Environment(\.appReduceMotion) private var reduceMotion
@@ -199,6 +206,10 @@ struct BookSpreadView: View {
         }
     }
 
+    private func closePanel() {
+        withAnimation(.easeOut(duration: 0.22)) { panel = nil }
+    }
+
     // MARK: Pages
 
     /// The page number of a day's left page (its right page is the next): the oldest day starts the book at 2.
@@ -209,11 +220,20 @@ struct BookSpreadView: View {
 
     @ViewBuilder
     private func leftPage(_ d: AlbumDay, live: Bool) -> some View {
-        if live, let lb = lookBack, Calendar.current.isDate(lb.day, inSameDayAs: d.day) {
+        if live, let p = panel, Calendar.current.isDate(p.day, inSameDayAs: d.day) {
             ZStack(alignment: .topLeading) {
                 PaperSurface(tone: tone, spine: .trailing)
-                DiaryLookBack(day: d.day, words: DiaryPageView.words(on: d.day, in: dex), focus: lb.focus, onPaper: true) {
-                    withAnimation(.easeOut(duration: 0.22)) { lookBack = nil }
+                Group {
+                    switch p.kind {
+                    case .lookBack(let focus):
+                        DiaryLookBack(day: d.day, words: DiaryPageView.words(on: d.day, in: dex), focus: focus, onPaper: true) {
+                            closePanel()
+                        }
+                    case .correction:
+                        if let c = DiaryStore.shared.correction(for: d.day) {
+                            DiaryCorrectionView(day: d.day, correction: c, onPaper: true) { closePanel() }
+                        }
+                    }
                 }
                 .padding(.leading, 26)
                 .padding(.trailing, 30)
@@ -301,7 +321,9 @@ struct BookSpreadView: View {
                 if live {
                     ScrollView {
                         DiaryPageView(day: d.day, onLookBack: { focus in
-                            withAnimation(.easeOut(duration: 0.22)) { lookBack = (d.day, focus) }
+                            withAnimation(.easeOut(duration: 0.22)) { panel = (d.day, .lookBack(focus: focus)) }
+                        }, onCorrection: {
+                            withAnimation(.easeOut(duration: 0.22)) { panel = (d.day, .correction) }
                         })
                             .padding(.top, 8)
                             .padding(.bottom, 24)
@@ -382,7 +404,7 @@ struct BookSpreadView: View {
         var tx = Transaction()
         tx.disablesAnimations = true
         withTransaction(tx) {
-            lookBack = nil
+            panel = nil
             grabY = min(bookSize.height, max(0, y))
             liftY = grabY
             progress = 0
@@ -507,7 +529,9 @@ struct BookSpreadView: View {
     private func appear() {
         index = min(max(0, startIndex), max(0, days.count - 1))
         if startsLookedBack, let d = current {
-            lookBack = (d.day, DiaryPageView.words(on: d.day, in: dex).first?.word?.headword)
+            panel = (d.day, .lookBack(focus: DiaryPageView.words(on: d.day, in: dex).first?.word?.headword))
+        } else if startsCorrected, let d = current {
+            panel = (d.day, .correction)
         }
         if let held = heldTurn {
             coverUp = false

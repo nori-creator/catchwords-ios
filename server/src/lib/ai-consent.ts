@@ -39,6 +39,7 @@ export const AI_CONSENT_FUNCTIONS = [
   "reportAndFixSection",
   "getJournalPrompts",
   "correctMyJournal",
+  "checkDiarySentence",
   // Web（と iOS の native-fn）で同じ種類の物
   "generatePhraseCard",
   "detectParts",

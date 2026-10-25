@@ -8895,5 +8895,110 @@
   "es": "Aún no hay usos de esta palabra",
   "ko": "이 단어의 사용법은 아직 없습니다",
   "vi": "Từ này chưa có cách dùng"
+ },
+ "文法": {
+  "en": "Grammar",
+  "zh-TW": "文法",
+  "es": "Gramática",
+  "ko": "문법",
+  "vi": "Ngữ pháp"
+ },
+ "語順": {
+  "en": "Word order",
+  "zh-TW": "語序",
+  "es": "Orden",
+  "ko": "어순",
+  "vi": "Trật tự từ"
+ },
+ "助詞": {
+  "en": "Particle",
+  "zh-TW": "助詞",
+  "es": "Partícula",
+  "ko": "조사",
+  "vi": "Trợ từ"
+ },
+ "講評": {
+  "en": "Comments",
+  "zh-TW": "講評",
+  "es": "Comentario",
+  "ko": "총평",
+  "vi": "Nhận xét"
+ },
+ "添削する": {
+  "en": "Correct my diary",
+  "zh-TW": "批改",
+  "es": "Corregir",
+  "ko": "첨삭하기",
+  "vi": "Sửa bài"
+ },
+ "添削しています…": {
+  "en": "Correcting…",
+  "zh-TW": "批改中…",
+  "es": "Corrigiendo…",
+  "ko": "첨삭하는 중…",
+  "vi": "Đang sửa…"
+ },
+ "添削を見る": {
+  "en": "See correction",
+  "zh-TW": "查看批改",
+  "es": "Ver corrección",
+  "ko": "첨삭 보기",
+  "vi": "Xem bài sửa"
+ },
+ "添削できませんでした": {
+  "en": "Couldn't correct it",
+  "zh-TW": "無法批改",
+  "es": "No se pudo corregir",
+  "ko": "첨삭하지 못했습니다",
+  "vi": "Không thể sửa"
+ },
+ "一番自然な言い方": {
+  "en": "Most natural way to say it",
+  "zh-TW": "最自然的說法",
+  "es": "La forma más natural",
+  "ko": "가장 자연스러운 표현",
+  "vi": "Cách nói tự nhiên nhất"
+ },
+ "一番自然な全文": {
+  "en": "The most natural version",
+  "zh-TW": "最自然的全文",
+  "es": "La versión más natural",
+  "ko": "가장 자연스러운 전체 글",
+  "vi": "Bản tự nhiên nhất"
+ },
+ "今日の間違い": {
+  "en": "Today's mistakes",
+  "zh-TW": "今天的錯誤",
+  "es": "Errores de hoy",
+  "ko": "오늘의 실수",
+  "vi": "Lỗi hôm nay"
+ },
+ "間違えやすいところ": {
+  "en": "What you tend to get wrong",
+  "zh-TW": "容易出錯的地方",
+  "es": "Lo que sueles confundir",
+  "ko": "자주 틀리는 점",
+  "vi": "Những lỗi bạn hay mắc"
+ },
+ "使うと自然なフレーズ": {
+  "en": "Phrases to use",
+  "zh-TW": "可以用的自然說法",
+  "es": "Frases naturales para usar",
+  "ko": "쓰면 자연스러운 표현",
+  "vi": "Cụm từ nên dùng"
+ },
+ "1文ずつの添削": {
+  "en": "Sentence by sentence",
+  "zh-TW": "逐句批改",
+  "es": "Frase por frase",
+  "ko": "한 문장씩 첨삭",
+  "vi": "Sửa từng câu"
+ },
+ "{1}文は自然です": {
+  "en": "{1} sentences read naturally",
+  "zh-TW": "{1} 句很自然",
+  "es": "{1} frases suenan naturales",
+  "ko": "{1}문장은 자연스럽습니다",
+  "vi": "{1} câu đã tự nhiên"
  }
 }

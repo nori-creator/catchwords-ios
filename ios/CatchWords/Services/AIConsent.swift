@@ -38,7 +38,8 @@ final class AIConsent {
         "generateCard",           // word → card, notes, example sentences
         "regenerateCardSection",  // word → one section written again
         "reportAndFixSection",    // the learner's note on a wrong item
-        "correctMyJournal",       // the diary's text → the red pen (2026-10-24)
+        "correctMyJournal",       // the finished diary → its correction (2026-10-25)
+        "checkDiarySentence",     // each finished sentence of the diary → its check (2026-10-25)
     ]
 
     enum Status: Equatable {

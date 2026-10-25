@@ -158,6 +158,9 @@ struct UIPreviewRoot: View {
             // 「振り返る」 (2026-10-25): on the book it takes the left page's place; on the iPhone it is a sheet.
             case "spread-lookback": SpreadPreview(lookBack: true)
             case "diary-lookback": DiaryLookBackPreview()
+            // The correction (2026-10-25): the sentence checks under the text, and the finished diary's correction.
+            case "diary-notes": DiaryPreview(notes: true)
+            case "diary-correction": DiaryCorrectionPreview()
             // CI's video: yesterday's spread turning over to today by itself.
             case "spread-turn": SpreadPreview(held: nil, demoTurn: true)
             case "camblocked": CameraBlockedPreview()
@@ -1848,6 +1851,35 @@ private enum DiaryFixtures {
         ])
     }
 
+    /// Today's text with two mistakes, its sentence checks and the finished correction (the correction previews).
+    static func seedChecks() {
+        let now = Date()
+        let s1 = "今天早餐我點一份鐵板麵，非常好吃。"  // l10n-ignore (learning-language sample)
+        let s2 = "下午我買了三個芒果。"  // l10n-ignore (learning-language sample)
+        let s3 = "然後我去公園了玩。"  // l10n-ignore (learning-language sample)
+        DiaryStore.shared.seedForPreview([DiaryEntry(date: DiaryStore.key(now), text: s1 + s2 + s3)])
+        let measure = SentenceCheck.Issue(wrong: "個", fix: "顆", kind: "measure", explain: "芒果など丸い果物は「顆」で数えます。")  // l10n-ignore (learning-language sample)
+        let order = SentenceCheck.Issue(wrong: "了玩", fix: "玩了", kind: "order", explain: "「了」は動作の後ろに付けます。")  // l10n-ignore (learning-language sample)
+        DiaryStore.shared.seedChecksForPreview(
+            [
+                s1: SentenceCheck(ok: true, issues: []),
+                s2: SentenceCheck(ok: false, issues: [measure], natural: "下午我買了三顆芒果。",  // l10n-ignore (learning-language sample)
+                                  naturalNote: "果物は「顆」で数えると自然です。"),
+                s3: SentenceCheck(ok: false, issues: [order], natural: "然後我去公園玩了。",  // l10n-ignore (learning-language sample)
+                                  naturalNote: "「去＋場所＋動作＋了」の順にします。"),
+            ],
+            correction: DiaryCorrection(
+                natural: "今天早餐我點了一份鐵板麵，非常好吃。下午我買了三顆芒果，然後去公園玩了。",  // l10n-ignore (learning-language sample)
+                feedback: "その日の流れがよく伝わります。量詞と「了」の位置を意識すると、もっと自然になります。",
+                mistakes: [
+                    .init(wrong: "三個芒果", fix: "三顆芒果", explain: "芒果など丸い果物は「顆」で数えます。"),  // l10n-ignore (learning-language sample)
+                    .init(wrong: "去公園了玩", fix: "去公園玩了", explain: "「了」は動作の後ろに付けます。"),  // l10n-ignore (learning-language sample)
+                ],
+                tendencies: ["量詞を「個」で済ませがち", "「了」を動詞の前に置きがち"],
+                phrases: [DiaryPhrase(zh: "好好吃喔", ja: "すごくおいしい", note: "食べてすぐの気持ちを言う時")]),  // l10n-ignore (learning-language sample)
+            on: now)
+    }
+
     /// A word with a photo, a cut-out and its formulas (`usage_patterns`), kept in memory (no network in the preview).
     private static func sticker(_ id: String, _ head: String, zhuyin: String, hue: CGFloat, at: Date, place: String,
                                 formulas: [[(String, String)]]) -> Sticker {
@@ -1884,9 +1916,12 @@ private enum DiaryFixtures {
 private struct DiaryPreview: View {
     @Environment(DexStore.self) private var dex
     private let paper: PaperTone
+    /// The sentence checks under a text with two mistakes in it.
+    private let notes: Bool
 
-    init(paper: PaperTone = .cream, rule: PageRule = .lined, ink: InkTone = .navy) {
+    init(paper: PaperTone = .cream, rule: PageRule = .lined, ink: InkTone = .navy, notes: Bool = false) {
         self.paper = paper
+        self.notes = notes
         UserDefaults.standard.set(paper.rawValue, forKey: PaperTone.storageKey)
         UserDefaults.standard.set(rule.rawValue, forKey: PageRule.storageKey)
         UserDefaults.standard.set(ink.rawValue, forKey: InkTone.storageKey)
@@ -1908,7 +1943,35 @@ private struct DiaryPreview: View {
             }
         }
         .environment(\.colorScheme, .light)
-        .task { DiaryFixtures.seed(dex) }
+        .task {
+            DiaryFixtures.seed(dex)
+            if notes { DiaryFixtures.seedChecks() }
+        }
+    }
+}
+
+/// `-uiPreview diary-correction`: the finished diary's correction as the iPhone's sheet shows it.
+private struct DiaryCorrectionPreview: View {
+    @Environment(DexStore.self) private var dex
+    @State private var seeded = false
+
+    var body: some View {
+        Group {
+            if seeded, let c = DiaryStore.shared.correction(for: Date()) {
+                DiaryCorrectionView(day: Date(), correction: c) {}
+                    .padding(.horizontal, 20)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(hex: 0xFBF8F1).ignoresSafeArea())
+        .environment(\.colorScheme, .light)
+        .task {
+            DiaryFixtures.seed(dex)
+            DiaryFixtures.seedChecks()
+            seeded = true
+        }
     }
 }
 

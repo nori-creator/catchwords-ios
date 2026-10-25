@@ -70,10 +70,135 @@ nonisolated struct DiaryPhrase: Decodable, Sendable, Hashable {
     }
 }
 
+/// One sentence checked while the diary is written (`checkDiarySentence`, owner 2026-10-25: 「日記を書いてるときに
+/// 間違えたら、解説ともに１文ごとやリアルタイムで添削修整」): what is wrong in it (each `wrong` exactly as written, so the
+/// page can underline it), and the most natural way to say what the learner meant.
+nonisolated struct SentenceCheck: Decodable, Sendable, Hashable {
+    nonisolated struct Issue: Decodable, Sendable, Hashable {
+        /// The wrong part, as written in the sentence (learning language).
+        var wrong: String
+        /// How it should be (learning language).
+        var fix: String
+        /// word / grammar / order / particle / measure / other.
+        var kind: String
+        /// Why, in the display language.
+        var explain: String
+
+        init(wrong: String, fix: String, kind: String, explain: String) {
+            self.wrong = wrong
+            self.fix = fix
+            self.kind = kind
+            self.explain = explain
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            wrong = ((try? c.decode(String.self, forKey: .wrong)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            fix = ((try? c.decode(String.self, forKey: .fix)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            kind = (try? c.decode(String.self, forKey: .kind)) ?? "other"
+            explain = ((try? c.decode(String.self, forKey: .explain)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        enum CodingKeys: String, CodingKey { case wrong, fix, kind, explain }
+    }
+
+    var ok: Bool
+    var issues: [Issue]
+    /// The most natural way to say it (learning language); empty when the sentence already is.
+    var natural: String
+    /// Why that is more natural (display language).
+    var naturalNote: String
+
+    enum CodingKeys: String, CodingKey {
+        case ok, issues, natural
+        case naturalNote = "natural_note"
+    }
+
+    init(ok: Bool, issues: [Issue], natural: String = "", naturalNote: String = "") {
+        self.ok = ok
+        self.issues = issues
+        self.natural = natural
+        self.naturalNote = naturalNote
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        issues = ((try? c.decode([Issue].self, forKey: .issues)) ?? []).filter { !$0.wrong.isEmpty && !$0.fix.isEmpty }
+        ok = issues.isEmpty
+        natural = ((try? c.decode(String.self, forKey: .natural)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        naturalNote = ((try? c.decode(String.self, forKey: .naturalNote)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Anything to show under the text: something to fix, or a more natural way to say it.
+    var hasNote: Bool { !issues.isEmpty || !natural.isEmpty }
+}
+
+/// The finished diary's correction (`correctMyJournal`, owner 2026-10-25: 「日記書き終えて、添削ボタン押すと、ユーザーが
+/// 言いたいことをもとに最も自然な文を書いてくれる…どんな間違いをしやすいのか、どんな間違いをしたのか、どのような
+/// フレーズを使うともっと自然か」). A correction read back later (`listMyDiaryMonth`) has the lists folded into `feedback`.
+nonisolated struct DiaryCorrection: Decodable, Sendable, Hashable {
+    nonisolated struct Mistake: Decodable, Sendable, Hashable {
+        var wrong: String
+        var fix: String
+        var explain: String
+
+        init(wrong: String, fix: String, explain: String) {
+            self.wrong = wrong
+            self.fix = fix
+            self.explain = explain
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            wrong = ((try? c.decode(String.self, forKey: .wrong)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            fix = ((try? c.decode(String.self, forKey: .fix)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            explain = ((try? c.decode(String.self, forKey: .explain)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        enum CodingKeys: String, CodingKey { case wrong, fix, explain }
+    }
+
+    /// The most natural full text of what the learner meant (learning language).
+    var natural: String
+    /// The coach's words (display language).
+    var feedback: String
+    var mistakes: [Mistake]
+    var tendencies: [String]
+    var phrases: [DiaryPhrase]
+
+    enum CodingKeys: String, CodingKey {
+        case natural = "correction"
+        case feedback = "feedback_ja"
+        case mistakes, tendencies
+        case phrases = "native_phrases"
+    }
+
+    init(natural: String, feedback: String, mistakes: [Mistake] = [], tendencies: [String] = [], phrases: [DiaryPhrase] = []) {
+        self.natural = natural
+        self.feedback = feedback
+        self.mistakes = mistakes
+        self.tendencies = tendencies
+        self.phrases = phrases
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        natural = ((try? c.decode(String.self, forKey: .natural)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        feedback = ((try? c.decode(String.self, forKey: .feedback)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        mistakes = ((try? c.decode([Mistake].self, forKey: .mistakes)) ?? []).filter { !$0.wrong.isEmpty && !$0.fix.isEmpty }
+        tendencies = ((try? c.decode([String].self, forKey: .tendencies)) ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        phrases = ((try? c.decode([DiaryPhrase].self, forKey: .phrases)) ?? []).filter { !$0.zh.isEmpty }
+    }
+}
+
 /// The diary pages this account has opened (`journal_entries`), a month at a time; what is typed is kept here at once
 /// and saved a moment after the typing stops (`saveMyDiary`). One per app (`shared`): the home's spread, its sheet and
-/// the previews read the same pages. The correction (`correctMyJournal`) is not called from the app yet: its design is
-/// being made again (owner 2026-10-24).
+/// the previews read the same pages.
+///
+/// Correcting (owner 2026-10-25): each sentence is checked once when it is finished (`check`, kept by its text so the
+/// same sentence is never sent twice); what those checks pointed out — also what the learner then fixed — goes with the
+/// finished diary to its correction (`correct`), which explains the day's mistakes and tendencies from it.
 @MainActor @Observable
 final class DiaryStore {
     static let shared = DiaryStore()
@@ -94,6 +219,19 @@ final class DiaryStore {
     /// The account the pages belong to: another account signed in starts from nothing.
     private var userId: String?
     @ObservationIgnored private var saveTasks: [String: Task<Void, Never>] = [:]
+
+    /// Sentences checked, by their text, and the ones being checked.
+    private(set) var checks: [String: SentenceCheck] = [:]
+    private(set) var checking: Set<String> = []
+    /// Why checking stopped (no AI consent, the day's limit, no connection, a server without it yet): no more sentences
+    /// are sent until the page is opened again (`resumeChecks`).
+    private(set) var checkUnavailable: String?
+    /// What the checks pointed out, per day, kept even after it is fixed (the correction's notes).
+    private var pointedOut: [String: [SentenceCheck.Issue]] = [:]
+    /// Finished corrections made in this launch (with their lists), per day; ones being made; failures.
+    private(set) var corrections: [String: DiaryCorrection] = [:]
+    private(set) var correcting: Set<String> = []
+    private(set) var correctError: [String: String] = [:]
 
     /// Typing stops this long before the page is saved.
     static let saveDelay: Duration = .seconds(1.2)
@@ -138,6 +276,13 @@ final class DiaryStore {
         saveError = [:]
         for t in saveTasks.values { t.cancel() }
         saveTasks = [:]
+        checks = [:]
+        checking = []
+        checkUnavailable = nil
+        pointedOut = [:]
+        corrections = [:]
+        correcting = []
+        correctError = [:]
     }
 
     /// Reads the month of `day` once (the other pages of the spread come with it).
@@ -209,6 +354,99 @@ final class DiaryStore {
             saveError[k] = (error as? LocalizedError)?.errorDescription ?? L("日記を保存できませんでした")
             return false
         }
+    }
+
+    // MARK: Correcting
+
+    /// The sentences of a text, each with whether it is finished (。！？!? or a new line after it); closing quotes and
+    /// brackets stay with their sentence.
+    nonisolated static func sentences(in text: String) -> [(text: String, finished: Bool)] {
+        var out: [(text: String, finished: Bool)] = []
+        var current = ""
+        var ended = false
+        for ch in text {
+            if ended, "」』）)\"”’".contains(ch) {
+                current.append(ch)
+                continue
+            }
+            if ended || ch.isNewline {
+                let t = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !t.isEmpty { out.append((t, true)) }
+                current = ""
+                ended = false
+                if ch.isNewline { continue }
+            }
+            current.append(ch)
+            if "。！？!?".contains(ch) { ended = true }
+        }
+        let t = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !t.isEmpty { out.append((t, ended)) }
+        return out
+    }
+
+    /// Checks one finished sentence once (`before`: what was written before it, for its meaning).
+    func check(_ sentence: String, before: String, day: Date) async {
+        let s = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty, checks[s] == nil, !checking.contains(s), checkUnavailable == nil,
+              SupabaseClient.shared.session != nil else { return }
+        checking.insert(s)
+        defer { checking.remove(s) }
+        do {
+            let r = try await NativeAPI.call("checkDiarySentence",
+                                             ["sentence": String(s.prefix(300)), "before": String(before.suffix(1500)), "date": Self.key(day)],
+                                             as: SentenceCheck.self, timeout: 25)
+            checks[s] = r
+            if !r.issues.isEmpty { pointedOut[Self.key(day), default: []].append(contentsOf: r.issues) }
+        } catch {
+            checkUnavailable = (error as? LocalizedError)?.errorDescription ?? L("添削できませんでした")
+        }
+    }
+
+    /// The page was opened again: checking may try once more.
+    func resumeChecks() { checkUnavailable = nil }
+
+    /// The day's correction to show: this launch's (with its lists), else the one read from the server.
+    func correction(for day: Date) -> DiaryCorrection? {
+        let k = Self.key(day)
+        if let c = corrections[k] { return c }
+        guard let e = entries[k], let natural = e.correction else { return nil }
+        return DiaryCorrection(natural: natural, feedback: e.feedback ?? "", phrases: e.nativePhrases)
+    }
+
+    /// Corrects the finished diary: saved first, then sent with what the sentence checks pointed out.
+    @discardableResult
+    func correct(_ day: Date) async -> Bool {
+        let k = Self.key(day)
+        guard let text = entries[k]?.text.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
+              !correcting.contains(k) else { return false }
+        correcting.insert(k)
+        defer { correcting.remove(k) }
+        await save(day)
+        let notes: [[String: Any]] = (pointedOut[k] ?? []).suffix(40).map {
+            ["wrong": String($0.wrong.prefix(80)), "fix": String($0.fix.prefix(80)), "kind": String($0.kind.prefix(20))]
+        }
+        do {
+            let r = try await NativeAPI.call("correctMyJournal", ["draft": String(text.prefix(2000)), "date": k, "notes": notes],
+                                             as: DiaryCorrection.self, timeout: 90)
+            corrections[k] = r
+            if var e = entries[k] {
+                e.correction = r.natural
+                e.feedback = r.feedback
+                e.nativePhrases = r.phrases
+                entries[k] = e
+            }
+            correctError[k] = nil
+            return true
+        } catch {
+            correctError[k] = (error as? LocalizedError)?.errorDescription ?? L("添削できませんでした")
+            return false
+        }
+    }
+
+    /// Checks and a correction put in by a preview or a test (no server).
+    func seedChecksForPreview(_ list: [String: SentenceCheck], correction: DiaryCorrection? = nil, on day: Date = Date()) {
+        for (k, v) in list { checks[k] = v }
+        if let correction { corrections[Self.key(day)] = correction }
     }
 
     /// Pages put in by a preview or a test (no server).

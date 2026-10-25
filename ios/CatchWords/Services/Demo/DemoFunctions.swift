@@ -100,6 +100,8 @@ nonisolated extension DemoDatabase {
         // Diary (journal_entries; Services/DiaryStore.swift)
         case "listMyDiaryMonth": result = diaryMonth(DJ.str(data["month"]) ?? "")
         case "saveMyDiary": result = saveDiary(date: DJ.str(data["date"]) ?? "", text: DJ.str(data["text"]) ?? "")
+        case "checkDiarySentence": result = checkSentence(DJ.str(data["sentence"]) ?? "")
+        case "correctMyJournal": result = correctDiary(date: DJ.str(data["date"]) ?? "", draft: DJ.str(data["draft"]) ?? "")
 
         // Review, stats, account
         case "gradeReview": return gradeReview(data)
@@ -141,6 +143,47 @@ nonisolated extension DemoDatabase {
                  "feedback": r["feedback_ja"] ?? NSNull(), "native_phrases": r["native_phrases"] ?? [Any](),
                  "used_sticker_ids": r["used_sticker_ids"] ?? [Any]()]
             }
+    }
+
+    /// `checkDiarySentence` {sentence}: the demo's checker knows two mistakes — a fruit counted with 個 (顆), and 了 put
+    /// before the verb it follows (去公園了玩 → 去公園玩了). Anything else reads as natural.
+    private func checkSentence(_ sentence: String) -> [String: Any] {
+        var issues: [[String: Any]] = []
+        var natural = ""
+        if sentence.contains("個芒果") {  // l10n-ignore (learning-language sample)
+            issues.append(["wrong": "個", "fix": "顆", "kind": "measure",  // l10n-ignore (learning-language sample)
+                           "explain": "芒果など丸い果物は「顆」で数えます。"])  // l10n-ignore (server text)
+            natural = sentence.replacingOccurrences(of: "個芒果", with: "顆芒果")  // l10n-ignore (learning-language sample)
+        }
+        if sentence.contains("了玩") {  // l10n-ignore (learning-language sample)
+            issues.append(["wrong": "了玩", "fix": "玩了", "kind": "order",  // l10n-ignore (learning-language sample)
+                           "explain": "「了」は動作の後ろに付けます。"])  // l10n-ignore (server text)
+            natural = sentence.replacingOccurrences(of: "了玩", with: "玩了")  // l10n-ignore (learning-language sample)
+        }
+        return ["ok": issues.isEmpty, "issues": issues, "natural": natural, "natural_note": natural.isEmpty ? "" : "語順と量詞を直すと自然です。"]  // l10n-ignore (server text)
+    }
+
+    /// `correctMyJournal` {date, draft}: the text as the natural version (the two known mistakes fixed), a short
+    /// review and one phrase; stored on the day's row like the server.
+    private func correctDiary(date: String, draft: String) -> [String: Any] {
+        let natural = draft.replacingOccurrences(of: "個芒果", with: "顆芒果").replacingOccurrences(of: "了玩", with: "玩了")  // l10n-ignore (learning-language sample)
+        let feedback = "その日の出来事がよく伝わります。量詞と「了」の位置に気をつけましょう。"  // l10n-ignore (server text)
+        let phrases: [[String: Any]] = [["zh": "好好吃喔", "ja": "すごくおいしい", "note": "食べてすぐの気持ちを言う時"]]  // l10n-ignore (server text)
+        if diaryRow(date) != nil {
+            update("journal_entries", where: { DJ.str($0["entry_date"]) == date }) {
+                $0["user_draft"] = draft
+                $0["correction"] = natural
+                $0["feedback_ja"] = feedback
+                $0["native_phrases"] = phrases
+            }
+        } else {
+            insert("journal_entries", ["id": DJ.uuid(), "entry_date": date, "user_draft": draft, "correction": natural,
+                                       "feedback_ja": feedback, "native_phrases": phrases, "created_at": DJ.now()])
+        }
+        let mistakes: [[String: Any]] = draft.contains("個芒果")  // l10n-ignore (learning-language sample)
+            ? [["wrong": "三個芒果", "fix": "三顆芒果", "explain": "丸い果物は「顆」で数えます。"]] : []  // l10n-ignore (server text)
+        return ["entry_date": date, "user_draft": draft, "correction": natural, "feedback_ja": feedback,
+                "native_phrases": phrases, "mistakes": mistakes, "tendencies": mistakes.isEmpty ? [String]() : ["量詞を「個」で済ませがち"]]  // l10n-ignore (server text)
     }
 
     /// `saveMyDiary` {date, text}: the text as typed, one row a day.

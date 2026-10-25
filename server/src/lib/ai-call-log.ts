@@ -42,7 +42,8 @@ export const AI_TASKS = [
   { id: "chunk_verify", feature: "card" }, // 使い方の型の点検（`AI_CHUNK_VERIFY=inline` の時だけ）
   // 復習・日記
   { id: "distractors", feature: "review" }, // 4択の誤答の作り置き
-  { id: "journal_correct", feature: "journal" }, // 日記の添削
+  { id: "journal_correct", feature: "journal" }, // 日記の添削（書き終えた時の全文）
+  { id: "journal_sentence", feature: "journal" }, // 日記の1文ずつの添削（書いている間）
   { id: "journal_prompts", feature: "journal" }, // 日記の書き出しの質問
   // 点検・辞書の裏方
   { id: "report_locate", feature: "audit" }, // 報告された項目の特定

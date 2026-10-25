@@ -139,11 +139,47 @@ function describeCaptures(stickers: TodaysCapture[]) {
     .join("\n");
 }
 
-/** `date`: the diary page's day (iOS, a page per day). Absent (the web's diary): today. */
+/**
+ * `date`: the diary page's day (iOS, a page per day). Absent (the web's diary): today.
+ * `notes`: what the sentence-by-sentence check (`checkDiarySentence`) pointed out while the diary was being written —
+ * also the ones the learner then fixed — so the summary can say what they tend to get wrong (owner 2026-10-25:
+ * 「リアルタイムで1文ずつ確認していた間違いなどを含めて、ユーザーがどんな間違いをしやすいのか…」).
+ */
 const CorrectInput = z.object({
   draft: z.string().min(1).max(2000),
   date: z.string().regex(DAY).optional(),
+  notes: z
+    .array(z.object({ wrong: z.string().max(80), fix: z.string().max(80), kind: z.string().max(20) }))
+    .max(40)
+    .optional(),
 });
+
+/** One mistake of the day, explained (the finished diary's correction). */
+export type DiaryMistake = { wrong: string; fix: string; explain: string };
+
+/** `correctMyJournal`'s answer: the stored row, and the day's review as parts (iOS 2026-10-25). */
+export type JournalCorrection = JournalEntry & { mistakes: DiaryMistake[]; tendencies: string[] };
+
+/**
+ * The review kept in the row's one text column (`feedback_ja`) so a later read still has it: the coach's words, then
+ * the day's mistakes and the learner's tendencies as short lists. (No new columns: the table's migrations are applied
+ * by hand.)
+ */
+export function composeFeedback(
+  coach: string,
+  mistakes: DiaryMistake[],
+  tendencies: string[],
+  heads: { mistakes: string; tendencies: string },
+): string {
+  const parts = [coach.trim()];
+  if (mistakes.length)
+    parts.push(
+      `${heads.mistakes}\n` +
+        mistakes.map((m) => `・${m.wrong} → ${m.fix}${m.explain ? `：${m.explain}` : ""}`).join("\n"),
+    );
+  if (tendencies.length) parts.push(`${heads.tendencies}\n` + tendencies.map((t) => `・${t}`).join("\n"));
+  return parts.filter(Boolean).join("\n\n");
+}
 
 export const correctMyJournal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -160,14 +196,24 @@ export const correctMyJournal = createServerFn({ method: "POST" })
 
     // Roadmap B6: no full model-diary. Correction + "ネイティブならこう言う"
     // phrases + an explanation of the sentence patterns actually used.
+    // iOS 2026-10-25 (owner): the most natural full text of what the learner meant, today's mistakes, what they tend to
+    // get wrong, and phrases to use — written from the situation they wrote about.
     const Schema = z.object({
       correction: z.string().min(1),
       feedback_ja: z.string().min(1),
+      mistakes: z
+        .array(z.object({ wrong: z.string(), fix: z.string(), explain: z.string() }))
+        .max(8),
+      tendencies: z.array(z.string()).max(4),
       native_phrases: z
         .array(z.object({ zh: z.string(), ja: z.string(), note: z.string() }))
         .min(1)
         .max(3),
     });
+    const notes = (data.notes ?? [])
+      .filter((n) => n.wrong.trim() && n.fix.trim())
+      .map((n) => `- 「${n.wrong.trim()}」→「${n.fix.trim()}」(${n.kind})`)
+      .join("\n");
     const pro = await isProUser(userId);
     const richModel = pro ? ai.modelRichPremium : ai.modelRich;
     const levelGoal = await getUserLevelGoal(userId);
@@ -190,18 +236,25 @@ export const correctMyJournal = createServerFn({ method: "POST" })
         `${langRule}\n${levelRule}\n${l1}\n` +
         `今日のキャプチャ参考:\n${describeCaptures(stickers)}\n\n` +
         `学習者の文章:\n"""\n${data.draft}\n"""\n\n` +
+        (notes ? `書いている間に1文ずつの添削で指摘された点（あとで本人が直した物も含む）:\n${notes}\n\n` : "") +
         `次を出力:\n` +
-        `- correction: 自然な${coach.journalLanguage}に直した完全版。意図はできるだけ尊重。\n` +
-        `- feedback_ja: どこをなぜ直したかに加え、この日記で使った(または使うべきだった)文型・語順の「型」を${NL}で3〜5項目、優しく解説。\n` +
+        `- correction: 学習者が言いたいことに沿って、${coach.journalNatives}が一番自然に書く完全版。意図・内容は変えない（足さない・削らない）。\n` +
+        `- feedback_ja: 学習者が書いた状況（今日の出来事）に沿った、短い全体の講評を${NL}で2〜3文。どこが良かったか、次に何を意識すると自然になるか。\n` +
+        `- mistakes: 今日の間違い（最大8個。上の指摘も含めて、大事な順）。各要素は wrong(学習者が書いた部分)、fix(直した形)、explain(なぜ違うか・どう使い分けるかを${NL}で1〜2文)。\n` +
+        `- tendencies: この学習者が間違えやすいこと（今日の間違い・指摘から言える物だけ、最大4個、${NL}で1文ずつ。根拠の無い一般論は書かない。無ければ空）。\n` +
         `- native_phrases: 学習者が言いたかった気持ちを、${coach.journalNatives}が実際の会話で使う自然なフレーズ・チャンクで2〜3個。各要素は zh(${coach.journalScript}フレーズ)、ja(訳・${NL})、note(いつ・どんな気持ちで使うか、よく一緒に使う語)。`,
     });
 
+    const mistakes = corrected.mistakes
+      .map((m) => ({ wrong: m.wrong.trim(), fix: m.fix.trim(), explain: m.explain.trim() }))
+      .filter((m) => m.wrong && m.fix && m.wrong !== m.fix);
+    const tendencies = corrected.tendencies.map((t) => t.trim()).filter(Boolean);
     const baseRow = {
       user_id: userId,
       entry_date: today,
       user_draft: data.draft,
       correction: corrected.correction,
-      feedback_ja: corrected.feedback_ja,
+      feedback_ja: composeFeedback(corrected.feedback_ja, mistakes, tendencies, await reviewHeadings(userId)),
       used_sticker_ids: stickers.map((s) => s.id),
       // 合言葉（`latest-flash` など）のままではなく、実際に呼んだ版付きの ID を残す。
       model: await concreteModelId(ai, richModel),
@@ -232,7 +285,123 @@ export const correctMyJournal = createServerFn({ method: "POST" })
         throw internalFailure("journal", error, "日記を保存できませんでした");
       }
     }
-    return inserted as JournalEntry;
+    return { ...(inserted as JournalEntry), mistakes, tendencies } satisfies JournalCorrection;
+  });
+
+/** The two list headings of the stored review, in the learner's explanation language. */
+async function reviewHeadings(userId: string): Promise<{ mistakes: string; tendencies: string }> {
+  const lang = await getExplanationLanguage(userId);
+  return (
+    {
+      en: { mistakes: "Today's mistakes", tendencies: "What you tend to get wrong" },
+      "zh-TW": { mistakes: "今天的錯誤", tendencies: "容易出錯的地方" },
+      es: { mistakes: "Errores de hoy", tendencies: "Lo que sueles confundir" },
+      ko: { mistakes: "오늘의 실수", tendencies: "자주 틀리는 점" },
+      vi: { mistakes: "Lỗi hôm nay", tendencies: "Những lỗi bạn hay mắc" },
+    } as Record<string, { mistakes: string; tendencies: string }>
+  )[lang] ?? { mistakes: "今日の間違い", tendencies: "間違えやすいところ" };
+}
+
+// ============================================================================
+// 書いている間の1文ずつの添削（iOS 2026-10-25）
+// ============================================================================
+
+/**
+ * **1文ずつの添削**（オーナー 2026-10-25「日記を書いてるときに間違えたら、解説ともに１文ごとやリアルタイムで添削修整、
+ * ここが間違ってる単語や文法を指してここが間違ってると修整され、ユーザが言いたいことの最も自然なフレーズな文も表示される」）。
+ *
+ * iOS は文を書き終えた時（。！？ や改行）にその1文だけを送る。同じ文は端末が覚えていて送り直さない。速いモデルの
+ * 小さな呼び出し（`journal_sentence`）、1日の上限は `diary_sentence`。保存はしない — 指摘は書き終えた時の添削
+ * （`correctMyJournal` の `notes`）に渡され、そこで「間違えやすいこと」の材料になる。
+ */
+const SentenceInput = z.object({
+  sentence: z.string().min(1).max(300),
+  /** The sentences before it (what the learner has been saying), for the meaning. */
+  before: z.string().max(1500).optional(),
+  date: z.string().regex(DAY).optional(),
+});
+
+/** A wrong part of the sentence: `wrong` is exactly as written in it. */
+export type SentenceIssue = { wrong: string; fix: string; kind: SentenceIssueKind; explain: string };
+export type SentenceIssueKind = "word" | "grammar" | "order" | "particle" | "measure" | "other";
+export type SentenceCheck = { ok: boolean; issues: SentenceIssue[]; natural: string; natural_note: string };
+
+const ISSUE_KINDS: readonly SentenceIssueKind[] = ["word", "grammar", "order", "particle", "measure", "other"];
+
+/**
+ * The model's answer made safe for the page: an issue is kept only when its `wrong` is written in the sentence (the
+ * page underlines it there) and its fix is different; at most 4. `ok` is true only when nothing is left to fix.
+ * The natural version is dropped when it is the sentence itself.
+ */
+export function cleanSentenceCheck(
+  sentence: string,
+  raw: { ok: boolean; issues: Array<{ wrong: string; fix: string; kind: string; explain: string }>; natural: string; natural_note: string },
+): SentenceCheck {
+  const seen = new Set<string>();
+  const issues: SentenceIssue[] = [];
+  for (const i of raw.issues) {
+    const wrong = i.wrong.trim();
+    const fix = i.fix.trim();
+    if (!wrong || !sentence.includes(wrong) || wrong === fix || seen.has(wrong)) continue;
+    seen.add(wrong);
+    const kind = (ISSUE_KINDS as readonly string[]).includes(i.kind) ? (i.kind as SentenceIssueKind) : "other";
+    issues.push({ wrong, fix, kind, explain: i.explain.trim() });
+    if (issues.length === 4) break;
+  }
+  const natural = raw.natural.trim();
+  const same = natural.replace(/[\s。！？!?，,]/g, "") === sentence.replace(/[\s。！？!?，,]/g, "");
+  return {
+    ok: issues.length === 0,
+    issues,
+    natural: same ? "" : natural,
+    natural_note: same ? "" : raw.natural_note.trim(),
+  };
+}
+
+export const checkDiarySentence = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => SentenceInput.parse(input))
+  .handler(async ({ context, data }): Promise<SentenceCheck> => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
+    const { supabase, userId } = context;
+    if (data.date && data.date > latestDiaryDay()) throw new Error("未来の日の日記は書けません");
+    const sentence = data.sentence.trim();
+    if (!sentence) return { ok: true, issues: [], natural: "", natural_note: "" };
+    await assertWithinDailyCap(userId, "diary_sentence");
+    const { stickers } = await getCapturesOn(supabase, userId, data.date);
+    const ai = await getAiFor("journal", "journal_sentence");
+    const levelRule = await levelInstruction(userId);
+    const langRule = await explanationLanguageRule(userId);
+    const NL = explanationLanguageName(await getExplanationLanguage(userId));
+    const l1 = await l1Rule(userId, "grammar");
+    const coach = targetProfile(await getUserTargetLanguage(userId)).coach;
+    const Schema = z.object({
+      ok: z.boolean(),
+      issues: z
+        .array(z.object({ wrong: z.string(), fix: z.string(), kind: z.string(), explain: z.string() }))
+        .max(6),
+      natural: z.string(),
+      natural_note: z.string(),
+    });
+    const raw = await generateStructured({
+      model: ai.gateway(ai.modelFast),
+      schema: Schema,
+      prompt:
+        `あなたは${coach.journalLanguage}のネイティブ作文添削者。学習者が日記を書いている途中で、いま1文を書き終えました。その1文だけを見ます。\n` +
+        `${langRule}\n${levelRule}\n${l1}\n` +
+        `その日の撮影（場面の参考）:\n${describeCaptures(stickers) || "（なし）"}\n\n` +
+        (data.before?.trim() ? `ここまでに書いた文（意味の参考。添削しない）:\n"""\n${data.before.trim()}\n"""\n\n` : "") +
+        `添削する1文:\n"""\n${sentence}\n"""\n\n` +
+        `次を出力:\n` +
+        `- issues: 本当の間違いだけ（文法・語の選び方・語順・助詞・量詞など。好みの言い換えは入れない）。最大4個。各要素は\n` +
+        `  wrong(添削する1文の中にそのまま書かれている部分。1文字も変えずに写す)、fix(直した形)、\n` +
+        `  kind("word" | "grammar" | "order" | "particle" | "measure" | "other")、explain(なぜ違うかを${NL}で1〜2文)。\n` +
+        `- ok: 間違いが無ければ true（issues は空）。\n` +
+        `- natural: 学習者が言いたいことを、${coach.journalNatives}が一番自然に言う1文（${coach.journalScript}）。意味は変えない。\n` +
+        `- natural_note: natural がなぜ自然かを${NL}で1文。natural が元の文と同じなら空。`,
+    });
+    return cleanSentenceCheck(sentence, raw);
   });
 
 /**

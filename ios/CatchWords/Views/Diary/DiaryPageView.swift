@@ -19,7 +19,11 @@ import SwiftUI
 ///    of speech's colours (`ChunkKind`, owner 2026-10-25: 「使ったチャンクは日記上でも品詞ごとに色変わる」); a tap and
 ///    it is writing again. Kept the moment it is typed, saved by itself a moment after typing stops
 ///    (`DiaryStore.setText`).
-/// 4. The foot: how many of the day's words the text has used, and whether it is saved.
+/// 4. Under the text, the sentence checks (owner 2026-10-25): each sentence is checked once when it is finished
+///    (`DiaryStore.check`, a moment after the typing stops); what is wrong is underlined in the print and explained in
+///    a card (`SentenceNoteCard`) with the most natural way to say it.
+/// 5. The foot: how many of the day's words the text has used, and 「添削する」 — the finished diary's correction
+///    (`DiaryCorrectionView`, on the book's left page or as a sheet).
 ///
 /// Inside a page being turned (`staticPrint`) nothing here is live: no text field (a text field cannot be drawn into a
 /// page curl), no buttons.
@@ -35,6 +39,8 @@ struct DiaryPageView: View {
     /// 「振り返る」 shown by whoever holds the page (the book shows it on its left page), with the word to open first.
     /// nil: the page shows it as its own sheet.
     var onLookBack: ((String?) -> Void)? = nil
+    /// The finished correction shown by whoever holds the page (the book: its left page). nil: a sheet.
+    var onCorrection: (() -> Void)? = nil
 
     @Environment(DexStore.self) private var dex
     @Environment(\.appReduceMotion) private var reduceMotion
@@ -46,6 +52,8 @@ struct DiaryPageView: View {
     /// 「振り返る」 as this page's own sheet, and the word it opens on.
     @State private var lookBackOpen = false
     @State private var lookBackFocus: String?
+    /// The correction as this page's own sheet.
+    @State private var correctionOpen = false
     /// The words already stamped on this page (a new stamp taps the phone once).
     @State private var stamped: Set<String> = []
     @AppStorage(PageRule.storageKey) private var ruleRaw: String = PageRule.lined.rawValue
@@ -97,10 +105,15 @@ struct DiaryPageView: View {
             if standalone { title }
             if !words.isEmpty { wordsShelf }
             paper
+            if !staticPrint { sentenceNotes }
             foot
         }
         .task(id: DiaryStore.monthKey(day)) { await store.loadMonth(of: day) }
-        .onAppear { stamped = used }
+        .task(id: finishedSentences) { await checkFinished() }
+        .onAppear {
+            stamped = used
+            if !staticPrint { store.resumeChecks() }
+        }
         .onDisappear { if !staticPrint { Task { await store.save(day) } } }
         .onChange(of: used) { old, now in
             guard !staticPrint else { return }
@@ -121,6 +134,15 @@ struct DiaryPageView: View {
             DiaryStyleSheet()
                 .presentationDetents([.height(430)])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $correctionOpen) {
+            if let c = store.correction(for: day) {
+                DiaryCorrectionView(day: day, correction: c) { correctionOpen = false }
+                    .padding(.horizontal, 20)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(Color(hex: 0xFBF8F1))
+            }
         }
         .sheet(isPresented: $lookBackOpen) {
             DiaryLookBack(day: day, words: words, focus: lookBackFocus) { lookBackOpen = false }
@@ -357,6 +379,17 @@ struct DiaryPageView: View {
                 paint(r, Theme.primaryInk)
             }
         }
+        // What the sentence checks found wrong: underlined in red where the sentence stands.
+        guard !staticPrint else { return a }
+        for sentence in DiaryStore.sentences(in: s) where sentence.finished {
+            guard let check = store.checks[sentence.text], !check.issues.isEmpty,
+                  let at = s.range(of: sentence.text) else { continue }
+            for issue in check.issues {
+                guard let r = s.range(of: issue.wrong, range: at),
+                      let ar = Range<AttributedString.Index>(r, in: a) else { continue }
+                a[ar].underlineStyle = Text.LineStyle(pattern: .dot, color: SentenceNoteCard.wrongInk)
+            }
+        }
         return a
     }
 
@@ -412,9 +445,16 @@ struct DiaryPageView: View {
 
     // MARK: The foot
 
-    /// How many of the day's words the text has used: one dot each, filled once used.
-    @ViewBuilder
+    /// How many of the day's words the text has used (one dot each, filled once used), and 「添削する」.
     private var foot: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            usedRow
+            if !staticPrint && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { correctRow }
+        }
+    }
+
+    @ViewBuilder
+    private var usedRow: some View {
         if !words.isEmpty {
             HStack(spacing: 8) {
                 Text(L("使ったことば"))
@@ -437,6 +477,133 @@ struct DiaryPageView: View {
             .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: used)
             .accessibilityElement(children: .combine)
         }
+    }
+
+    // MARK: Correcting
+
+    /// The finished sentences, as one key: the check runs again only when they change.
+    private var finishedSentences: [String] {
+        guard !staticPrint else { return [] }
+        return DiaryStore.sentences(in: text).filter { $0.finished }.map { $0.text }
+    }
+
+    /// Checks the sentences finished since the last check, a moment after the typing stops (a new keystroke starts
+    /// the wait again), at most three at a time.
+    private func checkFinished() async {
+        guard !staticPrint, !finishedSentences.isEmpty else { return }
+        try? await Task.sleep(for: .milliseconds(900))
+        guard !Task.isCancelled else { return }
+        let all = DiaryStore.sentences(in: text)
+        var before = ""
+        var sent = 0
+        for s in all {
+            defer { before += s.text }
+            guard s.finished, store.checks[s.text] == nil, !store.checking.contains(s.text) else { continue }
+            await store.check(s.text, before: before, day: day)
+            sent += 1
+            if sent == 3 || Task.isCancelled { break }
+        }
+    }
+
+    /// Under the text: a card for each finished sentence with something to fix or say better, in the text's order;
+    /// how many are fine; a sentence being checked; why checking stopped.
+    @ViewBuilder
+    private var sentenceNotes: some View {
+        let finished = DiaryStore.sentences(in: text).filter { $0.finished }
+        let noted = finished.filter { store.checks[$0.text]?.hasNote == true }
+        let fine = finished.filter { store.checks[$0.text]?.hasNote == false }.count
+        let busy = finished.contains { store.checking.contains($0.text) }
+        if !noted.isEmpty || fine > 0 || busy || store.checkUnavailable != nil {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text(L("1文ずつの添削"))
+                        .font(.system(size: 12, weight: .semibold, design: .serif))
+                        .tracking(1.2)
+                        .foregroundStyle(ink.color.opacity(0.5))
+                    if busy { ProgressView().controlSize(.mini) }
+                    Spacer()
+                    if fine > 0 {
+                        Label(L("\(fine)文は自然です"), systemImage: "checkmark.circle")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(SentenceNoteCard.fixInk)
+                    }
+                }
+                ForEach(Array(noted.enumerated()), id: \.offset) { _, s in
+                    if let c = store.checks[s.text] {
+                        SentenceNoteCard(sentence: s.text, check: c, ink: ink.color)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+                if let why = store.checkUnavailable {
+                    Text(why)
+                        .scaledFont(size: 12)
+                        .foregroundStyle(ink.color.opacity(0.55))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: noted.map { $0.text })
+        }
+    }
+
+    /// 「添削する」 when the diary is written: the most natural full text and the day's review. A correction already
+    /// made opens again from here.
+    private var correctRow: some View {
+        let k = key
+        let busy = store.correcting.contains(k)
+        let made = store.correction(for: day) != nil
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Button {
+                    Haptics.impact(.light)
+                    writing = false
+                    Task {
+                        if await store.correct(day) { showCorrection() }
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if busy {
+                            ProgressView().controlSize(.small).tint(.white)
+                        } else {
+                            Image(systemName: "checkmark.seal")
+                        }
+                        Text(busy ? L("添削しています…") : L("添削する"))
+                    }
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: 44)
+                    .background(ink.color, in: Capsule())
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(busy)
+                .accessibilityIdentifier("diary.correct")
+                if made && !busy {
+                    Button {
+                        Haptics.selection()
+                        showCorrection()
+                    } label: {
+                        Text(L("添削を見る"))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(ink.color)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .overlay(Capsule().stroke(ink.color.opacity(0.25), lineWidth: 1))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityIdentifier("diary.correction.open")
+                }
+            }
+            if let err = store.correctError[k] {
+                Label(err, systemImage: "exclamationmark.triangle.fill")
+                    .scaledFont(size: 12, weight: .medium)
+                    .foregroundStyle(Theme.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func showCorrection() {
+        if let onCorrection { onCorrection() } else { correctionOpen = true }
     }
 }
 
