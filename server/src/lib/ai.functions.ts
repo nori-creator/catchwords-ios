@@ -1420,7 +1420,8 @@ ${cardProfile.chunkPrompt.posRule}
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ${chunkCountRule(data.headword)} 各 {parts:[{text,pos,slot,ja,pinyin,zhuyin,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない), fits, why}。
+    ? `- usage_chunks: ${chunkCountRule(data.headword)} 各 {parts:[{text,pos,slot,ja,pinyin,zhuyin,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない), note, fits, why}。
+  ${chunkNoteRule(NL)}
   ${chunkSenseRule(data.headword, "上の meaning_ja に書いた意味")}
   ${formulaChunkRule(cardProfile.code)}
   ${specificChunkRule(data.headword, levelGoal)}
@@ -1461,7 +1462,7 @@ ${l1Gram}`
   ○ 文旦・肉燥麵(台湾の名物 → specialty) / 悠遊卡(台湾だけの仕組み → institution) /
     その土地だけの言い方(→ regional_word)
   **迷ったら空文字にする。** 誤って限定と書くほうが、書かないより害が大きい
-${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${cardProfile.capture.relatedExample}）。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**note は全部の語に必ず${NL}で書く**${sameLanguage(explainLang, cardProfile.code) ? "" : `。**${cardProfile.promptName}で書かない**(${cardProfile.promptName}なのは word/reading だけ。${cardProfile.promptName}の note は読めないので捨てられ、解説の無い語だけが残る)`}。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
+${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${cardProfile.capture.relatedExample}）。各 {word:${cardProfile.promptName}の語, kind, gloss:その語の短い訳(${NL}・1語〜数語。説明にしない), note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**note は全部の語に必ず${NL}で書く**${sameLanguage(explainLang, cardProfile.code) ? "" : `。**${cardProfile.promptName}で書かない**(${cardProfile.promptName}なのは word/reading だけ。${cardProfile.promptName}の note は読めないので捨てられ、解説の無い語だけが残る)`}。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
 ${wantMeasure ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
 ${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}${jaLines ? `\n${jaLines}` : ""}
 
@@ -1490,11 +1491,11 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       `extras{ ` +
       [
         want("usage_chunks") &&
-          "usage_chunks[{parts:[{text,pos,slot,ja?,pinyin?,zhuyin?,alts?:[{text,ja,pinyin?,zhuyin?}]}],ja,fits,why}]",
+          "usage_chunks[{parts:[{text,pos,slot,ja?,pinyin?,zhuyin?,alts?:[{text,ja,pinyin?,zhuyin?}]}],ja,note,fits,why}]",
         // 口語/書面の札（register_tag / register_scale）はもう頼まない（オーナー決定 2026-10-15）。
         "usage_context, frequency_level, encounter_labels[{kind,label}]",
         "scene_weights, season_months, region_scope, region_scope_kind, image_query, image_avoid[]",
-        want("related_words") && "related_words[{word,kind,note}]",
+        want("related_words") && "related_words[{word,kind,gloss,note}]",
         wantMeasure && "measure_words[{word,zhuyin,pinyin,note}]",
         wantOwn("kanji_breakdown") && "kanji_breakdown[{kanji,meaning,on,kun}]",
         wantOwn("conjugation") && "conjugation[{form,text}]",
@@ -2250,8 +2251,9 @@ function formulaChunkRule(code: string): string {
     // R17「加熱（動詞）が点線になってる。点線は…入れ替え可能な具体的なもの」。
     // 2026-10-01「とても甘いのか、少し甘いのかは置き換え可能だよね。程度も変更できるように」
     // （チャンクの表示ルール C5: 程度の語だけは副詞でも入れ替えられる）。
-    `**slot を付けてよいのは ① 具体的な物・人・場所を表す名詞 ② 量詞 ③ 程度の語（很・超・非常・有點・蠻）だけ。` +
-    `動詞・形容詞・程度以外の副詞・助詞には絶対に slot を付けない。**` +
+    // 2026-10-25 オーナー「程度の品詞は入れ替え不可で很で固定にして」（C5 の改正: 程度の語は入れ替えない）。
+    `**slot を付けてよいのは ① 具体的な物・人・場所を表す名詞 ② 量詞 だけ。` +
+    `動詞・形容詞・副詞・助詞、そして程度の語（很・超・非常・有點・蠻）には絶対に slot も alts も付けない — 很 は固定。**` +
     NO_PLUS_PART_RULE +
     // 2026-10-01「芒果冰のようにひとかたまりとして普段扱われるものはチャンクを分けなくていい」（C7）。
     `\n**ネイティブが1語として使う語は分けずに1つのパーツにする**（✗ 芒果＋冰 → ○ 芒果冰、✗ 手搖＋飲）。` +
@@ -2262,8 +2264,7 @@ function formulaChunkRule(code: string): string {
     `頻度の高い順に4〜6個、[{text, ja: その語の意味（解説の言語で、短く）}]。` +
     `slot: true のパーツ自身にも ja（その語の意味。型の訳 ja の中で**その語に当たる部分と同じ書き方**）を付ける` +
     `（例: {text:"男朋友", ja:"彼氏"} と 型の訳「彼氏と喧嘩する」）。` +
-    `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友、` +
-    `芒果＋很＋甜 の 很 → 超・非常・有點・蠻）。` +
+    `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友）。` +
     `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。` +
     CHUNK_INTEGRITY_RULE +
     chunkReadingRule(code)
@@ -2311,6 +2312,18 @@ function chunkCountRule(headword: string): string {
 /**
  * 型ごとの自己点検の欄（`fits` / `why`）。サーバの門は `fits: false` を落とし、保存する前に欄を外す。
  */
+/**
+ * **型ごとのひと言解説**（オーナー 2026-10-24「それぞれのチャンクにひと言解説を書いて」）。画面では電球を押すと出る。
+ * 生成と作り直しの両方がここを通る。読む人の言語でない物は保存前に落とす（`note-language.ts`）。
+ */
+function chunkNoteRule(nl: string): string {
+  return (
+    `各型に **note**（ひと言解説、${nl}で1文・40字ほどまで）を付ける: その型のニュアンス・使う場面・似た言い方との違い・` +
+    `学習者が間違えやすい所のうち、**いちばん役に立つ1つ**（例: 戴＋水晶手鍊 →「戴 は身につける物ぜんぶに使う。服と靴だけは 穿」）。` +
+    `型の訳（ja）を言い直しただけの文・一般論（「よく使う表現です」）にしない。${nl}以外の言語で書かない（学ぶ語の字はそのまま引いてよい）。`
+  );
+}
+
 const CHUNK_SELF_CHECK_RULE =
   `各型に **fits**（true/false）と **why**（10字ほど）を付ける: fits は「この物の本来の使い方で、ネイティブがそのまま言う型で、` +
   `上の確かめ (a)〜(g) を全部満たす」時だけ true。少しでも怪しければ false にして、**false の型は配列に入れない**（入っていればサーバが捨てる）。`;
@@ -2348,7 +2361,7 @@ const CHUNK_DEFINITION_RULE =
   `✗ 去冰＋可樂 → ○ 可樂＋去冰）。\n` +
   `4. **文にしない。** 主語＋動詞＋目的語をすべて書いた文（✗ 我買了一個紙箱）、句点のある文は型ではない。主語は入れない。\n` +
   `5. **量詞の型（一個〇〇・一杯〇〇）は書かない** — 量詞は別の欄で読む。\n` +
-  `6. 入れ替えてよく使う所（名詞・形容詞・程度の副詞のバリエーション）だけ slot にする。**学ぶ語そのものは決して slot にしない。**\n` +
+  `6. 入れ替えてよく使う所（具体的な名詞・量詞のバリエーション）だけ slot にする。**学ぶ語そのもの・程度の語（很 など）は決して slot にしない。**\n` +
   `7. 各型に必ず、型ぜんぶの自然な訳（ja）を付ける。\n` +
   `**返す前に、型を1つずつ次の順に確かめ、1つでも当てはまれば直すか外す**: ` +
   `(a) パーツを左から声に出して読むと、ネイティブがそのまま言う句か（語順・目的語の位置・裝 の目的語は中身か）` +
@@ -2449,6 +2462,8 @@ function specificChunkRule(headword: string, levelGoal: string): string {
     `✗「買${headword}」「喜歡${headword}」「有${headword}」のように、買う・好き・持っている だけを` +
     `足した形 — 名詞さえあれば言えるので、その語について何も教えていない。\n` +
     `✗「這款${headword}」「這個${headword}」のように、この・その（指示語+量詞）だけを足した形も同じ。\n` +
+    `✗ 吃／喝／拿／看／用（単独）＋${headword}、${headword}＋很＋好／好吃／好喝／甜／大／貴／漂亮 — 別の100の名詞にも付く。` +
+    `**日本語の直訳とずれる、その物専用の動詞を優先**（吹＋電風扇、沖＋馬桶、剝＋椪柑、搭＋手扶梯 — 搭乘 は硬い）。\n` +
     `○ **その語とだけ強く結び付いている**言い方（飲み物なら「半糖少冰」「加珍珠」、` +
     `動詞ならその動詞が取る決まった相手・補語、形容詞なら一緒に立つ名詞）。\n` +
     `基準は「**その語を別の語に入れ替えたら成り立たなくなるか**」。成り立つ形は書かない。\n` +
@@ -2854,7 +2869,7 @@ async function runSectionRegen(
         }),
     },
     usage_chunks: {
-      prompt: `${base}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","fits":true,"why":""}]}`,
+      prompt: `${base}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${chunkNoteRule(NL)}\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","note":"ひと言解説","fits":true,"why":""}]}`,
       // 部品の形は `extras.ts` の1つ（`ja`・`alts` を落とさない）。返ってきた型は生成と同じ門を通す
       // （`chunk-quality.ts`）。1つも残らなければ「作れなかった」— 崩れた型を書くより、空のまま次に任せる。
       schema: RegenUsageChunksSchema.transform((r, ctx) => {
@@ -2879,7 +2894,7 @@ async function runSectionRegen(
       }),
     },
     related_words: {
-      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${regenProfile.capture.relatedExample}）。類義語の note には「${head}」との使い分けを必ず書く。\n**note は全部の語に必ず${NL}で書く**${sameLanguage(regenLang, regenProfile.code) ? "" : `。**${targetName}で書かない**(${targetName}なのは word/reading だけ。${targetName}の note は読めないので捨てられる — オーナー報告 2026-09-30「関連語の解説がなくなってる」)`}。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
+      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${regenProfile.capture.relatedExample}）。類義語の note には「${head}」との使い分けを必ず書く。\n**note は全部の語に必ず${NL}で書く**${sameLanguage(regenLang, regenProfile.code) ? "" : `。**${targetName}で書かない**(${targetName}なのは word/reading だけ。${targetName}の note は読めないので捨てられる — オーナー報告 2026-09-30「関連語の解説がなくなってる」)`}。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\ngloss はその語の短い訳（${NL}・1語〜数語。説明にしない — 画面で語の右に出る）。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","gloss":"短い訳(${NL})","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
       schema: z.object({
         related_words: z
           .array(

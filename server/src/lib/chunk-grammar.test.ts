@@ -49,7 +49,7 @@ describe("tidyUsageParts（ネイティブが言う形に）", () => {
       { text: "超", pos: "Adv" },
       { text: "入味", pos: "Vs" },
     ];
-    // 語の並びは変えない（超 は入れ替えられる札になる — 下の C5 の試験）。
+    // 語の並びは変えない（超 も固定の札 — 下の C5 の試験）。
     expect(tidyUsageParts(has, "zh-TW").map((p) => p.text)).toEqual(["滷味", "超", "入味"]);
     const merged = [
       { text: "滷味", pos: "N" },
@@ -164,7 +164,7 @@ describe("チャンクの表示ルール C5/C7（2026-10-01「芒果冰は分け
     ];
     expect(mergeCompounds(en, "mango", "en")).toEqual(en);
   });
-  it("補った 很 は入れ替えられる（超・非常・有點・蠻、読む人の言語の訳付き）", () => {
+  it("補った 很 は固定（入れ替えない。オーナー 2026-10-25「程度は入れ替え不可で很で固定」）", () => {
     const out = tidyUsageParts(
       [
         { text: "芒果", pos: "N" },
@@ -174,17 +174,27 @@ describe("チャンクの表示ルール C5/C7（2026-10-01「芒果冰は分け
       { headword: "芒果", reader: "ja" },
     );
     expect(out.map((p) => p.text)).toEqual(["芒果", "很", "甜"]);
-    expect(isSwappableSlot(out[1], "zh-TW")).toBe(true);
+    expect(isSwappableSlot(out[1], "zh-TW")).toBe(false);
+    expect(out[1].slot).toBeUndefined();
+    expect(out[1].alts).toBeUndefined();
+    // 訳の中で 很 に当たる語（太くする所）は付ける。
     expect(out[1].ja).toBe("とても");
-    expect(out[1].alts?.map((a) => a.text)).toEqual(["超", "非常", "有點", "蠻"]);
-    expect(out[1].alts?.[2].ja).toBe("ちょっと");
     // 学ぶ語は入れ替えない（C2）。
     expect(isSwappableSlot(out[0], "zh-TW")).toBe(false);
-    // 訳も入れ替わる（C12）。
-    const parts = out;
-    expect(swappedTranslation("マンゴーはとても甘い", parts, { 1: 2 })).toBe(
-      "マンゴーはちょっと甘い",
+  });
+  it("AI が 很 に slot・alts を付けて返しても外す（保存済みの語も点線にしない）", () => {
+    const out = tidyUsageParts(
+      [
+        { text: "水晶手鍊", pos: "N" },
+        { text: "很", pos: "Adv", slot: true, ja: "とても", alts: [{ text: "超", ja: "すごく" }] },
+        { text: "精緻", pos: "Vs" },
+      ],
+      "zh-TW",
+      { headword: "水晶手鍊", reader: "ja" },
     );
+    expect(out[1].slot).toBeUndefined();
+    expect(out[1].alts).toBeUndefined();
+    expect(isSwappableSlot({ text: "很", pos: "Adv", slot: true, alts: [{ text: "超", ja: "" }] }, "zh-TW")).toBe(false);
   });
   it("英語の読者には英語の訳", () => {
     const out = tidyUsageParts(
@@ -196,7 +206,6 @@ describe("チャンクの表示ルール C5/C7（2026-10-01「芒果冰は分け
       { headword: "芒果", reader: "en" },
     );
     expect(out[1].ja).toBe("very");
-    expect(out[1].alts?.[0].ja).toBe("super");
   });
   it("程度以外の副詞・動詞・形容詞は点線にしない", () => {
     const alts = [{ text: "x", ja: "" }];

@@ -11,7 +11,7 @@ import {
   type UsageChunk,
 } from "./extras";
 import { isBrokenUsageChunk, withoutSeparatorParts, DEGREE_CHOICES } from "./chunk-grammar";
-import { isGenericChunk } from "./generic-chunks";
+import { isGenericChunk, isWeakPartnerChunk } from "./generic-chunks";
 import { readerText } from "./note-language";
 import { posGroup } from "./pos";
 import { normalizeTargetLanguage } from "./target-lang";
@@ -70,6 +70,7 @@ export type ChunkDropReason =
   | "measure_word"
   | "redundant_measure"
   | "generic"
+  | "weak_partner"
   | "broken"
   | "echo_verb"
   | "no_translation"
@@ -312,16 +313,17 @@ function translationKey(ja: string): string {
     .toLowerCase();
 }
 
-/** 入れ替えられる札の品詞（名詞・量詞・台湾華語の程度の語）。それ以外の slot・alts は外す。 */
+/**
+ * 入れ替えられる札の品詞（名詞・量詞）。それ以外の slot・alts は外す。
+ * 程度の語（很・超・非常・有點・蠻）は入れ替えない — 很 で固定（オーナー 2026-10-25、C5 の改正）。
+ */
 function swappable(part: ChunkPart, language: string | null | undefined): boolean {
+  void language;
+  if ((DEGREE_CHOICES as readonly string[]).includes(part.text.trim())) return false;
   const pos = normalizeChunkPos(part.pos);
   if (!pos) return true;
   const g = posGroup(pos);
-  if (g === "n" || g === "m") return true;
-  return (
-    normalizeTargetLanguage(language).startsWith("zh") &&
-    (DEGREE_CHOICES as readonly string[]).includes(part.text.trim())
-  );
+  return g === "n" || g === "m";
 }
 
 /**
@@ -340,7 +342,8 @@ export function tidyForStorage(chunk: AiUsageChunk, ctx: ChunkGateContext): Usag
     }
     return out;
   });
-  return { parts, ja: (chunk.ja ?? "").trim() };
+  const note = (chunk.note ?? "").trim();
+  return note ? { parts, ja: (chunk.ja ?? "").trim(), note } : { parts, ja: (chunk.ja ?? "").trim() };
 }
 
 /** 自己点検の欄だけを外す（形を変えない）。 */
@@ -532,9 +535,20 @@ export function gateUsageChunks(
     seenText.add(text);
     if (jaKey) seenJa.add(jaKey);
     kept.push(tidyForStorage({ ...c, parts }, ctx));
-    if (kept.length >= MAX_CHUNKS) break;
   }
-  return { kept, dropped };
+  // 弱い相手（喝＋〜・〜＋很＋甜・拿＋〜）: 強い型が2つ以上あれば落とし、無ければ最後へ（並びは頻度順のまま保つ）。
+  const weak = kept.map((k) => isWeakPartnerChunk(k.parts, head, ctx.language));
+  const strong = kept.filter((_, i) => !weak[i]);
+  let ordered: UsageChunk[];
+  if (strong.length >= 2) {
+    kept.forEach((k, i) => {
+      if (weak[i]) dropped.push({ text: chunkText(k.parts, ctx.language), reason: "weak_partner" });
+    });
+    ordered = strong;
+  } else {
+    ordered = [...strong, ...kept.filter((_, i) => weak[i])];
+  }
+  return { kept: ordered.slice(0, MAX_CHUNKS), dropped };
 }
 
 /** 記録用の一行（語・落とした数・理由）。語の中身は入れない。 */
