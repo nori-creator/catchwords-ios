@@ -29,7 +29,8 @@ enum UIPreview {
             parts.removeLast()
         }
         L10n.lang = lang
-        for key in ["reading.pref", "chunk.posColors", DevChoices.tabBarKey] + DevChoices.retiredKeys {
+        for key in ["reading.pref", "chunk.posColors", DevChoices.tabBarKey, PaperTone.storageKey, PageRule.storageKey,
+                    InkTone.storageKey] + DevChoices.retiredKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
         return (parts.joined(separator: "-"), dark)
@@ -147,7 +148,15 @@ struct UIPreviewRoot: View {
             case "home-again": HomePreview(metAgain: true)
             // The diary (2026-10-24): today's page as the iPhone's sheet shows it, and the album as a book on a wide screen.
             case "diary": DiaryPreview()
+            // The same page on blush paper, grid rules and plum ink (「紙とインク」).
+            case "diary-style": DiaryPreview(paper: .blush, rule: .grid, ink: .plum)
             case "spread": SpreadPreview()
+            // Yesterday's right page held mid-turn under a finger (the page curl), and the cover half open.
+            case "spread-curl": SpreadPreview(held: (direction: .forward, progress: 0.36, lift: 0.68))
+            case "spread-curl-late": SpreadPreview(held: (direction: .forward, progress: 0.72, lift: 0.8))
+            case "spread-cover": SpreadCoverPreview()
+            // CI's video: yesterday's spread turning over to today by itself.
+            case "spread-turn": SpreadPreview(held: nil, demoTurn: true)
             case "camblocked": CameraBlockedPreview()
             case "homeload": VStack(spacing: 20) {
                 AlbumSkeleton().frame(height: 440)
@@ -1822,10 +1831,18 @@ private enum DiaryFixtures {
                               formulas: [[("點", "V"), ("一份", "M"), ("鐵板麵", "N")], [("鐵板麵", "N"), ("很", "Adv"), ("香", "Vs")]])
         let mango = sticker("diary-mango", "芒果", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ", hue: 0.12, at: now.addingTimeInterval(-50 * 60),
                             place: "水果攤", formulas: [[("芒果", "N"), ("很", "Adv"), ("甜", "Vs")]])
-        dex.stickers = [mango, noodles]
+        let yesterday = now.addingTimeInterval(-86_400)
+        let tea = sticker("diary-tea", "珍珠奶茶", zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", hue: 0.07, at: yesterday.addingTimeInterval(-2 * 3600),
+                          place: "飲料店", formulas: [[("一杯", "M"), ("珍珠奶茶", "N")]])
+        let umbrella = sticker("diary-umbrella", "雨傘", zhuyin: "ㄩˇ ㄙㄢˇ", hue: 0.62, at: yesterday.addingTimeInterval(-3600),
+                               place: "捷運站", formulas: [[("帶", "V"), ("雨傘", "N")]])
+        dex.stickers = [mango, noodles, umbrella, tea]
         dex.hasLoaded = true
 
-        DiaryStore.shared.seedForPreview([DiaryEntry(date: DiaryStore.key(now), text: "今天早餐我吃了鐵板麵，非常好吃。下午在水果攤買了芒果。")])  // l10n-ignore (learning-language sample)
+        DiaryStore.shared.seedForPreview([
+            DiaryEntry(date: DiaryStore.key(now), text: "今天早餐我吃了鐵板麵，非常好吃。下午在水果攤買了芒果。"),  // l10n-ignore (learning-language sample)
+            DiaryEntry(date: DiaryStore.key(yesterday), text: "下雨了，我忘了帶雨傘。在捷運站買了一杯珍珠奶茶。"),  // l10n-ignore (learning-language sample)
+        ])
     }
 
     /// A word with a photo, a cut-out and its formulas (`usage_patterns`), kept in memory (no network in the preview).
@@ -1863,15 +1880,23 @@ private enum DiaryFixtures {
 /// `-uiPreview diary`: today's diary page as the iPhone's home opens it (a sheet).
 private struct DiaryPreview: View {
     @Environment(DexStore.self) private var dex
+    private let paper: PaperTone
+
+    init(paper: PaperTone = .cream, rule: PageRule = .lined, ink: InkTone = .navy) {
+        self.paper = paper
+        UserDefaults.standard.set(paper.rawValue, forKey: PaperTone.storageKey)
+        UserDefaults.standard.set(rule.rawValue, forKey: PageRule.storageKey)
+        UserDefaults.standard.set(ink.rawValue, forKey: InkTone.storageKey)
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 DiaryPageView(day: Date(), standalone: true)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 22)
                     .padding(.bottom, 40)
             }
-            .background(HomeBackground())
+            .background(PaperSurface(tone: paper, cornerRadius: 0).ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {} label: { Image(systemName: "xmark") }
@@ -1884,22 +1909,66 @@ private struct DiaryPreview: View {
     }
 }
 
-/// `-uiPreview spread`: the home on a wide screen (the regular width class — iPhone Duo's inner display), drawn at
-/// 1024 pt and scaled to the simulator's width: the day's paper on the left, its diary on the right, the spine between.
+/// `-uiPreview spread`: the home on a wide screen (the regular width class — iPhone Duo's inner display), drawn on a
+/// Duo-shaped canvas (1000 × 860 pt, wider than tall as the book is held) and scaled to the simulator's width: the day's
+/// paper on the left, its diary on the right, the gutter between. `held`: the book alone, yesterday's spread with its
+/// right page held mid-turn under a finger (the page curl).
 private struct SpreadPreview: View {
     @Environment(DexStore.self) private var dex
-    private static let width: CGFloat = 1024
+    var held: (direction: PageTurnDirection, progress: CGFloat, lift: CGFloat)? = nil
+    var demoTurn = false
+    private static let canvas = CGSize(width: 1000, height: 860)
+    /// The book is built once the fixtures are in (its first spread is chosen as it appears).
+    @State private var seeded = false
 
     var body: some View {
         GeometryReader { geo in
-            let scale = geo.size.width / Self.width
-            HomeView()
-                .environment(\.horizontalSizeClass, .regular)
-                .environment(\.colorScheme, .light)
-                .frame(width: Self.width, height: geo.size.height / max(scale, 0.01))
-                .scaleEffect(scale, anchor: .topLeading)
+            let scale = geo.size.width / Self.canvas.width
+            Group {
+                if !seeded {
+                    Color.clear
+                } else if held != nil || demoTurn {
+                    BookSpreadView(days: AlbumDay.days(from: dex.albumStickers, today: Calendar.current.startOfDay(for: Date())),
+                                   onOpen: { _ in }, onCamera: {}, startIndex: 1, showsCover: false, heldTurn: held,
+                                   demoTurnAfter: demoTurn ? 2.0 : nil)
+                        .padding(24)
+                        .background(HomeBackground())
+                } else {
+                    HomeView()
+                }
+            }
+            .environment(\.horizontalSizeClass, .regular)
+            .environment(\.colorScheme, .light)
+            .frame(width: Self.canvas.width, height: Self.canvas.height)
+            .scaleEffect(scale, anchor: .topLeading)
+            .frame(width: geo.size.width, height: Self.canvas.height * scale)
+            .frame(maxHeight: .infinity)
         }
+        .background(Color.black)
         .ignoresSafeArea()
-        .task { DiaryFixtures.seed(dex) }
+        .task {
+            DiaryFixtures.seed(dex)
+            seeded = true
+        }
+    }
+}
+
+/// `-uiPreview spread-cover`: the cloth cover a third of the way open over the right page (it opens once a launch).
+private struct SpreadCoverPreview: View {
+    var body: some View {
+        GeometryReader { geo in
+            let page = CGSize(width: (geo.size.width - 48) / 2, height: min(geo.size.height * 0.5, 420))
+            HStack(spacing: 0) {
+                PaperSurface(tone: .cream, spine: .trailing).frame(width: page.width, height: page.height)
+                ZStack {
+                    PaperSurface(tone: .cream, spine: .leading)
+                    BookCoverFlip(angle: -58, month: Date().formatted(.dateTime.year().month(.wide).locale(L10n.locale)), tone: .cream)
+                }
+                .frame(width: page.width, height: page.height)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(HomeBackground())
+        .environment(\.colorScheme, .light)
     }
 }

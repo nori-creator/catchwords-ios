@@ -29,6 +29,8 @@ struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var widthClass
     /// The day whose diary is open as a sheet (the iPhone's home: 「日記」 on a day).
     @State private var diaryDay: DiaryDay?
+    /// The diary's paper (「紙とインク」), for the iPhone's diary sheet.
+    @AppStorage(PaperTone.storageKey) private var paperRaw: String = PaperTone.cream.rawValue
 
     private struct MemorialDay: Identifiable {
         let n: Int
@@ -36,109 +38,8 @@ struct HomeView: View {
     }
 
     var body: some View {
-        let today = Calendar.current.startOfDay(for: Date())
-
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    if let n = profile.createdAt.flatMap({ Milestone.today(start: $0) }),
-                       !memorialHidden, !Milestone.wasDismissed(n) {
-                        MemorialBanner(n: n, words: dex.stickers.count, photos: Milestone.highlights(dex.stickers).count) {
-                            Haptics.impact(.medium)
-                            memorialOpen = n
-                        } onDismiss: {
-                            Milestone.dismiss(n)
-                            withAnimation(.snappy) { memorialHidden = true }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 14)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
-                    // Photos kept at the shutter whose analysis has not finished (web Home pending banner).
-                    if !dex.pending.isEmpty {
-                        Button {
-                            router.openPending = true
-                            router.tab = .camera
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "hourglass").scaledFont(size: 15, weight: .semibold)
-                                Text(L("解析待ちの写真が\(dex.pending.count)枚あります"))
-                                    .scaledFont(size: 14, weight: .semibold)
-                                Spacer()
-                                Image(systemName: "chevron.right").scaledFont(size: 12, weight: .semibold)
-                            }
-                            .foregroundStyle(Color(hex: 0x33291F))
-                            .padding(.horizontal, 16)
-                            .frame(minHeight: 48)
-                            .background(Color(hex: 0xF3D98A, opacity: 0.45), in: .rect(cornerRadius: 14))
-                        }
-                        .buttonStyle(PressableStyle())
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 14)
-                    }
-
-                    Group {
-                        if let err = dex.loadError, dex.stickers.isEmpty {
-                            // Nothing to show yet and the dex could not be read: say so, offer a retry.
-                            AlbumLoadFailed(message: err) { Task { await dex.load() } }
-                                .frame(height: 360)
-                                .tourAnchor(.album)
-                        } else if !dex.hasLoaded, dex.stickers.isEmpty {
-                            AlbumSkeleton()
-                                .frame(height: 440)
-                                .tourAnchor(.album)
-                        } else {
-                            let days = AlbumDay.days(from: dex.albumStickers, today: today)
-                            if widthClass == .regular {
-                                BookSpreadView(
-                                    days: days,
-                                    // A re-encounter's page opens its word.
-                                    onOpen: { router.detailSticker = dex.albumOwner($0) },
-                                    onCamera: { router.tab = .camera },
-                                    onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
-                                    finishRequest: finishEditing,
-                                    jumpDay: calendarDay,
-                                    jumpCount: jumpCount
-                                )
-                                .transition(.opacity)
-                            } else {
-                                HomeAlbum(
-                                    days: days,
-                                    // A re-encounter's page opens its word.
-                                    onOpen: { router.detailSticker = dex.albumOwner($0) },
-                                    onCamera: { router.tab = .camera },
-                                    onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
-                                    finishRequest: finishEditing,
-                                    onDiary: { diaryDay = DiaryDay(day: $0) }
-                                )
-                                .transition(.opacity)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .animation(.easeOut(duration: 0.3), value: dex.hasLoaded)
-
-                    AlbumHiddenTray()
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-
-                    Color.clear.frame(height: 120)
-                }
-                .background(ScrollViewFinder { [autoScroll] sv in autoScroll.scrollView = sv })
-            }
-            .environment(autoScroll)
-            .scrollDisabled(albumEditing)
-            // A drag the system cancelled never reports its end: stop the page when rearranging ends either way.
-            .onChange(of: albumEditing) { _, _ in autoScroll.end() }
-            .refreshable { await dex.load() }
-            // The header takes its room from the scroll (instead of covering its top), so a day scrolled to from the
-            // calendar shows its date just under it.
-            .safeAreaInset(edge: .top, spacing: 8) { header }
-            .onChange(of: jumpCount) { _, _ in
-                guard let day = calendarDay else { return }
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { proxy.scrollTo(day, anchor: .top) }
-            }
+        Group {
+            if widthClass == .regular { bookBody } else { albumScroll }
         }
         .background(HomeBackground())
         // Rearranging the album ends with 「完了」 (web: a fixed button above the tab bar), wherever the board is.
@@ -257,10 +158,10 @@ struct HomeView: View {
             NavigationStack {
                 ScrollView {
                     DiaryPageView(day: d.day, standalone: true)
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, 22)
                         .padding(.bottom, 40)
                 }
-                .background(HomeBackground())
+                .background(PaperSurface(tone: PaperTone(rawValue: paperRaw) ?? .cream, cornerRadius: 0).ignoresSafeArea())
                 .scrollDismissesKeyboard(.interactively)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -282,6 +183,151 @@ struct HomeView: View {
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(32)
         }
+    }
+
+    /// The iPhone's home: the album as one vertical scroll.
+    private var albumScroll: some View {
+        let today = Calendar.current.startOfDay(for: Date())
+
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    memorialBanner
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 14)
+
+                    // Photos kept at the shutter whose analysis has not finished (web Home pending banner).
+                    if !dex.pending.isEmpty {
+                        pendingBanner
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 14)
+                    }
+
+                    Group {
+                        if let err = dex.loadError, dex.stickers.isEmpty {
+                            // Nothing to show yet and the dex could not be read: say so, offer a retry.
+                            AlbumLoadFailed(message: err) { Task { await dex.load() } }
+                                .frame(height: 360)
+                                .tourAnchor(.album)
+                        } else if !dex.hasLoaded, dex.stickers.isEmpty {
+                            AlbumSkeleton()
+                                .frame(height: 440)
+                                .tourAnchor(.album)
+                        } else {
+                            HomeAlbum(
+                                days: AlbumDay.days(from: dex.albumStickers, today: today),
+                                // A re-encounter's page opens its word.
+                                onOpen: { router.detailSticker = dex.albumOwner($0) },
+                                onCamera: { router.tab = .camera },
+                                onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
+                                finishRequest: finishEditing,
+                                onDiary: { diaryDay = DiaryDay(day: $0) }
+                            )
+                            .transition(.opacity)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .animation(.easeOut(duration: 0.3), value: dex.hasLoaded)
+
+                    AlbumHiddenTray()
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+
+                    Color.clear.frame(height: 120)
+                }
+                .background(ScrollViewFinder { [autoScroll] sv in autoScroll.scrollView = sv })
+            }
+            .environment(autoScroll)
+            .scrollDisabled(albumEditing)
+            // A drag the system cancelled never reports its end: stop the page when rearranging ends either way.
+            .onChange(of: albumEditing) { _, _ in autoScroll.end() }
+            .refreshable { await dex.load() }
+            // The header takes its room from the scroll (instead of covering its top), so a day scrolled to from the
+            // calendar shows its date just under it.
+            .safeAreaInset(edge: .top, spacing: 8) { header }
+            .onChange(of: jumpCount) { _, _ in
+                guard let day = calendarDay else { return }
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { proxy.scrollTo(day, anchor: .top) }
+            }
+        }
+    }
+
+    /// A wide screen (iPhone Duo open, the regular width class): the album is a book filling the screen under the header
+    /// — no page scroll; each page scrolls inside itself (`BookSpreadView`, owner 2026-10-24/25).
+    private var bookBody: some View {
+        let today = Calendar.current.startOfDay(for: Date())
+        return VStack(spacing: 12) {
+            memorialBanner
+            if !dex.pending.isEmpty { pendingBanner }
+            Group {
+                if let err = dex.loadError, dex.stickers.isEmpty {
+                    AlbumLoadFailed(message: err) { Task { await dex.load() } }
+                        .frame(height: 360)
+                        .tourAnchor(.album)
+                } else if !dex.hasLoaded, dex.stickers.isEmpty {
+                    AlbumSkeleton()
+                        .frame(height: 440)
+                        .tourAnchor(.album)
+                } else {
+                    BookSpreadView(
+                        days: AlbumDay.days(from: dex.albumStickers, today: today),
+                        // A re-encounter's page opens its word.
+                        onOpen: { router.detailSticker = dex.albumOwner($0) },
+                        onCamera: { router.tab = .camera },
+                        onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
+                        finishRequest: finishEditing,
+                        jumpDay: calendarDay,
+                        jumpCount: jumpCount
+                    )
+                    .transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeOut(duration: 0.3), value: dex.hasLoaded)
+        }
+        .padding(.horizontal, 20)
+        // The floating tab bar.
+        .padding(.bottom, 78)
+        .environment(autoScroll)
+        .onChange(of: albumEditing) { _, _ in autoScroll.end() }
+        .safeAreaInset(edge: .top, spacing: 8) { header }
+    }
+
+    /// The milestone day's banner (100 days, a year …), until it is opened or dismissed.
+    @ViewBuilder
+    private var memorialBanner: some View {
+        if let n = profile.createdAt.flatMap({ Milestone.today(start: $0) }),
+           !memorialHidden, !Milestone.wasDismissed(n) {
+            MemorialBanner(n: n, words: dex.stickers.count, photos: Milestone.highlights(dex.stickers).count) {
+                Haptics.impact(.medium)
+                memorialOpen = n
+            } onDismiss: {
+                Milestone.dismiss(n)
+                withAnimation(.snappy) { memorialHidden = true }
+            }
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    /// Photos kept at the shutter whose analysis has not finished (web Home pending banner).
+    private var pendingBanner: some View {
+        Button {
+            router.openPending = true
+            router.tab = .camera
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "hourglass").scaledFont(size: 15, weight: .semibold)
+                Text(L("解析待ちの写真が\(dex.pending.count)枚あります"))
+                    .scaledFont(size: 14, weight: .semibold)
+                Spacer()
+                Image(systemName: "chevron.right").scaledFont(size: 12, weight: .semibold)
+            }
+            .foregroundStyle(Color(hex: 0x33291F))
+            .padding(.horizontal, 16)
+            .frame(minHeight: 48)
+            .background(Color(hex: 0xF3D98A, opacity: 0.45), in: .rect(cornerRadius: 14))
+        }
+        .buttonStyle(PressableStyle())
     }
 
     /// × or a picked day: the closing pon at the tap — waiting for the sheet to finish sliding away made it late

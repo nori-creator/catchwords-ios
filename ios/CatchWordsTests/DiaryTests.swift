@@ -32,4 +32,49 @@ final class DiaryTests: XCTestCase {
         XCTAssertNil(e.feedback)
         XCTAssertEqual(e.nativePhrases, [])
     }
+
+    // MARK: The page curl's geometry (`PageCurlGeometry`, the book on a wide screen)
+
+    private let spread = CGSize(width: 1000, height: 800)
+
+    func testAPageNotMovedIsNotLifted() {
+        let g = PageCurlGeometry.make(progress: 0, liftY: 600, grabY: 600, size: spread)
+        XCTAssertFalse(g.lifted)
+    }
+
+    func testALandedPageLiesFlatAlongTheSpine() {
+        let g = PageCurlGeometry.make(progress: 1, liftY: 500, grabY: 700, size: spread)
+        XCTAssertTrue(g.lifted)
+        XCTAssertEqual(g.fold.x, 500, accuracy: 0.01, "the fold is at the spine")
+        XCTAssertEqual(g.dir.dx, 1, accuracy: 0.0001, "and upright")
+        XCTAssertEqual(g.dir.dy, 0, accuracy: 0.0001)
+        XCTAssertLessThan(g.radius, 0.01, "no roll left: the leaf lies flat on the other page")
+    }
+
+    func testAPageHeldLevelFoldsUpright() {
+        let g = PageCurlGeometry.make(progress: 0.3, liftY: 600, grabY: 600, size: spread)
+        XCTAssertEqual(g.dir.dy, 0, accuracy: 0.0001)
+        XCTAssertGreaterThan(g.fold.x, 500)
+        XCTAssertLessThan(g.fold.x, 1000)
+        XCTAssertGreaterThan(g.radius, 0)
+    }
+
+    func testAFingerHeldHigherLiftsTheCornerAtASlant() {
+        let g = PageCurlGeometry.make(progress: 0.1, liftY: 650, grabY: 780, size: spread)
+        XCTAssertGreaterThan(abs(g.dir.dy), 0.05, "a corner, not the whole edge")
+        XCTAssertEqual(g.dir.dx * g.dir.dx + g.dir.dy * g.dir.dy, 1, accuracy: 0.0001)
+    }
+
+    func testTheFoldNeverCrossesTheSpine() {
+        for p in stride(from: 0.05, through: 1.0, by: 0.05) {
+            let g = PageCurlGeometry.make(progress: CGFloat(p), liftY: 0, grabY: 800, size: spread)
+            XCTAssertGreaterThanOrEqual(g.fold.x, 500, "progress \(p)")
+        }
+    }
+
+    func testTheRollNeverOutgrowsTheDistanceTravelled() {
+        let g = PageCurlGeometry.make(progress: 0.01, liftY: 600, grabY: 600, size: spread)
+        // 1 % of the way: the edge moved 10 pt, so the roll is at most 10 / π.
+        XCTAssertLessThanOrEqual(g.radius, 10 / .pi + 0.001)
+    }
 }

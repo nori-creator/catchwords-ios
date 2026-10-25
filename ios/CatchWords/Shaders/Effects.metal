@@ -158,3 +158,88 @@ static float3 hueRGB(float h) {
     if (r4 < flight * 0.3) { return half4(0.0); }
     return layer.sample(from);
 }
+
+// MARK: - The diary book on a wide screen (iPhone Duo, 2026-10-25)
+
+/// Paper grain: a faint, fixed speckle on a page (`PaperSurface`), so a flat colour reads as paper. Each point gets its
+/// own lighter or darker step (`strength` of 0.03 ≈ ±1.5 %), plus a slow, larger mottling; nothing moves.
+[[ stitchable ]] half4 paperGrain(float2 position, half4 color, float strength) {
+    float fine = hash21(floor(position * 1.0)) - 0.5;
+    float coarse = valueNoise(position / 38.0) - 0.5;
+    float g = fine * strength + coarse * strength * 0.9;
+    return half4(color.rgb + half3(g) * color.a, color.a);
+}
+
+static bool curlInLeaf(float2 s, float2 size, float spine) {
+    return s.x >= spine && s.x <= size.x && s.y >= 0.0 && s.y <= size.y;
+}
+
+static half4 curlSample(SwiftUI::Layer layer, float2 s, float2 size, float mirror) {
+    float2 q = mirror > 0.5 ? float2(size.x - s.x, s.y) : s;
+    return layer.sample(q);
+}
+
+/// A page turned like paper (`PageCurl`): the leaf leaves the page along a fold line and rolls round a cylinder of
+/// `radius`, its back coming over on top and lying flat beyond. The layer is the whole spread: its right half is the
+/// leaf's front (the page being turned), its left half the leaf's back (the page that will lie on the left once it has
+/// landed), drawn at that final place — the back of the leaf at distance d from the spine is that page at distance d on
+/// the other side. Everything else the layer holds is never shown; where the leaf is not, the spread under it shows
+/// through, darkened by the leaf's shadow.
+/// - size: the spread in points. - fold: a point of the fold line. - dir: unit vector across the fold, towards the
+///   lifted edge. - spine: the spine's x. - mirror: 1 turns the other way (the left page back to the right): the same
+///   geometry on the spread seen in a mirror.
+/// Used with `.layerEffect(…, maxSampleOffset: size)` (the back is sampled up to a spread's width away).
+[[ stitchable ]] half4 pageCurl(float2 position, SwiftUI::Layer layer, float2 size, float2 fold, float2 dir,
+                                float radius, float spine, float mirror) {
+    const float PI = 3.14159265;
+    float2 p = mirror > 0.5 ? float2(size.x - position.x, position.y) : position;
+    float r = max(radius, 0.0001);
+    float x = dot(p - fold, dir);
+    float2 base = p - dir * x;
+
+    // Past the roll: the leaf has left this point. Its shadow falls on the page beneath, darkest by the roll.
+    if (x > r) {
+        float d = x - r;
+        float a = 0.30 * exp(-d / (r * 1.4 + 10.0));
+        return half4(0.0, 0.0, 0.0, half(a));
+    }
+
+    // The back, on top: on the upper half of the roll (0 ≤ x ≤ r) or lying flat beyond it (x < 0).
+    float arcBack = x >= 0.0 ? PI * r - r * asin(clamp(x / r, -1.0, 1.0)) : PI * r - x;
+    float2 sBack = base + dir * arcBack;
+    if (curlInLeaf(sBack, size, spine)) {
+        half4 c = curlSample(layer, float2(2.0 * spine - sBack.x, sBack.y), size, mirror);
+        // Lit from above: the roll's crest is brightest, its sides fall away; the flat back is a touch darker
+        // than the page it will become, the light of a sheet held up.
+        float shade = 0.94;
+        if (x >= 0.0) {
+            float t = x / r;
+            shade = 0.80 + 0.20 * sqrt(max(0.0, 1.0 - t * t));
+        }
+        c.rgb *= half(shade);
+        // A thin bright line along the rolled edge.
+        if (x >= 0.0 && x > r * 0.86) { c.rgb = min(half3(1.0), c.rgb + half3(0.05)); }
+        return c;
+    }
+
+    // The front, on the lower half of the roll: it turns away from the light as it rises.
+    if (x >= 0.0) {
+        float arcFront = r * asin(clamp(x / r, -1.0, 1.0));
+        float2 sFront = base + dir * arcFront;
+        if (curlInLeaf(sFront, size, spine)) {
+            half4 c = curlSample(layer, sFront, size, mirror);
+            float t = x / r;
+            c.rgb *= half(1.0 - 0.38 * t * t);
+            return c;
+        }
+        return half4(0.0);
+    }
+
+    // The front, still flat: the page as it was, shaded a little where the roll hangs over it.
+    if (curlInLeaf(p, size, spine)) {
+        half4 c = curlSample(layer, p, size, mirror);
+        c.rgb *= half(1.0 - 0.16 * exp(x / (r * 0.9 + 6.0)));
+        return c;
+    }
+    return half4(0.0);
+}

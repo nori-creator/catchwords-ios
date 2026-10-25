@@ -8727,5 +8727,152 @@
   "es": "No se pudo cargar el diario",
   "ko": "일기를 불러오지 못했어요",
   "vi": "Không thể tải nhật ký"
+ },
+ "クリーム": {
+  "en": "Cream",
+  "zh-TW": "奶油白",
+  "es": "Crema",
+  "ko": "크림",
+  "vi": "Kem"
+ },
+ "ホワイト": {
+  "en": "White",
+  "zh-TW": "白色",
+  "es": "Blanco",
+  "ko": "화이트",
+  "vi": "Trắng"
+ },
+ "ピンク": {
+  "en": "Pink",
+  "zh-TW": "粉紅",
+  "es": "Rosa",
+  "ko": "핑크",
+  "vi": "Hồng"
+ },
+ "セージ": {
+  "en": "Sage",
+  "zh-TW": "鼠尾草綠",
+  "es": "Salvia",
+  "ko": "세이지",
+  "vi": "Xanh xô thơm"
+ },
+ "罫線": {
+  "en": "Lined",
+  "zh-TW": "橫線",
+  "es": "Rayado",
+  "ko": "줄",
+  "vi": "Kẻ dòng"
+ },
+ "方眼": {
+  "en": "Grid",
+  "zh-TW": "方格",
+  "es": "Cuadrícula",
+  "ko": "모눈",
+  "vi": "Ô vuông"
+ },
+ "ドット": {
+  "en": "Dots",
+  "zh-TW": "點格",
+  "es": "Puntos",
+  "ko": "점",
+  "vi": "Chấm"
+ },
+ "無地": {
+  "en": "Plain",
+  "zh-TW": "空白",
+  "es": "Liso",
+  "ko": "무지",
+  "vi": "Trơn"
+ },
+ "ネイビー": {
+  "en": "Navy",
+  "zh-TW": "深藍",
+  "es": "Azul marino",
+  "ko": "네이비",
+  "vi": "Xanh navy"
+ },
+ "セピア": {
+  "en": "Sepia",
+  "zh-TW": "深褐",
+  "es": "Sepia",
+  "ko": "세피아",
+  "vi": "Nâu sepia"
+ },
+ "プラム": {
+  "en": "Plum",
+  "zh-TW": "梅紫",
+  "es": "Ciruela",
+  "ko": "플럼",
+  "vi": "Tím mận"
+ },
+ "ティール": {
+  "en": "Teal",
+  "zh-TW": "墨綠",
+  "es": "Verde azulado",
+  "ko": "틸",
+  "vi": "Xanh mòng két"
+ },
+ "グラファイト": {
+  "en": "Graphite",
+  "zh-TW": "石墨灰",
+  "es": "Grafito",
+  "ko": "그래파이트",
+  "vi": "Than chì"
+ },
+ "しおり": {
+  "en": "Bookmark",
+  "zh-TW": "書籤",
+  "es": "Marcapáginas",
+  "ko": "책갈피",
+  "vi": "Dấu trang"
+ },
+ "今日のページに戻る": {
+  "en": "Back to today's page",
+  "zh-TW": "回到今天這一頁",
+  "es": "Volver a la página de hoy",
+  "ko": "오늘 페이지로 돌아가기",
+  "vi": "Quay lại trang hôm nay"
+ },
+ "紙とインク": {
+  "en": "Paper & ink",
+  "zh-TW": "紙張與墨水",
+  "es": "Papel y tinta",
+  "ko": "종이와 잉크",
+  "vi": "Giấy và mực"
+ },
+ "紙": {
+  "en": "Paper",
+  "zh-TW": "紙張",
+  "es": "Papel",
+  "ko": "종이",
+  "vi": "Giấy"
+ },
+ "インク": {
+  "en": "Ink",
+  "zh-TW": "墨水",
+  "es": "Tinta",
+  "ko": "잉크",
+  "vi": "Mực"
+ },
+ "日記で使った": {
+  "en": "Used in the diary",
+  "zh-TW": "已在日記中使用",
+  "es": "Usada en el diario",
+  "ko": "일기에 썼어요",
+  "vi": "Đã dùng trong nhật ký"
+ },
+ "押すと書けます": {
+  "en": "Tap to write",
+  "zh-TW": "點一下就能寫",
+  "es": "Toca para escribir",
+  "ko": "누르면 쓸 수 있어요",
+  "vi": "Nhấn để viết"
+ },
+ "使ったことば": {
+  "en": "Words used",
+  "zh-TW": "用過的單字",
+  "es": "Palabras usadas",
+  "ko": "쓴 단어",
+  "vi": "Từ đã dùng"
  }
 }
