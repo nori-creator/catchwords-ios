@@ -49,6 +49,7 @@ const metrics = () => import("./metrics.functions");
 const betaMetrics = () => import("./beta-metrics.functions");
 const reports = () => import("./reports.functions");
 const sentenceReadings = () => import("./sentence-readings.functions");
+const standing = () => import("./standing.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -125,6 +126,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   listMyDiaryMonth: from(journal, "listMyDiaryMonth"),
   // 利用者
   getMyStats: from(stats, "getMyStats"),
+  // 全利用者の中での位置（iOS の「ほめる演出」。数と順位だけ返す。`standing.functions.ts`）
+  getMyStanding: from(standing, "getMyStanding"),
   getMyProfile: from(profile, "getMyProfile"),
   updateMyProfile: from(profile, "updateMyProfile"),
   deleteMyAccount: from(profile, "deleteMyAccount"),

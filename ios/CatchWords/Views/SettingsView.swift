@@ -322,25 +322,7 @@ struct SettingsView: View {
                 devRow(icon: "exclamationmark.bubble", title: L("報告された誤り"), id: "settings.adminReports") { adminScreen = .reports }
                 Divider().overlay(Theme.border)
                 devRow(icon: "cpu", title: L("AI の設定（開発者）"), id: "settings.adminAi") { showAdminAi = true }
-                Divider().overlay(Theme.border).padding(.bottom, 8)
-                developerTrials
             }
-        }
-    }
-
-    @AppStorage(DevChoices.tabBarKey) private var tabBarVariant: String = DevChoices.tabBarDefault
-
-    /// 開発者の試し (owner 2026-10-15): the camera tab's look to compare on the device — the original one, shipped, or
-    /// B, kept for a later release (owner 2026-10-16). The 設定 sound (A), the app's own wheel (owner 2026-10-20) and the
-    /// shutter sound (B, owner 2026-10-21) were decided and left the trials.
-    private var developerTrials: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(L("開発者の試し（端末で比べて選ぶ）")).scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
-            label(L("下のバーのカメラ"))
-            ChoicePills(options: [(DevChoices.tabBarDefault, L("元のデザイン")), (DevChoices.tabBarRaised, L("B 浮いた丸（将来）"))],
-                        selection: Binding(get: { tabBarVariant == DevChoices.tabBarRaised ? DevChoices.tabBarRaised : DevChoices.tabBarDefault },
-                                           set: { tabBarVariant = $0 }))
-                .accessibilityIdentifier("settings.dev.tabbar")
         }
     }
 

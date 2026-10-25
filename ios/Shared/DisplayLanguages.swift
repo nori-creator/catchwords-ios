@@ -63,7 +63,7 @@ nonisolated enum DisplayLanguages {
             localeID: "en_US", lproj: "en", devicePrefixes: ["en"], script: .latin,
             listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
             glossLimit: 24, legalDocs: true,
-            plurals: ["words": "word", "days": "day", "photos": "photo", "times": "time", "cards": "card", "stickers": "sticker", "items": "item", "reviews": "review", "books": "book", "minutes": "minute", "hours": "hour", "pages": "page", "entries": "entry"],
+            plurals: ["words": "word", "days": "day", "photos": "photo", "times": "time", "cards": "card", "stickers": "sticker", "items": "item", "reviews": "review", "books": "book", "minutes": "minute", "hours": "hour", "pages": "page", "entries": "entry", "months": "month"],
             markerWords: ["the", "of", "and", "to", "is", "are", "was", "were", "with", "for", "this", "that", "these", "those", "it", "its", "you", "your", "be", "been", "from", "by", "an", "or", "not", "can", "used", "when", "which", "who", "what", "on", "at", "as", "in", "into", "about", "something", "someone", "thing", "people"],
             markerLetters: "",
             degreeGlosses: ["很": "very", "超": "super", "非常": "extremely", "有點": "a little", "蠻": "pretty", "好": "so"]

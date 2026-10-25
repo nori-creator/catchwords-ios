@@ -64,7 +64,8 @@
         "minutes": "minute",
         "hours": "hour",
         "pages": "page",
-        "entries": "entry"
+        "entries": "entry",
+        "months": "month"
       },
       "markerWords": [
         "the",

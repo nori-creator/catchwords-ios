@@ -52,6 +52,8 @@ enum AccountCleanup {
         // the first tour still to continue.
         Milestone.removeRecord(userId: userId)
         TourStep.removePending(userId: userId)
+        // When it was last praised and asked for a review.
+        PraiseSchedule.removeRecord(userId: userId)
         // The photos it took off the home album that only this phone remembered.
         if let userId { UserDefaults.standard.removeObject(forKey: "album.hidden.local.\(userId)") }
         // Which of its selfies had no person to cut out.

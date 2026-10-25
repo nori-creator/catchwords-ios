@@ -767,6 +767,10 @@ struct CaptureView: View {
                 }
                 dex.settleLanding(savedId)
             }
+            // A new word: the praise flow decides whether this one is praised (rarely) or asks for a review.
+            if case .created(let saved) = outcome {
+                router.caughtNew = CaughtWord(wordId: saved.wordId, headword: draft.candidate.headword)
+            }
             if let cardLater, case .created(let saved) = outcome, !saved.wordId.isEmpty {
                 Task { if let card = await cardLater.value { await dex.fillCard(wordId: saved.wordId, card: card) } }
             }
