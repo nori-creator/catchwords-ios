@@ -3,7 +3,7 @@
 
 入れるもの（このリポジトリの `ios/metadata`）:
   app-info/<言語>.json            name / subtitle / privacyPolicyUrl
-  version/<版>/<言語>.json         description / keywords / promotionalText / supportUrl / marketingUrl
+  version/<版>/<言語>.json         description / keywords / promotionalText / whatsNew / supportUrl / marketingUrl
   docs/app-store/review-notes.en.txt   App Review Information の Notes（--notes を付けた時だけ）
 
 触らないもの: 審査用アカウント（メール・パスワード）、連絡先、ビルド、価格、配信国、審査への提出。
@@ -24,10 +24,11 @@ import urllib.request
 
 from asc_dev_certs import API, token
 
-LIMITS = {"name": 30, "subtitle": 30, "promotionalText": 170, "description": 4000}
-BYTE_LIMITS = {"keywords": 100, "notes": 4000}
+# Keywords: 100 characters, as App Store Connect's own counter counts them (Japanese keywords run to ~230 bytes).
+LIMITS = {"name": 30, "subtitle": 30, "promotionalText": 170, "description": 4000, "keywords": 100, "whatsNew": 4000}
+BYTE_LIMITS = {"notes": 4000}
 INFO_FIELDS = ("name", "subtitle", "privacyPolicyUrl")
-VERSION_FIELDS = ("description", "keywords", "promotionalText", "supportUrl", "marketingUrl")
+VERSION_FIELDS = ("description", "keywords", "promotionalText", "whatsNew", "supportUrl", "marketingUrl")
 # Versions whose text can still be edited (the first version has never been on sale).
 EDITABLE = {"PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED",
             "INVALID_BINARY"}
