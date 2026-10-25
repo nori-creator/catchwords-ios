@@ -1,29 +1,26 @@
-CatchWords helps people learn Taiwanese Mandarin (Traditional Chinese) words from photos of everyday things. Free, no in-app purchases. New in 1.0.4: an optional rewarded video ad (Google AdMob), described under ADS below.
+CatchWords helps people learn Taiwanese Mandarin (Traditional Chinese) words from photos of everyday things. Free, no in-app purchases. Free catches are limited per day (10 a day for the first 7 days, then 5); reviewing is never limited. When the day's catches run out, the user may choose to watch a rewarded video ad (Google AdMob) for one more catch, at most twice a day. No other ads, and no App Tracking Transparency prompt: the app does not use the advertising identifier (IDFA).
 
 SIGN IN
-Use the demo account in "Sign-in information" above: on the first screen, tap "Sign in with email", enter the email and password, and tap "Sign in". The account has finished the first-run setup and the AI consent, already has words, and shows the app in English (Settings > Language > Your language changes it). On a new device the consent screen "Sending data to AI" may appear once; tap "Agree and start". Sign in with Apple and Google are also offered on the first screen; "New here? Sign up" creates an account with email.
+Use the demo account in "Sign-in information" above: on the first screen, tap "Sign in with email", enter the email and password, and tap "Sign in". The account has finished the first-run setup and the AI consent, already has words, and shows the app in English (Settings > Language > Your language switches between English and Japanese). On a new device the consent screen "Sending data to AI" may appear once; tap "Agree and start". Sign in with Apple and Google are also offered on the first screen; "New here? Sign up" creates an account with email.
 
 MAIN FLOW
-1. Camera tab: photograph any object, or pick a photo with the Photos button. Word tags appear on the objects after a few seconds.
+1. Camera tab: photograph any object (cup, bottle, chair), or pick a photo with the Photos button. Word tags appear on the objects after a few seconds.
 2. Tap a word: its sticker (cut out of the photo), the word and its pronunciation appear, and the word is added to the collection. A word that is not shown can be looked up with "Type a different word".
 3. Collection tab: tap a word for zhuyin, pinyin, meaning, pronunciation (speaker button) and example sentences.
 4. Review tab: 4-choice questions with the user's own photos.
 5. Settings: languages, level, notifications, Legal (Terms, Privacy Policy, consent to send data to AI), Sign out, and Delete account at the bottom (deletes the account and its data on our server).
 
 DATA AND AI
-Photos and typed words go only to our server (our own Supabase project; website catchwords.app). Our server sends them to a third-party AI service (Google Gemini, with Anthropic Claude as a backup; the operator may switch a feature to another provider named in the privacy policy) only after the user agrees on the in-app screen "Sending data to AI", shown before the first AI feature. Without consent nothing is sent and the camera stays off; collected words and review still work. Consent can be withdrawn in Settings > Legal. Pronunciation of Taiwanese Mandarin: Microsoft Azure AI Speech (text only). Optional replacement photos for a word: Unsplash / Wikimedia Commons, with credit.
+Photos and typed words go only to our server (Supabase, Tokyo region). Our server sends them to a third-party AI service (Google Gemini by default; the operator may switch a feature to another provider named in the privacy policy, e.g. Anthropic Claude) only after the user agrees on the in-app screen "Sending data to AI", shown before the first AI feature. Without consent nothing is sent and the camera stays off; collected words and review still work. Consent can be withdrawn in Settings > Legal. Pronunciation of Taiwanese Mandarin: Microsoft Azure AI Speech (text only). Optional replacement photos for a word: Unsplash / Wikimedia Commons, with credit.
 
-ADS (NEW IN 1.0.4)
-- The free plan allows a number of catches (photo -> word added) per day: 10 a day in an account's first week, then 5 a day. Reviews, the collection and every other screen are never limited.
-- After the day's free catches, the sheet "That's all your catches for today" offers "Watch an ad for 1 more". Only if the user taps it, a Google AdMob rewarded video plays; watching it to the end adds one catch for that day. Ads are never shown at launch, during a catch, or on their own.
-- To see it with the demo account: catch 5 words in the Camera tab (the account is older than a week), then try a sixth. If AdMob has no ad to serve at that moment, the sheet says "No ad is available right now" and nothing else changes.
-- No App Tracking Transparency prompt: the app does not track and does not use the IDFA. In the EEA, UK and Switzerland, Google's consent form (User Messaging Platform) is shown before the first ad; the choice can be changed in Settings > Legal > Ad privacy choices.
+ADS
+The only ad is the optional rewarded video described above, offered on the "That's all your catches for today" sheet. It never appears at launch or during a catch. To reach it with the demo account (older than a week, so 5 a day), catch 5 words in the Camera tab, then try a sixth. Google's consent form (User Messaging Platform) is shown only where the law requires it (EEA/UK/Switzerland), and Settings > Legal then shows "Ad privacy choices". While AdMob is still reviewing the app, the sheet may say "No ad is available right now"; the rest of the app works the same.
 
 WHY SIGN-IN IS REQUIRED
-Photos, collected words and review history are saved per account on our server, and the AI features have a per-account daily limit to prevent abuse, so almost nothing works without an account.
+Photos, collected words and review history are saved per account on our server, and the AI features have a per-account daily limit to prevent abuse, so almost nothing works without an account. The same account works on the CatchWords website.
 
 OTHER
 - Camera, photo library, location and notification permissions are optional and asked only when the feature is used.
 - Some diagnostic screens in Settings are shown only to the developer's own account; they do not appear for other users or the demo account.
-- Every account learns Taiwanese Mandarin. The interface can be shown in English, Japanese, Traditional Chinese, Spanish, Korean or Vietnamese (Settings > Language); the sign-in screens follow the device language.
+- Every account learns Taiwanese Mandarin. The interface can be English, Japanese, Traditional Chinese, Spanish, Korean or Vietnamese (chosen at setup or in Settings); the sign-in screens follow the device language.
 - The app works the same in every territory where it is offered.
