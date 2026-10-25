@@ -155,6 +155,9 @@ struct UIPreviewRoot: View {
             case "spread-curl": SpreadPreview(held: (direction: .forward, progress: 0.36, lift: 0.68))
             case "spread-curl-late": SpreadPreview(held: (direction: .forward, progress: 0.72, lift: 0.8))
             case "spread-cover": SpreadCoverPreview()
+            // 「振り返る」 (2026-10-25): on the book it takes the left page's place; on the iPhone it is a sheet.
+            case "spread-lookback": SpreadPreview(lookBack: true)
+            case "diary-lookback": DiaryLookBackPreview()
             // CI's video: yesterday's spread turning over to today by itself.
             case "spread-turn": SpreadPreview(held: nil, demoTurn: true)
             case "camblocked": CameraBlockedPreview()
@@ -1840,7 +1843,7 @@ private enum DiaryFixtures {
         dex.hasLoaded = true
 
         DiaryStore.shared.seedForPreview([
-            DiaryEntry(date: DiaryStore.key(now), text: "今天早餐我吃了鐵板麵，非常好吃。下午在水果攤買了芒果。"),  // l10n-ignore (learning-language sample)
+            DiaryEntry(date: DiaryStore.key(now), text: "今天早餐我點一份鐵板麵，非常好吃。下午買的芒果很甜。"),  // l10n-ignore (learning-language sample)
             DiaryEntry(date: DiaryStore.key(yesterday), text: "下雨了，我忘了帶雨傘。在捷運站買了一杯珍珠奶茶。"),  // l10n-ignore (learning-language sample)
         ])
     }
@@ -1917,6 +1920,8 @@ private struct SpreadPreview: View {
     @Environment(DexStore.self) private var dex
     var held: (direction: PageTurnDirection, progress: CGFloat, lift: CGFloat)? = nil
     var demoTurn = false
+    /// 「振り返る」 open on today's left page.
+    var lookBack = false
     private static let canvas = CGSize(width: 1000, height: 860)
     /// The book is built once the fixtures are in (its first spread is chosen as it appears).
     @State private var seeded = false
@@ -1927,6 +1932,11 @@ private struct SpreadPreview: View {
             Group {
                 if !seeded {
                     Color.clear
+                } else if lookBack {
+                    BookSpreadView(days: AlbumDay.days(from: dex.albumStickers, today: Calendar.current.startOfDay(for: Date())),
+                                   onOpen: { _ in }, onCamera: {}, showsCover: false, startsLookedBack: true)
+                        .padding(24)
+                        .background(HomeBackground())
                 } else if held != nil || demoTurn {
                     BookSpreadView(days: AlbumDay.days(from: dex.albumStickers, today: Calendar.current.startOfDay(for: Date())),
                                    onOpen: { _ in }, onCamera: {}, startIndex: 1, showsCover: false, heldTurn: held,
@@ -1953,22 +1963,49 @@ private struct SpreadPreview: View {
     }
 }
 
-/// `-uiPreview spread-cover`: the cloth cover a third of the way open over the right page (it opens once a launch).
+/// `-uiPreview spread-cover`: the book as it lies before it opens — the cloth cover alone in the middle, no page beside
+/// it (owner 2026-10-25), shown just lifting off the block (it opens once a launch).
 private struct SpreadCoverPreview: View {
     var body: some View {
         GeometryReader { geo in
             let page = CGSize(width: (geo.size.width - 48) / 2, height: min(geo.size.height * 0.5, 420))
-            HStack(spacing: 0) {
-                PaperSurface(tone: .cream, spine: .trailing).frame(width: page.width, height: page.height)
-                ZStack {
-                    PaperSurface(tone: .cream, spine: .leading)
-                    BookCoverFlip(angle: -58, month: Date().formatted(.dateTime.year().month(.wide).locale(L10n.locale)), tone: .cream)
-                }
-                .frame(width: page.width, height: page.height)
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(PaperTone.cream.edge)
+                    .shadow(color: .black.opacity(0.16), radius: 18, y: 10)
+                PageEdges(count: 4, edge: .trailing, tone: .cream)
+                PaperSurface(tone: .cream, spine: .leading)
+                BookCoverFlip(angle: -24, month: Date().formatted(.dateTime.year().month(.wide).locale(L10n.locale)), tone: .cream)
             }
+            .frame(width: page.width, height: page.height)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(HomeBackground())
         .environment(\.colorScheme, .light)
+    }
+}
+
+/// `-uiPreview diary-lookback`: 「振り返る」 as the iPhone's sheet — today's timeline, the first word open on its 使い方
+/// in parts-of-speech colours.
+private struct DiaryLookBackPreview: View {
+    @Environment(DexStore.self) private var dex
+    @State private var seeded = false
+
+    var body: some View {
+        Group {
+            if seeded {
+                DiaryLookBack(day: Date(), words: DiaryPageView.words(on: Date(), in: dex), focus: "鐵板麵") {}  // l10n-ignore (learning-language sample)
+                    .padding(.horizontal, 20)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(hex: 0xFBF8F1).ignoresSafeArea())
+        .environment(\.colorScheme, .light)
+        .task {
+            DiaryFixtures.seed(dex)
+            seeded = true
+        }
     }
 }

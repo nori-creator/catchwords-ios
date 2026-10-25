@@ -17,6 +17,7 @@ struct PatternsCardContent: View {
     /// A pattern's chunk in the shape the page shows it (`refinedChunks` rules); nil when it is not shown.
     let refine: (UsageChunk) -> UsageChunk?
     @AppStorage("chunk.posColors") private var posColors: Bool = false
+    @Environment(\.chunkPOSColorsOn) private var posForced
     /// Every sentence's reading of each character (owner 2026-10-22: 「例文の漢字にピンインまたは注音をすべて書いて」).
     @State private var readings: [String: [SentenceUnit]] = [:]
 
@@ -45,7 +46,7 @@ struct PatternsCardContent: View {
                 PatternBlock(pattern: pat, chunk: fromServer ? refine(pat.chunk) : (pat.chunk.parts.isEmpty ? nil : pat.chunk),
                              headword: headword, target: target, number: i + 1, units: units(for: pat.example.zh))
             }
-            if posColors { legend }
+            if posColors || posForced { legend }
         }
         .task(id: sentences) {
             guard target.hasPrefix("zh"), !sentences.isEmpty else { return }

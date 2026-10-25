@@ -30,6 +30,9 @@ struct ChunkLineView: View {
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
     /// 「品詞」 on the card: the blocks in their parts of speech's colours (owner 2026-10-23: off unless asked).
     @AppStorage("chunk.posColors") private var posColors: Bool = false
+    /// The diary's 「振り返る」 shows the colours whatever the card's 「品詞」 says (owner 2026-10-25: 「習った単語の詳細の
+    /// チャンクは品詞ごとで色分け」).
+    @Environment(\.chunkPOSColorsOn) private var posForced
 
     private var shown: [ChunkPart] {
         chunk.parts.enumerated().map { i, p in
@@ -166,7 +169,7 @@ struct ChunkLineView: View {
     /// stays blue either way (owner 2026-10-23 evening: 「青はそのままで」); the colours are barely darkened so the red
     /// stays vivid (「赤色ももう少し鮮やかな色に」).
     private func ink(role: ChunkRole, pos: String) -> Color {
-        if posColors, role != .head {
+        if posColors || posForced, role != .head {
             return ChunkKind(pos: pos).ink.mix(with: colorScheme == .dark ? .white : .black, by: size == .large ? 0.12 : 0.1)
         }
         switch role {
@@ -312,4 +315,9 @@ private extension VerticalAlignment {
         static func defaultValue(in d: ViewDimensions) -> CGFloat { d[VerticalAlignment.center] }
     }
     nonisolated static let chunkText = VerticalAlignment(ChunkText.self)
+}
+
+extension EnvironmentValues {
+    /// Every formula below in its parts of speech's colours, whatever 「品詞」 is set to (the diary's 「振り返る」).
+    @Entry var chunkPOSColorsOn: Bool = false
 }

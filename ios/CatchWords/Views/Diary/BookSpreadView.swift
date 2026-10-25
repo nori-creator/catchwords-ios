@@ -14,7 +14,13 @@ import SwiftUI
 /// - The ribbon marks today; from another day a tap riffles back to it, a few pages flicking over.
 /// - Details of a bound book: the gutter's shadow on both pages, the page block's edge (小口) thicker on the side that
 ///   holds more days, running heads (the month; the day's places) and page numbers (ノンブル).
-/// - The first time in a launch the cloth cover is closed over the right page and opens, with the book's sound.
+/// - The first time in a launch the book lies closed, its cloth cover alone in the middle (owner 2026-10-25: 「ページ
+///   開いたときに、背表紙が右ページに見えるのは変」 — no page beside a closed cover), then opens with the book's sound: a
+///   hard cover, heavy as it lifts and landing with a short bounce (「紙のように柔らかいアニメーションではなく少し固め」),
+///   while the book slides from the middle to its open place.
+///
+/// - 「振り返る」 on the diary (owner 2026-10-25) opens on the left page: the day's timeline and its words' 使い方 are read
+///   on the left while the diary stays open on the right (`DiaryLookBack`). Turning the page closes it.
 ///
 /// Reduced motion: no cover, and pages change with a fade instead of a curl.
 struct BookSpreadView: View {
@@ -33,6 +39,8 @@ struct BookSpreadView: View {
     var heldTurn: (direction: PageTurnDirection, progress: CGFloat, lift: CGFloat)? = nil
     /// Previews (CI's video): turn to the next day by itself this long after appearing.
     var demoTurnAfter: Double? = nil
+    /// Previews: 「振り返る」 open on the first spread's left page, on its first word.
+    var startsLookedBack: Bool = false
 
     /// A turn in progress: which way, and to which spread.
     private struct Turn: Equatable {
@@ -53,8 +61,15 @@ struct BookSpreadView: View {
     @State private var bookSize: CGSize = .zero
     @State private var coverAngle: Double = 0
     @State private var coverUp: Bool = !BookSpreadView.coverOpenedThisLaunch
+    /// The closed book lies in the middle (0) and slides to its open place (1) as the cover opens.
+    @State private var bookShift: CGFloat = BookSpreadView.coverOpenedThisLaunch ? 1 : 0
+    /// The left half (its page, edges and shadow) comes as the cover swings over to lie there.
+    @State private var leftReveal: Double = BookSpreadView.coverOpenedThisLaunch ? 1 : 0
     /// A day's photos are being rearranged: the page holds still, no turning.
     @State private var editing = false
+    /// 「振り返る」 open on the left page: its day, and the word it opened on.
+    @State private var lookBack: (day: Date, focus: String?)?
+    @Environment(DexStore.self) private var dex
     @AppStorage(PaperTone.storageKey) private var paperRaw: String = PaperTone.cream.rawValue
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(AlbumAutoScroll.self) private var autoScroll: AlbumAutoScroll?
@@ -100,14 +115,17 @@ struct BookSpreadView: View {
     private func book(_ size: CGSize) -> some View {
         let pageSize = CGSize(width: size.width / 2, height: size.height)
         return ZStack(alignment: .topLeading) {
-            // The book block's shadow on the desk.
+            // The book block's shadow on the desk (closed, only the right half's).
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(tone.edge)
                 .shadow(color: .black.opacity(0.16), radius: 18, y: 10)
                 .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+                .frame(width: pageSize.width * (1 + leftReveal), height: size.height)
+                .offset(x: pageSize.width * (1 - leftReveal))
             // The page block's edges: older days under the left page, newer ones under the right.
             HStack(spacing: 0) {
                 PageEdges(count: days.count - 1 - index, edge: .leading, tone: tone).frame(width: pageSize.width)
+                    .opacity(leftReveal)
                 PageEdges(count: index, edge: .trailing, tone: tone).frame(width: pageSize.width)
             }
 
@@ -116,6 +134,7 @@ struct BookSpreadView: View {
             } else if let day = current {
                 HStack(spacing: 0) {
                     leftPage(day, live: true).frame(width: pageSize.width, height: pageSize.height)
+                        .opacity(leftReveal)
                     rightPage(day, live: true).frame(width: pageSize.width, height: pageSize.height)
                 }
                 .transition(.opacity)
@@ -154,6 +173,8 @@ struct BookSpreadView: View {
                     .zIndex(5)
             }
         }
+        // Closed, the book lies in the middle of the desk: the cover's page centred.
+        .offset(x: -pageSize.width / 2 * (1 - bookShift))
         .animation(reduceMotion ? .easeOut(duration: 0.25) : nil, value: index)
     }
 
@@ -186,7 +207,25 @@ struct BookSpreadView: View {
         return (days.count - 1 - i) * 2 + 2
     }
 
+    @ViewBuilder
     private func leftPage(_ d: AlbumDay, live: Bool) -> some View {
+        if live, let lb = lookBack, Calendar.current.isDate(lb.day, inSameDayAs: d.day) {
+            ZStack(alignment: .topLeading) {
+                PaperSurface(tone: tone, spine: .trailing)
+                DiaryLookBack(day: d.day, words: DiaryPageView.words(on: d.day, in: dex), focus: lb.focus, onPaper: true) {
+                    withAnimation(.easeOut(duration: 0.22)) { lookBack = nil }
+                }
+                .padding(.leading, 26)
+                .padding(.trailing, 30)
+            }
+            .clipped()
+            .transition(.opacity)
+        } else {
+            albumPage(d, live: live)
+        }
+    }
+
+    private func albumPage(_ d: AlbumDay, live: Bool) -> some View {
         ZStack(alignment: .topLeading) {
             PaperSurface(tone: tone, spine: .trailing)
             VStack(alignment: .leading, spacing: 0) {
@@ -261,7 +300,9 @@ struct BookSpreadView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if live {
                     ScrollView {
-                        DiaryPageView(day: d.day)
+                        DiaryPageView(day: d.day, onLookBack: { focus in
+                            withAnimation(.easeOut(duration: 0.22)) { lookBack = (d.day, focus) }
+                        })
                             .padding(.top, 8)
                             .padding(.bottom, 24)
                     }
@@ -341,6 +382,7 @@ struct BookSpreadView: View {
         var tx = Transaction()
         tx.disablesAnimations = true
         withTransaction(tx) {
+            lookBack = nil
             grabY = min(bookSize.height, max(0, y))
             liftY = grabY
             progress = 0
@@ -464,8 +506,13 @@ struct BookSpreadView: View {
 
     private func appear() {
         index = min(max(0, startIndex), max(0, days.count - 1))
+        if startsLookedBack, let d = current {
+            lookBack = (d.day, DiaryPageView.words(on: d.day, in: dex).first?.word?.headword)
+        }
         if let held = heldTurn {
             coverUp = false
+            bookShift = 1
+            leftReveal = 1
             // Once the book has its size (it is measured as it appears).
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(200))
@@ -486,19 +533,33 @@ struct BookSpreadView: View {
         }
         guard coverUp, showsCover, !reduceMotion else {
             coverUp = false
+            bookShift = 1
+            leftReveal = 1
             Self.coverOpenedThisLaunch = true
             return
         }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(380))
+            try? await Task.sleep(for: .milliseconds(420))
             SoundService.shared.play(.bookOpen)
-            Haptics.impact(.soft, intensity: 0.7)
-            withAnimation(.timingCurve(0.45, 0.0, 0.2, 1, duration: 1.15)) {
-                coverAngle = -180
+            Haptics.impact(.rigid, intensity: 0.45)
+            // A hard cover: slow to lift off the block (its weight), upright half way…
+            withAnimation(.timingCurve(0.55, 0.0, 0.8, 0.55, duration: 0.5)) {
+                coverAngle = -90
+                bookShift = 0.5
             } completion: {
-                coverUp = false
-                Self.coverOpenedThisLaunch = true
-                Haptics.impact(.light, intensity: 0.5)
+                // …then it falls open and lands with a short bounce; the left page comes in under it.
+                withAnimation(.spring(response: 0.46, dampingFraction: 0.7)) {
+                    coverAngle = -180
+                    bookShift = 1
+                }
+                withAnimation(.easeIn(duration: 0.3)) { leftReveal = 1 }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(260))
+                    Haptics.impact(.rigid, intensity: 0.8)
+                    try? await Task.sleep(for: .milliseconds(500))
+                    coverUp = false
+                    Self.coverOpenedThisLaunch = true
+                }
             }
         }
     }

@@ -7,13 +7,18 @@ import SwiftUI
 /// it — the book's right page (`BookSpreadView`) or the iPhone's sheet (`HomeView`).
 ///
 /// Top to bottom:
-/// 1. The running head: where the day was spent (the places of its photos), and 「紙とインク」.
-/// 2. 「この日のことば」: the day's words as the album shows them — the cut-out and its tag. A tap writes the word into
-///    the text; a word the text uses gets an ink stamp (and a light tap of the phone the moment it is stamped).
-///    Under them, the formulas natives use those words in (`usage_patterns`): a tap writes the formula.
+/// 1. The running head: where the day was spent (the places of its photos), 「紙とインク」, and at the top right
+///    「振り返る」 (owner 2026-10-25): the day's timeline and its words' 使い方 in parts-of-speech colours
+///    (`DiaryLookBack` — on the book it takes the left page's place, on the iPhone it is a sheet).
+/// 2. 「この日のことば」: the day's words as the album shows them — the cut-out and its tag. A word the text uses gets an
+///    ink stamp (and a light tap of the phone the moment it is stamped); a tap on a word opens it in 「振り返る」.
+///    Nothing is written into the text for the learner (owner 2026-10-25: 「習ったチャンクはタップしても日記に貼れない
+///    ようにする」 — the formula chips that did are gone).
 /// 3. The text, in the learning language, on the page's rules (lined / grid / dots / plain, at the text's own pitch).
-///    Not being written, it is set like a printed page, the day's words marked as with a highlighter; a tap and it is
-///    writing again. Kept the moment it is typed, saved by itself a moment after typing stops (`DiaryStore.setText`).
+///    Not being written, it is set like a printed page: the day's words and formulas the text uses are in their parts
+///    of speech's colours (`ChunkKind`, owner 2026-10-25: 「使ったチャンクは日記上でも品詞ごとに色変わる」); a tap and
+///    it is writing again. Kept the moment it is typed, saved by itself a moment after typing stops
+///    (`DiaryStore.setText`).
 /// 4. The foot: how many of the day's words the text has used, and whether it is saved.
 ///
 /// Inside a page being turned (`staticPrint`) nothing here is live: no text field (a text field cannot be drawn into a
@@ -27,6 +32,9 @@ struct DiaryPageView: View {
     var standalone: Bool = false
     /// Drawn inside a page being turned: printed only, nothing to touch.
     var staticPrint: Bool = false
+    /// 「振り返る」 shown by whoever holds the page (the book shows it on its left page), with the word to open first.
+    /// nil: the page shows it as its own sheet.
+    var onLookBack: ((String?) -> Void)? = nil
 
     @Environment(DexStore.self) private var dex
     @Environment(\.appReduceMotion) private var reduceMotion
@@ -35,6 +43,9 @@ struct DiaryPageView: View {
     /// 「保存しました」 shows for a moment after a save.
     @State private var savedFlash = false
     @State private var styleOpen = false
+    /// 「振り返る」 as this page's own sheet, and the word it opens on.
+    @State private var lookBackOpen = false
+    @State private var lookBackFocus: String?
     /// The words already stamped on this page (a new stamp taps the phone once).
     @State private var stamped: Set<String> = []
     @AppStorage(PageRule.storageKey) private var ruleRaw: String = PageRule.lined.rawValue
@@ -43,8 +54,6 @@ struct DiaryPageView: View {
     private var rule: PageRule { PageRule(rawValue: ruleRaw) ?? .lined }
     private var ink: InkTone { InkTone(rawValue: inkRaw) ?? .navy }
 
-    /// The highlighter on the day's words, in the printed text.
-    static let marker = Color(hex: 0xFFE39A, opacity: 0.75)
     /// The stamp's ink.
     static let stampInk = Color(hex: 0xB23A32)
 
@@ -58,7 +67,9 @@ struct DiaryPageView: View {
     private var target: String { NativeAPI.targetLanguage }
 
     /// The day's words, one per word (as the album counts them), oldest first.
-    private var words: [Sticker] {
+    private var words: [Sticker] { Self.words(on: day, in: dex) }
+
+    static func words(on day: Date, in dex: DexStore) -> [Sticker] {
         let cal = Calendar.current
         return AlbumDay.onePerWord(dex.albumStickers.filter { cal.isDate($0.takenAt, inSameDayAs: day) })
             .sorted { $0.takenAt < $1.takenAt }
@@ -110,6 +121,13 @@ struct DiaryPageView: View {
             DiaryStyleSheet()
                 .presentationDetents([.height(430)])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $lookBackOpen) {
+            DiaryLookBack(day: day, words: words, focus: lookBackFocus) { lookBackOpen = false }
+                .padding(.horizontal, 20)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color(hex: 0xFBF8F1))
         }
         .toolbar {
             // Only a live page has a text field, so only it ever brings up the keyboard this belongs to.
@@ -170,9 +188,39 @@ struct DiaryPageView: View {
                 .buttonStyle(PressableStyle(scale: 0.92))
                 .accessibilityLabel(L("紙とインク"))
                 .accessibilityIdentifier("diary.style")
+                if !words.isEmpty { lookBackButton }
             }
         }
         .frame(minHeight: 44)
+    }
+
+    /// 「振り返る」 at the page's top right: the day's timeline and its words' 使い方.
+    private var lookBackButton: some View {
+        Button {
+            lookBack(nil)
+        } label: {
+            Label(L("振り返る"), systemImage: "clock.arrow.circlepath")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(ink.color.opacity(0.85))
+                .padding(.horizontal, 12)
+                .frame(height: 34)
+                .background(ink.color.opacity(0.08), in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle(scale: 0.94))
+        .accessibilityIdentifier("diary.lookBack")
+    }
+
+    private func lookBack(_ focus: String?) {
+        guard !staticPrint else { return }
+        Haptics.selection()
+        if let onLookBack {
+            onLookBack(focus)
+        } else {
+            lookBackFocus = focus
+            lookBackOpen = true
+        }
     }
 
     private var title: some View {
@@ -215,14 +263,6 @@ struct DiaryPageView: View {
                     stickerTile(s, index: i)
                 }
             }
-            let shown = words.flatMap { formulas(of: $0) }
-            if !shown.isEmpty {
-                FlowRow(spacing: 8) {
-                    ForEach(Array(shown.enumerated()), id: \.offset) { _, f in
-                        formulaChip(f.text, headword: f.headword)
-                    }
-                }
-            }
         }
     }
 
@@ -235,7 +275,7 @@ struct DiaryPageView: View {
         let tilt: Double = i.isMultiple(of: 2) ? -3 : 2.5
         let isUsed = used.contains(head)
         return Button {
-            insert(head)
+            lookBack(head)
         } label: {
             VStack(spacing: -8) {
                 StickerImage(path: pic?.path, url: dex.url(for: pic?.path), contentMode: isCutout ? .fit : .fill, maxPoints: 68)
@@ -259,64 +299,21 @@ struct DiaryPageView: View {
         .disabled(staticPrint)
         .accessibilityLabel(head)
         .accessibilityValue(isUsed ? L("日記で使った") : "")
-        .accessibilityHint(L("押すと日記に入ります"))
+        .accessibilityHint(L("押すと使い方が開きます"))
     }
 
-    /// The formulas natives use the word in (up to two a word), when they are in the learning language.
-    private func formulas(of s: Sticker) -> [(text: String, headword: String)] {
+    /// The formulas natives use the word in, as blocks with their parts of speech, when they are in the learning
+    /// language (the server's patterns first, then an older card's chunks).
+    private func formulas(of s: Sticker) -> [UsageChunk] {
         guard let word = s.word else { return [] }
-        var texts: [String] = (word.extras?.usagePatterns ?? []).map(\.chunk.text)
-        if texts.isEmpty { texts = (word.extras?.usageChunks ?? []).map(\.text) }
+        let raw = (word.extras?.usagePatterns ?? []).map(\.chunk) + (word.extras?.usageChunks ?? [])
         var seen = Set<String>()
-        var out: [(text: String, headword: String)] = []
-        for raw in texts {
-            let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !t.isEmpty, t != word.headword, LanguageRules.isIn(t, target: target), seen.insert(t).inserted else { continue }
-            out.append((text: t, headword: word.headword))
-            if out.count == 2 { break }
+        return raw.compactMap { (c: UsageChunk) -> UsageChunk? in
+            let t = c.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !c.parts.isEmpty, !t.isEmpty, t != word.headword, LanguageRules.isIn(t, target: target),
+                  seen.insert(t).inserted else { return nil }
+            return c
         }
-        return out
-    }
-
-    /// A formula as one phrase on a hairline tab, the word in blue (`ChunkLineView`'s colours, without its wheel).
-    private func formulaChip(_ phrase: String, headword: String) -> some View {
-        var attributed = AttributedString(phrase)
-        attributed.foregroundColor = ink.color
-        if !headword.isEmpty, let r = attributed.range(of: headword) {
-            attributed[r].foregroundColor = Theme.primaryInk
-            attributed[r].font = .system(size: 15, weight: .bold)
-        }
-        return Button {
-            insert(phrase)
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "plus")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(ink.color.opacity(0.45))
-                Text(attributed)
-                    .scaledFont(size: 15, weight: .medium)
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 34)
-            .overlay(Capsule().stroke(ink.color.opacity(0.18), lineWidth: 1))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(PressableStyle(scale: 0.95))
-        .disabled(staticPrint)
-        .accessibilityLabel(phrase)
-        .accessibilityHint(L("押すと日記に入ります"))
-    }
-
-    /// Writes a word or a formula into the text, at its end (English gets a space before it; Chinese and Japanese do
-    /// not), and goes on writing.
-    private func insert(_ piece: String) {
-        guard !staticPrint, !piece.isEmpty else { return }
-        Haptics.selection()
-        var t = text
-        if let last = t.last, !last.isWhitespace, !last.isNewline, target == "en" { t += " " }
-        t += piece
-        store.setText(t, for: day)
-        writing = true
     }
 
     // MARK: The paper
@@ -325,13 +322,39 @@ struct DiaryPageView: View {
         Binding(get: { text }, set: { store.setText($0, for: day) })
     }
 
-    /// Set like a printed page: the ink colour, the day's words marked as with a highlighter.
+    /// Set like a printed page in the page's ink; the day's formulas and words the text uses in their parts of
+    /// speech's colours (`ChunkKind`, the 「品詞」 colours of the word page; the word itself in its blue). A formula is
+    /// coloured block by block where its whole text is written; a word alone where it stands outside one.
     private func printed(_ s: String) -> AttributedString {
         var a = AttributedString(s)
         a.foregroundColor = ink.color
+        var coloured: [Range<String.Index>] = []
+        func paint(_ r: Range<String.Index>, _ color: Color) {
+            guard let ar = Range<AttributedString.Index>(r, in: a) else { return }
+            a[ar].foregroundColor = color
+            a[ar].font = .system(size: textSize, weight: .semibold)
+            coloured.append(r)
+        }
+        for w in words {
+            let head = w.word?.headword ?? ""
+            for c in formulas(of: w) {
+                for found in s.ranges(of: c.text) where !coloured.contains(where: { $0.overlaps(found) }) {
+                    var at = found.lowerBound
+                    for part in c.parts {
+                        guard let end = s.index(at, offsetBy: part.text.count, limitedBy: found.upperBound) else { break }
+                        let block = at..<end
+                        if !part.text.isEmpty {
+                            let isHead = !head.isEmpty && part.text.contains(head)
+                            paint(block, isHead ? Theme.primaryInk : ChunkKind(pos: part.pos).ink)
+                        }
+                        at = end
+                    }
+                }
+            }
+        }
         for head in used {
-            for r in s.ranges(of: head) {
-                if let ar = Range<AttributedString.Index>(r, in: a) { a[ar].backgroundColor = Self.marker }
+            for r in s.ranges(of: head) where !coloured.contains(where: { $0.overlaps(r) }) {
+                paint(r, Theme.primaryInk)
             }
         }
         return a

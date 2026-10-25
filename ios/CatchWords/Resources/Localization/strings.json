@@ -8874,5 +8874,26 @@
   "es": "Palabras usadas",
   "ko": "쓴 단어",
   "vi": "Từ đã dùng"
+ },
+ "振り返る": {
+  "en": "Look back",
+  "zh-TW": "回顧",
+  "es": "Repasar el día",
+  "ko": "돌아보기",
+  "vi": "Nhìn lại"
+ },
+ "押すと使い方が開きます": {
+  "en": "Tap to see how it's used",
+  "zh-TW": "點一下就會打開用法",
+  "es": "Toca para ver cómo se usa",
+  "ko": "누르면 사용법이 열립니다",
+  "vi": "Nhấn để xem cách dùng"
+ },
+ "この語の使い方はまだありません": {
+  "en": "No usage for this word yet",
+  "zh-TW": "這個詞還沒有用法",
+  "es": "Aún no hay usos de esta palabra",
+  "ko": "이 단어의 사용법은 아직 없습니다",
+  "vi": "Từ này chưa có cách dùng"
  }
 }
