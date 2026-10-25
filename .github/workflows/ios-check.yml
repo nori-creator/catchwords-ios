@@ -362,6 +362,9 @@ jobs:
           STAGE="$RUNNER_TEMP/previews-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
           cp "$SRC"/*.png "$STAGE"/ 2>/dev/null || true
           [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$SRC"/previews/*.txt "$STAGE"/ 2>/dev/null || true
+          # 半分の幅に縮めて置く（10/25 に原寸 350 枚・約 500 MB の push が2回続けて 12 分を超えた）。原寸は artifact にある。
+          for f in "$STAGE"/*.png; do [ -f "$f" ] && sips --resampleWidth 603 "$f" >/dev/null 2>&1 || true; done
+          du -sh "$STAGE" || true
           echo "${{ github.sha }}" > "$STAGE/COMMIT"
           CI_PREVIEWS_REPLACE=1 bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
             "$DIR" "previews for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
