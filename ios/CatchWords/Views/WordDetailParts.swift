@@ -506,7 +506,9 @@ struct SectionJumpBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(sections) { s in
+                // Keyed by the section itself, not its `id` string: the page's cards are keyed by that string, and
+                // `ScrollViewProxy.scrollTo` must find the card, not this chip (it scrolled the chips instead).
+                ForEach(sections, id: \.self) { s in
                     Button {
                         Haptics.selection()
                         jump(s)
