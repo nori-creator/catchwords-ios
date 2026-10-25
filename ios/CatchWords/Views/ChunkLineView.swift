@@ -255,8 +255,7 @@ struct ChunkLineView: View {
         let ink: Color = boxed ? kind.ink.mix(with: Theme.foreground, by: 0.18) : Theme.foreground
         let weight: Font.Weight = boxed ? .bold : .heavy
         let s = charSize(scale)
-        let side = role == .head ? nil : Self.sideZhuyin(for: part, target: target, pref: readingPref)
-        let perChar = side == nil && readingPref == "pinyin" && target.hasPrefix("zh")
+        let perChar = readingPref == "pinyin" && target.hasPrefix("zh")
             ? PinyinLayout.pair(part.text, pinyin: part.pinyin, zhuyin: part.zhuyin) : nil
         let corner = 12 * scale
         return Button {
@@ -268,12 +267,10 @@ struct ChunkLineView: View {
             }
         } label: {
             Group {
-                if let side {
-                    // zhuyin to the right of each character, as the headword draws it (0.3 of the character).
-                    ZhuyinWordView(headword: part.text, zhuyin: side, size: s, weight: weight, color: ink,
-                                   language: "zh-TW", zhuyinScale: 0.3)
-                } else if let perChar {
-                    PinyinRubyLine(units: perChar, size: s, weight: weight, color: ink, readingColor: Theme.muted)
+                if target.hasPrefix("zh") {
+                    // At exactly this size: the word itself shows no zhuyin (pinyin with ピンイン chosen).
+                    RubyWord(text: part.text, zhuyin: part.zhuyin, pinyin: part.pinyin, size: s, weight: weight, color: ink,
+                             hideZhuyin: role == .head)
                 } else {
                     Text(part.text)
                         .font(.system(size: s, weight: weight))

@@ -1434,9 +1434,9 @@ struct WordDetailView: View {
         // Both at one size, so the characters and their readings stand on the same lines (owner 2026-10-20); weight and
         // colour tell them apart.
         HStack(alignment: .bottom, spacing: size * 0.25) {
-            ZhuyinWordView(headword: said, zhuyin: reading, size: size, weight: .heavy, pinyin: pinyin, language: "zh-TW")
-            ZhuyinWordView(headword: headword, zhuyin: word?.readingZhuyin, size: size, weight: .regular,
-                           color: Theme.muted, pinyin: word?.pinyin, language: "zh-TW")
+            RubyWord(text: said, zhuyin: reading, pinyin: pinyin, size: size, weight: .heavy)
+            RubyWord(text: headword, zhuyin: word?.readingZhuyin, pinyin: word?.pinyin, size: size, weight: .regular,
+                     color: Theme.muted)
         }
         .fixedSize()
     }
@@ -1519,10 +1519,15 @@ struct WordDetailView: View {
         .accessibilityElement(children: .contain)
     }
 
+    @ViewBuilder
     private func relatedWord(_ r: RelatedWord, size: CGFloat) -> some View {
-        ZhuyinWordView(headword: r.word, zhuyin: r.reading.isEmpty ? nil : r.reading, size: size, weight: .bold,
-                       color: Theme.foreground, language: learningLang)
-            .fixedSize()
+        if learningLang.hasPrefix("zh") {
+            RubyWord(text: r.word, zhuyin: r.reading.isEmpty ? nil : r.reading, size: size, weight: .bold)
+        } else {
+            ZhuyinWordView(headword: r.word, zhuyin: r.reading.isEmpty ? nil : r.reading, size: size, weight: .bold,
+                           color: Theme.foreground, language: learningLang)
+                .fixedSize()
+        }
     }
 
     // MARK: - English sections

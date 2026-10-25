@@ -1867,7 +1867,7 @@ struct Word25Preview: View {
         "水": ("shuǐ", "ㄕㄨㄟˇ"), "晶": ("jīng", "ㄐㄧㄥ"), "手": ("shǒu", "ㄕㄡˇ"), "鍊": ("liàn", "ㄌㄧㄢˋ"), "戴": ("dài", "ㄉㄞˋ"),
         "招": ("zhāo", "ㄓㄠ"), "財": ("cái", "ㄘㄞˊ"), "斷": ("duàn", "ㄉㄨㄢˋ"), "了": ("le", "˙ㄌㄜ"), "要": ("yào", "ㄧㄠˋ"),
         "消": ("xiāo", "ㄒㄧㄠ"), "磁": ("cí", "ㄘˊ"), "桃": ("táo", "ㄊㄠˊ"), "花": ("huā", "ㄏㄨㄚ"), "擋": ("dǎng", "ㄉㄤˇ"),
-        "煞": ("shà", "ㄕㄚˋ"), "鬆": ("sōng", "ㄙㄨㄥ"), "很": ("hěn", "ㄏㄣˇ"), "精": ("jīng", "ㄐㄧㄥ"), "緻": ("zhì", "ㄓˋ"),
+        "煞": ("shà", "ㄕㄚˋ"), "鬆": ("sōng", "ㄙㄨㄥ"), "壞": ("huài", "ㄏㄨㄞˋ"), "很": ("hěn", "ㄏㄣˇ"), "精": ("jīng", "ㄐㄧㄥ"), "緻": ("zhì", "ㄓˋ"),
     ]
 
     /// A block with its reading, one syllable per character.
@@ -1910,7 +1910,8 @@ struct Word25Preview: View {
                       ko: "효과를 말하는 정해진 표현. 招財 재물운, 招桃花 연애운, 擋煞 액막이.",
                       vi: "Cách nói cố định về tác dụng: 招財 tài lộc, 招桃花 tình duyên, 擋煞 trừ tà.")])
         chunks.append(["parts": [hw, part("斷了", "V", ja: pick("切れた", en: "broke", zh: "斷了", es: "se rompió", ko: "끊어졌다", vi: "bị đứt"),
-                            alts: [("鬆了", pick("緩んだ", en: "came loose", zh: "鬆了", es: "se aflojó", ko: "느슨해졌다", vi: "bị lỏng"))])],
+                            alts: [("鬆了", pick("緩んだ", en: "came loose", zh: "鬆了", es: "se aflojó", ko: "느슨해졌다", vi: "bị lỏng")),
+                                   ("壞了", pick("壊れた", en: "broke down", zh: "壞了", es: "se estropeó", ko: "망가졌다", vi: "bị hỏng"))])],
          "ja": pick("水晶ブレスレットが切れた", en: "the crystal bracelet broke", zh: "水晶手鍊斷了",
                     es: "la pulsera de cristal se rompió", ko: "크리스털 팔찌가 끊어졌다", vi: "vòng tay pha lê bị đứt")])
         chunks.append(["parts": [hw, part("要", "Vaux"), part("消磁", "V", ja: pick("浄化", en: "cleansing", zh: "消磁", es: "limpieza", ko: "정화", vi: "tẩy uế"))],

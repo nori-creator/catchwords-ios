@@ -570,3 +570,50 @@ struct SwapCoachMark: View {
         .accessibilityElement(children: .contain)
     }
 }
+
+// MARK: - A word with its reading, never resized
+
+/// A Mandarin word with its reading as the word page draws it — zhuyin to the right of each character (0.3 of it) or
+/// pinyin over it, by 設定 › 発音表記 — at exactly `size`. Unlike `ZhuyinWordView` it never steps down to fit (inside the
+/// chunk boxes that made the boxed words smaller than the rest, owner 2026-10-25: 「注音の設定の時に漢字が小さくなってる」);
+/// the chunk, the measure word and the related words shrink as a whole when they must.
+struct RubyWord: View {
+    let text: String
+    var zhuyin: String? = nil
+    var pinyin: String? = nil
+    let size: CGFloat
+    var weight: Font.Weight = .bold
+    var color: Color = Theme.foreground
+    var readingColor: Color = Theme.muted
+    /// Draw no zhuyin (the headword inside a chunk). Pinyin is still drawn with ピンイン chosen.
+    var hideZhuyin: Bool = false
+    @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
+
+    var body: some View {
+        if readingPref == "pinyin", let units = PinyinLayout.pair(text, pinyin: pinyin, zhuyin: zhuyin) {
+            PinyinRubyLine(units: units, size: size, weight: weight, color: color, readingColor: readingColor)
+        } else if readingPref != "pinyin", !hideZhuyin, let units = ZhuyinLayout.pair(text, zhuyin) {
+            HStack(alignment: .center, spacing: size * 0.06) {
+                ForEach(Array(units.enumerated()), id: \.offset) { _, u in
+                    HStack(alignment: .center, spacing: size * 0.03) {
+                        Text(u.char)
+                            .font(.system(size: size, weight: weight))
+                            .foregroundStyle(color)
+                        if u.hasReading {
+                            ZhuyinColumn(unit: u, size: max(7, size * 0.3), color: readingColor)
+                        }
+                    }
+                }
+            }
+            .fixedSize()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(text)
+        } else {
+            Text(text)
+                .font(.system(size: size, weight: weight))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .fixedSize()
+        }
+    }
+}
