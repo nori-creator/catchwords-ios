@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 /// Screens the GitHub "iOS check" opens directly (launch argument `-uiPreview <name>`), so changes to
 /// animation and design can be photographed on the simulator without an iPhone, a login, or the network.
@@ -108,6 +109,8 @@ struct UIPreviewRoot: View {
             // The praise after a catch (owner 2026-10-25): a top % among all users, and the first to catch a word.
             case "praise": PraisePreview(first: false)
             case "praise-first": PraisePreview(first: true)
+            // The system's rating sheet asked on the word after a praise (in a debug build iOS always shows it).
+            case "review-ask": ReviewAskPreview()
             case "carousel": CarouselPreview()
             case "detail": DetailPreview()
             case "tips": TipsPreview()
@@ -696,6 +699,21 @@ private struct PraisePreview: View {
             PraiseCelebrationView(moment: moment) {}
                 .uiReady("preview")
         }
+    }
+}
+
+/// The App Store rating sheet (`requestReview`) over the dex, as it comes after the catch that follows a praise.
+private struct ReviewAskPreview: View {
+    @Environment(\.requestReview) private var requestReview
+
+    var body: some View {
+        AppBackground()
+            .task {
+                try? await Task.sleep(for: .milliseconds(800))
+                requestReview()
+                try? await Task.sleep(for: .seconds(2))
+                UIReady.mark("preview")
+            }
     }
 }
 

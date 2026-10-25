@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import UserNotifications
+import StoreKit
 
 /// settings.tsx: small grey section titles outside white cards; every choice is a row of pills with a
 /// sliding blue capsule; language/level open a wheel card. Order matches the web app.
@@ -39,6 +40,10 @@ struct SettingsView: View {
     @State private var showAIConsentSettings: Bool = false
     @State private var showAdminAi: Bool = false
     @State private var adminScreen: AdminScreen?
+    /// 開発者の「褒める演出とレビュー画面を試す」: the praise shown now (`PraiseCelebrationView`).
+    @State private var praiseTrial: PraiseMoment?
+    @State private var praiseLoading = false
+    @Environment(\.requestReview) private var requestReview
 
     var body: some View {
         ScrollView {
@@ -97,6 +102,15 @@ struct SettingsView: View {
         .sheet(item: $adminScreen) { screen in
             NavigationStack { screen.view }
                 .presentationBackground(Theme.background)
+        }
+        .fullScreenCover(item: $praiseTrial, onDismiss: {
+            // As after a real praise: the system's rating sheet (in TestFlight iOS does not show it).
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                requestReview()
+            }
+        }) { moment in
+            PraiseCelebrationView(moment: moment) { praiseTrial = nil }
         }
         .sheet(isPresented: $showAIConsentSettings) {
             AIConsentSettingsSheet()
@@ -322,7 +336,26 @@ struct SettingsView: View {
                 devRow(icon: "exclamationmark.bubble", title: L("報告された誤り"), id: "settings.adminReports") { adminScreen = .reports }
                 Divider().overlay(Theme.border)
                 devRow(icon: "cpu", title: L("AI の設定（開発者）"), id: "settings.adminAi") { showAdminAi = true }
+                Divider().overlay(Theme.border)
+                devRow(icon: "sparkles", title: L("褒める演出とレビュー画面を試す"), id: "settings.praiseTrial") { tryPraise() }
             }
+        }
+    }
+
+    /// The praise a catch would bring, now, from this account's real standing (a different one each time), and on
+    /// close the review sheet. Nothing is recorded: the real schedule (`PraiseSchedule`) is untouched.
+    private func tryPraise() {
+        guard !praiseLoading else { return }
+        praiseLoading = true
+        Task { @MainActor in
+            defer { praiseLoading = false }
+            let latest = dex.stickers.max(by: { $0.takenAt < $1.takenAt })
+            var input: [String: Any] = [:]
+            if let id = latest?.wordId, !id.isEmpty { input["word_id"] = id }
+            let standing = try? await NativeAPI.call("getMyStanding", input, as: MyStanding.self, timeout: 10)
+            let options = PraiseMoment.options(standing: standing, headword: latest?.word?.headword ?? "",
+                                               totalWords: dex.stickers.count, start: profile.createdAt)
+            praiseTrial = PraiseMoment.pick(options, recent: [])
         }
     }
 
