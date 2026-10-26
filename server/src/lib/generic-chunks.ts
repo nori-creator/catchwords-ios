@@ -1,3 +1,4 @@
+import { parseLevelStep } from "./level-scale";
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
 
 /**
@@ -216,6 +217,16 @@ export const WEAK_PARTNERS: Record<string, readonly string[]> = {
     "好", "好吃", "好喝", "甜", "大", "小", "貴", "便宜", "漂亮", "好看", "可愛", "多", "少",
   ],
 };
+
+/**
+ * **目標が 1・2級（帯 A）の人には、簡単な動詞の型（吃＋小籠包・喝＋珍奶）も出してよい**（オーナー 2026-10-26「レベルAの
+ * ユーザーには出して全く問題ない」「レベルの低い人は簡単な動詞も表示していいけど、レベルに合わせて変えて」）。
+ * 3級以上が目標の人には出さない（指示文の禁止と門の落とし方 — `chunkHardRules`・`gateUsageChunks`）。
+ */
+export function allowsSimplePartners(levelGoal: string | null | undefined): boolean {
+  const step = parseLevelStep(levelGoal ?? "");
+  return typeof step === "number" && step <= 2;
+}
 
 /** 程度の語。弱い相手かを数える時は骨組みとして外に置く（很＋甜 の 很）。 */
 const WEAK_FRAME = new Set(["很", "超", "非常", "有點", "蠻", "好", "太", "真", "最"]);

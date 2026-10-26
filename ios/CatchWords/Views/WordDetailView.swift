@@ -978,17 +978,25 @@ struct WordDetailView: View {
     /// The word's language, corrected from its headword when the stored one is wrong (I4: "lamp" saved
     /// as a Mandarin word showed measure words and a Taiwan note).
     private var learningLang: String { LanguageRules.resolveWordLanguage(stored: word?.language, headword: headword) }
-    /// 「例文」: the main example and every other usage pattern's example (`ExampleItem.all`).
-    private var examples: [ExampleItem] {
+    /// Every example the card holds: the main example and every other usage pattern's example (`ExampleItem.all`).
+    private var allExamples: [ExampleItem] {
         ExampleItem.all(sentence: word?.exampleSentence, translation: word?.exampleTranslation, extras: extras, target: learningLang)
     }
     /// 「使い方チャンク」 in the server's order (= most natural and frequent first, owner 2026-10-25), as shown: numbered 1, 2, 3…
     private var chunks: [UsageChunk] { refinedChunks(extras?.usageChunks ?? []) }
-    /// For each example, the chunk it uses (its number and colours, §4/§10).
-    private var exampleHits: [ChunkRules.ExampleHit?] {
-        let chunks = self.chunks
-        return examples.map { ChunkRules.exampleHit(sentence: $0.sentence, chunks: chunks, target: learningLang) }
+    /// 「例文」 as shown, with the chunk each one is shown under (its number and colours, §4/§10). Only examples that use a
+    /// chunk, one per chunk in the chunks' order (owner 2026-10-26: 「例文はチャンク専用」 — an unnumbered example before 1
+    /// was odd). A card none of whose examples uses a chunk (older cards) shows its examples unnumbered.
+    private var shownExamples: [(item: ExampleItem, hit: ChunkRules.ExampleHit?)] {
+        let all = allExamples
+        // With 「使い方チャンク」 hidden there is nothing to number against: every example, unnumbered.
+        guard visibleSections.contains(.usageChunks) else { return all.map { (item: $0, hit: ChunkRules.ExampleHit?.none) } }
+        let pairs = ChunkRules.chunkExamples(sentences: all.map(\.sentence), chunks: chunks, target: learningLang)
+        if pairs.isEmpty { return all.map { (item: $0, hit: ChunkRules.ExampleHit?.none) } }
+        return pairs.map { (item: all[$0.example], hit: Optional($0.hit)) }
     }
+    private var examples: [ExampleItem] { shownExamples.map(\.item) }
+    private var exampleHits: [ChunkRules.ExampleHit?] { shownExamples.map(\.hit) }
     /// The sections with something to show, for the jump chips (§0).
     private var jumpSections: [CardSection] { visibleSections.filter { hasContent($0) } }
 
@@ -1106,7 +1114,7 @@ struct WordDetailView: View {
         case .example:
             // The chunks' numbers only when 「使い方チャンク」 is shown too (a number with nothing to point at would puzzle).
             DetailExamplesCard(examples: examples, headword: headword,
-                               chunks: visibleSections.contains(.usageChunks) ? chunks : [],
+                               chunks: visibleSections.contains(.usageChunks) ? chunks : [], hits: exampleHits,
                                known: SentenceReadings.known(headword: headword, pinyin: word?.pinyin, chunks: chunks),
                                language: learningLang, flash: flashExample)
         case .examplesExtra, .webImages, .pronunciationTips, .mnemonic, .etymology: EmptyView()
@@ -1768,10 +1776,10 @@ struct WordDetailView: View {
             // 「台湾のサイトで検索」 is 「Google検索」 now (§8); the search is the same (Taiwan's results).
             return [
                 UsageLink(icon: .youtube, label: L("YouTubeで聞く"), url: "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=TW&hl=zh-TW"),
-                UsageLink(icon: .youglish, label: L("YouGlishで発音例"), url: "https://youglish.com/pronounce/\(path)/chinese/tw"),
-                UsageLink(icon: .dcard, label: L("Dcardで見る"), url: "https://www.dcard.tw/search?query=\(q)"),
-                UsageLink(icon: .threads, label: L("Threads で見る"), url: "https://www.threads.com/search?q=\(q)"),
                 UsageLink(icon: .google, label: L("Google検索"), url: "https://www.google.com/search?q=\(q)&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW"),
+                UsageLink(icon: .threads, label: L("Threads で見る"), url: "https://www.threads.com/search?q=\(q)"),
+                UsageLink(icon: .dcard, label: L("Dcardで見る"), url: "https://www.dcard.tw/search?query=\(q)"),
+                UsageLink(icon: .youglish, label: L("YouGlishで発音例"), url: "https://youglish.com/pronounce/\(path)/chinese/tw"),
                 UsageLink(icon: .moe, label: L("教育部國語辭典簡編本"), url: "https://dict.concised.moe.edu.tw/search.jsp?word=\(q)"),
             ]
         }

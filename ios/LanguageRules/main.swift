@@ -134,6 +134,20 @@ for c in cases {
         }
         got = out == (c.expected ?? "")
         if !got { print("::error::\(c.id) [\(c.rule)] hit \(out), expected \(c.expected ?? "") — \(c.why)") }
+    case "chunkExamples":
+        // text = the examples joined by " | ", chunk = the chunks joined by " / "; expected = "example>number" per shown
+        // example (both 1-based, chunk order) joined by ",", then " " and the coloured characters of each, joined by "|".
+        let sentences = c.text.components(separatedBy: " | ")
+        let chunks = (c.chunk ?? "").components(separatedBy: " / ").filter { !$0.isEmpty }.map { UsageChunk(parts: parseChunk($0), ja: "") }
+        let pairs = ChunkRules.chunkExamples(sentences: sentences, chunks: chunks, target: c.target ?? "zh-TW")
+        let order = pairs.map { "\($0.example + 1)>\($0.hit.chunk + 1)" }.joined(separator: ",")
+        let colours = pairs.map { p -> String in
+            let chars = Array(sentences[p.example])
+            return p.hit.cells.keys.sorted().map { String(chars[$0]) }.joined()
+        }.joined(separator: "|")
+        let out = pairs.isEmpty ? "-" : order + " " + colours
+        got = out == (c.expected ?? "")
+        if !got { print("::error::\(c.id) [\(c.rule)] examples \(out), expected \(c.expected ?? "") — \(c.why)") }
     case "exampleGroups":
         // text = the sentence, source = its words (comma-separated), chunk = "start:length" of the chunk's run or "";
         // expected = the runs joined by "|".

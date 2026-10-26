@@ -39,6 +39,7 @@ import {
   type UsageChunk,
 } from "./extras";
 import { chunkVerifyMode, describeChunkGate, gateUsageChunks } from "./chunk-quality";
+import { allowsSimplePartners } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
 import {
   readerMeaning,
@@ -1527,7 +1528,7 @@ ${cardProfile.chunkPrompt.posRule}
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ${chunkHardRules(data.headword, NL)}
+    ? `- usage_chunks: ${chunkHardRules(data.headword, NL, levelGoal)}
   ${chunkCountRule(data.headword)} 各 {parts:[{text,pos,slot,ja,pinyin,zhuyin,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない), note, fits, why}。
   ${chunkNoteRule(NL)}
   ${chunkSenseRule(data.headword, "上の meaning_ja に書いた意味")}
@@ -1953,6 +1954,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           readerLang: explainLang,
           meaning: card.meaning_ja,
           measureWords: ex.measure_words,
+          allowSimplePartners: allowsSimplePartners(levelGoal),
         });
         if (gate.dropped.length > 0) {
           console.info(`generateCard: chunk gate ${describeChunkGate(gate)}`, {
@@ -2438,15 +2440,21 @@ function chunkCountRule(headword: string): string {
  * **型ごとのひと言解説**（オーナー 2026-10-24「それぞれのチャンクにひと言解説を書いて」）。画面では電球を押すと出る。
  * 生成と作り直しの両方がここを通る。読む人の言語でない物は保存前に落とす（`note-language.ts`）。
  */
-function chunkHardRules(headword: string, nl: string): string {
+function chunkHardRules(headword: string, nl: string, levelGoal: string): string {
+  // 目標 1・2級の人には簡単な動詞の型も出してよい（オーナー 2026-10-26）。3級以上は禁止のまま。
+  const simpleOk = allowsSimplePartners(levelGoal);
   return [
     `【使い方チャンクの絶対ルール — 1つでも破った型は配列に入れない】`,
     `1. 「${headword}」をそのまま1つのパーツとして必ず入れる（slot にしない・別の語の中に埋めない）。`,
     `2. パーツは2〜4個、字は合計8字以内。主語・句点（。！？）・量詞（一個/一杯/一條…）を入れない。`,
     `3. パーツを左から続けて読むと、台湾のネイティブがそのまま言う正しい句になる。` +
       `✗ 跌倒＋膝蓋 / ✗ 擦＋手帕＋汗水 / ✗ 站＋在＋手扶梯 → ○ 撞到＋膝蓋 / ○ 用＋手帕＋擦汗 / ○ 站＋在＋手扶梯＋上。`,
-    `4. どの物にも付く組み合わせは禁止: 吃/喝/拿/買/看/有/用 ＋ ${headword}、${headword} ＋ 很 ＋ 好/好吃/好喝/甜/大/貴/漂亮。` +
-      `その物だけの動詞・状態を選ぶ（○ 吹＋電風扇、沖＋馬桶、剝＋椪柑、馬桶＋塞住了、膝蓋＋破皮、用＋夾子＋夾起來）。`,
+    simpleOk
+      ? `4. 学習者の目標は 1・2級なので、吃/喝/拿/買/看/用 ＋ ${headword} のような簡単な動詞の型を1つまで入れてよい（その物で本当によく言う時だけ）。` +
+        `残りはその物だけの動詞・状態にする（○ 吹＋電風扇、沖＋馬桶、剝＋椪柑、馬桶＋塞住了、膝蓋＋破皮、用＋夾子＋夾起來）。` +
+        `${headword} ＋ 很 ＋ 好/好吃/好喝/甜/大/貴/漂亮 は書かない。`
+      : `4. どの物にも付く組み合わせは禁止: 吃/喝/拿/買/看/有/用 ＋ ${headword}、${headword} ＋ 很 ＋ 好/好吃/好喝/甜/大/貴/漂亮。` +
+        `学習者の目標は3級以上なので、その物だけの動詞・状態を選ぶ（○ 吹＋電風扇、沖＋馬桶、剝＋椪柑、馬桶＋塞住了、膝蓋＋破皮、用＋夾子＋夾起來）。`,
     `5. 口語にする（○ 搭＋手扶梯 / ✗ 搭乘＋手扶梯）。`,
     `6. slot は具体的な名詞・量詞だけ。很・超・非常・有點・蠻 には slot も alts も付けない（很 は固定）。`,
     `7. 配列の順 = 画面の①②③: ネイティブが最も自然に・頻繁に言う → 実用性が高い → 覚える優先度が高い。確かな物だけ2〜3個（多くても5個）。`,
@@ -3051,7 +3059,7 @@ async function runSectionRegen(
         }),
     },
     usage_chunks: {
-      prompt: `${base}\n${chunkHardRules(head, NL)}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${chunkNoteRule(NL)}\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","note":"ひと言解説","fits":true,"why":""}]}`,
+      prompt: `${base}\n${chunkHardRules(head, NL, regenLevelGoal)}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${chunkNoteRule(NL)}\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","note":"ひと言解説","fits":true,"why":""}]}`,
       // 部品の形は `extras.ts` の1つ（`ja`・`alts` を落とさない）。返ってきた型は生成と同じ門を通す
       // （`chunk-quality.ts`）。1つも残らなければ「作れなかった」— 崩れた型を書くより、空のまま次に任せる。
       schema: RegenUsageChunksSchema.transform((r, ctx) => {
@@ -3061,6 +3069,7 @@ async function runSectionRegen(
           readerLang: regenLang,
           meaning: String(word.meaning_ja ?? ""),
           measureWords: normalizeExtras(word.extras)?.measure_words,
+          allowSimplePartners: allowsSimplePartners(regenLevelGoal),
         });
         if (gate.dropped.length > 0) {
           console.info(`regenerateCardSection: chunk gate ${describeChunkGate(gate)}`, {
