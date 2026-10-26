@@ -101,6 +101,8 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
     private var anchorCache: [Int: CGPoint]?
     private let colourLock = NSLock()
     private var colourCache: [UInt8]?
+    private let personLock = NSLock()
+    private var personCache: [UInt8]?
 
     init(observation: VNInstanceMaskObservation, handler: VNImageRequestHandler, photo: CGImage? = nil) {
         self.observation = observation
@@ -129,12 +131,29 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
     /// other things of that shared instance then get the instance without it (so the line between them is that
     /// outline too); only when no crop finds the thing whole does the plan's split (along the photo's colour edges)
     /// stand.
-    func render(_ plans: [CatchPlan.Placement], boxes: [CGRect?], points: [CGPoint]) -> [(cut: Cut?, note: String?)] {
+    ///
+    /// A crop's thing is used only when it is the thing: it covers its box (`CatchPlan.minBoxCover`), and it is not a
+    /// person when the thing cannot be one (`mayBePerson`, owner 2026-10-26: the swing's cut-out was the man at it).
+    func render(_ plans: [CatchPlan.Placement], boxes: [CGRect?], points: [CGPoint],
+                mayBePerson: [Bool]? = nil) -> [(cut: Cut?, note: String?)] {
         let n = plans.count
+        let people = (mayBePerson ?? []).contains(false) ? personGrid() : nil
+        func isTheThing(_ h: RegionHit, _ i: Int) -> Bool {
+            guard let box = boxes[i] else { return true }
+            if CatchPlan.cover(h.cut.box, of: box) < CatchPlan.minBoxCover {
+                Self.trace?("thing \(i + 1): the crop's instance covers too little of its box — not used")
+                return false
+            }
+            if mayBePerson?[i] == false, let g = h.grid, CatchPlan.isPerson(g, people: people) {
+                Self.trace?("thing \(i + 1): the crop's instance is a person — not used")
+                return false
+            }
+            return true
+        }
         var hits: [Int: RegionHit] = [:]
         for i in 0..<n {
             guard let box = boxes[i], !plans[i].sharedWith.isEmpty || plans[i].refine != nil else { continue }
-            if let h = regionHit(box, point: points[i], fadeIfCut: false) { hits[i] = h }
+            if let h = regionHit(box, point: points[i], fadeIfCut: false), isTheThing(h, i) { hits[i] = h }
         }
         // A crop's instance that takes most of another thing it shares the instance with is the two things together
         // again (a person and the helmet held against them, both whole in the widest crop): not this thing alone.
@@ -201,7 +220,7 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                     out.append((nil, note))
                     continue
                 }
-                let h = regionHit(box, point: points[i], fadeIfCut: true)
+                let h = regionHit(box, point: points[i], fadeIfCut: true).flatMap { isTheThing($0, i) ? $0 : nil }
                 add(h == nil ? "no cut-out (no crop round its box found it either)" : "cut from a crop round its box")
                 out.append((h?.cut, note))
             }
@@ -533,6 +552,38 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             out[i * 3 + 2] = p[i * 4 + 2]
         }
         colourCache = out
+        return out
+    }
+
+    /// Where people are, on the plan's grid (`labelMaskCopy`; 1 = a person), made once: Vision's person segmentation of
+    /// the same photo. A Vision instance that is mostly a person is never the cut-out of a thing that is not a person
+    /// or worn by one (owner 2026-10-26: the swing's tag cut out the man pushing it — `CatchPlan.Thing.mayBePerson`).
+    /// nil when Vision cannot tell (the Simulator).
+    func personGrid() -> [UInt8]? {
+        personLock.lock()
+        defer { personLock.unlock() }
+        if let p = personCache { return p }
+        guard let photo, let m = labelMaskCopy(), m.width > 0, m.height > 0 else { return nil }
+        let request = VNGeneratePersonSegmentationRequest()
+        request.qualityLevel = .balanced
+        request.outputPixelFormat = kCVPixelFormatType_OneComponent8
+        let handler = VNImageRequestHandler(cgImage: photo, orientation: .up)
+        guard (try? handler.perform([request])) != nil, let buffer = request.results?.first?.pixelBuffer else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
+        let bw = CVPixelBufferGetWidth(buffer), bh = CVPixelBufferGetHeight(buffer)
+        let row = CVPixelBufferGetBytesPerRow(buffer)
+        guard bw > 0, bh > 0, let base = CVPixelBufferGetBaseAddress(buffer) else { return nil }
+        var out = [UInt8](repeating: 0, count: m.width * m.height)
+        for y in 0..<m.height {
+            let by = min(bh - 1, Int((Double(y) + 0.5) / Double(m.height) * Double(bh)))
+            let line = base.advanced(by: by * row)
+            for x in 0..<m.width {
+                let bx = min(bw - 1, Int((Double(x) + 0.5) / Double(m.width) * Double(bw)))
+                if line.load(fromByteOffset: bx, as: UInt8.self) >= 128 { out[y * m.width + x] = 1 }
+            }
+        }
+        personCache = out
         return out
     }
 

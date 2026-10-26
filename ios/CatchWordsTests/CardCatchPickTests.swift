@@ -460,4 +460,70 @@ final class CardCatchPickTests: XCTestCase {
                                               open: (left: true, top: true, right: true, bottom: true))
         XCTAssertEqual(pick.label, 2)
     }
+
+    // MARK: Never another thing's cut-out (owner 2026-10-26: the swing's tag cut out the man pushing the swing)
+
+    /// The park on a 100 × 100 grid: a man (1) at the swing's left post, a child (2) sitting in the swing, a tree (3)
+    /// far left. Vision does not see the swing's thin frame at all.
+    private func park() -> (mask: [UInt8], people: [UInt8]) {
+        let m = mask(100, 100) { x, y in
+            if (29..<41).contains(x) && (43..<60).contains(y) { return 1 }
+            if (55..<61).contains(x) && (47..<57).contains(y) { return 2 }
+            if x < 14 && y < 75 { return 3 }
+            return 0
+        }
+        return (m, m.map { $0 == 1 || $0 == 2 ? 1 : 0 })
+    }
+
+    private let swingBox = CGRect(x: 0.40, y: 0.36, width: 0.32, height: 0.26)
+
+    func testAThingWithoutAPositionNeverTakesAnotherThingsInstance() {
+        // The AI sent no place for 鞦韆: it used to take "the largest free instance" (the man, or the tree).
+        let p = park()
+        let plans = CatchPlan.plan(things: [CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false)],
+                                   mask: p.mask, width: 100, height: 100)
+        XCTAssertNil(plans[0].label)
+        XCTAssertEqual(plans[0].cut, .noMask)
+    }
+
+    func testASwingNeverTakesThePeopleAtItAsItsCutOut() {
+        let p = park()
+        let swing = CatchPlan.Thing(point: CGPoint(x: 0.56, y: 0.49), box: swingBox, own: true, mayBePerson: false)
+        let plans = CatchPlan.plan(things: [swing], mask: p.mask, width: 100, height: 100, people: p.people)
+        XCTAssertEqual(plans[0].cut, .noMask, "\(plans[0].cut)")
+        XCTAssertNil(plans[0].label)
+    }
+
+    func testASmallThingInsideABigBoxIsNotThatBoxsThing() {
+        // Without knowing who is a person: the child covers 7% of the swing's box — something in it, not the swing.
+        let p = park()
+        let swing = CatchPlan.Thing(point: CGPoint(x: 0.56, y: 0.49), box: swingBox, own: true)
+        let plans = CatchPlan.plan(things: [swing], mask: p.mask, width: 100, height: 100)
+        XCTAssertEqual(plans[0].cut, .noMask, "\(plans[0].cut)")
+        XCTAssertNotNil(plans[0].note)
+        XCTAssertLessThan(CatchPlan.boxCover(CatchPlan.pixels(of: .instance(2), mask: p.mask, width: 100, height: 100),
+                                             box: swingBox, width: 100, height: 100) ?? 1, CatchPlan.minBoxCover)
+    }
+
+    func testAPersonsOwnWordStillTakesThePerson() {
+        // 人 / 小孩 (category person) and 手 (hand) may be cut out of a person instance.
+        let p = park()
+        let childBox = CGRect(x: 0.54, y: 0.46, width: 0.08, height: 0.12)
+        let child = CatchPlan.Thing(point: CGPoint(x: childBox.midX, y: childBox.midY), box: childBox, own: true, mayBePerson: true)
+        let plans = CatchPlan.plan(things: [child], mask: p.mask, width: 100, height: 100, people: p.people)
+        XCTAssertEqual(plans[0].cut, .instance(2))
+    }
+
+    func testWhichWordsMayBeAPerson() {
+        func word(_ category: String?) -> Candidate {
+            Candidate(kind: "object", headword: "x", zhuyin: "", pinyin: "", meaningJa: "x", pos: "", point: [500, 500],
+                      confidence: 0.9, alternatives: [], group: 0, categoryKey: category)
+        }
+        XCTAssertFalse(CatchObject.mayBePerson([word("toy")]), "鞦韆")
+        XCTAssertFalse(CatchObject.mayBePerson([word("plant")]))
+        XCTAssertTrue(CatchObject.mayBePerson([word("hand")]), "手")
+        XCTAssertTrue(CatchObject.mayBePerson([word("person")]))
+        XCTAssertTrue(CatchObject.mayBePerson([word("clothes")]), "a T-shirt is cut out of the person wearing it")
+        XCTAssertTrue(CatchObject.mayBePerson([word(nil)]), "no category: not barred")
+    }
 }

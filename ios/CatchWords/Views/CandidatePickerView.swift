@@ -472,7 +472,7 @@ struct CandidatePickerView: View {
         guard flow == nil else { return }
         let now = CCClock.now
         let o = t.choices[0].object
-        let fallback = o.cut == nil ? StickerCrop.image(vm.photo, box: o.box) : nil
+        let fallback = o.cut == nil ? StickerCrop.image(vm.photo, box: o.positioned ? o.box : nil) : nil
         let palette = StagePalette.make(from: o.cut ?? fallback)
         let label = t.choices.lazy.compactMap { CatchDexInfo.label(headword: $0.word.headword, stickers: dex.stickers) }.first
         vm.stagePalette = palette
@@ -533,7 +533,7 @@ struct CandidatePickerView: View {
             return
         }
         let fallback = object?.cut == nil
-            ? (object.map { StickerCrop.image(vm.photo, box: $0.box) } ?? vm.photo.map { ImageTools.resized($0, maxSide: 700) })
+            ? (object.map { StickerCrop.image(vm.photo, box: $0.positioned ? $0.box : nil) } ?? vm.photo.map { ImageTools.resized($0, maxSide: 700) })
             : nil
         let palette = StagePalette.make(from: object?.cut ?? fallback)
         vm.stagePalette = palette

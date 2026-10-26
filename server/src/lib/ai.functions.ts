@@ -107,7 +107,14 @@ import {
   testPhotoRank,
 } from "./ai-test-photos";
 import { claude5ThinkingOff } from "./claude-thinking";
-import { positionStats, withObjectPoints } from "./suggestion-position";
+import {
+  locateInstruction,
+  objectsNeedingBoxes,
+  positionStats,
+  readLocatedBoxes,
+  withLocatedBoxes,
+  withObjectPoints,
+} from "./suggestion-position";
 import { WordCandidatesSchema, legacyUsageOf, normalizeRegister } from "./text-search-flow";
 import { normalizeNameRegister } from "./candidate-register";
 
@@ -169,6 +176,7 @@ import {
   getAi,
   getAiFor,
   getAiAttemptChain,
+  type AiTarget,
   getUserLevelGoal,
   getUserLevels,
   getUserTargetLanguage,
@@ -336,6 +344,10 @@ function recordSuggestRun(
     capMs?: number | null;
     /** 位置の付き方のまとめ（`positionStats`。語は入れない）。 */
     positions?: ReturnType<typeof positionStats>;
+    /** 1回目の答えの位置（枠の聞き直しの前）。 */
+    first_positions?: ReturnType<typeof positionStats>;
+    /** 枠の聞き直し（`locateMissingObjects`。聞かなかった回は null）。 */
+    locate?: { asked: number; got: number; ms: number; via?: string; error?: string } | null;
   },
 ): void {
   console.info(
@@ -363,6 +375,8 @@ function recordSuggestRun(
         ...(run.preMs != null ? { pre_ms: run.preMs } : {}),
         ...(run.capMs != null ? { cap_ms: run.capMs } : {}),
         ...(run.positions ? { positions: run.positions } : {}),
+        ...(run.first_positions ? { first_positions: run.first_positions } : {}),
+        ...(run.locate ? { locate: run.locate } : {}),
         attempts: run.attempts.map((a) => ({
           label: a.label,
           ms: a.ms,
@@ -623,8 +637,9 @@ ${langRule}
 - ${BASIC_LEVEL_RULE}
 - ${objectLabelRule(explanationLanguageName(reader))}
 - 物は最大5つ、1つの物の呼び方は最大3つ。
-- 物ごとに、その物の**最初の呼び方**に box_2d を付ける: 写真の中でその物を囲む枠を
-  [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。同じ group の2つ目以降の呼び方には付けなくてよい。
+- **物ごとに、その物の最初の呼び方に box_2d を必ず付ける**（省かない。アプリは名前の札をこの枠の上に置き、
+  この枠で物を切り抜く）: 写真の中でその物**だけ**を囲む枠を [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。
+  物の前にいる人・物の上に乗った物を囲まない。同じ group の2つ目以降の呼び方には付けなくてよい。
 
 **同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
 - ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
@@ -643,6 +658,68 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
 
   const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|colloquial|specific|academic|proper のどれか","label":"写っている物の一般的な呼び名(解説の言語・物の1つ目の候補だけ)","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
   return { profile, instruction };
+}
+
+/** 枠だけを聞き直す1回の締め切り（答えは短いので、1番手の候補より短く）。 */
+const LOCATE_TIMEOUT_MS = 8_000;
+
+type SuggestionItem = z.infer<typeof SuggestionSchema>["suggestions"][number];
+
+/**
+ * 写真の候補のうち、枠の無い物（前の物と同じ場所の枠の物も）の枠を、同じ AI に枠だけを聞いて付ける。
+ * 聞き直しが落ちても候補はそのまま返す（タグは iOS が写真に散らす。前と同じ）。
+ */
+async function locateMissingObjects(
+  target: AiTarget | undefined,
+  imageBase64: string,
+  items: SuggestionItem[],
+  stop: AbortSignal,
+): Promise<{
+  items: SuggestionItem[];
+  log: { asked: number; got: number; ms: number; via?: string; error?: string } | null;
+}> {
+  const keys = objectsNeedingBoxes(items);
+  if (keys.length === 0 || !target) return { items, log: null };
+  const started = Date.now();
+  try {
+    const result = await generateText({
+      model: target.model,
+      abortSignal: AbortSignal.any([AbortSignal.timeout(LOCATE_TIMEOUT_MS), stop]),
+      maxRetries: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: locateInstruction(items, keys) },
+            { type: "image", image: imageBase64 },
+          ],
+        },
+      ],
+    });
+    const boxes = readLocatedBoxes(parseJsonFromAiText(result.text ?? ""), keys);
+    const out = withLocatedBoxes(items, boxes);
+    return {
+      items: out,
+      log: {
+        asked: keys.length,
+        got: keys.length - objectsNeedingBoxes(out).length,
+        ms: Date.now() - started,
+        via: target.label,
+      },
+    };
+  } catch (e) {
+    console.warn("suggestWords: 枠の聞き直しに失敗", e instanceof Error ? e.message : String(e));
+    return {
+      items,
+      log: {
+        asked: keys.length,
+        got: 0,
+        ms: Date.now() - started,
+        via: target.label,
+        error: e instanceof Error ? e.message.slice(0, 120) : "failed",
+      },
+    };
+  }
 }
 
 export const suggestWords = createServerFn({ method: "POST" })
@@ -779,7 +856,15 @@ export const suggestWords = createServerFn({ method: "POST" })
     // AI が枠の確保より先に答えた時は、確保を待ってから渡す（断られたら渡さない）。
     const refused = await capRefusal;
     if (refused) throw refused;
-    const parsed = outcome.value;
+    // 枠の無い物（同じ場所の枠も）は、枠だけをもう一度聞く（`suggestion-position.ts`、2026-10-26）。
+    const firstPositions = positionStats(outcome.value.suggestions);
+    const located = await locateMissingObjects(
+      targets.find((t) => t.label === outcome.via) ?? targets[0],
+      data.imageBase64,
+      outcome.value.suggestions,
+      capStop.signal,
+    );
+    const parsed = { ...outcome.value, suggestions: located.items };
     recordSuggestRun(context, {
       ok: true,
       ms: Date.now() - startedAt,
@@ -791,6 +876,8 @@ export const suggestWords = createServerFn({ method: "POST" })
       capMs,
       // 位置の付き方（枠を返したか・物の数・点が何か所に散ったか）。タグが重なった時に後から読む。
       positions: positionStats(parsed.suggestions),
+      first_positions: firstPositions,
+      locate: located.log,
     });
     const correctTaiwanReading = await readingCheckLoad;
     /**

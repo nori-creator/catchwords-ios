@@ -60,6 +60,29 @@ PR #36 で、2つの物を Vision が1つの塊（instance）として返す場�
 
 ---
 
+## 1b. 2026-10-26: タグが物の上に出ない・ブランコのタグで人が切り抜かれる
+
+**原因は AI の答え**（端末・iOS と Android の違いではない）。`ai_runs.meta.positions` を読むと、写真の候補の AI
+（`gemini-3.5-flash-lite`）は box_2d を**1つも返さない回がある**（iOS の本番 10 回中 6 回、Android が呼ぶ Lovable の
+サーバーでも 65 回中 21 回）。返さない回は:
+
+1. タグ: 位置が無いので `TagPlacement.spreadSpots` の決まった場所（真ん中・左右・上）に並ぶ。公園の写真の
+   空・ビル・木・草 がちょうどその4か所だった。
+2. 切り抜き: 位置の無い物に「写真で一番大きい空いた塊」を配っていた（`CatchPlan.plan`）。公園では人。
+   それが無くても、選んだ後の `liftSubject` が「タグに一番近い塊」を取り、やはり人になった。
+3. 四角: 枠が無いので範囲のやり直しもできず、最後の手段に落ちる。
+
+直し:
+- サーバー: 枠の無い物（別の物と同じ場所の枠も）だけ、枠だけを短い指示で同じ AI に聞き直す
+  （`objectsNeedingBoxes` → `locateInstruction` → `withLocatedBoxes`。`ai_runs.meta.locate` に記録）。
+  指示文でも box_2d を必須にした。
+- iOS: 位置の無い物に別の物の塊を配らない。人の形の塊は人・体・服などの語だけ（`CatchObject.mayBePerson`、
+  Vision の人の切り分け `InstanceMasks.personGrid`）。枠の 15% 未満しか覆わない塊はその物ではない
+  （`CatchPlan.minBoxCover`。ブランコの中に座った子ども）。範囲のやり直しで見つかった塊にも同じ確かめ。
+  計画で切り抜きが無かった物は `liftSubject` で拾い直さない。最後は物の枠の写真を四角で（位置が無ければ写真全体）。
+
+---
+
 ## 2. 失敗しうるすべての場合
 
 「今」は 1.0.1 の動き。「確認」は自動の確認がどこにあるか（unit = 単体テスト、harness = 切り抜きの確認）。
@@ -83,7 +106,8 @@ PR #36 で、2つの物を Vision が1つの塊（instance）として返す場�
 | **箱がずれている** | 同上 | 1.0.0: 片側がまっすぐ切れる（今回） | まるごと＋範囲だけもう一度 Vision（切れていない時だけ採用）。札は箱の中の部分に | unit: `testABoxOffToOneSideNeverCutsTheThingWithAStraightLine`、harness: `dorayaki-box-off`・`boba-portrait` |
 | 箱が無い | 古い答え・AI が書かない | — | 点の近くの塊をまるごと | harness: `dorayaki-no-box` |
 | 点が物の外 | 点は箱の真ん中なので、ドーナツ型や箱がずれると外れる | 違う物が選ばれる | 点の 8% 以内の近い塊を候補にし、箱の中に本当にある塊を選ぶ（`present`） | harness: `dorayaki-point-outside` |
-| 点・箱が無い／2つの物が同じ点 | AI が位置を書かない | 札が真ん中に山積み | 空いている塊に1つずつ、無ければ写真に散らばる場所へ（`TagPlacement.spreadSpots`） | unit（TagPlacementTests）、見本の画面 `picker4-nopos` |
+| 点・箱が無い／2つの物が同じ点 | AI が位置を書かない（flash-lite で多い） | 札が写真に散らばる・別の物が切り抜かれる | サーバーが枠だけを聞き直す。それでも無い物は写真に散らばる場所へ（`TagPlacement.spreadSpots`）、切り抜きは写真全体の四角（別の物の塊は配らない、2026-10-26） | server: `suggestion-position.test.ts`、unit: `testAThingWithoutAPositionNeverTakesAnotherThingsInstance` |
+| 物の前・中に人がいる | ブランコ・自転車・ベンチ | 人が切り抜かれる | 人の形の塊は人・体・服などの語だけ。枠の 15% 未満の塊は使わない | unit: `testASwingNeverTakesThePeopleAtItAsItsCutOut`・`testASmallThingInsideABigBoxIsNotThatBoxsThing` |
 
 ### Vision
 
