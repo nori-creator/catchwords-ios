@@ -654,7 +654,8 @@ private struct TabBarPreview: View {
             }
             ZStack {
                 Theme.navyDeep.frame(height: 150)
-                CapsuleTabBar(selection: $camera, onCamera: true).padding(.bottom, 8)
+                // The camera tab's disc as the shutter (owner 2026-10-26).
+                CapsuleTabBar(selection: $camera, onCamera: true, shutter: CameraShutter(enabled: true) {}).padding(.bottom, 8)
             }
             Spacer()
         }
