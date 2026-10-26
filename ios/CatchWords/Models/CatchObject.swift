@@ -83,7 +83,8 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
         // Which piece of the mask is each thing, and where its tag goes (`CatchPlan`, on a copy of the label mask).
         let copy = masks?.labelMaskCopy()
         let plans = CatchPlan.plan(things: things, mask: copy?.mask ?? [], width: copy?.width ?? 0, height: copy?.height ?? 0,
-                                   colours: masks?.colourGrid())
+                                   colours: masks?.colourGrid(),
+                                   people: things.contains { !$0.mayBePerson } ? masks?.personGrid() : nil)
         let objects = list.enumerated().map { (i, words) -> CatchObject in
             let plan = plans[i], t = things[i]
             let box = (t.own ? t.box : nil) ?? fallbackBox(at: plan.anchor, photoSize: photoSize)
@@ -96,7 +97,8 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
     /// The second half of `build`: each thing with its cut-out (and the cut-out's own box). Heavy: off the main thread.
     static func withCuts(_ p: Planned, masks: InstanceMasks?, photoSize: CGSize) -> [CatchObject] {
         let points = p.things.map(\.point)
-        let rendered = masks?.render(p.plans, boxes: p.things.map { $0.own ? $0.box : nil }, points: points)
+        let rendered = masks?.render(p.plans, boxes: p.things.map { $0.own ? $0.box : nil }, points: points,
+                                     mayBePerson: p.things.map(\.mayBePerson))
         return p.objects.enumerated().map { (i, o) -> CatchObject in
             let made = rendered?[i]
             let cut = made?.cut
@@ -119,7 +121,23 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
         let given = list.map { words in words.contains { $0.positioned } }
         let own = TagPlacement.distinct(list.indices.map { given[$0] ? points[$0] : nil })
         let boxes: [CGRect?] = list.map { words in words[0].objectBox ?? words.lazy.compactMap(\.objectBox).first }
-        return list.indices.map { CatchPlan.Thing(point: points[$0], box: boxes[$0], own: own[$0]) }
+        return list.indices.map {
+            CatchPlan.Thing(point: points[$0], box: boxes[$0], own: own[$0], mayBePerson: mayBePerson(list[$0]))
+        }
+    }
+
+    /// The categories whose things can be a person or be worn by one (the server's `category_key`): only these may take
+    /// a Vision instance that is mostly a person as their cut-out.
+    static let personCategories: Set<String> = [
+        "person", "family", "job", "body", "face", "hand", "clothes", "clothing_part", "accessory", "jewelry", "shoes",
+        "bag", "character",
+    ]
+
+    /// Whether the thing these names are for can be a person (or worn by one). Unknown category: it may.
+    static func mayBePerson(_ words: [Candidate]) -> Bool {
+        let keys = words.compactMap { $0.categoryKey?.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty }
+        guard !keys.isEmpty else { return true }
+        return keys.contains { personCategories.contains($0) }
     }
 
     /// Developer-log lines for a photo's things (owner 2026-10-16: the tags stacked on one thing and a rectangle was

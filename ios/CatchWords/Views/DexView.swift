@@ -571,7 +571,7 @@ struct DexView: View {
                 guard focus?.id != id else { return }
                 focus = DexGalleryFocus(id: id, fillStart: nil)
                 Task {
-                    await bringInView(id, for: l, proxy: proxy)
+                    await bringInView(for: l, proxy: proxy)
                     l.roomReady = true
                 }
             } else if galleryHold?.stickerId != id {
@@ -583,7 +583,7 @@ struct DexView: View {
                 Task {
                     await scroll(to: anchor, proxy: proxy, word: id)
                     if !room { await makeRoom(for: l) }
-                    await bringInView(id, for: l, proxy: proxy)
+                    await bringInView(for: l, proxy: proxy)
                     l.roomReady = true
                 }
             }
@@ -634,15 +634,24 @@ struct DexView: View {
     /// the star never leaves before. The gallery is lazy: a category far down (植物・花 is the 17th) was not built
     /// when the first scroll landed short, its square never reported, and the sticker flew to a fixed point on an
     /// empty part of the page (owner 2026-10-21: 聖誕樹). Tries for about 1.5 s at most.
-    private func bringInView(_ id: String, for l: CatchLandingController, proxy: ScrollViewProxy) async {
+    ///
+    /// The square is looked up again on every try (`landingSlot`): the save finishes during the landing and the word's
+    /// provisional id becomes its saved id. A scroll to the old id found nothing and left the page where the first half
+    /// of `scroll` put it — its category card's header in the middle, the category above it filling the screen — and
+    /// the star flew to where the square had been (owner 2026-10-26: 小籠包 — 飲み物 opened, then 料理・屋台 again).
+    private func bringInView(for l: CatchLandingController, proxy: ScrollViewProxy) async {
         for _ in 0..<12 {
             guard router.landing === l else { return }
+            // Already on screen (the room was made where the page stands): no scroll — `scroll` passes by the
+            // category card's header first, a jump the learner sees.
+            if let t = l.target, t.maxY > 0, t.minY < l.screen.height { return }
+            let id = landingSlot(l)
             await scroll(to: id, proxy: proxy)
             // a frame or two for the square to be built and report its frame
             try? await Task.sleep(for: .milliseconds(120))
             if let t = l.target, t.maxY > 0, t.minY < l.screen.height { return }
         }
-        UITestTrace.log("dex landing: square \(id) not on screen after scrolling")
+        UITestTrace.log("dex landing: square \(landingSlot(l)) not on screen after scrolling")
     }
 
     /// The square a landing goes to. A re-encounter's sticker may not be the one its word's square stands for (one

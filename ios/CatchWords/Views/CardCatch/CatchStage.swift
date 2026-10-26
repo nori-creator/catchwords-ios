@@ -207,9 +207,10 @@ nonisolated struct StagePalette: Equatable, Sendable {
 /// The photo cropped round a thing (orientation-safe), for the sticker while its cut-out is not ready.
 enum StickerCrop {
     /// `box`: 0–1 of the photo (nil = the whole photo), widened by 8% each side.
-    /// The last resort when no mask was found for the thing (owner 2026-10-21: 「切り抜かないのは苦肉の策として例外」 —
-    /// Vision does not see a light on a ceiling as a thing): the photo round its box cut out as a rounded shape, with
-    /// a transparent outside, so it is still a sticker (its white border is drawn round it like any cut-out). nil
+    /// The last resort when no whole thing was found to cut out (owner 2026-10-21: 「切り抜かないのは苦肉の策として例外」 —
+    /// Vision does not see a light on a ceiling as a thing; 2026-10-26: 「切り抜くと変とか見た目が悪くなったり、切り抜けない
+    /// 場合は、四角でそのまま画像を表示して」): the photo round its box as a rectangle with slightly rounded corners and a
+    /// transparent outside, so it is still a sticker (its white border is drawn round it like any cut-out). nil
     /// without a photo. `box`: normalized, top-left origin; nil = the whole photo.
     static func shaped(_ photo: UIImage?, box: CGRect?) -> UIImage? {
         guard let photo else { return nil }
@@ -227,7 +228,7 @@ enum StickerCrop {
         let out = CGSize(width: side, height: side * r.height / r.width)
         let k = out.width / r.width
         return UIGraphicsImageRenderer(size: out, format: format).image { _ in
-            let corner = min(out.width, out.height) * 0.2
+            let corner = min(out.width, out.height) * 0.06
             UIBezierPath(roundedRect: CGRect(origin: .zero, size: out), cornerRadius: corner).addClip()
             photo.draw(in: CGRect(x: -r.minX * k, y: -r.minY * k, width: size.width * k, height: size.height * k))
         }

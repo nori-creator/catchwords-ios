@@ -420,7 +420,7 @@ final class CaptureViewModel {
         logPick(word, object: object, typed: typed)
         stageOrigin = stage?.origin
         stageHandoff = stage.map { $0.handoffAt - $0.origin }
-        pickedBox = object?.box
+        pickedBox = object.flatMap { $0.positioned ? $0.box : nil }
         picked = word
         // Decided again for this word by the owned-word check below.
         owned = nil
@@ -527,17 +527,31 @@ final class CaptureViewModel {
         let photo = self.photo
         let pending = object == nil ? nil : cutsTask
         let name = object?.words.first?.headword ?? "the photo"
+        let masks = masksTask
         let task = Task { () -> (cut: UIImage?, box: CGRect?) in
             await pending?.value
             let rendered = object.flatMap { o in objects.first { $0.id == o.id } }
             if let cut = rendered?.cut { return (cut, rendered?.box) }
             guard let photo, !Task.isCancelled else { return (nil, nil) }
-            DevLog.shared.add("cutout", "\(name): no cut-out from the photo's masks, lifting near its tag")
-            var made = await CutoutService.liftSubject(from: photo, near: object?.anchor)
+            // A thing the photo's masks were planned for and found no cut-out of is not lifted again from the same
+            // masks: the lift takes the subject nearest its tag, whatever it is (owner 2026-10-26: the swing's sticker
+            // was the man beside it). Only a typed word (the photo's main subject), or a photo Vision gave no masks for
+            // yet, is lifted.
+            var planned = false
+            if object != nil, let masks { planned = await masks.value != nil }
+            var made: UIImage?
+            if !planned {
+                DevLog.shared.add("cutout", "\(name): no cut-out from the photo's masks, lifting near its tag")
+                made = await CutoutService.liftSubject(from: photo, near: object?.anchor)
+            }
             guard !Task.isCancelled else { return (nil, nil) }
             if made == nil {
-                DevLog.shared.add("cutout", "\(name): nothing lifted, cut out as a rounded shape round its box")
-                made = StickerCrop.shaped(photo, box: rendered?.box ?? object?.box)
+                // Nothing whole to cut out (owner 2026-10-26: 「切り抜けない場合は、四角でそのまま画像を表示して」): the
+                // photo round the thing's box, as a rectangle — the whole photo when the AI gave no place for it (its box
+                // is then only a guess round its tag's spot).
+                let box: CGRect? = object.flatMap { o -> CGRect? in o.positioned ? (rendered?.box ?? o.box) : nil }
+                DevLog.shared.add("cutout", "\(name): no cut-out, the photo \(box == nil ? "as it is" : "round its box")")
+                made = StickerCrop.shaped(photo, box: box)
             }
             // The sticker's drawn copies, made here and not on the main thread in the middle of the GET moment.
             if let made { await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(made) }.value }
