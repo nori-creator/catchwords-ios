@@ -460,7 +460,7 @@ enum UsageLinkIcon {
         case .youtube:
             RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white)
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color(hex: 0xE5E5E5), lineWidth: 1))
-                .overlay(Image("LogoYouTube").resizable().scaledToFit().frame(width: 24, height: 24))
+                .overlay(Image(decorative: "LogoYouTube").resizable().scaledToFit().frame(width: 24, height: 24))
         case .youglish:
             RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(hex: 0xE8F0FE))
                 .overlay(Image(systemName: "play.circle").font(.system(size: 19, weight: .semibold)).foregroundStyle(Color(hex: 0x1A73E8)))
@@ -469,12 +469,12 @@ enum UsageLinkIcon {
                 .overlay(Text(verbatim: "D").font(.system(size: 18, weight: .heavy, design: .rounded)).foregroundStyle(.white))
         case .threads:
             RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black)
-                .overlay(Image("LogoThreads").resizable().renderingMode(.template).scaledToFit()
+                .overlay(Image(decorative: "LogoThreads").resizable().renderingMode(.template).scaledToFit()
                     .foregroundStyle(.white).frame(width: 19, height: 19))
         case .google:
             RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white)
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color(hex: 0xE5E5E5), lineWidth: 1))
-                .overlay(Image("LogoGoogle").resizable().scaledToFit().frame(width: 20, height: 20))
+                .overlay(Image(decorative: "LogoGoogle").resizable().scaledToFit().frame(width: 20, height: 20))
         case .moe:
             RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(hex: 0x7A1F2B))
                 .overlay(Image(systemName: "book").font(.system(size: 15, weight: .semibold)).foregroundStyle(.white))
