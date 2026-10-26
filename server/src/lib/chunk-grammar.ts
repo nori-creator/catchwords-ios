@@ -72,9 +72,11 @@ export function isSwappableSlot(part: ChunkPart, language?: string | null): bool
   const pos = (part.pos ?? "").trim();
   // 品詞が空の古い札は、alts が在れば入れ替えの札として扱う（前の見た目を保つ）。
   if (!pos) return true;
-  if (SWAPPABLE.has(posGroup(pos))) return true;
-  // 程度の語（很 → 超・非常・有點・蠻）。動詞・形容詞・ほかの副詞は入れ替えない（C5）。
-  return normalizeTargetLanguage(language).startsWith("zh") && isDegreeChoice(part);
+  // 程度の語（很・超・非常・有點・蠻）は入れ替えない — 很 で固定（オーナー 2026-10-25「程度の品詞は入れ替え不可で
+  // 很で固定にして」。C5 の改正）。保存済みの語に AI が付けた alts が在っても点線にしない。
+  if (isDegreeChoice(part)) return false;
+  void language;
+  return SWAPPABLE.has(posGroup(pos));
 }
 
 /** 状態動詞の前に立つ程度・否定の語。これが既に在れば 很 を足さない。 */
@@ -173,28 +175,18 @@ export function mergeCompounds(
 }
 
 /**
- * 程度の語を入れ替えられる札にする（C5）。AI が候補を付けていない回（補った 很 を含む）は、
- * よく使う程度の語と、その意味（読む人の言語）を付ける。学ぶ語そのものには付けない（C2）。
+ * 程度の語は**固定の札**にする（オーナー 2026-10-25「今まで程度の品詞は入れ替え可能にしてたけど、その程度は
+ * 入れ替え不可で很で固定にして」— C5 の改正）。AI が slot・alts を付けて返しても外す。訳（ja）は残し、
+ * 無ければ読む人の言語の意味を付ける（型の訳の中で 很 に当たる語を太くするため）。
  */
-function withDegreeSlots(
-  parts: ChunkPart[],
-  headword: string,
-  reader?: string | null,
-): ChunkPart[] {
+function withFixedDegree(parts: ChunkPart[], reader?: string | null): ChunkPart[] {
   return parts.map((p) => {
-    if (!isDegreeChoice(p) || (headword && p.text.includes(headword))) return p;
+    if (!isDegreeChoice(p)) return p;
+    const { slot: _slot, alts: _alts, ...rest } = p;
+    void _slot;
+    void _alts;
     const text = p.text.trim();
-    return {
-      ...p,
-      slot: true,
-      ja: p.ja?.trim() ? p.ja : degreeGloss(text, reader),
-      alts: p.alts?.length
-        ? p.alts
-        : DEGREE_CHOICES.filter((d) => d !== text).map((d) => ({
-            text: d,
-            ja: degreeGloss(d, reader),
-          })),
-    };
+    return { ...rest, ja: p.ja?.trim() ? p.ja : degreeGloss(text, reader) };
   });
 }
 
@@ -272,7 +264,7 @@ export function tidyUsageParts(
   const parts = withoutSeparatorParts(rawParts);
   const merged = opts.headword ? mergeCompounds(parts, opts.headword, language) : parts;
   const withDegree = withDegreeAdverb(merged, language);
-  return zh ? withDegreeSlots(withDegree, opts.headword ?? "", opts.reader) : withDegree;
+  return zh ? withFixedDegree(withDegree, opts.reader) : withDegree;
 }
 
 /**

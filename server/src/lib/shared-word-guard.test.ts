@@ -367,7 +367,8 @@ describe("共有の行の言語（mayWriteSharedReaderText / claimSharedRowLangu
 
 describe("applyWordExtrasUpdate（updateWordExtras の中身）", () => {
   const deps = (db: ReturnType<typeof fakeDb>, save = vi.fn(async () => ({ saved: true }))) => ({
-    deps: { supabase: db.user, admin: db.admin, saveExplanation: save },
+    // 古い語（帯なし）として — 帯の付いた語は下の「帯の付いた語」の試験。
+    deps: { supabase: db.user, admin: db.admin, saveExplanation: save, levelBand: async () => null },
     save,
   });
 
@@ -546,6 +547,82 @@ describe("applyWordExtrasUpdate（updateWordExtras の中身）", () => {
     await expect(applyWordExtrasUpdate(d, "u", bad)).rejects.toThrow();
     expect(db.updates).toEqual([]);
     expect(save).not.toHaveBeenCalled();
+  });
+
+  describe("帯の付いた語（docs/sharing-rules.md S1・S2・S6）", () => {
+    const bandCard = (levels: string) =>
+      receipt({
+        card: {
+          meaning_ja: "bicycle (server)",
+          example_sentence: "我騎腳踏車上學。",
+          example_translation: "I ride a bike to school.",
+          extras: {
+            explain_lang: "en",
+            explain_l1: "en",
+            usage_context: "commuting (server)",
+            example_scene: "going to school",
+            usage_chunks: [
+              { parts: [{ text: "騎", pos: "V" }, { text: "腳踏車", pos: "N" }], ja: "ride a bike" },
+            ],
+            examples_extra: [{ zh: "我想買腳踏車。", ja: "I want a bike.", scene: "shopping" }],
+          },
+          gen: { v: 2, levels, model: "m", pro: false, sections: null },
+        },
+      });
+
+    it("例文・チャンクは帯の行だけに入れ、共有の行・言語の置き場には入れない", async () => {
+      const db = fakeDb({
+        owns: true,
+        word: { ...sharedWord, meaning_ja: "", extras: {} },
+        receipts: [bandCard("band:A>B")],
+      });
+      const save = vi.fn(async () => ({ saved: true }));
+      const fillLevel = vi.fn(async () => true);
+      await applyWordExtrasUpdate(
+        {
+          supabase: db.user,
+          admin: db.admin,
+          saveExplanation: save,
+          levelBand: async () => "A>B",
+          fillLevel,
+        },
+        "u",
+        req({ patch: { meaning_ja: "x", example_sentence: "x" } }),
+      );
+      expect(fillLevel).toHaveBeenCalledTimes(1);
+      const lv = (fillLevel.mock.calls[0] as unknown[])[0] as Row;
+      expect(lv.band).toBe("A>B");
+      expect((lv.card as Row).example_sentence).toBe("我騎腳踏車上學。");
+      // 共有の行: 意味は埋めるが、例文・チャンクは入れない。
+      const u = db.updates[0] as Row;
+      expect(u.meaning_ja).toBe("bicycle (server)");
+      expect(u.example_sentence).toBeUndefined();
+      expect((u.extras as Row).usage_chunks).toBeUndefined();
+      expect((u.extras as Row).examples_extra).toBeUndefined();
+      // 言語の置き場: 例文の訳もチャンクも入れない。意味・使う場面は入れる。
+      const arg = (save.mock.calls[0] as unknown[])[0] as Row;
+      expect(arg.example_translation).toBeNull();
+      expect((arg.extras as Row).usage_chunks).toBeUndefined();
+      expect((arg.extras as Row).example_scene).toBeUndefined();
+      expect((arg.extras as Row).usage_context).toBe("commuting (server)");
+    });
+
+    it("別の帯の級で作ったカードの例文・チャンクは、帯の行に入れない", async () => {
+      const db = fakeDb({ owns: true, word: sharedWord, receipts: [bandCard("band:C>C")] });
+      const fillLevel = vi.fn(async () => true);
+      await applyWordExtrasUpdate(
+        {
+          supabase: db.user,
+          admin: db.admin,
+          saveExplanation: vi.fn(async () => ({ saved: true })),
+          levelBand: async () => "A>B",
+          fillLevel,
+        },
+        "u",
+        req(),
+      );
+      expect(fillLevel).not.toHaveBeenCalled();
+    });
   });
 });
 

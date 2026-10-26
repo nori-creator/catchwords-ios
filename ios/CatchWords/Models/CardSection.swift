@@ -57,8 +57,19 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
             [.meaning, .example, .usageChunks, .kanjiBreakdown, .conjugation, .politeness, .counters,
              .relatedWords, .pitchAccent, .wordOrigin, .japanNote, .realUsage]
         default:
-            // 「例文」 is inside 「使い方」 (the patterns) for Taiwan Mandarin (owner 2026-10-23: scene, formula and example as one unit).
-            [.meaning, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
+            // 版25 (owner 2026-10-24/25, docs/word-detail-design.md §0): 「使い方チャンク」 and 「例文」 are two cards again —
+            // the examples carry the number of the chunk they use.
+            [.meaning, .usageChunks, .example, .measureWords, .relatedWords, .taiwanNote, .realUsage]
+        }
+    }
+
+    /// The short name on the page's jump chips (§0): 意味・チャンク・例文・量詞・関連語・台湾メモ・使われ方.
+    func shortTitle(for target: String) -> String {
+        switch self {
+        case .usageChunks: L("チャンク")
+        case .relatedWords: L("関連語")
+        case .realUsage: L("使われ方")
+        default: title(for: target)
         }
     }
 
@@ -74,7 +85,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
         case .webImages: L("ネットの画像")
         case .example: L("例文")
         case .examplesExtra: L("追加の例文")
-        case .usageChunks: L("使い方")  // owner 2026-10-23 evening: a noun like 「意味」「量詞」, one line wide
+        case .usageChunks: L("使い方チャンク")  // 版25 (owner 2026-10-24): the chunks' own card again
         case .measureWords: L("量詞")
         case .forms: L("活用")
         case .countability: L("数え方と冠詞")
@@ -127,7 +138,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
 
     /// card-prefs.ts DEFAULT_VISIBLE (2026-09-23), within the language's sections. 台湾メモ is shown, right above
     /// 実際の使われ方 (owner 2026-10-16).
-    static let defaultVisibleAll: [CardSection] = [.meaning, .usageChunks, .measureWords, .relatedWords, .taiwanNote, .realUsage]
+    static let defaultVisibleAll: [CardSection] = [.meaning, .usageChunks, .example, .measureWords, .relatedWords, .taiwanNote, .realUsage]
 
     /// Each language shows its own grammar section by default where Mandarin shows measure words:
     /// English word forms and articles, Japanese kanji, conjugation and counters.
@@ -181,6 +192,7 @@ final class CardPrefsStore {
         }
         let known = s.order.compactMap(CardSection.init(rawValue:)).filter { all.contains($0) }
         order = known + CardSection.defaultOrder(for: target).filter { !known.contains($0) }
+        if target == "zh-TW" { order = Self.withExampleAfterChunks(order, saved: known) }
         hidden = Set(s.hidden.compactMap(CardSection.init(rawValue:)).filter { all.contains($0) })
         // A section added after the choice was saved (ネットの画像) starts the way a new card would show
         // it, not shown just because it was missing from the saved hidden list.
@@ -191,6 +203,16 @@ final class CardPrefsStore {
             (order, hidden) = Self.taiwanNoteAboveRealUsage(order: order, hidden: hidden)
             save()
         }
+    }
+
+    /// 「例文」 came back as a card of its own in 版25 (it was inside 「使い方」 from 2026-10-23): an order saved without it gets
+    /// it right under 「使い方チャンク」, not at the bottom. An order that already has it keeps it where it was put.
+    static func withExampleAfterChunks(_ order: [CardSection], saved: [CardSection]) -> [CardSection] {
+        guard !saved.contains(.example), order.contains(.example), let chunks = order.firstIndex(of: .usageChunks) else { return order }
+        var out = order.filter { $0 != .example }
+        let at = out.firstIndex(of: .usageChunks).map { $0 + 1 } ?? min(chunks + 1, out.count)
+        out.insert(.example, at: at)
+        return out
     }
 
     /// Set once the saved Mandarin choices have had 台湾メモ moved (1.0.1).

@@ -30,7 +30,8 @@ enum UIPreview {
             parts.removeLast()
         }
         L10n.lang = lang
-        for key in ["reading.pref", "chunk.posColors"] + DevChoices.retiredKeys {
+        for key in ["reading.pref", "chunk.posColors", "detail.review", "detail.reviewHide", "detail.textScale", "detail.speechRate",
+                    "coach.chunkSwap"] + DevChoices.retiredKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
         return (parts.joined(separator: "-"), dark)
@@ -131,6 +132,21 @@ struct UIPreviewRoot: View {
             case "patterns-pos": PatternsPreview(pref: "zhuyin", pos: true)
             // An older card (no usage_patterns): its examples and formulas paired up and numbered the same way.
             case "patterns-legacy": PatternsPreview(pref: "pinyin", pos: false, legacy: true)
+            // 版25 (docs/word-detail-design.md §12): 水晶手鍊 as in the mock — the top, each card, pinyin, the text sizes,
+            // the review blur and the settings panel.
+            case "word25": Word25Preview(variant: "")
+            case "word25-chunks": Word25Preview(variant: "chunks")
+            case "word25-pinyin": Word25Preview(variant: "pinyin")
+            case "word25-examples": Word25Preview(variant: "examples")
+            case "word25-pinyinex": Word25Preview(variant: "pinyinex")
+            case "word25-xl": Word25Preview(variant: "xl")
+            case "word25-small": Word25Preview(variant: "small")
+            case "word25-related": Word25Preview(variant: "related")
+            case "word25-memo": Word25Preview(variant: "memo")
+            case "word25-links": Word25Preview(variant: "links")
+            case "word25-review": Word25Preview(variant: "review")
+            case "word25-reviewzh": Word25Preview(variant: "reviewzh")
+            case "word25-panel": Word25Preview(variant: "panel")
             case "jadetail": LanguageCardPreview(kind: .ja)
             case "quiz": ReviewPreview(learning: "zh-TW", answered: false)
             case "answer": ReviewPreview(learning: "zh-TW", answered: true)
@@ -1838,3 +1854,215 @@ private struct MapPreview: View {
         DexMapView(stickers: Self.stickers) { _ in }
     }
 }
+
+#if DEBUG
+/// The word page of 版25 with the mock's own word (`-uiPreview word25…`, docs/word-detail-design.md §12): 水晶手鍊 with
+/// five chunks (notes, two swappable), three examples that use chunks 1, 2 and 5, a measure word, related words with their
+/// short meanings, and a Taiwan memo — in each display language's own words, through the same reader-language filter as
+/// real cards. CI photographs it next to the mock (https://claude.ai/artifact/GWwf6QQp7KQjZSG3tM9g3N).
+struct Word25Preview: View {
+    let focus: CardSection?
+    var panel: Bool = false
+
+    /// `variant`: which part to show and how (the scene name after 「word25-」).
+    init(variant: String) {
+        let d = UserDefaults.standard
+        d.set(variant.contains("pinyin") ? "pinyin" : "zhuyin", forKey: "reading.pref")
+        d.set(variant.contains("xl") ? 1.3 : variant.contains("small") ? 0.85 : 1.0, forKey: "detail.textScale")
+        d.set(variant.contains("review"), forKey: "detail.review")
+        d.set(variant.contains("reviewzh") ? ReviewHide.target.rawValue : ReviewHide.translation.rawValue, forKey: "detail.reviewHide")
+        // The first-swap hint only on the chunks' own shot.
+        d.set(!(variant == "chunks" || variant == "coach"), forKey: "coach.chunkSwap")
+        panel = variant == "panel"
+        // No server here: the examples' readings (shown with ピンイン) come from the preview's own table.
+        SentenceReadings.shared.seedForPreview(Self.demoReadings([
+            "我每天都戴水晶手鍊，聽說可以帶來好運。", "老闆說這條水晶手鍊招財，我就買了。", "你看這條水晶手鍊很精緻，送你！",
+        ]))
+        focus = switch variant {
+        case "chunks", "coach", "pinyin", "review", "reviewzh": .usageChunks
+        case "examples", "pinyinex", "xl", "small": .example
+        case "related": .relatedWords
+        case "memo": .taiwanNote
+        case "links": .realUsage
+        default: nil
+        }
+    }
+
+    private static func pick(_ ja: String, en: String, zh: String, es: String, ko: String, vi: String) -> String {
+        switch L10n.lang {
+        case "en": en
+        case "zh-TW": zh
+        case "es": es
+        case "ko": ko
+        case "vi": vi
+        default: ja
+        }
+    }
+
+    private static let readings: [Character: (String, String)] = [
+        "水": ("shuǐ", "ㄕㄨㄟˇ"), "晶": ("jīng", "ㄐㄧㄥ"), "手": ("shǒu", "ㄕㄡˇ"), "鍊": ("liàn", "ㄌㄧㄢˋ"), "戴": ("dài", "ㄉㄞˋ"),
+        "招": ("zhāo", "ㄓㄠ"), "財": ("cái", "ㄘㄞˊ"), "斷": ("duàn", "ㄉㄨㄢˋ"), "了": ("le", "˙ㄌㄜ"), "要": ("yào", "ㄧㄠˋ"),
+        "消": ("xiāo", "ㄒㄧㄠ"), "磁": ("cí", "ㄘˊ"), "桃": ("táo", "ㄊㄠˊ"), "花": ("huā", "ㄏㄨㄚ"), "擋": ("dǎng", "ㄉㄤˇ"),
+        "煞": ("shà", "ㄕㄚˋ"), "鬆": ("sōng", "ㄙㄨㄥ"), "壞": ("huài", "ㄏㄨㄞˋ"), "很": ("hěn", "ㄏㄣˇ"), "精": ("jīng", "ㄐㄧㄥ"), "緻": ("zhì", "ㄓˋ"),
+    ]
+
+    /// A block with its reading, one syllable per character.
+    private static func part(_ text: String, _ pos: String, ja: String = "", alts: [(String, String)] = []) -> [String: Any] {
+        let py = text.map { readings[$0]?.0 ?? "" }.joined(separator: " ")
+        let zy = text.map { readings[$0]?.1 ?? "" }.joined(separator: " ")
+        var p: [String: Any] = ["text": text, "pos": pos, "pinyin": py, "zhuyin": zy]
+        if !ja.isEmpty { p["ja"] = ja }
+        if !alts.isEmpty {
+            p["slot"] = true
+            p["alts"] = alts.map { a -> [String: Any] in
+                ["text": a.0, "ja": a.1, "pinyin": a.0.map { readings[$0]?.0 ?? "" }.joined(separator: " "),
+                 "zhuyin": a.0.map { readings[$0]?.1 ?? "" }.joined(separator: " ")]
+            }
+        }
+        return p
+    }
+
+    private static var sticker: Sticker {
+        let hw = part("水晶手鍊", "N")
+        var chunks: [[String: Any]] = []
+        chunks.append(["parts": [part("戴", "V", ja: pick("つける", en: "wear", zh: "戴", es: "llevar", ko: "차다", vi: "đeo")), hw],
+         "ja": pick("水晶ブレスレットをつける", en: "wear a crystal bracelet", zh: "戴水晶手鍊", es: "llevar una pulsera de cristal",
+                    ko: "크리스털 팔찌를 차다", vi: "đeo vòng tay pha lê"),
+         "note": pick("戴 は身につける物ぜんぶ（指輪・時計・帽子も）。服と靴だけは 穿。",
+                      en: "戴 is for anything you put on — rings, watches, hats. Only clothes and shoes take 穿.",
+                      zh: "戴用在身上配戴的東西（戒指、手錶、帽子）。衣服和鞋子才用穿。",
+                      es: "戴 sirve para todo lo que te pones: anillos, relojes, gorros. Solo la ropa y los zapatos usan 穿.",
+                      ko: "戴는 반지·시계·모자처럼 몸에 다는 것 전부. 옷과 신발만 穿.",
+                      vi: "戴 dùng cho mọi thứ đeo trên người: nhẫn, đồng hồ, mũ. Chỉ quần áo và giày mới dùng 穿.")])
+        chunks.append(["parts": [hw, part("招財", "Vi", ja: pick("金運を呼ぶ", en: "bring wealth", zh: "招財", es: "atraer dinero", ko: "재물운을 부르다", vi: "chiêu tài"),
+                            alts: [("招桃花", pick("恋愛運を呼ぶ", en: "bring love", zh: "招桃花", es: "atraer el amor", ko: "연애운을 부르다", vi: "chiêu đào hoa")),
+                                   ("擋煞", pick("厄を除ける", en: "ward off bad luck", zh: "擋煞", es: "alejar la mala suerte", ko: "액운을 막다", vi: "trừ tà"))])],
+         "ja": pick("水晶ブレスレットが金運を呼ぶ", en: "the crystal bracelet will bring wealth", zh: "水晶手鍊招財",
+                    es: "la pulsera de cristal atrae dinero", ko: "크리스털 팔찌가 재물운을 부르다", vi: "vòng tay pha lê chiêu tài"),
+         "note": pick("効き目を言う決まった形。招財＝金運、招桃花＝恋愛運、擋煞＝厄除け。",
+                      en: "The set way to say what it does: 招財 wealth, 招桃花 love, 擋煞 protection.",
+                      zh: "說效果的固定說法：招財是財運，招桃花是桃花運，擋煞是避邪。",
+                      es: "La forma fija de decir para qué sirve: 招財 dinero, 招桃花 amor, 擋煞 protección.",
+                      ko: "효과를 말하는 정해진 표현. 招財 재물운, 招桃花 연애운, 擋煞 액막이.",
+                      vi: "Cách nói cố định về tác dụng: 招財 tài lộc, 招桃花 tình duyên, 擋煞 trừ tà.")])
+        chunks.append(["parts": [hw, part("斷了", "V", ja: pick("切れた", en: "broke", zh: "斷了", es: "se rompió", ko: "끊어졌다", vi: "bị đứt"),
+                            alts: [("鬆了", pick("緩んだ", en: "came loose", zh: "鬆了", es: "se aflojó", ko: "느슨해졌다", vi: "bị lỏng")),
+                                   ("壞了", pick("壊れた", en: "broke down", zh: "壞了", es: "se estropeó", ko: "망가졌다", vi: "bị hỏng"))])],
+         "ja": pick("水晶ブレスレットが切れた", en: "the crystal bracelet broke", zh: "水晶手鍊斷了",
+                    es: "la pulsera de cristal se rompió", ko: "크리스털 팔찌가 끊어졌다", vi: "vòng tay pha lê bị đứt")])
+        chunks.append(["parts": [hw, part("要", "Vaux"), part("消磁", "V", ja: pick("浄化", en: "cleansing", zh: "消磁", es: "limpieza", ko: "정화", vi: "tẩy uế"))],
+         "ja": pick("水晶ブレスレットは浄化が必要", en: "the crystal bracelet needs cleansing", zh: "水晶手鍊要消磁",
+                    es: "la pulsera de cristal necesita limpieza", ko: "크리스털 팔찌는 정화가 필요하다", vi: "vòng tay pha lê cần tẩy uế")])
+        chunks.append(["parts": [hw, part("很", "Adv"), part("精緻", "Vs", ja: pick("精巧", en: "finely made", zh: "精緻", es: "fina", ko: "정교하다", vi: "tinh xảo"))],
+         "ja": pick("水晶ブレスレットがとても精巧だ", en: "the crystal bracelet is finely made", zh: "水晶手鍊很精緻",
+                    es: "la pulsera de cristal es muy fina", ko: "크리스털 팔찌가 아주 정교하다", vi: "vòng tay pha lê rất tinh xảo")])
+        let words1 = ["我", "每天", "都", "戴", "水晶手鍊", "，", "聽說", "可以", "帶來", "好運", "。"]
+        let words2 = ["老闆", "說", "這條", "水晶手鍊", "招財", "，", "我", "就", "買了", "。"]
+        let words3 = ["你", "看", "這條", "水晶手鍊", "很", "精緻", "，", "送", "你", "！"]
+        let tr2 = pick("店主がこの水晶ブレスは金運を呼ぶって言うから、買っちゃった。", en: "The shop owner said this crystal bracelet brings wealth, so I bought it.",
+                       zh: "", es: "El dueño dijo que esta pulsera atrae dinero, así que la compré.",
+                       ko: "사장님이 이 팔찌가 재물운을 부른다고 해서 샀어.", vi: "Chủ tiệm nói vòng này chiêu tài nên mình mua luôn.")
+        let tr3 = pick("見て、この水晶ブレス、すごくきれいな作りでしょ。あげる！", en: "Look, this crystal bracelet is so finely made. It's for you!",
+                       zh: "", es: "Mira, esta pulsera de cristal es muy fina. ¡Es para ti!",
+                       ko: "봐, 이 크리스털 팔찌 정말 정교하지? 너 줄게!", vi: "Nhìn này, vòng tay pha lê này tinh xảo ghê. Tặng bạn!")
+        let extraExamples: [[String: Any]] = [
+            ["zh": words2.joined(), "ja": tr2, "chunks": words2.map { ["text": $0, "pos": ""] }],
+            ["zh": words3.joined(), "ja": tr3, "chunks": words3.map { ["text": $0, "pos": ""] }],
+        ]
+        let measureNote = pick("紐状や細長いもの、ブレスレットやネックレスを数える時に最も一般的。",
+                               en: "The usual measure word for long, thin things such as bracelets and necklaces.",
+                               zh: "數手鍊、項鍊這類細長的東西時最常用。",
+                               es: "El clasificador habitual para cosas largas y finas, como pulseras y collares.",
+                               ko: "팔찌·목걸이처럼 가늘고 긴 것을 셀 때 가장 흔한 양사.",
+                               vi: "Lượng từ thường dùng cho vật dài, mảnh như vòng tay, dây chuyền.")
+        let measures: [[String: Any]] = [["word": "一條", "zhuyin": "ㄧˋ ㄊㄧㄠˊ", "pinyin": "yì tiáo", "note": measureNote]]
+        var related: [[String: Any]] = []
+        related.append(["word": "手環", "kind": "syn", "reading": "ㄕㄡˇ ㄏㄨㄢˊ",
+                        "gloss": pick("ブレスレット", en: "bracelet", zh: "手環", es: "pulsera", ko: "팔찌", vi: "vòng tay"),
+                        "note": pick("腕輪全般（スマートウォッチの「智慧手環」も）。水晶手鍊 は天然石を糸に通した物に限る。",
+                                     en: "Any wristband (a smart band is 智慧手環 too). 水晶手鍊 is only beads strung on a cord.",
+                                     zh: "泛指手上戴的環（智慧手環也是）。水晶手鍊只指用線串起的天然石。",
+                                     es: "Cualquier brazalete (una pulsera inteligente es 智慧手環). 水晶手鍊 es solo de cuentas en un hilo.",
+                                     ko: "손목에 차는 것 전반(스마트 밴드 智慧手環도). 水晶手鍊는 실에 꿴 천연석만.",
+                                     vi: "Mọi loại vòng đeo tay (vòng thông minh 智慧手環 cũng vậy). 水晶手鍊 chỉ là đá xâu dây.")])
+        related.append(["word": "寶石", "kind": "rel", "reading": "ㄅㄠˇ ㄕˊ",
+                        "gloss": pick("宝石", en: "gem", zh: "寶石", es: "piedra preciosa", ko: "보석", vi: "đá quý"),
+                        "note": pick("宝石全般を指す。水晶も含まれるが、より高価なものを指すことが多い。",
+                                     en: "Gems in general. Crystal counts, but it usually means something pricier.",
+                                     zh: "泛指寶石。水晶也算，但多半指更貴的。",
+                                     es: "Piedras preciosas en general. El cristal cuenta, pero suele indicar algo más caro.",
+                                     ko: "보석 전반. 수정도 들지만 더 비싼 것을 가리킬 때가 많다.",
+                                     vi: "Đá quý nói chung. Pha lê cũng tính, nhưng thường chỉ thứ đắt hơn.")])
+        related.append(["word": "珠寶", "kind": "rel", "reading": "ㄓㄨ ㄅㄠˇ",
+                        "gloss": pick("ジュエリー", en: "jewelry", zh: "珠寶", es: "joyería", ko: "주얼리", vi: "trang sức"),
+                        "note": pick("ジュエリー全般。水晶手鍊よりも高級な貴金属製品を指す傾向がある。",
+                                     en: "Jewelry in general; it tends to mean precious-metal pieces, pricier than a 水晶手鍊.",
+                                     zh: "泛指珠寶首飾，多半指比水晶手鍊更貴的貴金屬飾品。",
+                                     es: "Joyería en general; suele indicar piezas de metal precioso, más caras que un 水晶手鍊.",
+                                     ko: "주얼리 전반. 水晶手鍊보다 비싼 귀금속 제품을 가리키는 경향이 있다.",
+                                     vi: "Trang sức nói chung; thường chỉ đồ kim loại quý, đắt hơn 水晶手鍊.")])
+        related.append(["word": "手錶", "kind": "rel", "reading": "ㄕㄡˇ ㄅㄧㄠˇ",
+                        "gloss": pick("腕時計", en: "watch", zh: "手錶", es: "reloj", ko: "손목시계", vi: "đồng hồ đeo tay"),
+                        "note": pick("腕時計。ブレスレットと一緒に重ね付けされることが多い。",
+                                     en: "A wristwatch, often worn together with bracelets.",
+                                     zh: "手錶，常和手鍊一起戴。",
+                                     es: "Un reloj de pulsera, que a menudo se lleva junto con pulseras.",
+                                     ko: "손목시계. 팔찌와 함께 겹쳐 차는 경우가 많다.",
+                                     vi: "Đồng hồ đeo tay, hay đeo chung với vòng.")])
+        let memo = pick("台湾では風水や運勢に関心が高く、水晶手鍊は単なるアクセサリーではなく**「開運アイテム」**として選ぶ人が非常に多い。**左手はエネルギーを取り入れ、右手は不要なものを出す**という説があり、着ける手を変える習慣もある。",
+                        en: "In Taiwan many people care about feng shui and luck, so a crystal bracelet is often chosen as **a lucky charm**, not just an accessory. Some say the left hand takes energy in and the right lets it out, so people switch hands.",
+                        zh: "台灣人很在意風水和運勢，很多人把水晶手鍊當成**開運小物**，而不只是飾品。有一說是左手吸收能量、右手排出不要的東西，所以有人會換手戴。",
+                        es: "En Taiwán interesan mucho el feng shui y la suerte, así que muchos eligen la pulsera de cristal como **amuleto** y no solo como accesorio. Se dice que la mano izquierda recibe energía y la derecha la suelta.",
+                        ko: "대만에서는 풍수와 운세에 관심이 많아 수정 팔찌를 액세서리가 아닌 **행운 아이템**으로 고르는 사람이 많다. 왼손은 기운을 받아들이고 오른손은 내보낸다는 말이 있어 차는 손을 바꾸기도 한다.",
+                        vi: "Ở Đài Loan nhiều người quan tâm phong thủy và vận may, nên vòng tay pha lê thường được chọn làm **vật cầu may** chứ không chỉ là trang sức. Có thuyết tay trái hút năng lượng, tay phải đẩy ra.")
+        var extras: [String: Any] = ["explain_lang": L10n.lang]
+        extras["usage_chunks"] = chunks
+        extras["example_chunks"] = words1.map { ["text": $0, "pos": ""] }
+        extras["examples_extra"] = extraExamples
+        extras["measure_words"] = measures
+        extras["related_words"] = related
+        extras["taiwan_note"] = memo
+        let meaning = pick("水晶ブレスレット", en: "crystal bracelet", zh: "用水晶串成的手鍊", es: "pulsera de cristal", ko: "크리스털 팔찌", vi: "vòng tay pha lê")
+        let tr1 = pick("毎日水晶のブレスレットをつけてるの。運を呼ぶって聞いて。", en: "I wear a crystal bracelet every day. They say it brings good luck.",
+                       zh: "", es: "Llevo una pulsera de cristal todos los días. Dicen que trae buena suerte.",
+                       ko: "매일 크리스털 팔찌를 차고 있어. 행운을 불러온대.", vi: "Ngày nào mình cũng đeo vòng tay pha lê. Nghe nói nó mang lại may mắn.")
+        var obj: [String: Any] = ["id": "w-crystal", "headword": "水晶手鍊", "language": "zh-TW", "reading_zhuyin": "ㄕㄨㄟˇ ㄐㄧㄥ ㄕㄡˇ ㄌㄧㄢˋ",
+                                  "pinyin": "shuǐjīng shǒuliàn", "part_of_speech": "N", "level": "TOCFL-4"]
+        obj["meaning_ja"] = meaning
+        obj["example_sentence"] = words1.joined()
+        obj["example_translation"] = tr1
+        obj["extras"] = extras
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        let word = (try? JSONDecoder().decode(Word.self, from: data))
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
+        return Sticker(id: "word25", wordId: "w-crystal", objectImageUrl: nil, cutoutImageUrl: nil, selfieImageUrl: nil,
+                       caption: nil, locationName: nil, takenAt: Date(), captureType: "photo", word: word)
+    }
+
+    var body: some View {
+        WordDetailView(sticker: Self.sticker, previewFocus: focus, previewPanel: panel)
+    }
+
+    /// The demo server's answer to `readSentences` for this preview's sentences (the demo has no dictionary): each
+    /// character with its pinyin and zhuyin, so the examples show pinyin when ピンイン is chosen. Other sentences: none.
+    nonisolated static func demoReadings(_ sentences: [String]) -> [[String: Any]] {
+        let table: [Character: (String, String)] = [
+            "我": ("wǒ", "ㄨㄛˇ"), "每": ("měi", "ㄇㄟˇ"), "天": ("tiān", "ㄊㄧㄢ"), "都": ("dōu", "ㄉㄡ"), "戴": ("dài", "ㄉㄞˋ"),
+            "水": ("shuǐ", "ㄕㄨㄟˇ"), "晶": ("jīng", "ㄐㄧㄥ"), "手": ("shǒu", "ㄕㄡˇ"), "鍊": ("liàn", "ㄌㄧㄢˋ"),
+            "聽": ("tīng", "ㄊㄧㄥ"), "說": ("shuō", "ㄕㄨㄛ"), "可": ("kě", "ㄎㄜˇ"), "以": ("yǐ", "ㄧˇ"), "帶": ("dài", "ㄉㄞˋ"),
+            "來": ("lái", "ㄌㄞˊ"), "好": ("hǎo", "ㄏㄠˇ"), "運": ("yùn", "ㄩㄣˋ"), "老": ("lǎo", "ㄌㄠˇ"), "闆": ("bǎn", "ㄅㄢˇ"),
+            "這": ("zhè", "ㄓㄜˋ"), "條": ("tiáo", "ㄊㄧㄠˊ"), "招": ("zhāo", "ㄓㄠ"), "財": ("cái", "ㄘㄞˊ"), "就": ("jiù", "ㄐㄧㄡˋ"),
+            "買": ("mǎi", "ㄇㄞˇ"), "了": ("le", "˙ㄌㄜ"), "你": ("nǐ", "ㄋㄧˇ"), "看": ("kàn", "ㄎㄢˋ"), "很": ("hěn", "ㄏㄣˇ"),
+            "精": ("jīng", "ㄐㄧㄥ"), "緻": ("zhì", "ㄓˋ"), "送": ("sòng", "ㄙㄨㄥˋ"),
+        ]
+        return sentences.compactMap { s -> [String: Any]? in
+            guard s.contains("水晶手鍊") else { return nil }
+            let units: [[String: Any]] = s.map { c in
+                guard let r = table[c] else { return ["char": String(c), "pinyin": NSNull(), "zhuyin": NSNull()] }
+                return ["char": String(c), "pinyin": r.0, "zhuyin": r.1]
+            }
+            return ["sentence": s, "units": units]
+        }
+    }
+}
+#endif

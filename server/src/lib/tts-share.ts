@@ -11,6 +11,7 @@
  * - 見出し語（`dictionary_entries.headword` / `words.headword`）
  * - 共有の語の例文（`words.example_sentence`）
  * - サーバが作って共有の語・解説に置いた追加例文（`extras.examples_extra[].zh`）
+ * - 帯ごとの例文の置き場（`word_level_content`）のメインの例文と追加例文
  *
  * それ以外の文は、その場で作って返すだけで貯めない（端末の中の控え `tts-store.ts` には
  * 残るので、同じ端末で2回目からは待たない）。調べられないときも**貯めない側**に倒す。
@@ -78,6 +79,9 @@ export async function isShareableTtsText(
       db.from("words").select("id").eq("language", language).contains("extras", extra).limit(1),
     ),
     found(db.from("word_explanations").select("word_id").contains("extras", extra).limit(1)),
+    // 帯ごとの例文（`word_level_content`、`docs/sharing-rules.md`）。表がまだ無ければ当たらない。
+    found(db.from("word_level_content").select("word_id").eq("example_sentence", t).limit(1)),
+    found(db.from("word_level_content").select("word_id").contains("extras", extra).limit(1)),
   ]);
   return hits.some(Boolean);
 }
