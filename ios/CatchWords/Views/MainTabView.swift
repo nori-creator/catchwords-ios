@@ -232,7 +232,7 @@ struct MainTabView: View {
                    let tab = anchors[.cameraTab], let shutter = anchors[.shutter] {
                     let from = geo[tab]
                     let to = geo[shutter]
-                    ShutterFlight(from: CGPoint(x: from.midX, y: from.midY - CapsuleTabBar.raise),   // the raised disc's centre
+                    ShutterFlight(from: CGPoint(x: from.midX, y: from.minY + 20),   // the icon, above the label
                                   to: CGPoint(x: to.midX, y: to.midY)) {
                         Haptics.impact(.light, intensity: 0.8)
                         router.shutterFlying = false
@@ -480,11 +480,14 @@ struct CapsuleTabBar: View {
         }
         .buttonStyle(PressableStyle(scale: 0.92))
         // On the camera tab the disc has gone up into the camera screen's shutter (owner 2026-10-26: 「下のカメラアイコン
-        // 押すと、うえに移るアニメーションとともにシャッターボタンになるように」): its place in the bar stays empty, and it
-        // comes back when another tab is chosen. It goes at once — the flight (MainTabView) carries it up from here.
+        // 押すと、うえに移るアニメーションとともにシャッターボタンになるように」), and comes back when another tab is
+        // chosen. It goes at once — the flight (MainTabView, the same as before) carries it up from here.
         .opacity(isOn ? 0 : 1)
         .scaleEffect(isOn ? 0.6 : 1)
         .animation(isOn ? nil : .spring(response: 0.38, dampingFraction: 0.7), value: isOn)
+        // The other four tabs share the bar evenly meanwhile (owner 2026-10-26: 「4つのタブを均等に並べ直して」). The cell
+        // narrows to nothing in the middle, so its centre — where the shutter flight starts — stays put.
+        .frame(maxWidth: isOn ? 0 : .infinity)
         .allowsHitTesting(!isOn)
         .accessibilityHidden(isOn)
         .accessibilityLabel(AppTab.camera.title)
@@ -538,8 +541,8 @@ extension View {
     }
 }
 
-/// The tab bar's blue camera disc carried along an arc up into the shutter's place, growing into the shutter's disc on
-/// the way (~0.5 s); the disc in the bar is gone meanwhile. The real shutter then pops in and draws its ring.
+/// The camera tab's blue icon tossed along an arc into the shutter's place, growing into the blue
+/// disc with the white glyph on the way (~0.5 s). The real shutter then pops in and draws its ring.
 private struct ShutterFlight: View {
     let from: CGPoint
     let to: CGPoint
@@ -577,24 +580,23 @@ private struct ShutterFlightPath: ViewModifier, Animatable {
         let control = CGPoint(x: (from.x + to.x) / 2 + 36, y: (from.y + to.y) / 2 - 120)
         let x = u * u * from.x + 2 * u * t * control.x + t * t * to.x
         let y = u * u * from.y + 2 * u * t * control.y + t * t * to.y
-        // The bar's disc itself (56 pt, white ring, filled camera) grows into the shutter's disc (66 pt, outlined camera).
-        let size = 56 + (ShutterButton.discSize - 56) * t
+        let size = 24 + (ShutterButton.discSize - 24) * t
+        let fill = min(1, t * 1.6)
         content
             .overlay {
                 ZStack {
-                    Circle().fill(ShutterButton.discFill)
-                        .overlay(Circle().stroke(.white.opacity(0.9 * (1 - t)), lineWidth: 3))
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 23 - t, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .opacity(1 - t)
+                    Circle().fill(ShutterButton.discFill).opacity(fill)
                     Image(systemName: "camera")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(.system(size: 19 + 3 * t, weight: .semibold))
+                        .foregroundStyle(Theme.primary)
+                        .opacity(1 - fill)
+                    Image(systemName: "camera")
+                        .font(.system(size: 19 + 3 * t, weight: .semibold))
                         .foregroundStyle(.white)
-                        .opacity(t)
+                        .opacity(fill)
                 }
                 .frame(width: size, height: size)
-                .shadow(color: Theme.primary.opacity(0.45), radius: 12, y: 6)
+                .shadow(color: Theme.primary.opacity(0.35 * fill), radius: 10, y: 4)
                 .position(x: x, y: y)
             }
     }
