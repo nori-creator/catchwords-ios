@@ -44,6 +44,8 @@ struct CatchCelebrationView: View {
     @State private var tourHold = false
     @State private var screen: CGSize = .zero
     @State private var screenOrigin: CGPoint = .zero
+    /// The bottom of the word's line (its characters and their readings), global: the meaning goes under it.
+    @State private var wordBottom: CGFloat?
 
     init(vm: CaptureViewModel, saving: Bool = false, onAdd: @escaping () async -> Bool,
          onStickerFrame: @escaping (CGRect) -> Void = { _ in }) {
@@ -198,10 +200,15 @@ struct CatchCelebrationView: View {
                     PronounceCircle(text: c.headword, size: 34, light: true)
                         .tourAnchor(.headword)
                 }
+                // The rings spread past the speaker without taking room: the line's width never changes, so the word
+                // stays put (owner 2026-10-26: 小籠包 slid left while the rings grew and jumped back right when they
+                // went — the line is centred, and the rings widened the speaker by up to 29 pt).
+                .frame(width: 34, height: 34)
                 .opacity(sa)
                 .allowsHitTesting(sa > 0.5)
             }
             .frame(maxWidth: W * 0.94)
+            .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).maxY }) { wordBottom = $0 }
             .position(x: W / 2, y: Film6.y(1546, size.height))
         }
     }
@@ -231,38 +238,44 @@ struct CatchCelebrationView: View {
             let ma = Film6.outCubic(Film6.seg(tc, Film6.meaning, Film6.meaning + 0.3))
             let a = textAlpha(tc)
             if ma > 0 {
-                HStack(spacing: 20 * k) {
-                    if let reg = Self.registerChip(c.register) {
-                        Text(reg)
-                            .font(.system(size: 28 * k, weight: .semibold))
-                            .foregroundStyle(Color(hex: 0x5C646F))
-                            .lineLimit(1)
-                            .padding(.horizontal, 18 * k)
-                            .frame(height: 50 * k)
-                            .background(Color(hex: 0xEDF2F8), in: Capsule())
-                            .fixedSize()
-                    }
-                    Text(meaning(c))
-                        .font(.system(size: 38 * k, weight: .medium))
-                        .foregroundStyle(Color(hex: 0x5C646F))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
-                .frame(maxWidth: W * 0.9)
-                .opacity(ma * a)
-                .position(x: W / 2, y: Film6.y(1690, H) + CGFloat(1 - ma) * 16 * k)
+                // Under the word with a clear gap (owner 2026-10-26: 「下に表示される日本語訳が近すぎて…もう少し下に自然に」 —
+                // a three-character word with its readings is tall, and the meaning's fixed place touched its bottom).
+                let fixedTop = Film6.y(1690, H) - 24 * k
+                let top = wordBottom.map { max(fixedTop, $0 - screenOrigin.y + max(14, 30 * k)) } ?? fixedTop
                 // A re-encounter: when (and where) it was first caught, as the re-encounter card said.
                 let note = again.map { Self.metLine($0) } ?? ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
-                if !note.isEmpty {
-                    Text(note)
-                        .font(.system(size: 30 * k, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x0066CC))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .frame(maxWidth: W * 0.86)
-                        .opacity(Film6.outCubic(Film6.seg(tc, Film6.meaning + 0.15, Film6.meaning + 0.45)) * a)
-                        .position(x: W / 2, y: Film6.y(1776, H) + CGFloat(1 - ma) * 16 * k)
+                VStack(spacing: 40 * k) {
+                    HStack(spacing: 20 * k) {
+                        if let reg = Self.registerChip(c.register) {
+                            Text(reg)
+                                .font(.system(size: 28 * k, weight: .semibold))
+                                .foregroundStyle(Color(hex: 0x5C646F))
+                                .lineLimit(1)
+                                .padding(.horizontal, 18 * k)
+                                .frame(height: 50 * k)
+                                .background(Color(hex: 0xEDF2F8), in: Capsule())
+                                .fixedSize()
+                        }
+                        Text(meaning(c))
+                            .font(.system(size: 38 * k, weight: .medium))
+                            .foregroundStyle(Color(hex: 0x5C646F))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .frame(maxWidth: W * 0.9)
+                    .opacity(ma * a)
+                    if !note.isEmpty {
+                        Text(note)
+                            .font(.system(size: 30 * k, weight: .semibold))
+                            .foregroundStyle(Color(hex: 0x0066CC))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .frame(maxWidth: W * 0.86)
+                            .opacity(Film6.outCubic(Film6.seg(tc, Film6.meaning + 0.15, Film6.meaning + 0.45)) * a)
+                    }
                 }
+                .frame(width: W)
+                .offset(y: top + CGFloat(1 - ma) * 16 * k)
             }
         }
     }
