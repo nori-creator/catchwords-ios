@@ -482,9 +482,11 @@ struct CapsuleTabBar: View {
         // On the camera tab the disc has gone up into the camera screen's shutter (owner 2026-10-26: 「下のカメラアイコン
         // 押すと、うえに移るアニメーションとともにシャッターボタンになるように」), and comes back when another tab is
         // chosen. It goes at once — the flight (MainTabView, the same as before) carries it up from here.
+        // Coming back (owner 2026-10-26: 「下のバーが戻るアニメーションもスムーズにして」): the middle opens first, then the
+        // disc grows into it with the same soft spring as the bar, no overshoot past its neighbours.
         .opacity(isOn ? 0 : 1)
         .scaleEffect(isOn ? 0.6 : 1)
-        .animation(isOn ? nil : .spring(response: 0.38, dampingFraction: 0.7), value: isOn)
+        .animation(isOn ? nil : .spring(response: 0.42, dampingFraction: 0.86).delay(0.08), value: isOn)
         // The other four tabs share the bar evenly meanwhile (owner 2026-10-26: 「4つのタブを均等に並べ直して」). The cell
         // narrows to nothing in the middle, so its centre — where the shutter flight starts — stays put.
         .frame(maxWidth: isOn ? 0 : .infinity)
@@ -499,7 +501,9 @@ struct CapsuleTabBar: View {
         SoundService.shared.pon(open: true)   // a tab switch is a page opening: bubble pon + soft tap
         bounces[tab, default: 0] += 1
         onSelect?(tab)
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { selection = tab }
+        // Leaving the camera, the bar makes room for the disc again: a softer spring, so the four tabs glide apart.
+        let leavingCamera = selection == .camera
+        withAnimation(.spring(response: leavingCamera ? 0.42 : 0.38, dampingFraction: leavingCamera ? 0.86 : 0.78)) { selection = tab }
     }
 }
 
