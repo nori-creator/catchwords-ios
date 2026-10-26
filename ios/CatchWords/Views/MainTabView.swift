@@ -71,9 +71,8 @@ final class AppRouter {
     var detailZoom: Namespace.ID?
     /// The open word came from a tile marked with `detailZoomSource` (Dex grid / list), so the sheet zooms.
     var detailZoomed: Bool = false
-    /// The camera screen's shutter, drawn by the tab bar's camera disc (owner 2026-10-26: the disc turns into the shutter
-    /// where it stands — no second blue disc above the bar). Set by CaptureView while its camera can shoot; nil otherwise.
-    var cameraShutter: CameraShutter?
+    /// The camera tab's icon is still flying into the shutter: the real shutter waits hidden until it lands.
+    var shutterFlying: Bool = false
     /// A word page's 「いま復習する」: the review tab brings this sticker in as the next card, due or not.
     var reviewNow: String?
     /// A one-line notice over every tab (a catch's background save reports a failure here: the camera
@@ -115,6 +114,7 @@ final class AppRouter {
 /// depends on that screen redrawing: this view watches the router and redraws on its own, and a landing is ended after
 /// at most `CatchLanding.longest` even if its animation never finishes.
 struct TabBarSlot: View {
+    let onSelect: (AppTab) -> Void
     @Environment(AppRouter.self) private var router
 
     var body: some View {
@@ -122,7 +122,7 @@ struct TabBarSlot: View {
         ZStack(alignment: .bottom) {
             if !router.hidesTabBar {
                 CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
-                              shutter: router.tab == .camera ? router.cameraShutter : nil)
+                              onSelect: onSelect)
                     .padding(.bottom, 4)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .onAppear { UITestTrace.log("tabbar view in tab=\(router.tab)") }
@@ -139,7 +139,9 @@ struct MainTabView: View {
     @Environment(DexStore.self) private var dex
     /// This account's "first tour still to run" (`TourStep.pendingStorageKey`, kept per account).
     @AppStorage private var tourPending: Bool
+    @Environment(\.appReduceMotion) private var reduceMotion
     @Namespace private var detailZoom
+    @State private var flightToken = 0
     @Environment(ProfileStore.self) private var profile
     /// The system's App Store rating sheet (App Review Guideline 5.6.1: no custom review prompts).
     @Environment(\.requestReview) private var requestReview
@@ -177,7 +179,7 @@ struct MainTabView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             // Above every tab's page, the dex rising for a landing too (it takes zIndex 1 for that).
-            TabBarSlot()
+            TabBarSlot(onSelect: beginShutterFlight)
                 .zIndex(2)
         }
         .overlay {
@@ -222,6 +224,23 @@ struct MainTabView: View {
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: endTour)
                     .transition(.opacity)
             }
+        }
+        .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+            // The camera tab's icon tossed into the shutter (both places already publish tour anchors).
+            GeometryReader { geo in
+                if router.shutterFlying, router.tab == .camera,
+                   let tab = anchors[.cameraTab], let shutter = anchors[.shutter] {
+                    let from = geo[tab]
+                    let to = geo[shutter]
+                    ShutterFlight(from: CGPoint(x: from.midX, y: from.midY - CapsuleTabBar.raise),   // the raised disc's centre
+                                  to: CGPoint(x: to.midX, y: to.midY)) {
+                        Haptics.impact(.light, intensity: 0.8)
+                        router.shutterFlying = false
+                    }
+                    .id(flightToken)
+                }
+            }
+            .allowsHitTesting(false)
         }
         .overlay {
             if router.tour == .complete {
@@ -277,6 +296,19 @@ struct MainTabView: View {
         .sheet(isPresented: $router.showCatchLimit) {
             CatchLimitSheet()
                 .presentationDetents([.medium])
+        }
+    }
+
+    /// A tap on the camera tab: its icon flies into the shutter (skipped with Reduce Motion).
+    private func beginShutterFlight(_ tab: AppTab) {
+        guard tab == .camera, !reduceMotion else { return }
+        flightToken += 1
+        let token = flightToken
+        router.shutterFlying = true
+        // Safety net: the shutter must never stay hidden if the flight could not start.
+        Task {
+            try? await Task.sleep(for: .milliseconds(1200))
+            if flightToken == token { router.shutterFlying = false }
         }
     }
 
@@ -358,16 +390,12 @@ struct MainTabView: View {
 struct CapsuleTabBar: View {
     @Binding var selection: AppTab
     var onCamera: Bool
-    /// The camera screen's shutter while the camera tab shows a camera that can shoot: the camera disc becomes it.
-    var shutter: CameraShutter? = nil
+    /// Called with the tapped tab just before the selection changes (MainTabView starts the shutter flight).
+    var onSelect: ((AppTab) -> Void)? = nil
 
     @Namespace private var bubble
     /// Taps per tab: drives each icon's bounce, so only the tab just chosen bounces.
     @State private var bounces: [AppTab: Int] = [:]
-    /// The disc takes a shot only a moment after it became the shutter: a second tap on the camera tab must not shoot.
-    @State private var shutterArmed = false
-    @State private var shutterPressed = false
-    @Environment(\.appReduceMotion) private var reduceMotion
 
     /// The bar's height; the camera disc rises `raise` points above its top edge.
     static let height: CGFloat = 58
@@ -379,9 +407,7 @@ struct CapsuleTabBar: View {
             HStack(spacing: 0) {
                 ForEach(AppTab.allCases) { tab in
                     if tab == .camera {
-                        raisedCameraDisc
-                            .tourAnchor(.cameraTab)
-                            .tourAnchor(.shutter, if: isShutter)
+                        raisedCameraDisc.tourAnchor(.cameraTab)
                     } else {
                         cell(tab)
                     }
@@ -429,45 +455,22 @@ struct CapsuleTabBar: View {
         .accessibilityIdentifier("tab.\(String(describing: tab))")
     }
 
-    /// The camera disc is the shutter now: the camera tab shows a camera that can shoot.
-    private var isShutter: Bool { selection == .camera && shutter != nil }
-
     /// The camera: a filled blue disc with the white camera, standing up over the bar's top edge with a soft shadow. It is
     /// drawn above the bar and still takes the tap there (nothing clips it); the bar's own height does not change, so the
-    /// landing's hide / show and the safe area are as before.
-    ///
-    /// On the camera tab it turns into the shutter where it stands (owner 2026-10-26: 「その場で変身する案で作って」): the
-    /// camera glyph shrinks away and a white disc grows inside the white ring — the shutter of the phone's own camera. The
-    /// camera screen draws no shutter of its own then (CaptureView).
+    /// landing's hide / show and the safe area are as before. Not shown on the camera tab (it is the shutter there).
     private var raisedCameraDisc: some View {
         let isOn = selection == .camera
-        let asShutter = isShutter
-        let enabled = shutter?.enabled ?? true
-        let size: CGFloat = asShutter ? 64 : 56
-        return Button {
-            if asShutter {
-                guard shutterArmed, let shutter, shutter.enabled else { return }
-                shutter.shoot()
-            } else {
-                select(.camera)
-            }
-        } label: {
+        let size: CGFloat = 56
+        return Button { select(.camera) } label: {
             ZStack {
                 Circle()
                     .fill(LinearGradient(colors: [Theme.primaryBright, Theme.primaryDeep], startPoint: .top, endPoint: .bottom))
                     .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 3))
-                    .shadow(color: Theme.primary.opacity(asShutter ? 0.6 : 0.45), radius: asShutter ? 16 : 12, y: 6)
+                    .shadow(color: Theme.primary.opacity(0.45), radius: 12, y: 6)
                 Image(systemName: "camera.fill")
-                    .font(.system(size: 56 * 0.42, weight: .semibold))
+                    .font(.system(size: size * 0.42, weight: .semibold))
                     .foregroundStyle(.white)
                     .symbolEffect(.bounce, value: bounces[.camera, default: 0])
-                    .scaleEffect(asShutter ? 0.3 : 1)
-                    .opacity(asShutter ? 0 : 1)
-                Circle()
-                    .fill(.white)
-                    .padding(asShutter ? 9 : 22)
-                    .scaleEffect(shutterPressed ? 0.86 : 1)
-                    .opacity(asShutter ? 1 : 0)
             }
             .frame(width: size, height: size)
             .offset(y: -Self.raise)
@@ -475,29 +478,24 @@ struct CapsuleTabBar: View {
             // The whole cell takes the tap; the tap area moves up with the disc so its top is reachable.
             .contentShape(Rectangle().offset(y: -Self.raise))
         }
-        .buttonStyle(DiscPressStyle(pressed: $shutterPressed, scale: asShutter ? 1 : 0.92))
-        .disabled(asShutter && !enabled)
-        .opacity(asShutter && !enabled ? 0.45 : 1)
-        .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.72), value: asShutter)
-        .accessibilityLabel(asShutter ? L("撮影") : AppTab.camera.title)
-        .accessibilityAddTraits(isOn && !asShutter ? .isSelected : [])
-        // The UI tests find the shutter once it takes shots.
-        .accessibilityIdentifier(asShutter && shutterArmed ? "camera.shutter" : "tab.camera")
-        .onAppear { shutterArmed = asShutter }
-        .onChange(of: asShutter) { _, now in
-            shutterArmed = false
-            guard now else { return }
-            Task {
-                try? await Task.sleep(for: .milliseconds(450))
-                if isShutter { shutterArmed = true }
-            }
-        }
+        .buttonStyle(PressableStyle(scale: 0.92))
+        // On the camera tab the disc has gone up into the camera screen's shutter (owner 2026-10-26: 「下のカメラアイコン
+        // 押すと、うえに移るアニメーションとともにシャッターボタンになるように」): its place in the bar stays empty, and it
+        // comes back when another tab is chosen. It goes at once — the flight (MainTabView) carries it up from here.
+        .opacity(isOn ? 0 : 1)
+        .scaleEffect(isOn ? 0.6 : 1)
+        .animation(isOn ? nil : .spring(response: 0.38, dampingFraction: 0.7), value: isOn)
+        .allowsHitTesting(!isOn)
+        .accessibilityHidden(isOn)
+        .accessibilityLabel(AppTab.camera.title)
+        .accessibilityIdentifier("tab.camera")
     }
 
     private func select(_ tab: AppTab) {
         guard selection != tab else { return }
         SoundService.shared.pon(open: true)   // a tab switch is a page opening: bubble pon + soft tap
         bounces[tab, default: 0] += 1
+        onSelect?(tab)
         withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { selection = tab }
     }
 }
@@ -540,25 +538,64 @@ extension View {
     }
 }
 
-/// What the camera screen hands the tab bar so its camera disc can be the shutter (`AppRouter.cameraShutter`).
-struct CameraShutter {
-    var enabled: Bool
-    let shoot: () -> Void
+/// The tab bar's blue camera disc carried along an arc up into the shutter's place, growing into the shutter's disc on
+/// the way (~0.5 s); the disc in the bar is gone meanwhile. The real shutter then pops in and draws its ring.
+private struct ShutterFlight: View {
+    let from: CGPoint
+    let to: CGPoint
+    let onLanded: () -> Void
+
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        Color.clear
+            .modifier(ShutterFlightPath(progress: progress, from: from, to: to))
+            .allowsHitTesting(false)
+            .onAppear {
+                withAnimation(.timingCurve(0.3, 0, 0.25, 1, duration: 0.5)) { progress = 1 } completion: {
+                    onLanded()
+                }
+            }
+    }
 }
 
-/// The disc's press: scales the disc (as the other tabs do), and as the shutter shrinks its white centre instead.
-private struct DiscPressStyle: ButtonStyle {
-    @Binding var pressed: Bool
-    var scale: CGFloat
+private struct ShutterFlightPath: ViewModifier, Animatable {
+    var progress: CGFloat
+    let from: CGPoint
+    let to: CGPoint
 
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1)
-            .brightness(configuration.isPressed ? -0.04 : 0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.62), value: configuration.isPressed)
-            .onChange(of: configuration.isPressed) { _, p in
-                if p { Haptics.impact(.light, intensity: 0.6) }
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.6)) { pressed = p }
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let t = min(max(progress, 0), 1)
+        let u = 1 - t
+        // Quadratic Bézier: its midpoint sits ~60pt above the straight line (control lifted 2 × 60),
+        // nudged sideways so a straight-up hop still reads as an arc.
+        let control = CGPoint(x: (from.x + to.x) / 2 + 36, y: (from.y + to.y) / 2 - 120)
+        let x = u * u * from.x + 2 * u * t * control.x + t * t * to.x
+        let y = u * u * from.y + 2 * u * t * control.y + t * t * to.y
+        // The bar's disc itself (56 pt, white ring, filled camera) grows into the shutter's disc (66 pt, outlined camera).
+        let size = 56 + (ShutterButton.discSize - 56) * t
+        content
+            .overlay {
+                ZStack {
+                    Circle().fill(ShutterButton.discFill)
+                        .overlay(Circle().stroke(.white.opacity(0.9 * (1 - t)), lineWidth: 3))
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 23 - t, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .opacity(1 - t)
+                    Image(systemName: "camera")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .opacity(t)
+                }
+                .frame(width: size, height: size)
+                .shadow(color: Theme.primary.opacity(0.45), radius: 12, y: 6)
+                .position(x: x, y: y)
             }
     }
 }

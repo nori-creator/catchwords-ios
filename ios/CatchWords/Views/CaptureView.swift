@@ -472,20 +472,15 @@ struct CaptureView: View {
                 .buttonStyle(PressableStyle(scale: 0.9))
             }
             Spacer()
-            if router.hidesTabBar {
-                ShutterButton(enabled: canShoot) { shoot() }
-                    .opacity(shooting ? 0 : 1)
-                    .allowsHitTesting(!shooting)
-                    // The first tour's 撮る step lights the shutter and dims the rest. With the camera denied or
-                    // broken there is nothing to shoot, and the dim would cover 「設定を開く」/「もう一度試す」:
-                    // no spotlight then (TourLayer leaves the screen undimmed without its anchor).
-                    .tourAnchor(.shutter, if: !(cameraFailed && router.tour == .shoot))
-                    .accessibilityIdentifier("camera.shutter")
-            } else {
-                // The tab bar's camera disc is the shutter (owner 2026-10-26: one blue disc, turned into the shutter
-                // where it stands — `CapsuleTabBar`). The place stays so 写真 and 切替 keep theirs.
-                Color.clear.frame(width: 88, height: 88).accessibilityHidden(true)
-            }
+            ShutterButton(enabled: canShoot, arriving: router.shutterFlying) { shoot() }
+                .opacity(shooting ? 0 : 1)
+                .allowsHitTesting(!shooting)
+                // The first tour's 撮る step lights the shutter and dims the rest. With the camera denied or
+                // broken there is nothing to shoot, and the dim would cover 「設定を開く」/「もう一度試す」:
+                // no spotlight then (TourLayer leaves the screen undimmed without its anchor). Outside the
+                // tour the anchor stays: the camera tab's icon still flies into the shutter.
+                .tourAnchor(.shutter, if: !(cameraFailed && router.tour == .shoot))
+                .accessibilityIdentifier("camera.shutter")
             Spacer()
             Button { camera.toggle() } label: {
                 sideButton(icon: "arrow.triangle.2.circlepath.camera", label: L("切替"))
@@ -496,17 +491,6 @@ struct CaptureView: View {
             .opacity(cameraLive ? 1 : 0.4)
         }
         .padding(.horizontal, 44)
-        .onAppear { publishShutter() }
-        .onDisappear { router.cameraShutter = nil }
-        .onChange(of: canShoot) { publishShutter() }
-        .onChange(of: shooting) { publishShutter() }
-        .onChange(of: cameraFailed) { publishShutter() }
-    }
-
-    /// Hands the shutter to the tab bar's camera disc (`AppRouter.cameraShutter`). None with the camera denied or broken:
-    /// the disc stays the camera tab then, and nothing on the screen looks like it could shoot.
-    private func publishShutter() {
-        router.cameraShutter = cameraFailed ? nil : CameraShutter(enabled: canShoot && !shooting) { shoot() }
     }
 
     private var usagePill: some View {
@@ -882,13 +866,19 @@ struct ViewfinderBrackets: View {
     }
 }
 
-/// Deep-blue disc (the brand primary) with a white ring and a white camera glyph: the camera screen's own shutter while
-/// the tab bar is hidden (the tab bar's camera disc is the shutter otherwise), and the selfie camera's.
+/// Deep-blue disc (the brand primary) with a white ring and a white camera glyph. While the camera tab's
+/// icon is flying in (`arriving`) the disc waits hidden, then pops in with a small bounce while its white
+/// ring draws round.
 struct ShutterButton: View {
     var enabled: Bool
+    /// The tab bar's camera icon is still on its way here (MainTabView's shutter flight).
+    var arriving: Bool = false
     let action: () -> Void
     @State private var pressed: Bool = false
+    @State private var ring: CGFloat = 1
+    @State private var pop: CGFloat = 1
 
+    /// Shared with the flight so the flying disc lands as exactly this one.
     static let discSize: CGFloat = 66
     static let discFill = LinearGradient(colors: [Theme.primary, Theme.primaryDeep], startPoint: .top, endPoint: .bottom)
 
@@ -897,7 +887,9 @@ struct ShutterButton: View {
             ZStack {
                 Circle().fill(Theme.primary.opacity(0.35)).frame(width: 84, height: 84).blur(radius: 10)
                 Circle()
+                    .trim(from: 0, to: ring)
                     .stroke(.white, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
                     .frame(width: 74, height: 74)
                 Circle()
                     .fill(Self.discFill)
@@ -906,12 +898,23 @@ struct ShutterButton: View {
                     .scaleEffect(pressed ? 0.88 : 1)
             }
             .frame(width: 88, height: 88)
+            .scaleEffect(pop)
+            .opacity(arriving ? 0 : 1)
             .contentShape(Circle())
         }
         .buttonStyle(ShutterStyle(pressed: $pressed))
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.45)
         .accessibilityLabel(L("撮影"))
+        .onAppear { if arriving { ring = 0 } }
+        .onChange(of: arriving) { _, isArriving in
+            guard !isArriving else { ring = 0; return }
+            // Landed: a small overshoot bounce while the ring draws in clockwise from the top.
+            withAnimation(.easeOut(duration: 0.12)) { pop = 1.1 } completion: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) { pop = 1 }
+            }
+            withAnimation(.easeOut(duration: 0.38)) { ring = 1 }
+        }
     }
 }
 
