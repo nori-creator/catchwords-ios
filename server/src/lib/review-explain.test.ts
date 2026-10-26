@@ -109,6 +109,16 @@ describe("explainOf — 答え合わせの解説（server と画面で同じ物�
     measure_words: [{ word: "本", note: "for bound things" }],
   };
 
+  it("台湾メモの強調の印（**）は答え合わせに出さない", () => {
+    const ex = explainOf(
+      { explain_lang: "en", taiwan_note: "Often chosen as **a lucky charm** in Taiwan." },
+      "水晶手鍊",
+      "zh-TW",
+      "en",
+    );
+    expect(ex?.note).toBe("Often chosen as a lucky charm in Taiwan.");
+  });
+
   it("その人向けの解説（英語）から組むと、訳が残る", () => {
     const ex = explainOf(extras, "筆記本", "zh-TW", "en");
     expect(ex?.chunks[0].ja).toBe("write in a notebook");

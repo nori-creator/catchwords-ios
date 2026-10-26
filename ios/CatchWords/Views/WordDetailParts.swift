@@ -363,7 +363,7 @@ struct RuledMemo: View {
             }
             .padding(.horizontal, 4)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(text)
+            .accessibilityLabel(MemoMarks.parse(text).plain)
     }
 }
 
@@ -407,12 +407,45 @@ private struct RuledLabel: UIViewRepresentable {
                 ? UIColor(red: 0xF2 / 255, green: 0xF6 / 255, blue: 0xF8 / 255, alpha: 0.9)
                 : UIColor(red: 0x0B / 255, green: 0x12 / 255, blue: 0x1A / 255, alpha: 0.9)
         }
-        return NSAttributedString(string: text, attributes: [
+        let marked = MemoMarks.parse(text)
+        let out = NSMutableAttributedString(string: marked.plain, attributes: [
             .font: font,
             .foregroundColor: ink,
             .paragraphStyle: paragraph,
             .baselineOffset: lift,
         ])
+        // The phrase to remember (版25 §7): primaryInk, bold, on a light blue (primary 16 %).
+        let markInk = UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0x6F / 255, green: 0xB0 / 255, blue: 1, alpha: 1)
+            : UIColor(red: 0, green: 0x53 / 255, blue: 0xD4 / 255, alpha: 1) }
+        for r in marked.ranges {
+            out.addAttributes([
+                .font: UIFont.systemFont(ofSize: size, weight: .bold),
+                .foregroundColor: markInk,
+                .backgroundColor: UIColor(red: 0, green: 0x83 / 255, blue: 1, alpha: 0.16),
+            ], range: r)
+        }
+        return out
+    }
+}
+
+/// The 台湾メモ's phrases to remember (版25 §7, owner 2026-10-26「入れる」): the server wraps one or two of them in `**`.
+/// Marks that do not pair up (an odd count) are all dropped and nothing is highlighted — never a stray `**` on screen.
+nonisolated enum MemoMarks {
+    static func parse(_ text: String) -> (plain: String, ranges: [NSRange]) {
+        let pieces = text.components(separatedBy: "**")
+        guard pieces.count > 1 else { return (text, []) }
+        guard pieces.count % 2 == 1 else { return (pieces.joined(), []) }
+        var plain = ""
+        var ranges: [NSRange] = []
+        for (i, piece) in pieces.enumerated() {
+            let start = (plain as NSString).length
+            plain += piece
+            if i % 2 == 1, !piece.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                ranges.append(NSRange(location: start, length: (piece as NSString).length))
+            }
+        }
+        return (plain, ranges)
     }
 }
 

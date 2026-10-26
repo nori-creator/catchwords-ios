@@ -2009,12 +2009,12 @@ struct Word25Preview: View {
                                      es: "Un reloj de pulsera, que a menudo se lleva junto con pulseras.",
                                      ko: "손목시계. 팔찌와 함께 겹쳐 차는 경우가 많다.",
                                      vi: "Đồng hồ đeo tay, hay đeo chung với vòng.")])
-        let memo = pick("台湾では風水や運勢に関心が高く、水晶手鍊は単なるアクセサリーではなく「開運アイテム」として選ぶ人が非常に多い。左手はエネルギーを取り入れ、右手は不要なものを出すという説があり、着ける手を変える習慣もある。",
-                        en: "In Taiwan many people care about feng shui and luck, so a crystal bracelet is often chosen as a lucky charm, not just an accessory. Some say the left hand takes energy in and the right lets it out, so people switch hands.",
-                        zh: "台灣人很在意風水和運勢，很多人把水晶手鍊當成開運小物，而不只是飾品。有一說是左手吸收能量、右手排出不要的東西，所以有人會換手戴。",
-                        es: "En Taiwán interesan mucho el feng shui y la suerte, así que muchos eligen la pulsera de cristal como amuleto y no solo como accesorio. Se dice que la mano izquierda recibe energía y la derecha la suelta.",
-                        ko: "대만에서는 풍수와 운세에 관심이 많아 수정 팔찌를 액세서리가 아닌 행운 아이템으로 고르는 사람이 많다. 왼손은 기운을 받아들이고 오른손은 내보낸다는 말이 있어 차는 손을 바꾸기도 한다.",
-                        vi: "Ở Đài Loan nhiều người quan tâm phong thủy và vận may, nên vòng tay pha lê thường được chọn làm vật cầu may chứ không chỉ là trang sức. Có thuyết tay trái hút năng lượng, tay phải đẩy ra.")
+        let memo = pick("台湾では風水や運勢に関心が高く、水晶手鍊は単なるアクセサリーではなく**「開運アイテム」**として選ぶ人が非常に多い。**左手はエネルギーを取り入れ、右手は不要なものを出す**という説があり、着ける手を変える習慣もある。",
+                        en: "In Taiwan many people care about feng shui and luck, so a crystal bracelet is often chosen as **a lucky charm**, not just an accessory. Some say the left hand takes energy in and the right lets it out, so people switch hands.",
+                        zh: "台灣人很在意風水和運勢，很多人把水晶手鍊當成**開運小物**，而不只是飾品。有一說是左手吸收能量、右手排出不要的東西，所以有人會換手戴。",
+                        es: "En Taiwán interesan mucho el feng shui y la suerte, así que muchos eligen la pulsera de cristal como **amuleto** y no solo como accesorio. Se dice que la mano izquierda recibe energía y la derecha la suelta.",
+                        ko: "대만에서는 풍수와 운세에 관심이 많아 수정 팔찌를 액세서리가 아닌 **행운 아이템**으로 고르는 사람이 많다. 왼손은 기운을 받아들이고 오른손은 내보낸다는 말이 있어 차는 손을 바꾸기도 한다.",
+                        vi: "Ở Đài Loan nhiều người quan tâm phong thủy và vận may, nên vòng tay pha lê thường được chọn làm **vật cầu may** chứ không chỉ là trang sức. Có thuyết tay trái hút năng lượng, tay phải đẩy ra.")
         var extras: [String: Any] = ["explain_lang": L10n.lang]
         extras["usage_chunks"] = chunks
         extras["example_chunks"] = words1.map { ["text": $0, "pos": ""] }
