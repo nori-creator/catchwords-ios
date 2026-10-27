@@ -244,6 +244,21 @@ jobs:
             exit 1
           done
 
+      # Sentry（落ちた場所を「どのファイルの何行目」で見せる）には、このビルドの記号の表（dSYM）が要る。
+      # 鍵（SENTRY_AUTH_TOKEN: Sentry の Settings → Auth Tokens の Organization Token）が無ければ送らない。
+      # 送れなくても TestFlight への送信は済んでいるので、この段の失敗で実行を赤にしない。
+      - name: Sentry に記号の表（dSYM）を送る
+        if: success()
+        continue-on-error: true
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::notice::SENTRY_AUTH_TOKEN が無いので、Sentry に dSYM を送りませんでした（落ちた場所は行番号なしで届きます）"
+            exit 0
+          fi
+          npx --yes @sentry/cli@3.8.0 debug-files upload --project catchwords-ios "$RUNNER_TEMP/CatchWords.xcarchive/dSYMs"
+
       - name: この実行で増えた開発用証明書を消す
         if: always()
         env:

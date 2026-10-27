@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		C0FFEE0000000000000000AD /* CatchWordsWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C0FFEE0000000000000000A1 /* CatchWordsWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C0FFEE00000000000000AD01 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFEE00000000000000AD02 /* GoogleMobileAds */; };
+		C0FFEE00000000000000AE01 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFEE00000000000000AE02 /* Sentry */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -103,6 +104,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0FFEE00000000000000AD01 /* GoogleMobileAds in Frameworks */,
+				C0FFEE00000000000000AE01 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -177,6 +179,7 @@
 			name = CatchWords;
 			packageProductDependencies = (
 				C0FFEE00000000000000AD02 /* GoogleMobileAds */,
+				C0FFEE00000000000000AE02 /* Sentry */,
 			);
 			productName = CatchWords;
 			productReference = 105FC57A2E9EAD3100EA8BCF /* CatchWords.app */;
@@ -292,6 +295,7 @@
 			mainGroup = 105FC5712E9EAD3100EA8BCF;
 			packageReferences = (
 				C0FFEE00000000000000AD03 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				C0FFEE00000000000000AE03 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
@@ -794,6 +798,14 @@
 				minimumVersion = 13.0.0;
 			};
 		};
+		C0FFEE00000000000000AE03 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.31.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -801,6 +813,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C0FFEE00000000000000AD03 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
 			productName = GoogleMobileAds;
+		};
+		C0FFEE00000000000000AE02 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0FFEE00000000000000AE03 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

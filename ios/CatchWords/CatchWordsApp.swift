@@ -20,6 +20,8 @@ struct CatchWordsApp: App {
     }
 
     init() {
+        // Crashes and failures to Sentry, first, so a crash in the rest of the start is caught (release builds only).
+        ErrorReporting.start()
         #if DEBUG
         DemoBackend.install()  // -uiDemo: every request answered offline (UI tests on CI)
         UITestTrace.start()    // -uiDemo: the touches and the catch's steps, for CI (uitest-trace.txt)
