@@ -132,7 +132,7 @@ struct OnboardingView: View {
             .animation(.easeOut(duration: 0.2), value: introPage)
             TabView(selection: $introPage) {
                 ForEach(0..<IntroStory.pages, id: \.self) { i in
-                    IntroStory(page: i, active: introPage == i, zhuyin: readingPref != "pinyin")
+                    IntroStory(page: i, active: introPage == i)
                         .tag(i)
                 }
             }
@@ -751,13 +751,12 @@ private struct IntroStory: View {
     static let pages = 3
     let page: Int
     let active: Bool
-    let zhuyin: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             Group {
                 switch page {
-                case 0: IntroCatchScene(active: active, zhuyin: zhuyin)
+                case 0: IntroCatchScene(active: active)
                 case 1: IntroDexScene(active: active)
                 default: IntroQuizScene(active: active)
                 }
@@ -813,7 +812,6 @@ private extension View {
 /// the tag says it, as in the app).
 private struct IntroCatchScene: View {
     let active: Bool
-    let zhuyin: Bool
 
     @Environment(\.appReduceMotion) private var reduceMotion
     @State private var shown = false
@@ -895,14 +893,9 @@ private struct IntroCatchScene: View {
         } label: {
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
-                    VStack(spacing: 0) {
-                        Text(verbatim: zhuyin ? "ㄎㄚ ㄈㄟ" : "kāfēi")  // l10n-ignore (reading)
-                            .scaledFont(size: 11, weight: .medium)
-                            .foregroundStyle(Theme.muted)
-                        Text(verbatim: Self.word)
-                            .scaledFont(size: 22, weight: .bold)
-                            .foregroundStyle(Theme.foreground)
-                    }
+                    // The app's own reading layout (zhuyin beside each character, or pinyin above, as 設定 › 発音表記).
+                    ZhuyinWordView(headword: Self.word, zhuyin: "ㄎㄚ ㄈㄟ", size: 22, weight: .bold,  // l10n-ignore (reading)
+                                   pinyin: "kāfēi", language: "zh-TW")
                     Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.white)

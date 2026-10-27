@@ -268,44 +268,49 @@ struct TourLayer: View {
     @State private var flash: Bool = false
 
     var body: some View {
-        GeometryReader { geo in
-            let full = CGRect(origin: .zero, size: geo.size)
-            let hole: CGRect? = step.anchor.flatMap { anchors[$0] }.map { Self.holeRect(around: geo[$0]) }
-            let radius = hole.map(Self.radius(for:)) ?? 0
-            // 押す所が画面に無い（表示を切り替えた等）ときは暗くせず、札だけ出して操作を妨げない。
-            let shouldDim = hole != nil || !step.isInteractive
-            let showsCard = shouldDim || step.nextLabel != nil
-            let lit = hole ?? CGRect(x: full.midX, y: full.midY, width: 0, height: 0)
-            let dim = SpotlightDim(hole: lit, radius: radius)
-            ZStack {
-                if shouldDim {
-                    dim
-                        .fill(Color(hex: 0x0B1020, opacity: hole == nil ? 0.35 : step.dimOpacity), style: FillStyle(eoFill: true))
-                        .contentShape(step.isInteractive && hole != nil ? dim.path(in: full) : Path(full), eoFill: true)
-                        .onTapGesture { if step.isInteractive, hole != nil { missedTap() } }
-                        .transition(.opacity)
-                }
-                if let hole {
-                    ring(hole, radius: radius)
-                    if step.isInteractive, hole.width < 200, hole.height < 200, !reduceMotion {
-                        hand(on: hole, in: geo.size)
+        // The safe area is read outside (the full-screen reader inside has none: the card sat under the clock, CI
+        // 2026-10-27), the lit places in full-screen coordinates inside.
+        GeometryReader { safe in
+            let insets = safe.safeAreaInsets
+            GeometryReader { geo in
+                let full = CGRect(origin: .zero, size: geo.size)
+                let hole: CGRect? = step.anchor.flatMap { anchors[$0] }.map { Self.holeRect(around: geo[$0]) }
+                let radius = hole.map(Self.radius(for:)) ?? 0
+                // 押す所が画面に無い（表示を切り替えた等）ときは暗くせず、札だけ出して操作を妨げない。
+                let shouldDim = hole != nil || !step.isInteractive
+                let showsCard = shouldDim || step.nextLabel != nil
+                let lit = hole ?? CGRect(x: full.midX, y: full.midY, width: 0, height: 0)
+                let dim = SpotlightDim(hole: lit, radius: radius)
+                ZStack {
+                    if shouldDim {
+                        dim
+                            .fill(Color(hex: 0x0B1020, opacity: hole == nil ? 0.35 : step.dimOpacity), style: FillStyle(eoFill: true))
+                            .contentShape(step.isInteractive && hole != nil ? dim.path(in: full) : Path(full), eoFill: true)
+                            .onTapGesture { if step.isInteractive, hole != nil { missedTap() } }
+                            .transition(.opacity)
+                    }
+                    if let hole {
+                        ring(hole, radius: radius)
+                        if step.isInteractive, hole.width < 200, hole.height < 200, !reduceMotion {
+                            hand(on: hole, in: geo.size)
+                        }
+                    }
+                    let cardOnTop = hole.map { $0.midY > geo.size.height * 0.5 } ?? false
+                    if showsCard {
+                        VStack {
+                            if !cardOnTop { Spacer(minLength: 0) }
+                            TourCoachCard(step: step, missed: missed, onNext: onNext, onSkip: onSkip)
+                                .padding(.horizontal, 16)
+                                .padding(.top, cardOnTop ? insets.top + 12 : 0)
+                                .padding(.bottom, cardOnTop ? 0 : max(insets.bottom, 12) + 84)
+                            if cardOnTop { Spacer(minLength: 0) }
+                        }
                     }
                 }
-                let cardOnTop = hole.map { $0.midY > geo.size.height * 0.5 } ?? false
-                if showsCard {
-                    VStack {
-                        if !cardOnTop { Spacer(minLength: 0) }
-                        TourCoachCard(step: step, missed: missed, onNext: onNext, onSkip: onSkip)
-                            .padding(.horizontal, 16)
-                            .padding(.top, cardOnTop ? geo.safeAreaInsets.top + 12 : 0)
-                            .padding(.bottom, cardOnTop ? 0 : max(geo.safeAreaInsets.bottom, 12) + 84)
-                        if cardOnTop { Spacer(minLength: 0) }
-                    }
-                }
+                .animation(.spring(response: 0.5, dampingFraction: 0.86), value: lit)
             }
-            .animation(.spring(response: 0.5, dampingFraction: 0.86), value: lit)
+            .ignoresSafeArea()
         }
-        .ignoresSafeArea()
         .onAppear {
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
@@ -480,7 +485,7 @@ struct TourCompleteView: View {
                 ZStack {
                     ForEach(0..<18, id: \.self) { i in
                         let angle = Double(i) / 18 * 2 * .pi
-                        let reach = 120 + Double(i % 3) * 22
+                        let reach = 96 + Double(i % 3) * 16
                         RoundedRectangle(cornerRadius: 2)
                             .fill(Self.confetti[i % Self.confetti.count])
                             .frame(width: 8, height: 14)

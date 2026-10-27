@@ -42,23 +42,28 @@ nonisolated struct HeadlineReveal: TextRenderer {
             ctx.opacity = t
             ctx.translateBy(x: 0, y: (1 - t) * 14)
             if t < 1 { ctx.addFilter(.blur(radius: (1 - t) * 7)) }
+            // A keyword can be several runs (思い出す: the kanji and the kana come in separate runs): one pill under all
+            // of them, drawn before any of their glyphs — a pill per run covered the glyph before it (CI 2026-10-27).
+            var keyword: CGRect?
             for run in line {
-                guard run[KeywordMark.self] != nil else {
+                if run[KeywordMark.self] != nil {
+                    let r = run.typographicBounds.rect
+                    keyword = keyword.map { $0.union(r) } ?? r
+                } else {
                     ctx.draw(run)
-                    continue
                 }
-                let k = Self.clamp((progress - 0.5) / 0.5)
-                guard k > 0 else { continue }
-                let r = run.typographicBounds.rect.insetBy(dx: -8, dy: -1)
-                let s = Self.overshoot(k)
-                var pc = ctx
-                pc.opacity = t * min(1, k * 3)
-                pc.translateBy(x: r.midX, y: r.midY)
-                pc.scaleBy(x: s, y: s)
-                pc.translateBy(x: -r.midX, y: -r.midY)
-                pc.fill(Path(roundedRect: r, cornerRadius: r.height * 0.3, style: .continuous), with: .color(pill))
-                pc.draw(run)
             }
+            let k = Self.clamp((progress - 0.5) / 0.5)
+            guard let keyword, k > 0 else { continue }
+            let r = keyword.insetBy(dx: -8, dy: -1)
+            let s = Self.overshoot(k)
+            var pc = ctx
+            pc.opacity = t * min(1, k * 3)
+            pc.translateBy(x: r.midX, y: r.midY)
+            pc.scaleBy(x: s, y: s)
+            pc.translateBy(x: -r.midX, y: -r.midY)
+            pc.fill(Path(roundedRect: r, cornerRadius: r.height * 0.3, style: .continuous), with: .color(pill))
+            for run in line where run[KeywordMark.self] != nil { pc.draw(run) }
         }
     }
 

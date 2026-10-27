@@ -422,7 +422,6 @@ private struct WelcomeSticker: View {
     @State private var squash: Bool = false
     @State private var showsReading: Bool = false
     @State private var taps: Int = 0
-    @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
 
     var body: some View {
         Group {
@@ -438,14 +437,8 @@ private struct WelcomeSticker: View {
         .scaleEffect(x: squash ? 1.08 : 1, y: squash ? 0.9 : 1, anchor: .bottom)
         .overlay(alignment: .top) {
             if showsReading {
-                VStack(spacing: 0) {
-                    Text(verbatim: readingPref == "pinyin" ? pinyin : zhuyin)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.muted)
-                    Text(verbatim: word)
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(Theme.foreground)
-                }
+                // The app's own reading layout (zhuyin beside each character, or pinyin above, as 設定 › 発音表記).
+                ZhuyinWordView(headword: word, zhuyin: zhuyin, size: 19, weight: .bold, pinyin: pinyin, language: "zh-TW")
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Theme.card, in: Capsule())
