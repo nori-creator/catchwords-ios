@@ -89,7 +89,7 @@ App Store Connect の画面で入れる項目の答え。根拠はこのリポ�
 | 公開のしかた | 今は「承認後に自動で公開」（AFTER_APPROVAL） | 通った瞬間に公開される。自分で公開の時を決めたいなら、版 1.0.0 の「このバージョンのリリース」で「手動でリリース」に変える |
 | サポート URL | https://catchwords.app/support | 1.0.4 から。`ios/metadata` に入っている |
 | マーケティング URL | https://catchwords.app | **広告があるので必須**: AdMob はこのサイトの `app-ads.txt` を読んでアプリを確かめる（`scripts/build_site.py`） |
-| プライバシーポリシー URL | https://catchwords.app/privacy | 「App 情報」の画面で入れる。送り先の AI の会社名、データの保存先（Supabase・東京）、AdMob の広告が載っている |
+| プライバシーポリシー URL | https://catchwords.app/privacy | 「App 情報」の画面で入れる。送り先の AI の会社名、データの保存先（Supabase・東京）、AdMob の広告、不具合の記録（Sentry、2026-10-27〜）が載っている。**2026-10-27 の報告では App Store Connect にまだ旧 https://catchwords.lovable.app/privacy が入っている — 日本語・英語の両方で直す** |
 | サインイン情報 | 審査用アカウント（すでに入っている） | このリポジトリには書かない |
 | 連絡先（名前・電話・メール） | すでに入っている | |
 
