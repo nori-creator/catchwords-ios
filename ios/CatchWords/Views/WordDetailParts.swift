@@ -270,23 +270,21 @@ struct ExampleSentenceView<Trailing: View>: View {
         }
     }
 
-    /// Each character's colour and weight: the chunk's run in its parts' colours (the word blue, glue black, the others
-    /// by their part of speech), the headword elsewhere in blue, everything else the text colour.
+    /// Each character's colour and weight: every chunk's characters in its parts' colours (the word blue, glue black, the
+    /// others by their part of speech), the headword elsewhere in blue, everything else the text colour.
     private static func styles(_ chars: [String], headword: String, target: String, hit: ChunkRules.ExampleHit?) -> [Style] {
         var out = Array(repeating: Style(color: Theme.foreground, bold: false), count: chars.count)
         for i in SentenceRuby.marked(chars, headword: headword) where i < out.count {
             out[i] = Style(color: ChunkKind.noun.ink, bold: true)
         }
-        if let hit {
-            for k in 0..<hit.length where hit.start + k < out.count && k < hit.parts.count {
-                let part = hit.parts[k]
-                let color: Color = switch ChunkRules.role(part, headword: headword, target: target) {
-                case .head: ChunkKind.noun.ink
-                case .frame: Theme.foreground
-                case .partner: ChunkKind(pos: part.pos).ink
-                }
-                out[hit.start + k] = Style(color: color, bold: true)
+        // Every chunk the sentence holds, in its parts' colours (owner 2026-10-26).
+        for (i, part) in hit?.cells ?? [:] where i < out.count {
+            let color: Color = switch ChunkRules.role(part, headword: headword, target: target) {
+            case .head: ChunkKind.noun.ink
+            case .frame: Theme.foreground
+            case .partner: ChunkKind(pos: part.pos).ink
             }
+            out[i] = Style(color: color, bold: true)
         }
         return out
     }
@@ -296,7 +294,8 @@ struct ExampleSentenceView<Trailing: View>: View {
     /// system font the characters are drawn in.
     private static func fit(_ chars: [String], styles: [Style], words: [String], hit: ChunkRules.ExampleHit?,
                             pinyin: [String?]?, width: CGFloat, reserve: CGFloat, base: CGFloat) -> Fit {
-        let span = hit.map { $0.start..<($0.start + $0.length) }
+        // The shown chunk stays on one line when its characters stand together (§4).
+        let span = hit.flatMap { $0.together ? $0.start..<($0.start + $0.length) : nil }
         let groups = ChunkRules.exampleGroups(chars, words: words, span: span)
         let floor = min(base, smallest)
         var sizes: [CGFloat] = []
@@ -347,7 +346,8 @@ struct RuledMemo: View {
     var body: some View {
         let size = detailFontSize(15, dynamicTypeSize, pageTextScale)
         let lineHeight = (size * 1.95).rounded()
-        let paragraphs = Sentences.split(text).joined(separator: "\n\n")
+        // One sentence a line, no blank line between them (owner 2026-10-26: 「謎の空白の行」).
+        let paragraphs = Sentences.split(text).joined(separator: "\n")
         RuledLabel(text: paragraphs, size: size, lineHeight: lineHeight)
             .background(alignment: .top) {
                 Canvas { context, canvasSize in

@@ -2515,5 +2515,61 @@
   "chunk": null,
   "pick": null,
   "why": "版25: 要 は 很 と同じつなぎの語（枠も色も無い黒）。消磁 が覚える相手の語"
+ },
+ {
+  "id": "V26-examples-chunk-only",
+  "rule": "§4",
+  "fn": "chunkExamples",
+  "text": "鼎泰豐的小籠包很有名。 | 小籠包裡面湯汁很多，吃的時候要小心燙。 | 吃小籠包一定要配薑絲和烏醋才對味。",
+  "reader": null,
+  "target": "zh-TW",
+  "source": null,
+  "hanOnlyOk": null,
+  "expect": true,
+  "why": "チャンクを使った例文だけを、チャンクの番号で出す（番号の無い例文の後に急に 1 が出るのは変 — オーナー 2026-10-26）。2つ目のチャンク 小籠包＋配＋薑絲 も間を空けて入っているので色を付ける",
+  "expected": "3>1 吃小籠包配薑絲",
+  "chunk": "吃:V+小籠包:N / 小籠包:N+配:V+~薑絲|醋:N / 現蒸:Vs+的:DE+小籠包:N"
+ },
+ {
+  "id": "V26-examples-order",
+  "rule": "§4",
+  "fn": "chunkExamples",
+  "text": "我最喜歡現蒸的小籠包。 | 吃小籠包要沾醋。",
+  "reader": null,
+  "target": "zh-TW",
+  "source": null,
+  "hanOnlyOk": null,
+  "expect": true,
+  "why": "チャンクの順（1 → 3）に並べ、1つの例文は1つのチャンクの下にだけ出す",
+  "expected": "2>1,1>3 吃小籠包|現蒸的小籠包",
+  "chunk": "吃:V+小籠包:N / 小籠包:N+配:V+~薑絲|醋:N / 現蒸:Vs+的:DE+小籠包:N"
+ },
+ {
+  "id": "V26-examples-none",
+  "rule": "§4",
+  "fn": "chunkExamples",
+  "text": "鼎泰豐的小籠包很有名。",
+  "reader": null,
+  "target": "zh-TW",
+  "source": null,
+  "hanOnlyOk": null,
+  "expect": true,
+  "why": "どのチャンクも入っていない古いカードは空（画面は番号無しで全部出す）",
+  "expected": "-",
+  "chunk": "吃:V+小籠包:N / 小籠包:N+配:V+~薑絲|醋:N / 現蒸:Vs+的:DE+小籠包:N"
+ },
+ {
+  "id": "V26-examples-gap-limit",
+  "rule": "§4",
+  "fn": "chunkExamples",
+  "text": "小籠包很好吃，我常常配一杯豆漿和薑絲。",
+  "reader": null,
+  "target": "zh-TW",
+  "source": null,
+  "hanOnlyOk": null,
+  "expect": true,
+  "why": "パーツの間が5字以上離れていればそのチャンクとは見ない",
+  "expected": "-",
+  "chunk": "小籠包:N+配:V+薑絲:N"
  }
 ]

@@ -54,6 +54,8 @@ struct DetailExamplesCard: View {
     let headword: String
     /// The chunks as the page numbers them (`usage_chunks` in the server's order, as shown).
     let chunks: [UsageChunk]
+    /// The chunk each example is shown under, as the page worked it out (`ChunkRules.chunkExamples`). nil: looked up here.
+    var hits: [ChunkRules.ExampleHit?]? = nil
     /// The words the card already reads (`SentenceReadings.known`): they win over the dictionary in the sentences.
     var known: [SentenceReadings.Known] = []
     /// The word's learning language: only a Mandarin sentence gets readings.
@@ -71,7 +73,8 @@ struct DetailExamplesCard: View {
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(Array(examples.enumerated()), id: \.offset) { i, ex in
                     DetailExampleRow(example: ex, index: i, headword: headword, language: language,
-                                     hit: ChunkRules.exampleHit(sentence: ex.sentence, chunks: chunks, target: language),
+                                     hit: hits.flatMap { $0.indices.contains(i) ? $0[i] : nil }
+                                        ?? ChunkRules.exampleHit(sentence: ex.sentence, chunks: chunks, target: language),
                                      pinyin: showsPinyin ? pinyin(for: ex.sentence) : nil,
                                      flashing: flash == i)
                         .id("example-\(i)")

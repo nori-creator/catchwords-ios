@@ -1,3 +1,4 @@
+import { allowsSimplePartners } from "./generic-chunks";
 import { describe, expect, it } from "vitest";
 import production from "./__fixtures__/chunk-quality-production.json";
 import {
@@ -848,6 +849,25 @@ describe("弱い相手・ひと言解説・很の固定（オーナー 2026-10-2
     expect(texts).not.toContain("喝珍珠奶茶");
     expect(texts).not.toContain("珍珠奶茶很好喝");
     expect(g.dropped.filter((d) => d.reason === "weak_partner").length).toBe(2);
+  });
+  it("目標 1・2級の人には 喝＋〜 も強い型と同じに残す（順もそのまま。オーナー 2026-10-26）", () => {
+    const g = gateUsageChunks(
+      [
+        c(["喝", "珍珠奶茶"], "タピオカミルクティーを飲む"),
+        c(["珍珠奶茶", "半糖少冰"], "タピオカミルクティーを微糖・氷少なめで"),
+        c(["點", "珍珠奶茶"], "タピオカミルクティーを注文する"),
+      ],
+      { ...ctx, allowSimplePartners: true },
+    );
+    expect(g.kept.map((k) => k.parts.map((p) => p.text).join(""))[0]).toBe("喝珍珠奶茶");
+    expect(g.dropped.filter((d) => d.reason === "weak_partner")).toHaveLength(0);
+  });
+  it("簡単な動詞の型を許すのは目標 1・2級だけ", () => {
+    expect(allowsSimplePartners("TOCFL-1")).toBe(true);
+    expect(allowsSimplePartners("TOCFL-2")).toBe(true);
+    expect(allowsSimplePartners("TOCFL-3")).toBe(false);
+    expect(allowsSimplePartners("TOCFL-5")).toBe(false);
+    expect(allowsSimplePartners("")).toBe(false);
   });
   it("強い型が足りなければ弱い型は残し、最後へ回す", () => {
     const g = gateUsageChunks(

@@ -89,6 +89,8 @@ export type ChunkGateContext = {
   meaning?: string | null;
   /** 量詞の欄（同じ字の型を落とす）。 */
   measureWords?: ReadonlyArray<{ word?: string } | null | undefined> | null;
+  /** 簡単な動詞の型（吃＋〜・喝＋〜）を強い型と同じに扱う（目標 1・2級 — `allowsSimplePartners`）。 */
+  allowSimplePartners?: boolean;
 };
 
 export type ChunkGateResult = {
@@ -540,7 +542,7 @@ export function gateUsageChunks(
     kept.push(tidyForStorage({ ...c, parts }, ctx));
   }
   // 弱い相手（喝＋〜・〜＋很＋甜・拿＋〜）: 強い型が2つ以上あれば落とし、無ければ最後へ（並びは頻度順のまま保つ）。
-  const weak = kept.map((k) => isWeakPartnerChunk(k.parts, head, ctx.language));
+  const weak = kept.map((k) => !ctx.allowSimplePartners && isWeakPartnerChunk(k.parts, head, ctx.language));
   const strong = kept.filter((_, i) => !weak[i]);
   let ordered: UsageChunk[];
   if (strong.length >= 2) {
