@@ -218,8 +218,9 @@ struct MainTabView: View {
             }
         }
         .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-            // The catch hides the tab bar for its whole flow; its capture steps still need the guide.
-            if router.tour != .off, router.tour != .word, router.tour != .complete,
+            // The catch hides the tab bar for its whole flow; its capture steps still need the guide. Never over a
+            // word landing in the dex: the card waits until the word has landed (it used to darken the landing).
+            if router.tour != .off, router.tour != .word, router.tour != .complete, router.landing == nil,
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: endTour)
                     .transition(.opacity)
@@ -284,7 +285,7 @@ struct MainTabView: View {
             if tab != .camera { router.tabBarHidden = false }
         }
         .onChange(of: router.detailSticker) { old, s in
-            if s != nil { router.advanceTour(from: .dexOpen, to: .word) }
+            if s != nil { router.advanceTour(from: .added, to: .word) }
             // Every way into a word (dex, home, review, a reminder) pons open; closing it pons back.
             if old == nil, s != nil { SoundService.shared.pon(open: true) }
             if old != nil, s == nil { SoundService.shared.pon(open: false) }
@@ -343,17 +344,16 @@ struct MainTabView: View {
     private func beginTourIfPending() {
         guard tourPending, router.tour == .off else { return }
         router.tab = .home
-        withAnimation(.easeOut(duration: 0.3)) { router.tour = .home }
+        // Straight to the first thing to do (the camera); the home's own explanation step is gone (2026-10-27).
+        withAnimation(.easeOut(duration: 0.3)) { router.tour = .tapCamera }
     }
 
     private func tourNext() {
         switch router.tour {
-        case .home: router.advanceTour(from: .home, to: .tapCamera)
         case .detail: router.advanceTour(from: .detail, to: .peel)
-        case .added: router.advanceTour(from: .added, to: .dexTypes)
-        case .dexOpen:
+        case .added:
+            // 「ことばを開く」: the word just caught (its page moves the guide on to `.word`).
             if let id = router.tourStickerId, let s = dex.sticker(id: id) { router.detailSticker = s } else { startTourReview() }
-        case .review: router.advanceTour(from: .review, to: .reviewPick)
         default: break
         }
     }
@@ -365,7 +365,7 @@ struct MainTabView: View {
             return
         }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
-            router.tour = .review
+            router.tour = .reviewPick
             router.tab = .review
         }
     }

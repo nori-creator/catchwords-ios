@@ -62,13 +62,6 @@
   "ko": "하루 복습 카드 수",
   "vi": "Số thẻ ôn tập mỗi ngày"
  },
- "1枚撮ってみましょう": {
-  "en": "Take one photo",
-  "zh-TW": "拍一張照片",
-  "es": "Toma una foto",
-  "ko": "한 장 찍어 보세요",
-  "vi": "Thử chụp một tấm ảnh"
- },
  "3D プレビュー": {
   "en": "3D preview",
   "zh-TW": "3D 預覽",
@@ -1147,13 +1140,6 @@
   "ko": "다른 단어로 바꿀 수 있어요",
   "vi": "Có thể thay bằng từ khác"
  },
- "まずはアプリを見て回って、\n気になるものをひとつ撮ってみましょう。": {
-  "en": "Take a quick look around, then photograph something you’d like to learn.",
-  "zh-TW": "先看看怎麼使用，接著拍下一樣想學的東西吧。",
-  "es": "Primero explora la app y,\nluego, fotografía algo que te llame la atención.",
-  "ko": "먼저 앱을 둘러보고,\n관심 가는 것을 하나 찍어 보세요.",
-  "vi": "Trước tiên hãy xem qua ứng dụng,\nrồi thử chụp một thứ bạn thấy thú vị."
- },
  "また明日の復習で会いましょう。": {
   "en": "See you at tomorrow's review.",
   "zh-TW": "明天複習時再見。",
@@ -1567,13 +1553,6 @@
   "ko": "스티커를 찾을 수 없어요",
   "vi": "Không tìm thấy nhãn dán"
  },
- "スピーカーを押すと、発音を聞けます。": {
-  "en": "Tap the speaker to hear it.",
-  "zh-TW": "點喇叭就能聽發音。",
-  "es": "Toca el altavoz para escuchar la pronunciación.",
-  "ko": "스피커를 누르면 발음을 들을 수 있어요.",
-  "vi": "Chạm vào biểu tượng loa để nghe phát âm."
- },
  "スポーツ": {
   "en": "Sports",
   "zh-TW": "運動",
@@ -1699,20 +1678,6 @@
   "es": "Te enviamos un correo para configurar tu contraseña.",
   "ko": "비밀번호 설정 메일을 보냈어요.",
   "vi": "Chúng tôi đã gửi email để bạn đặt mật khẩu."
- },
- "ビジネス": {
-  "en": "Business",
-  "zh-TW": "商業",
-  "es": "Negocios",
-  "ko": "비즈니스",
-  "vi": "Kinh doanh"
- },
- "ファッション": {
-  "en": "Fashion",
-  "zh-TW": "時尚",
-  "es": "Moda",
-  "ko": "패션",
-  "vi": "Thời trang"
  },
  "フレーズ": {
   "en": "Phrase",
@@ -1944,20 +1909,6 @@
   "es": "3.ª persona sing.",
   "ko": "3인칭 단수",
   "vi": "Ngôi thứ ba số ít"
- },
- "上のアイコンで、写真一覧・地図・リストへ切り替えられます。探し方も自分に合わせて。": {
-  "en": "Use the icons above to switch between photos, the map, and a list.",
-  "zh-TW": "點上方圖示，切換照片、地圖和清單，用喜歡的方式尋找。",
-  "es": "Con los iconos de arriba puedes cambiar entre fotos, mapa y lista. Busca a tu manera.",
-  "ko": "위의 아이콘으로 사진·지도·목록을 전환할 수 있어요. 원하는 방식으로 찾아보세요.",
-  "vi": "Dùng các biểu tượng phía trên để chuyển giữa ảnh, bản đồ và danh sách. Tìm theo cách của bạn."
- },
- "下のカメラを押して、気になるものを撮ってみましょう。名前を知らなくても大丈夫。": {
-  "en": "Tap the camera below and photograph anything that catches your eye. You don't need its name yet.",
-  "zh-TW": "點下方的相機，拍下感興趣的東西。不知道它叫什麼也沒關係。",
-  "es": "Toca la cámara de abajo y fotografía lo que te llame la atención. No hace falta saber cómo se llama.",
-  "ko": "아래 카메라를 눌러 궁금한 것을 찍어 보세요. 이름을 몰라도 괜찮아요.",
-  "vi": "Chạm vào máy ảnh bên dưới và chụp thứ bạn thấy thú vị. Không biết tên cũng không sao."
  },
  "両方": {
   "en": "Both",
@@ -2427,13 +2378,6 @@
   "es": "Elegir de las fotos",
   "ko": "사진에서 선택",
   "vi": "Chọn từ ảnh"
- },
- "写真に合うことばを選んでください。": {
-  "en": "Choose the word that matches the photo.",
-  "zh-TW": "請選出和照片相符的單字。",
-  "es": "Elige la palabra que corresponde a la foto.",
-  "ko": "사진에 맞는 단어를 골라 주세요.",
-  "vi": "Hãy chọn từ phù hợp với ảnh."
  },
  "写真の保存に失敗しました。": {
   "en": "Couldn't save the photo.",
@@ -2981,13 +2925,6 @@
   "ko": "날씨",
   "vi": "Thời tiết"
  },
- "好きなことから、\nことばを広げよう": {
-  "en": "Start with what\nyou love.",
-  "zh-TW": "從喜歡的事物，\n開始學單字。",
-  "es": "Amplía tu vocabulario\ncon lo que te gusta",
-  "ko": "좋아하는 것부터\n단어를 넓혀 가요",
-  "vi": "Mở rộng vốn từ\ntừ những điều bạn thích"
- },
  "学びたい言語は？": {
   "en": "What would you\nlike to learn?",
   "zh-TW": "你想學哪種語言？",
@@ -3141,13 +3078,6 @@
   "es": "Edificios y tiendas",
   "ko": "건물·가게",
   "vi": "Tòa nhà & cửa hàng"
- },
- "建物・街": {
-  "en": "City & architecture",
-  "zh-TW": "建築、街景",
-  "es": "Ciudad y arquitectura",
-  "ko": "건물·거리",
-  "vi": "Kiến trúc & phố phường"
  },
  "強く読む所": {
   "en": "Stress",
@@ -3428,13 +3358,6 @@
   "es": "Se borrarán todas tus fotos, tu colección y tu historial de repasos, y no se podrán recuperar. También se borrarán los datos de la versión web.",
   "ko": "촬영한 사진, 도감, 복습 기록이 모두 삭제되며 되돌릴 수 없어요. 웹 버전의 데이터도 함께 삭제돼요.",
   "vi": "Toàn bộ ảnh đã chụp, bộ sưu tập và lịch sử ôn tập sẽ bị xóa và không thể khôi phục. Dữ liệu trên bản web cũng sẽ bị xóa."
- },
- "撮って、意味を知って、思い出す。\n身のまわりから、ことばを増やしていこう。": {
-  "en": "Capture it. Understand it. Recall it.\nBuild your vocabulary from everyday life.",
-  "zh-TW": "拍下來、了解意思、再想起來。\n從生活中累積你的單字。",
-  "es": "Captura, entiende, recuerda.\nAmplía tu vocabulario con lo que te rodea.",
-  "ko": "찍고, 뜻을 알고, 떠올려요.\n주변에서 단어를 늘려 가요.",
-  "vi": "Chụp, hiểu nghĩa, rồi nhớ lại.\nMở rộng vốn từ từ những thứ quanh bạn."
  },
  "撮り直す": {
   "en": "Retake",
@@ -3737,26 +3660,12 @@
   "ko": "첫 사진 찍기",
   "vi": "Chụp ảnh đầu tiên"
  },
- "最初のキャッチ、完了！": {
-  "en": "Your first Catch is complete!",
-  "zh-TW": "完成第一次捕捉！",
-  "es": "¡Primera captura completada!",
-  "ko": "첫 캐치 완료!",
-  "vi": "Hoàn tất lần bắt từ đầu tiên!"
- },
  "最初の画面に戻る": {
   "en": "Back to the welcome screen",
   "zh-TW": "回到最初的畫面",
   "es": "Volver a la pantalla de bienvenida",
   "ko": "첫 화면으로 돌아가기",
   "vi": "Quay lại màn hình chào mừng"
- },
- "最初の発見は、もうすぐ。": {
-  "en": "Your first discovery is close.",
-  "zh-TW": "你的第一個發現，就快到了。",
-  "es": "Tu primer descubrimiento está cerca.",
-  "ko": "첫 발견이 곧 찾아와요.",
-  "vi": "Khám phá đầu tiên đang đến gần."
  },
  "最初の質問に答え直す": {
   "en": "Answer the first questions again",
@@ -4122,13 +4031,6 @@
   "ko": "화면 모드",
   "vi": "Sáng / tối"
  },
- "発音と意味": {
-  "en": "Sound and meaning",
-  "zh-TW": "發音與意思",
-  "es": "Pronunciación y significado",
-  "ko": "발음과 뜻",
-  "vi": "Phát âm và nghĩa"
- },
  "発音のコツ": {
   "en": "Pronunciation tips",
   "zh-TW": "發音訣竅",
@@ -4205,13 +4107,6 @@
   "es": "Bueno saberlo",
   "ko": "알아 두면 좋아요",
   "vi": "Điều nên biết"
- },
- "知らないものも、撮るだけ。AIが写真の中から学べることばを提案します。": {
-  "en": "Just take a photo, even when you don't know its name. AI suggests words from what it sees.",
-  "zh-TW": "不知道名稱也能先拍下來，AI 會從照片裡找出值得學的單字。",
-  "es": "Aunque no sepas cómo se llama, solo toma una foto. La IA te sugiere palabras para aprender a partir de lo que hay en ella.",
-  "ko": "이름을 모르는 것도 찍기만 하면 돼요. AI가 사진 속에서 배울 수 있는 단어를 제안해요.",
-  "vi": "Không biết tên cũng được, chỉ cần chụp. AI sẽ gợi ý những từ bạn có thể học từ trong ảnh."
  },
  "短い時間でも大丈夫。あなたのペースで続けましょう。": {
   "en": "A few minutes is a great start. Make it your own pace.",
@@ -4353,13 +4248,6 @@
   "ko": "중국어 번체(대만)",
   "vi": "Tiếng Trung phồn thể (Đài Loan)"
  },
- "自分の写真を手がかりに4択で思い出す。単語だけの暗記より、出会った場面から思い出せます。": {
-  "en": "Use your photo as a clue in a four-choice review. Recall the moment behind the word.",
-  "zh-TW": "看自己的照片做四選一，從相遇的場景想起單字，不用死背字表。",
-  "es": "Recuerda con 4 opciones usando tu propia foto como pista. En vez de memorizar palabras sueltas, las recuerdas por la situación en que las encontraste.",
-  "ko": "내 사진을 단서로 4지선다로 떠올려요. 단어만 외우는 것보다, 만났던 상황에서 쉽게 떠올릴 수 있어요.",
-  "vi": "Nhớ lại qua 4 lựa chọn, lấy ảnh của chính bạn làm gợi ý. Thay vì học thuộc từ suông, bạn nhớ từ qua tình huống đã gặp."
- },
  "自動": {
   "en": "Auto",
   "zh-TW": "自動",
@@ -4394,13 +4282,6 @@
   "es": "Naturaleza",
   "ko": "자연",
   "vi": "Thiên nhiên"
- },
- "興味のあるテーマを選んでください（複数選択可）。": {
-  "en": "Choose the topics you enjoy. Select as many as you like.",
-  "zh-TW": "選擇感興趣的主題，可以複選。",
-  "es": "Elige los temas que te interesan (puedes elegir varios).",
-  "ko": "관심 있는 주제를 선택하세요(여러 개 선택 가능).",
-  "vi": "Chọn các chủ đề bạn quan tâm (có thể chọn nhiều)."
  },
  "色": {
   "en": "Colors",
@@ -4597,20 +4478,6 @@
   "es": "No se encontró.",
   "ko": "찾을 수 없어요.",
   "vi": "Không tìm thấy."
- },
- "見つけたものが、\nあなたのことばになる。": {
-  "en": "See it. Catch it.\nMake it yours.",
-  "zh-TW": "發現生活裡的事物，\n學會用自己的話說出來。",
-  "es": "Lo que encuentras\nse convierte en tus palabras.",
-  "ko": "발견한 것이\n나의 단어가 돼요.",
-  "vi": "Những gì bạn tìm thấy\nsẽ thành từ ngữ của bạn."
- },
- "見つけた場面ごと、今日のアルバムに。単語帳へ書き写す手間がなくなります。": {
-  "en": "Keep the moment with the word in today's album. No copying it into a notebook.",
-  "zh-TW": "單字和發現它的時刻，一起留在今天的相簿。不用再抄進筆記本。",
-  "es": "Guarda el momento junto con la palabra en el álbum de hoy. Sin copiarla en una libreta.",
-  "ko": "발견한 순간 그대로 오늘의 앨범에 담겨요. 단어장에 옮겨 적을 필요가 없어요.",
-  "vi": "Lưu cả khoảnh khắc cùng từ vào album hôm nay. Không cần chép vào sổ từ vựng nữa."
  },
  "覚えた {1}／{2}": {
   "en": "Learned {1}/{2}",
@@ -4920,20 +4787,6 @@
   "ko": "생활용품",
   "vi": "Đồ dùng hằng ngày"
  },
- "追加した単語を見てみる": {
-  "en": "Explore your new word",
-  "zh-TW": "看看剛加入的單字",
-  "es": "Explora tu nueva palabra",
-  "ko": "추가한 단어 살펴보기",
-  "vi": "Xem từ vừa thêm"
- },
- "追加した単語を開いて、意味や使い方を見てみましょう。": {
-  "en": "Open your new word to explore its meanings and uses.",
-  "zh-TW": "打開剛加入的單字，看看意思和用法。",
-  "es": "Abre tu nueva palabra para ver sus significados y usos.",
-  "ko": "추가한 단어를 열어 뜻과 쓰임을 살펴보세요.",
-  "vi": "Mở từ vừa thêm để xem nghĩa và cách dùng."
- },
  "追加の例文": {
   "en": "More examples",
   "zh-TW": "更多例句",
@@ -5130,13 +4983,6 @@
   "ko": "관련어",
   "vi": "Từ liên quan"
  },
- "集めたことばが、撮った写真と一緒に並びます。": {
-  "en": "Every word you catch is kept with its photo.",
-  "zh-TW": "收集的單字會和照片一起保存。",
-  "es": "Cada palabra que atrapas se guarda junto a la foto que tomaste.",
-  "ko": "모은 단어가 찍은 사진과 함께 나란히 놓여요.",
-  "vi": "Những từ bạn bắt được sẽ được xếp cùng ảnh bạn đã chụp."
- },
  "集めた単語": {
   "en": "Words collected",
   "zh-TW": "收集的單字",
@@ -5185,13 +5031,6 @@
   "es": "Sonido y vibración",
   "ko": "사운드 및 햅틱",
   "vi": "Âm thanh và cảm ứng"
- },
- "音楽・映画": {
-  "en": "Music & film",
-  "zh-TW": "音樂、電影",
-  "es": "Música y cine",
-  "ko": "음악·영화",
-  "vi": "Âm nhạc và phim ảnh"
  },
  "音読み": {
   "en": "on reading",
@@ -7552,13 +7391,6 @@
   "ko": "개발용 빌드",
   "vi": "Bản dựng phát triển"
  },
- "日常のすべてが\n学びになる": {
-  "en": "Every moment\nbecomes a lesson",
-  "zh-TW": "生活中\n處處都是學習",
-  "es": "Cada momento\nse vuelve una lección",
-  "ko": "일상의 모든 순간이\n배움이 돼요",
-  "vi": "Mọi khoảnh khắc\nđều thành bài học"
- },
  "街で出会う言葉を、ステッカーに。": {
   "en": "Turn the words you meet around town into stickers.",
   "zh-TW": "把街上遇見的單字，變成貼紙。",
@@ -9147,5 +8979,180 @@
   "es": "Prueba enviada",
   "ko": "테스트를 보냈습니다",
   "vi": "Đã gửi thử"
+ },
+ "このあと、実際に1枚撮りながら使い方を案内します。": {
+  "en": "Next, we’ll guide you as you take your first photo.",
+  "zh-TW": "接下來，我們會一邊帶你實際拍一張照片，一邊說明用法。",
+  "es": "Ahora te guiaremos mientras tomas tu primera foto.",
+  "ko": "이제 실제로 사진 한 장을 찍으면서 사용법을 안내할게요.",
+  "vi": "Tiếp theo, chúng tôi sẽ hướng dẫn bạn trong lúc chụp tấm ảnh đầu tiên."
+ },
+ "約1分": {
+  "en": "About 1 min",
+  "zh-TW": "約 1 分鐘",
+  "es": "Aprox. 1 min",
+  "ko": "약 1분",
+  "vi": "Khoảng 1 phút"
+ },
+ "撮るだけで、\n**ことば**になる": {
+  "en": "Just snap it,\nand it becomes a **word**",
+  "zh-TW": "拍一張，\n就變成**單字**",
+  "es": "Haz una foto\ny se vuelve **palabra**",
+  "ko": "찍기만 하면\n**단어**가 돼요",
+  "vi": "Chỉ cần chụp,\nlà thành **từ vựng**"
+ },
+ "集めたことばは\n**図鑑**に並ぶ": {
+  "en": "Your words line up\nin your **collection**",
+  "zh-TW": "收集的單字\n排進**圖鑑**",
+  "es": "Tus palabras se reúnen\nen tu **colección**",
+  "ko": "모은 단어는\n**도감**에 차곡차곡",
+  "vi": "Từ đã thu thập\nxếp vào **bộ sưu tập**"
+ },
+ "自分の写真で\n**思い出す**": {
+  "en": "Your own photos\nhelp you **remember**",
+  "zh-TW": "用自己的照片\n**想起來**",
+  "es": "Tus propias fotos\nte ayudan a **recordar**",
+  "ko": "내 사진으로\n**떠올려요**",
+  "vi": "Dùng ảnh của bạn\nđể **nhớ lại**"
+ },
+ "気になる物を撮るだけ。AIが写真の中の物の名前と発音を教えてくれます。": {
+  "en": "Just photograph something that catches your eye. AI tells you what it’s called and how to say it.",
+  "zh-TW": "只要拍下感興趣的東西，AI 就會告訴你照片裡東西的名稱和發音。",
+  "es": "Solo fotografía algo que te llame la atención. La IA te dice cómo se llama y cómo se pronuncia.",
+  "ko": "궁금한 물건을 찍기만 하세요. AI가 사진 속 물건의 이름과 발음을 알려 줘요.",
+  "vi": "Chỉ cần chụp thứ bạn thấy thú vị. AI sẽ cho bạn biết tên và cách phát âm của nó."
+ },
+ "撮った写真と出会った場所ごと、あなただけの単語帳に。": {
+  "en": "With your photo and where you found it, it all becomes your own word book.",
+  "zh-TW": "連同照片和遇見的地點，變成只屬於你的單字本。",
+  "es": "Con tu foto y el lugar donde la encontraste, todo se vuelve tu propio libro de palabras.",
+  "ko": "찍은 사진과 만난 장소까지, 나만의 단어장이 돼요.",
+  "vi": "Cùng với ảnh và nơi bạn gặp, tất cả thành sổ từ của riêng bạn."
+ },
+ "忘れかけた頃に、自分の写真で4択の復習。出会った場面ごと覚えられます。": {
+  "en": "Just as you start to forget, review with a 4-choice quiz on your own photo. You remember the moment, not just the word.",
+  "zh-TW": "快忘記的時候，用自己的照片做四選一複習。連同遇見的場景一起記住。",
+  "es": "Justo cuando empiezas a olvidar, repasa con 4 opciones sobre tu propia foto. Recuerdas el momento, no solo la palabra.",
+  "ko": "잊을 때쯤 내 사진으로 4지선다 복습. 만났던 장면과 함께 기억할 수 있어요.",
+  "vi": "Khi sắp quên, ôn lại bằng câu hỏi 4 lựa chọn với chính ảnh của bạn. Bạn nhớ cả khoảnh khắc đã gặp."
+ },
+ "まず1枚、撮ってみよう": {
+  "en": "First, take a photo",
+  "zh-TW": "先拍一張看看吧",
+  "es": "Primero, toma una foto",
+  "ko": "먼저 한 장 찍어 봐요",
+  "vi": "Trước tiên, hãy chụp một tấm"
+ },
+ "気になる物を撮る": {
+  "en": "Snap something around you",
+  "zh-TW": "拍下感興趣的東西",
+  "es": "Fotografía algo que te interese",
+  "ko": "궁금한 물건을 찍어요",
+  "vi": "Chụp thứ bạn thấy thú vị"
+ },
+ "意味と使い方": {
+  "en": "Meaning and usage",
+  "zh-TW": "意思和用法",
+  "es": "Significado y uso",
+  "ko": "뜻과 쓰임",
+  "vi": "Nghĩa và cách dùng"
+ },
+ "写真で思い出す": {
+  "en": "Remember from your photo",
+  "zh-TW": "用照片想起來",
+  "es": "Recuerda con tu foto",
+  "ko": "사진으로 떠올리기",
+  "vi": "Nhớ lại qua ảnh"
+ },
+ "下の青いカメラボタンをタップ。名前を知らない物でも大丈夫です。": {
+  "en": "Tap the blue camera button below. It’s fine if you don’t know what the thing is called.",
+  "zh-TW": "點下方的藍色相機按鈕。不知道名字的東西也沒關係。",
+  "es": "Toca el botón azul de la cámara abajo. No importa si no sabes cómo se llama.",
+  "ko": "아래의 파란 카메라 버튼을 탭하세요. 이름을 모르는 물건이어도 괜찮아요.",
+  "vi": "Chạm vào nút máy ảnh màu xanh bên dưới. Không biết tên đồ vật cũng không sao."
+ },
+ "身のまわりの物にカメラを向けて、シャッターをタップ。AIが写真から学べることばを見つけます。": {
+  "en": "Point the camera at something around you and tap the shutter. AI finds words to learn in your photo.",
+  "zh-TW": "把相機對準身邊的東西，點快門。AI 會從照片裡找出可以學的單字。",
+  "es": "Apunta la cámara a algo a tu alrededor y toca el obturador. La IA encuentra palabras para aprender en tu foto.",
+  "ko": "주변 물건에 카메라를 대고 셔터를 탭하세요. AI가 사진에서 배울 단어를 찾아 줘요.",
+  "vi": "Hướng máy ảnh vào đồ vật quanh bạn và chạm nút chụp. AI sẽ tìm từ để học trong ảnh."
+ },
+ "スピーカーをタップすると、発音を聞けます。聞けたら「次へ」。": {
+  "en": "Tap the speaker to hear how it’s said. Then tap “Next”.",
+  "zh-TW": "點喇叭就能聽發音。聽完後按「下一步」。",
+  "es": "Toca el altavoz para oír la pronunciación. Luego toca “Siguiente”.",
+  "ko": "스피커를 탭하면 발음을 들을 수 있어요. 들었으면 ‘다음’을 누르세요.",
+  "vi": "Chạm vào loa để nghe phát âm. Nghe xong thì nhấn “Tiếp”."
+ },
+ "撮った写真と一緒に、ことばが並びます。開いて、意味と使い方を見てみましょう。": {
+  "en": "Your word sits next to the photo you took. Open it to see its meaning and how to use it.",
+  "zh-TW": "單字會和你拍的照片排在一起。打開看看意思和用法吧。",
+  "es": "Tu palabra queda junto a la foto que tomaste. Ábrela para ver su significado y cómo se usa.",
+  "ko": "찍은 사진과 함께 단어가 담겨요. 열어서 뜻과 쓰임을 확인해 봐요.",
+  "vi": "Từ được xếp cùng ảnh bạn đã chụp. Mở ra để xem nghĩa và cách dùng."
+ },
+ "自分の写真を手がかりに4択で思い出します。写真に合うことばをタップ。": {
+  "en": "Use your own photo as the clue and pick from 4 choices. Tap the word that matches the photo.",
+  "zh-TW": "以自己的照片為線索，從四個選項中想起來。點一下符合照片的單字。",
+  "es": "Usa tu propia foto como pista y elige entre 4 opciones. Toca la palabra que corresponde a la foto.",
+  "ko": "내 사진을 힌트로 4지선다에서 떠올려요. 사진에 맞는 단어를 탭하세요.",
+  "vi": "Dùng chính ảnh của bạn làm gợi ý và chọn trong 4 đáp án. Chạm vào từ khớp với ảnh."
+ },
+ "ことばを開く": {
+  "en": "Open the word",
+  "zh-TW": "打開單字",
+  "es": "Abrir la palabra",
+  "ko": "단어 열기",
+  "vi": "Mở từ"
+ },
+ "光っているところをタップ": {
+  "en": "Tap the glowing spot",
+  "zh-TW": "點發光的地方",
+  "es": "Toca lo que brilla",
+  "ko": "빛나는 곳을 탭",
+  "vi": "Chạm vào chỗ sáng"
+ },
+ "最初のキャッチ、**完了**！": {
+  "en": "First Catch **complete**!",
+  "zh-TW": "第一次捕捉**完成**！",
+  "es": "¡Primera captura **completada**!",
+  "ko": "첫 캐치 **완료**!",
+  "vi": "Lần bắt từ đầu tiên đã **xong**!"
+ },
+ "撮って、ことばを見つけた": {
+  "en": "Snapped a photo and found a word",
+  "zh-TW": "拍照找到了單字",
+  "es": "Tomaste una foto y encontraste una palabra",
+  "ko": "찍어서 단어를 찾았어요",
+  "vi": "Đã chụp và tìm được từ"
+ },
+ "図鑑に集めた": {
+  "en": "Added it to your collection",
+  "zh-TW": "收進了圖鑑",
+  "es": "La añadiste a tu colección",
+  "ko": "도감에 모았어요",
+  "vi": "Đã thêm vào bộ sưu tập"
+ },
+ "写真で思い出した": {
+  "en": "Remembered it from your photo",
+  "zh-TW": "用照片想起來了",
+  "es": "La recordaste con tu foto",
+  "ko": "사진으로 떠올렸어요",
+  "vi": "Đã nhớ lại qua ảnh"
+ },
+ "身のまわりから、ことばを増やしていこう。": {
+  "en": "Keep growing your words from the world around you.",
+  "zh-TW": "從身邊的事物，一點一點增加單字吧。",
+  "es": "Sigue sumando palabras de lo que te rodea.",
+  "ko": "주변에서 단어를 하나씩 늘려 가요.",
+  "vi": "Hãy tăng vốn từ từ những thứ quanh bạn."
+ },
+ "日常のすべてが\n**学び**になる": {
+  "en": "Every moment\nbecomes a **lesson**",
+  "zh-TW": "生活中\n處處都是**學習**",
+  "es": "Cada momento\nse vuelve una **lección**",
+  "ko": "일상의 모든 순간이\n**배움**이 돼요",
+  "vi": "Mọi khoảnh khắc\nđều thành **bài học**"
  }
 }

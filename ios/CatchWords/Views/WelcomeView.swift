@@ -9,8 +9,12 @@ import AuthenticationServices
 /// sign-in as the sign-in screen), 「メールでログイン」 and 「初めての方は 新規登録」 (both open the sign-in screen
 /// with the mail form already open), and the agreement to the terms.
 ///
-/// Motion: the stickers pop in one after another and float gently, the sparkle twinkles. With reduced motion
-/// only the still picture.
+/// Motion (the app's opening, owner 2026-10-27: 「アプリを開いたときのアニメーション、モーションデザインにこだわって」): the
+/// first time in a launch the icon pops up in the middle of the screen (where the blank launch screen left off) and
+/// flies to its place at the top left while 「CatchWords」 slides out of it; the stickers pop in one after another and
+/// float gently, the sparkle twinkles; the tagline rises out of a blur line by line and 「学び」 pops in on a blue pill
+/// (`HeadlineReveal`); the ways in rise one after another. A tap on a sticker says its word and shows its reading.
+/// Back from the mail screen only the quick part plays. With reduced motion only the still picture.
 struct WelcomeView: View {
     /// 「メールでログイン」.
     let onMail: () -> Void
@@ -21,7 +25,15 @@ struct WelcomeView: View {
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @State private var appeared: Bool = false
+    /// The icon's opening: popped up in the middle (`logoPop`), then at its place in the header (`docked`).
+    @State private var logoPop: Bool = false
+    @State private var docked: Bool = false
+    /// Where the header's icon is and the middle of the screen (global), to fly the icon from one to the other.
+    @State private var logoFrame: CGRect = .zero
+    @State private var screen: CGRect = .zero
 
+    /// The icon's opening plays once per launch; coming back from the mail screen shows the page at once.
+    @MainActor private static var hasOpened = false
     /// The stickers' least height.
     private static let minStage: CGFloat = 150
 
@@ -37,16 +49,32 @@ struct WelcomeView: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .background {
-            WelcomeBackdrop()
+            WelcomeBackdrop(lit: appeared)
                 .ignoresSafeArea()
         }
-        .onAppear {
-            if reduceMotion {
-                appeared = true
-            } else {
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.7)) { appeared = true }
-            }
+        .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { screen = $0 }
+        .task { await open() }
+    }
+
+    /// The opening: the icon in the middle → its place, then the page (see the type's comment).
+    private func open() async {
+        guard !reduceMotion, !Self.hasOpened else {
+            logoPop = true
+            docked = true
+            if reduceMotion { appeared = true } else { withAnimation(.easeOut(duration: 0.4)) { appeared = true } }
+            return
         }
+        Self.hasOpened = true
+        // The header's icon must have been laid out before it can be sent to the middle.
+        for _ in 0..<20 where logoFrame == .zero || screen == .zero {
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        withAnimation(.spring(response: 0.55, dampingFraction: 0.62)) { logoPop = true }
+        try? await Task.sleep(for: .milliseconds(620))
+        Haptics.impact(.soft, intensity: 0.6)
+        withAnimation(.spring(response: 0.7, dampingFraction: 0.84)) { docked = true }
+        try? await Task.sleep(for: .milliseconds(120))
+        appeared = true
     }
 
     private func page(scrolls: Bool) -> some View {
@@ -73,38 +101,39 @@ struct WelcomeView: View {
     private var header: some View {
         HStack(spacing: 10) {
             WelcomeLogo(size: 34)
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { if !docked { logoFrame = $0 } }
+                .scaleEffect(docked ? 1 : logoPop ? 2.4 : 1.3)
+                .offset(x: docked ? 0 : screen.midX - logoFrame.midX, y: docked ? 0 : screen.minY + screen.height * 0.44 - logoFrame.midY)
+                .opacity(logoPop ? 1 : 0)
+                .zIndex(1)
             Text(verbatim: "CatchWords")
                 .font(.system(size: 23, weight: .bold))
                 .tracking(-0.4)
                 .foregroundStyle(Theme.foreground)
                 .lineLimit(1)
+                .opacity(docked ? 1 : 0)
+                .offset(x: docked ? 0 : -18)
+                .animation(reduceMotion ? nil : .spring(response: 0.6, dampingFraction: 0.85).delay(0.18), value: docked)
             Spacer(minLength: 0)
         }
         .frame(height: 44)
+        .zIndex(1)
         .accessibilityElement(children: .combine)
-        .opacity(appeared ? 1 : 0)
     }
 
     private var copy: some View {
         VStack(spacing: 10) {
-            Text(L("日常のすべてが\n学びになる"))
-                .scaledFont(size: 32, weight: .heavy)
-                .foregroundStyle(Theme.foreground)
-                .multilineTextAlignment(.center)
-                .lineSpacing(2)
+            RevealHeadline(marked: L("日常のすべてが\n**学び**になる"), size: 32, active: appeared, delay: 0.12, duration: 1.0)
                 .lineLimit(2)
-                .minimumScaleFactor(0.6)
-                .accessibilityAddTraits(.isHeader)
             Text(L("街で出会う言葉を、ステッカーに。"))
                 .scaledFont(size: 15, weight: .medium)
                 .foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
+                .staggerIn(appeared, delay: 0.45, distance: 8)
         }
         .frame(maxWidth: .infinity)
-        .opacity(appeared ? 1 : 0)
-        .offset(y: appeared ? 0 : 10)
     }
 
     private var ways: some View {
@@ -126,8 +155,10 @@ struct WelcomeView: View {
             .buttonStyle(PressableStyle())
             .disabled(auth.isBusy)
             .accessibilityIdentifier("welcome.google")
+            .staggerIn(appeared, delay: 0.5)
 
             apple
+                .staggerIn(appeared, delay: 0.57)
 
             if let msg = auth.errorMessage {
                 Label(msg, systemImage: "exclamationmark.circle.fill")
@@ -146,6 +177,7 @@ struct WelcomeView: View {
             }
             .padding(.horizontal, 8)
             .padding(.top, 2)
+            .staggerIn(appeared, delay: 0.64)
 
             Button(action: onMail) {
                 HStack(spacing: 4) {
@@ -161,6 +193,7 @@ struct WelcomeView: View {
             }
             .buttonStyle(PressableStyle(scale: 0.97))
             .accessibilityIdentifier("welcome.signin")
+            .staggerIn(appeared, delay: 0.68)
 
             Button(action: onSignUp) {
                 HStack(spacing: 6) {
@@ -183,6 +216,7 @@ struct WelcomeView: View {
             }
             .buttonStyle(PressableStyle(scale: 0.97))
             .accessibilityIdentifier("welcome.start")
+            .staggerIn(appeared, delay: 0.72)
 
             // Consent to the terms and the privacy policy is given by continuing (both pages are links).
             Text(LegalLinks.signInAgreement())
@@ -191,8 +225,8 @@ struct WelcomeView: View {
                 .tint(Theme.primaryInk)
                 .multilineTextAlignment(.center)
                 .accessibilityIdentifier("welcome.agreement")
+                .staggerIn(appeared, delay: 0.76, distance: 6)
         }
-        .opacity(appeared ? 1 : 0)
     }
 
     /// Apple's own button (HIG: the system draws the logo, title and proportions), 「Appleで続ける」.
@@ -257,22 +291,36 @@ enum WelcomeImage {
 
 // MARK: - Backdrop
 
-/// A pale sky blue at the top fading to the page colour, with a soft glow behind the stickers.
+/// A pale sky blue at the top fading to the page colour, with a soft glow behind the stickers. The glow opens up with
+/// the page (`lit`) and then breathes slowly.
 private struct WelcomeBackdrop: View {
+    var lit: Bool = true
+
     private static let top = Color(light: 0xE9F3FE, dark: 0x061A33)
     private static let glow = Color(light: 0xD5E8FC, dark: 0x0B2B52)
+
+    @Environment(\.appReduceMotion) private var reduceMotion
+    @State private var breathe = false
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
                 Theme.background
                 LinearGradient(colors: [Self.top, Self.top.opacity(0)], startPoint: .top, endPoint: .center)
+                    .opacity(lit ? 1 : 0.4)
                 RadialGradient(colors: [Self.glow.opacity(0.85), Self.glow.opacity(0)],
                                center: UnitPoint(x: 0.5, y: 0.34), startRadius: 0, endRadius: geo.size.width * 0.72)
+                    .scaleEffect(lit ? (breathe ? 1.08 : 1) : 0.5)
+                    .opacity(lit ? 1 : 0)
             }
+            .animation(reduceMotion ? nil : .easeOut(duration: 1.1), value: lit)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 5).repeatForever(autoreverses: true).delay(1.2)) { breathe = true }
+        }
     }
 }
 
@@ -287,6 +335,10 @@ private struct WelcomeStickers: View {
 
     private struct Piece {
         let image: String
+        /// The word on the sticker and its readings (said and shown when the sticker is tapped).
+        let word: String
+        let zhuyin: String
+        let pinyin: String
         /// Centre and size in design pixels.
         let x: CGFloat
         let y: CGFloat
@@ -299,9 +351,12 @@ private struct WelcomeStickers: View {
     }
 
     private static let pieces: [Piece] = [
-        Piece(image: "welcome_sticker_coffee", x: 244, y: 421, w: 395, h: 352, delay: 0.05, bob: 10, period: 3.6),
-        Piece(image: "welcome_sticker_plant", x: 645, y: 365, w: 372, h: 420, delay: 0.17, bob: 12, period: 4.2),
-        Piece(image: "welcome_sticker_croissant", x: 440, y: 682, w: 407, h: 299, delay: 0.29, bob: 9, period: 3.9),
+        Piece(image: "welcome_sticker_coffee", word: "咖啡", zhuyin: "ㄎㄚ ㄈㄟ", pinyin: "kāfēi",  // l10n-ignore (target word)
+              x: 244, y: 421, w: 395, h: 352, delay: 0.05, bob: 10, period: 3.6),
+        Piece(image: "welcome_sticker_plant", word: "植物", zhuyin: "ㄓˊ ㄨˋ", pinyin: "zhíwù",  // l10n-ignore (target word)
+              x: 645, y: 365, w: 372, h: 420, delay: 0.17, bob: 12, period: 4.2),
+        Piece(image: "welcome_sticker_croissant", word: "可頌", zhuyin: "ㄎㄜˇ ㄙㄨㄥˋ", pinyin: "kěsòng",  // l10n-ignore (target word)
+              x: 440, y: 682, w: 407, h: 299, delay: 0.29, bob: 9, period: 3.9),
     ]
     private static let designWidth: CGFloat = 864
     private static let designTop: CGFloat = 150
@@ -323,25 +378,31 @@ private struct WelcomeStickers: View {
                     .opacity(appeared ? 1 : 0)
                     .animation(animate ? Animation.easeOut(duration: 0.4).delay(0.45) : nil, value: appeared)
                     .position(x: ox + 92.5 * kx, y: oy + (257.5 - Self.designTop) * ky)
+                    .allowsHitTesting(false)
                 ForEach(0..<Self.pieces.count, id: \.self) { i in
                     let p = Self.pieces[i]
-                    WelcomeSticker(image: p.image, width: p.w * s, height: p.h * s, delay: p.delay,
+                    WelcomeSticker(image: p.image, word: p.word, zhuyin: p.zhuyin, pinyin: p.pinyin,
+                                   width: p.w * s, height: p.h * s, delay: p.delay,
                                    bob: p.bob * s, period: p.period, appeared: appeared, animate: animate)
                         .position(x: ox + p.x * kx, y: oy + (p.y - Self.designTop) * ky)
                 }
                 WelcomeSparkle(size: 76 * s, appeared: appeared, animate: animate)
                     .position(x: ox + 747 * kx, y: oy + (662 - Self.designTop) * ky)
+                    .allowsHitTesting(false)
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
-        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 }
 
-/// One sticker: pops in, then floats up and down.
+/// One sticker: pops in (turning upright as it lands), then floats up and down. A tap squashes it, says its word and
+/// shows its reading above it for a moment — the app's tags do the same.
 private struct WelcomeSticker: View {
     let image: String
+    let word: String
+    let zhuyin: String
+    let pinyin: String
     let width: CGFloat
     let height: CGFloat
     let delay: Double
@@ -351,6 +412,10 @@ private struct WelcomeSticker: View {
     let animate: Bool
 
     @State private var up: Bool = false
+    @State private var squash: Bool = false
+    @State private var showsReading: Bool = false
+    @State private var taps: Int = 0
+    @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
 
     var body: some View {
         Group {
@@ -363,13 +428,51 @@ private struct WelcomeSticker: View {
         }
         .frame(width: width, height: height)
         .shadow(color: Color(hex: 0x1C4A80).opacity(0.16), radius: 10, y: 6)
+        .scaleEffect(x: squash ? 1.08 : 1, y: squash ? 0.9 : 1, anchor: .bottom)
+        .overlay(alignment: .top) {
+            if showsReading {
+                VStack(spacing: 0) {
+                    Text(verbatim: readingPref == "pinyin" ? pinyin : zhuyin)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                    Text(verbatim: word)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Theme.foreground)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Theme.card, in: Capsule())
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                .offset(y: -18)
+                .transition(.scale(scale: 0.4, anchor: .bottom).combined(with: .opacity))
+            }
+        }
+        .contentShape(.rect)
+        .onTapGesture { say() }
         .offset(y: up ? -bob : 0)
-        .scaleEffect(appeared ? 1 : 0.7)
+        .rotationEffect(.degrees(appeared ? 0 : (delay < 0.1 ? -14 : delay < 0.2 ? 12 : -8)))
+        .scaleEffect(appeared ? 1 : 0.6)
         .opacity(appeared ? 1 : 0)
-        .animation(animate ? Animation.spring(response: 0.55, dampingFraction: 0.7).delay(delay) : nil, value: appeared)
+        .animation(animate ? Animation.spring(response: 0.6, dampingFraction: 0.62).delay(delay) : nil, value: appeared)
         .onAppear {
             guard animate else { return }
             withAnimation(.easeInOut(duration: period).repeatForever(autoreverses: true).delay(delay + 0.6)) { up = true }
+        }
+    }
+
+    private func say() {
+        taps += 1
+        let tap = taps
+        Haptics.impact(.light)
+        SoundService.shared.speak(word)
+        withAnimation(.spring(response: 0.16, dampingFraction: 0.5)) { squash = true }
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.62)) { showsReading = true }
+        Task {
+            try? await Task.sleep(for: .milliseconds(140))
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.45)) { squash = false }
+            try? await Task.sleep(for: .milliseconds(1700))
+            guard tap == taps else { return }
+            withAnimation(.easeOut(duration: 0.25)) { showsReading = false }
         }
     }
 }

@@ -78,11 +78,9 @@ struct HomeView: View {
                             // Nothing to show yet and the dex could not be read: say so, offer a retry.
                             AlbumLoadFailed(message: err) { Task { await dex.load() } }
                                 .frame(height: 360)
-                                .tourAnchor(.album)
                         } else if !dex.hasLoaded, dex.stickers.isEmpty {
                             AlbumSkeleton()
                                 .frame(height: 440)
-                                .tourAnchor(.album)
                         } else {
                             HomeAlbum(
                                 days: AlbumDay.days(from: dex.albumStickers, today: today),
@@ -360,10 +358,9 @@ struct HomeAlbum: View {
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(days.enumerated()), id: \.element.id) { i, d in
+            ForEach(days, id: \.id) { d in
                 daySection(d)
                     .padding(.bottom, 24)
-                    .tourAnchor(.album, if: i == 0)
             }
         }
     }

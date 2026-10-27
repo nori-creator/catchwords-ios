@@ -255,9 +255,7 @@ struct DexView: View {
                     // Every kind of view opens like a tab: the same pon and tap as the tab bar (owner 2026-10-16).
                     SoundService.shared.pon(open: true)
                     withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) { mode = m }
-                    router.advanceTour(from: .dexTypes, to: .dexOpen)
                 }
-                .tourAnchor(.dexModes)
             }
             .padding(.horizontal, 2)
             // The app's own search and filters (not in the prototype), in every view — the gallery too, which

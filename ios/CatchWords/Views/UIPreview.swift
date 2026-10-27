@@ -160,6 +160,16 @@ struct UIPreviewRoot: View {
             case "auth": AuthView()
             case "signin": AuthView(startOnOptions: true)
             case "onboarding": OnboardingView {}
+            // The first screens (owner 2026-10-27): the intro's 2nd and 3rd pages, the goals, the ready screen; the
+            // first guide's card over the tab bar, after the catch, and its end; the welcome screen's opening, frame by frame.
+            case "obstory2": OnboardingView(page: 1) {}
+            case "obstory3": OnboardingView(page: 2) {}
+            case "obgoals": OnboardingView(start: .questions, step: 3) {}
+            case "obready": OnboardingView(start: .ready) {}
+            case "tour": TourPreview(step: .tapCamera)
+            case "tour-added": TourPreview(step: .added)
+            case "tourdone": TourCompleteView(sticker: nil) {}
+            case "authopen": AuthView()
             case "aiconsent": AIConsentView()
             case "paywall": PaywallView()
             case "dex": DexView()
@@ -635,6 +645,24 @@ private struct LandingPreview: View {
 
 /// The tab bar over the home album's paper, over a map-like ground and over the camera's dark machine, with the raised
 /// camera disc (`-uiPreview tabbar`, owner 2026-10-25).
+/// The first guide over the real tab bar: its camera disc lit, the finger tapping it, the four steps on the card.
+private struct TourPreview: View {
+    let step: TourStep
+    @State private var tab: AppTab = .home
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            HomeBackground()
+            CapsuleTabBar(selection: $tab, onCamera: false)
+                .frame(height: 90)
+                .padding(.bottom, 4)
+        }
+        .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+            TourLayer(step: step, anchors: anchors, onNext: {}, onSkip: {})
+        }
+    }
+}
+
 private struct TabBarPreview: View {
     @State private var home: AppTab = .home
     @State private var dex: AppTab = .dex
