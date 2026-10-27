@@ -12,7 +12,7 @@
 
 # Privacy Policy
 
-Last updated: 3 October 2026
+Last updated: 26 October 2026
 
 〔Operator name = LEGAL_SELLER_NAME〕(“the operator”) handles information about users of CatchWords (the iPhone app and the web version; “the Service”) as described below, in accordance with Japan's Act on the Protection of Personal Information and other applicable laws. This is a translation; if it differs from the Japanese version, the Japanese version prevails.
 
@@ -28,6 +28,7 @@ Last updated: 3 October 2026
 - Paid plan information: whether you are on Pro. Payments are processed by Stripe; the operator never receives your card number. If in-app purchases start in the iPhone app, we receive the purchase record (product, period and transaction identifiers) from Apple to check that it is valid (not your payment details)
 - Error reports: what you send when you report an error in a word
 - Technical information: to deliver the Service, your IP address, browser type and similar details are processed on the servers of the providers listed below
+- Advertising (iPhone app): when a video ad is shown, Google (AdMob) receives device information (model, OS, IP address and similar) and a record of the ad being shown and watched. The advertising identifier (IDFA) is not used
 
 ## 2. How we use it
 
@@ -41,7 +42,7 @@ Last updated: 3 October 2026
 - To provide paid plans and manage payments and cancellations
 - To prevent abuse, investigate bugs and improve the Service. The operator views and analyses per-user usage figures (such as the number of captures and reviews, active days and screen usage). To investigate bugs and answer your enquiries, the operator may also view the photos you capture and the place names where they were taken. Your email address, exact location (coordinates) and diary text are not included
 - To produce overall statistics (such as the number of users and how many keep using the app), handled in a form that does not identify individuals
-- To show ads (only when advertising is enabled; see section 6)
+- To show ads (see section 6)
 - To respond to enquiries
 
 ## 3. Sharing with third parties
@@ -59,7 +60,7 @@ Which providers are used depends on the feature and on the operator's settings. 
 - **Maps**: Google (Google Maps). When a map is shown on the web version, your device loads it from Google. To look up a place name on the web version, the photo's coordinates are sent to Google through Lovable's relay. In the iPhone app, place names are looked up by sending the coordinates from your device to Apple's geocoding service (not through the operator's servers)
 - **Apple (iPhone app)**: sign-in with Apple, speech recognition for search by voice (audio, when it cannot be recognised on the device), place-name lookup (coordinates), and in-app purchases (the purchase record, once they start)
 - **Payments**: Stripe (payments, invoices, and the subscription management page). Your email address, user ID and payment details are provided to Stripe
-- **Advertising**: Google (AdSense), only when advertising is enabled (see section 6)
+- **Advertising**: Google (AdMob in the iPhone app; AdSense on the web version, only when advertising is enabled). Device information and a record of the ad being shown and watched go to Google (see section 6)
 
 **Consent to sending data to AI**: before you use an AI feature for the first time, the iPhone app shows a screen explaining what is sent (photos, images picked from Photos, scan frames, words, text you enter, words you said as text, and settings such as your study language), where it goes and what it is used for, and asks for your consent. If you do not consent, AI features (the camera, scanning, card creation, diary correction and so on) are unavailable and nothing is sent; browsing your words and reviews still work. You can withdraw consent at any time in Settings → Privacy → “Consent to send data to AI”. Your email address and name are never sent to AI providers. The operator itself does not use your photos or diary to train AI.
 
@@ -77,7 +78,9 @@ The operator uses each provider after confirming that, through its terms or data
 
 ## 6. Advertising
 
-When advertising is enabled, the web version of the Service shows ads served by Google AdSense. Google may use cookies and device identifiers to show ads, including ads personalised to your interests. To learn how Google uses information, see [ How Google uses information from sites or apps that use our services ](https://policies.google.com/technologies/partner-sites) . You can turn off personalised ads in [ Google's ad settings ](https://adssettings.google.com) . Users in the European Economic Area, the UK and Switzerland are asked for consent through Google's consent message. Pro users do not see ads. The iPhone app shows no ads and does not use the advertising identifier (IDFA).
+When you have used up the free captures, the iPhone app shows a video ad from Google AdMob only if you choose to (watching it to the end gives you one more capture). The app never shows ads on its own, at launch or during a capture. Google uses device information (model, OS, IP address and similar) and the record of the ad being watched to deliver ads, measure them and prevent fraud, and may show ads personalised to your interests. The iPhone app does not use the advertising identifier (IDFA) and does not ask for App Tracking Transparency permission. Users in the European Economic Area, the UK and Switzerland are asked for consent through Google's consent message, and can change it at any time in the app's Settings → “Legal” → “Ad privacy choices”.
+
+When advertising is enabled, the web version of the Service shows ads served by Google AdSense. Google may use cookies and device identifiers to show ads, including ads personalised to your interests. To learn how Google uses information, see [ How Google uses information from sites or apps that use our services ](https://policies.google.com/technologies/partner-sites) . You can turn off personalised ads in [ Google's ad settings ](https://adssettings.google.com) . Users in the European Economic Area, the UK and Switzerland are asked for consent through Google's consent message. Pro users do not see ads.
 
 ## 7. Retention and deletion
 
@@ -105,7 +108,7 @@ The Service is not directed at children under 13, and children under 13 may not 
 
 ## 10. Cookies and storage on your device
 
-The Service uses your browser's local storage and IndexedDB to keep you signed in, to remember settings such as the display language, to hold data waiting to be saved while offline, and to cache images and audio. The Service itself does not use cookies for tracking or advertising. However, when advertising is enabled Google uses cookies (section 6), and Google (when a map is shown) and Stripe (on the payment page) may use their own cookies and similar technologies.
+The Service uses your browser's local storage and IndexedDB to keep you signed in, to remember settings such as the display language, to hold data waiting to be saved while offline, and to cache images and audio. The Service itself does not use cookies for tracking or advertising. However, when advertising is enabled Google uses cookies (section 6); when the iPhone app shows an ad, Google's AdMob component stores on your device the information it needs to deliver ads and to remember your consent; and Google (when a map is shown) and Stripe (on the payment page) may use their own cookies and similar technologies.
 
 The iPhone app stores the following on your device: what keeps you signed in (the Keychain), display and sound settings, the state of your consent to sending data to AI (date and version), the words, small photo thumbnails and review count shown in home screen widgets (a storage area shared by the app and its widgets), scheduled notifications (review reminders and location reminders), photos waiting to be sent while offline (“Photo waiting to be analyzed”) and unsaved diary drafts, and cached images and audio. None of this is sent to the operator's servers, except photos and diary entries that are sent once you are back online.
 
@@ -149,4 +152,4 @@ Where the GDPR or the UK GDPR applies, the operator processes personal data on t
 
 ### Users in California, United States
 
-The operator does not sell personal information for money. When advertising is enabled on the web version, Google may collect information with cookies and similar technologies and use it for interest-based ads (section 6), which may count as “sharing” under state law. You can turn this off in Google's ad settings, or ask us at the contact in section 12. You have the rights to know, to delete, to correct and to opt out of sale or sharing, and you will not be treated unfavourably for using them.
+The operator does not sell personal information for money. When the iPhone app shows an ad, and when advertising is enabled on the web version, Google may collect information with cookies and similar technologies and use it for interest-based ads (section 6), which may count as “sharing” under state law. You can turn this off in Google's ad settings, or ask us at the contact in section 12. You have the rights to know, to delete, to correct and to opt out of sale or sharing, and you will not be treated unfavourably for using them.
