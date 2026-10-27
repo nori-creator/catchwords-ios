@@ -955,3 +955,128 @@ export function mayWriteMainLabel(
   const forSentence = typeof e.example_scene_for === "string" ? e.example_scene_for.trim() : "";
   return !!forSentence && !sameSentence(forSentence, sentence);
 }
+
+/*
+ * ---------------------------------------------------------------------------------------------
+ * **型（チャンク）の数だけ例文を出す**（オーナー報告 2026-10-27「例文は表示したチャンクと同じ数だけそのチャンクを
+ * 使った例文を表示して。いま紅茶ラテを撮ったらチャンクが二つあるのに例文がひとつだけになってる」）。
+ *
+ * 指示文はもう「型1つにつき例文1つ」と頼んでいるが、守られない回がある。落ちる道は3つ:
+ * 1. AI が型の数より少なく書いた。
+ * 2. 書いたが `pickExamplePatterns` が落とした（似た文型の2つ目・24字を超えた文）。
+ * 3. 例文を選んだ後で型の門（`gateUsageChunks`）が型を入れ替え・落とし、残った型を含む文が選ばれていない。
+ *
+ * 直し方: 型の門の**後**に、例文を持たない型を数える（`chunksWithoutExample`）。まず同じ返事の生の
+ * パターンから、その型を含む文を拾い直す（`coverChunks` — 2・3 の道。AI は呼ばない）。それでも足りない型だけ、
+ * 小さな呼び出しで1文ずつ書かせる（`chunkExamplesRule`、1 の道）。足した文は追加の例文の後ろへ入る
+ * （画面は型の順に並べ替える — iOS `ChunkRules.chunkExamples`）。
+ * ---------------------------------------------------------------------------------------------
+ */
+
+type ChunkLike = NonNullable<Parameters<typeof containsChunk>[1]>[number];
+
+/** 例文（メイン＋追加）の文の並び。 */
+function exampleSentences(card: CardLike): string[] {
+  const extra = (card.extras?.examples_extra as Array<{ zh?: string | null }> | undefined) ?? [];
+  return [card.example_sentence ?? "", ...extra.map((e) => e?.zh ?? "")].filter((s) => s.trim());
+}
+
+/** どの例文にも字のまま入っていない型の番号（型の順）。 */
+export function chunksWithoutExample(
+  chunks: readonly ChunkLike[] | null | undefined,
+  sentences: readonly string[],
+): number[] {
+  return (chunks ?? []).flatMap((c, i) => (sentences.some((s) => containsChunk(s, [c])) ? [] : [i]));
+}
+
+/**
+ * 例文を持たない型に、`patterns` の中からその型を含む文を1つずつ足す（型の順）。メインの例文が空なら
+ * 最初の1つをメインに。`withExtra` が false（追加の例文を頼まない呼び出し）なら、メインが空の時だけ埋める。
+ * 文の確かめは `pickExamplePatterns` と同じ（学習言語・見出し語・重ね言葉・自己点検）。似た文型でも、
+ * 別の型を受け持つ文は残す — 型ごとに1文が要るので。
+ */
+export function coverChunks<T extends CardLike>(
+  card: T,
+  opts: {
+    chunks: readonly ChunkLike[] | null | undefined;
+    patterns: readonly ExamplePattern[] | null | undefined;
+    headword: string;
+    language: string;
+    readerLang: string;
+    withExtra: boolean;
+  },
+): { card: T; missing: number[] } {
+  let out = card;
+  const chunks = opts.chunks ?? [];
+  for (const i of chunksWithoutExample(chunks, exampleSentences(out))) {
+    const hasMain = !!(out.example_sentence ?? "").trim();
+    if (hasMain && !opts.withExtra) break;
+    const used = exampleSentences(out);
+    const [hit] = pickExamplePatterns(
+      (opts.patterns ?? []).filter((p) => containsChunk(p.sentence ?? "", [chunks[i]])),
+      { headword: opts.headword, language: opts.language, readerLang: opts.readerLang, max: MAX_EXAMPLE_PATTERNS },
+    ).filter((e) => !used.some((s) => sameSentence(s, e.sentence)));
+    if (!hit) continue;
+    if (!hasMain) {
+      const keep = (out.extras?.examples_extra as unknown[] | undefined) ?? [];
+      out = applyExamplePatterns(out, [hit], { withExtra: false });
+      if (opts.withExtra) {
+        out = {
+          ...out,
+          extras: { ...out.extras, examples_extra: keep, example_pattern_count: 1 + keep.length },
+        };
+      }
+      continue;
+    }
+    const extra = [...((out.extras?.examples_extra as unknown[] | undefined) ?? []), toExtraExample(hit)];
+    out = {
+      ...out,
+      extras: { ...out.extras, examples_extra: extra, example_pattern_count: 1 + extra.length },
+    };
+  }
+  return { card: out, missing: chunksWithoutExample(chunks, exampleSentences(out)) };
+}
+
+/** 型のパーツを1つの句に（入れ替えの候補は「/」で並べる）。指示文に見せるため。 */
+function chunkText(c: ChunkLike): string {
+  return (c?.parts ?? [])
+    .map((p) => {
+      const alts = (p?.alts ?? []).map((a) => (a?.text ?? "").trim()).filter(Boolean);
+      const t = (p?.text ?? "").trim();
+      return alts.length ? `[${[t, ...alts].join("/")}]` : t;
+    })
+    .join("");
+}
+
+/**
+ * 例文を持たない型だけに、1文ずつ書かせる小さな指示（`coverChunks` で拾えなかった時だけ呼ぶ）。
+ * 決まりは本体の例文と同じ（一人称のセリフ・字数・ネイティブが実際に言う場面・実在の名前）。返す形は
+ * `example_patterns`（同じ門 `coverChunks` を通す）。
+ */
+export function chunkExamplesRule(opts: {
+  headword: string;
+  targetName: string;
+  nl: string;
+  chunks: readonly ChunkLike[];
+  levelRule: string;
+  chunkRoles: string;
+  sceneMax?: number;
+}): string {
+  const { headword, targetName, nl, chunks, levelRule, chunkRoles } = opts;
+  const sceneMax = opts.sceneMax ?? SCENE_MAX_CHARS.ja;
+  return [
+    `${targetName}の語「${headword}」の使い方の型（チャンク）ごとに、その型を使った例文を1つずつ書く。`,
+    `型（この順に、1つにつき例文1つ。[ ] の中は入れ替えの候補で、どれか1つを使う）:`,
+    ...chunks.map((c, i) => `${i + 1}. ${chunkText(c)}`),
+    `【例文の絶対ルール】`,
+    `a. 自分が目の前の誰かに言う一人称のセリフ。説明文・看板・アナウンス・小説の地の文・三人称の描写は禁止。`,
+    `b. 句読点を除いて 12〜${EXAMPLE_MAX_HAN}字。`,
+    `c. 「${headword}」と、その型の字を**そのまま続けて**含む（間に別の字を入れない）。`,
+    `d. その型をネイティブが実際に口にする場面で、台湾の人がいちばん自然に・よく言う、実用的な文。`,
+    `e. ${REAL_NAMES_RULE}`,
+    `scene: その文がまさに口にされる状況の短い1行（${nl}で${sceneMax}字以内）。scene_fits: 文だけを読んだネイティブが思い浮かべる場面と scene が同じなら true。`,
+    levelRule,
+    `JSON だけを返す: {"example_patterns":[{"share":0,"sentence":"${targetName}の例文","translation":"自然な訳(${nl})","scene":"短い1行(${nl})","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`,
+    `chunks は sentence をパーツ分解した [{text,pos}]（pos は ${chunkRoles}）。`,
+  ].join("\n");
+}

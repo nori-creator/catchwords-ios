@@ -136,11 +136,17 @@ nonisolated enum MemoryMath {
     }
 
     static func percent(intervalDays: Int, ease: Double, last: Date?, now: Date = Date()) -> Int {
+        Int(exactPercent(intervalDays: intervalDays, ease: ease, last: last, now: now).rounded())
+    }
+
+    /// The same, not rounded: a curve drawn from whole percents climbs down in 1 % steps and looks jagged
+    /// (owner 2026-10-27: 「グラフがぎざぎざ、波うってる」).
+    static func exactPercent(intervalDays: Int, ease: Double, last: Date?, now: Date = Date()) -> Double {
         guard let last else { return 100 }
         let dt = now.timeIntervalSince(last) / 86_400
         guard dt > 0 else { return 100 }
         let stability = max(0.5, Double(max(1, intervalDays)) * max(1, ease) * k)
-        return Int((max(0, min(100, 100 * exp(-dt / stability)))).rounded())
+        return max(0, min(100, 100 * exp(-dt / stability)))
     }
 }
 
