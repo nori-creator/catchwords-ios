@@ -204,9 +204,8 @@ struct SettingsView: View {
                 wheelRow(levels.first { $0.value == profile.levelGoal }?.label ?? profile.levelGoal) { openWheel(.goal) }
                     .accessibilityIdentifier("settings.wheel.goal")
                 // The learner's level has one use (owner 2026-10-03): the difficulty of the example sentences and
-                // chunks. The server reads both values from the profile when it writes them.
-                Text(L("例文とチャンクを、今のレベルから目標レベルのあいだの難しさで作ります。"))
-                    .scaledFont(size: 12).foregroundStyle(Theme.muted)
+                // chunks. The server reads both values from the profile when it writes them. No caption under it
+                // (owner 2026-10-27: 「目標レベルの下の小さな説明文消して」).
                 if !isEnglish { label(L("発音表記")).padding(.top, 6) }
                 if profile.targetLanguage == "ja" {
                     ChoicePills(options: [("kana", L("あ ふりがな")), ("romaji", L("abc ローマ字"))], selection: saving($readingJa))

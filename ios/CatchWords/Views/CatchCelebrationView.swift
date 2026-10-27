@@ -46,6 +46,10 @@ struct CatchCelebrationView: View {
     @State private var screenOrigin: CGPoint = .zero
     /// The bottom of the word's line (its characters and their readings), global: the meaning goes under it.
     @State private var wordBottom: CGFloat?
+    /// The meaning as it was when it first showed. The card's own meaning often arrives a moment later and is longer
+    /// or shorter than the candidate's: swapping it in re-centred the line and the meaning jumped sideways
+    /// (owner 2026-10-27: 「キャッチの演出の時に日本語訳が横ずれしてる」). The word page shows the card's meaning.
+    @State private var meaningShown: String?
 
     init(vm: CaptureViewModel, saving: Bool = false, onAdd: @escaping () async -> Bool,
          onStickerFrame: @escaping (CGRect) -> Void = { _ in }) {
@@ -256,7 +260,7 @@ struct CatchCelebrationView: View {
                                 .background(Color(hex: 0xEDF2F8), in: Capsule())
                                 .fixedSize()
                         }
-                        Text(meaning(c))
+                        Text(meaningShown ?? meaning(c))
                             .font(.system(size: 38 * k, weight: .medium))
                             .foregroundStyle(Color(hex: 0x5C646F))
                             .lineLimit(2)
@@ -264,6 +268,10 @@ struct CatchCelebrationView: View {
                     }
                     .frame(maxWidth: W * 0.9)
                     .opacity(ma * a)
+                    .onAppear {
+                        let m = meaning(c)
+                        if meaningShown == nil, !m.isEmpty { meaningShown = m }
+                    }
                     if !note.isEmpty {
                         Text(note)
                             .font(.system(size: 30 * k, weight: .semibold))

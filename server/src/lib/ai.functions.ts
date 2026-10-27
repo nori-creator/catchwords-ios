@@ -64,6 +64,8 @@ import {
   sameSentence,
   examplePatternsRule,
   pickExamplePatterns,
+  coverChunks,
+  chunkExamplesRule,
   applyFixedMainExample,
   checkMainExampleLabel,
   chunksMatchSentence,
@@ -664,6 +666,8 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
 
 /** 枠だけを聞き直す1回の締め切り（答えは短いので、1番手の候補より短く）。 */
 const LOCATE_TIMEOUT_MS = 8_000;
+/** 型の例文を足す小さな呼び出しの締め切り（`coverChunks`）。過ぎたらカードはそのまま返す。 */
+const CHUNK_EXAMPLES_TIMEOUT_MS = 8_000;
 
 type SuggestionItem = z.infer<typeof SuggestionSchema>["suggestions"][number];
 
@@ -1980,6 +1984,56 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       card = { ...card, extras: withChunkReadingsInExtras(card.extras ?? ex, cardLanguage) };
     }
     if (chunkVerify) console.info("generateCard: chunk verify", chunkVerify);
+    /**
+     * **型の数だけ例文**（オーナー報告 2026-10-27 紅茶拿鐵: 型が2つで例文が1つ、`coverChunks`）。門を通った型のうち
+     * 例文を持たない物に、まず同じ返事の生のパターンから拾い直し、それでも無い型だけ小さな呼び出しで書かせる。
+     * 書けなかった（時間切れ・崩れた返事）時は、カードはそのまま返す — 型も例文も捨てない。
+     */
+    {
+      const keptChunks = card.extras?.usage_chunks ?? [];
+      const coverOpts = {
+        chunks: keptChunks,
+        headword: resolvedHead,
+        language: cardLanguage,
+        readerLang: explainLang,
+        withExtra: want("examples_extra"),
+      };
+      const covered = coverChunks(card, { ...coverOpts, patterns: card.example_patterns });
+      card = covered.card;
+      if (covered.missing.length > 0 && coverOpts.withExtra) {
+        const started = Date.now();
+        const missing = covered.missing.map((i) => keptChunks[i]);
+        try {
+          const reply = await cardTargets[0].generate(
+            chunkExamplesRule({
+              ...patternBase,
+              headword: resolvedHead,
+              chunks: missing,
+            }),
+            AbortSignal.timeout(CHUNK_EXAMPLES_TIMEOUT_MS),
+          );
+          const parsed = z
+            .object({ example_patterns: z.array(ExamplePatternSchema).catch([]) })
+            .catch({ example_patterns: [] })
+            .parse(parseJsonFromAiText(reply.text ?? ""));
+          const again = coverChunks(card, { ...coverOpts, patterns: parsed.example_patterns });
+          card = again.card;
+          console.info("generateCard: 型の例文を足した", {
+            headword: resolvedHead,
+            asked: missing.length,
+            still: again.missing.length,
+            ms: Date.now() - started,
+          });
+        } catch (e) {
+          console.warn("generateCard: 型の例文を足せなかった", {
+            headword: resolvedHead,
+            asked: missing.length,
+            ms: Date.now() - started,
+            error: e instanceof Error ? e.message.slice(0, 120) : "failed",
+          });
+        }
+      }
+    }
 
     /**
      * **級は辞書が正**（オーナー指摘 2026-08-27 ⑭）。
