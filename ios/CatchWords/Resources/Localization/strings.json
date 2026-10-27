@@ -9112,5 +9112,40 @@
   "es": "Tu constancia",
   "ko": "지속률은",
   "vi": "Tỷ lệ duy trì của bạn"
+ },
+ "エラーの記録": {
+  "en": "Error reports",
+  "zh-TW": "錯誤記錄",
+  "es": "Informes de errores",
+  "ko": "오류 기록",
+  "vi": "Báo cáo lỗi"
+ },
+ "送る": {
+  "en": "On",
+  "zh-TW": "傳送",
+  "es": "Activado",
+  "ko": "보냄",
+  "vi": "Bật"
+ },
+ "送らない（開発用ビルド）": {
+  "en": "Off (development build)",
+  "zh-TW": "不傳送（開發用版本）",
+  "es": "Desactivado (versión de desarrollo)",
+  "ko": "보내지 않음 (개발용 빌드)",
+  "vi": "Tắt (bản dựng phát triển)"
+ },
+ "テストを送る": {
+  "en": "Send a test",
+  "zh-TW": "傳送測試",
+  "es": "Enviar una prueba",
+  "ko": "테스트 보내기",
+  "vi": "Gửi thử"
+ },
+ "テストを送りました": {
+  "en": "Test sent",
+  "zh-TW": "已傳送測試",
+  "es": "Prueba enviada",
+  "ko": "테스트를 보냈습니다",
+  "vi": "Đã gửi thử"
  }
 }

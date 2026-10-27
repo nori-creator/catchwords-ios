@@ -77,6 +77,12 @@
   **保存した時の帯で固定**（後でレベルを変えても保存済みの語は変わらない。↻ を押した語だけ今の帯で作り直す）。見出し語の読みは
   辞書の事実なので共有してよい。**語の TOCFL の級はアプリから消した** — 表示に足し直さない。
 
+- **エラーの記録は Sentry**（2026-10-27「Sentry を導入」）: iOS は `ErrorReporting`（プロジェクト `catchwords-ios`）、サーバは
+  `server/src/lib/error-report.ts`（`catchwords-server`、500 番台だけ、SDK を使わず envelope を1回 POST）。送るのは落ちた記録・
+  ハング・500 番台・`DevLog` の失敗（save / decode / auth / encounter）だけ。**画面の撮影・リプレイ・アカウント・IP・写真・
+  URL の ? 以降は送らない**。開発用ビルド・試験・CI のプレビューでは動かさない（無料枠 5,000 件/月）。dSYM は ios-release.yml が
+  `SENTRY_AUTH_TOKEN` があれば送る。利用の分析（PostHog）は利用者が増えてから（同日の判断。今は入れない）。
+
 ## 製品の範囲
 
 - **本物は iOS 版だけ**（2026-10-21「ios版だけが本物、WEB版はテストたから気にしなくていい」）。Web 版の画面の不具合は

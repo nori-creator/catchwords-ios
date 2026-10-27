@@ -9,6 +9,7 @@
  */
 import { runWithRequest } from "../shims/tanstack-start-server";
 import { NATIVE_FNS, publicMessage, statusForError } from "@/lib/native-fn";
+import { reportServerError } from "@/lib/error-report";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
 
@@ -39,7 +40,12 @@ Deno.serve(async (request: Request) => {
       return json({ result: result ?? null });
     } catch (e) {
       const status = statusForError(e);
-      if (status >= 500) console.warn(`[native-fn] ${name} failed: ${(e as Error)?.message}`);
+      if (status >= 500) {
+        console.warn(`[native-fn] ${name} failed: ${(e as Error)?.message}`);
+        // To Sentry after the answer (`error-report.ts`): the app is not kept waiting for it.
+        const sent = reportServerError(e, { fn: name, status }, { dsn: process.env.SENTRY_DSN || undefined });
+        if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(sent);
+      }
       return json({ error: publicMessage(e) }, status);
     }
   });
