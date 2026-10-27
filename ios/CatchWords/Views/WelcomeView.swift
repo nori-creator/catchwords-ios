@@ -100,11 +100,18 @@ struct WelcomeView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            WelcomeLogo(size: 34)
+            // The icon's place is measured on an empty slot, and the icon flies over it: measured on the icon itself, the
+            // frame took in its own offset, which moved it again — a loop that held the main thread (UI test 2026-10-27).
+            Color.clear
+                .frame(width: 34, height: 34)
                 .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { if !docked { logoFrame = $0 } }
-                .scaleEffect(docked ? 1 : logoPop ? 2.4 : 1.3)
-                .offset(x: docked ? 0 : screen.midX - logoFrame.midX, y: docked ? 0 : screen.minY + screen.height * 0.44 - logoFrame.midY)
-                .opacity(logoPop ? 1 : 0)
+                .overlay {
+                    WelcomeLogo(size: 34)
+                        .scaleEffect(docked ? 1 : logoPop ? 2.4 : 1.3)
+                        .offset(x: docked ? 0 : screen.midX - logoFrame.midX,
+                                y: docked ? 0 : screen.minY + screen.height * 0.44 - logoFrame.midY)
+                        .opacity(logoPop ? 1 : 0)
+                }
                 .zIndex(1)
             Text(verbatim: "CatchWords")
                 .font(.system(size: 23, weight: .bold))
