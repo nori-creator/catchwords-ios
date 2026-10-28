@@ -215,6 +215,14 @@ jobs:
           done
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
           ls -la "$OUT"
+          # オンボードと案内の録画は、6 コマ/秒の小さな JPEG にも切って ci-previews に置く（Claude が動きを見て、見本の
+          # 動画に組み直せるように。録画そのものは artifact にだけ置く）。
+          MOTION="$RUNNER_TEMP/report/motion"
+          mkdir -p "$MOTION"
+          for name in authopen onboarding tour tour-added tour-word tour-sections tour-home tourdone; do
+            [ -f "$OUT/scan-${name}.mp4" ] && swift scripts/video_frames.swift "$OUT/scan-${name}.mp4" "$MOTION" "motion-${name}" 6 360 || echo "::warning::$name のコマを切れませんでした"
+          done
+          du -sh "$MOTION" || true
 
       # キャッチの演出（v10 のスキャン、v6 の選ぶ画面・ゲット・図鑑へ）のコマ落ちを数える（オーナー 2026-10-20:
       # 「限界まで滑らかなアニメーション」）。アプリの FrameMeter（UITestTrace.swift）が 1 秒ごとに遅れたコマを書く。
@@ -366,6 +374,7 @@ jobs:
           STAGE="$RUNNER_TEMP/previews-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
           cp "$SRC"/*.png "$STAGE"/ 2>/dev/null || true
           [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$SRC"/previews/*.txt "$STAGE"/ 2>/dev/null || true
+          [ -d "$SRC/motion" ] && cp "$SRC"/motion/*.jpg "$STAGE"/ 2>/dev/null || true
           # 半分の幅に縮めて置く（10/25 に原寸 350 枚・約 500 MB の push が2回続けて 12 分を超えた）。原寸は artifact にある。
           for f in "$STAGE"/*.png; do [ -f "$f" ] && sips --resampleWidth 603 "$f" >/dev/null 2>&1 || true; done
           du -sh "$STAGE" || true
