@@ -49,8 +49,8 @@ struct CatchWordsApp: App {
             #if DEBUG
             if let p = UIPreview.parsed {
                 // "<scene>-dark" photographs the same scene in the dark appearance;
-                // "-en" / "-zh" in another display language.
-                UIPreviewRoot(name: p.scene)
+                // "-en" / "-zh" in another display language; "-duo" on iPhone Duo's inner screen.
+                UIPreviewRoot(name: p.scene, duo: p.duo)
                     .environment(\.locale, L10n.locale)
                     .environment(dex)
                     .environment(auth)

@@ -14,19 +14,20 @@ enum UIPreview {
     }
 
     /// The requested scene, parsed once (it sets the display language, so never during a redraw).
-    static let parsed: (scene: String, dark: Bool)? = requested.map(parse)
+    static let parsed: (scene: String, dark: Bool, duo: Bool)? = requested.map(parse)
 
-    /// "settings-en-dark" → scene "settings", English, dark. Sets the display language as a side effect, and puts the
-    /// per-device choices a scene may set (発音表記, the developer's trials) back to their defaults first, so one scene's
-    /// choice never leaks into the next launch on the same simulator.
-    static func parse(_ raw: String) -> (scene: String, dark: Bool) {
+    /// "settings-en-dark" → scene "settings", English, dark; "…-duo" → on iPhone Duo's inner screen (`DuoCanvas`). Sets
+    /// the display language as a side effect, and puts the per-device choices a scene may set (発音表記, the developer's
+    /// trials) back to their defaults first, so one scene's choice never leaks into the next launch on the same simulator.
+    static func parse(_ raw: String) -> (scene: String, dark: Bool, duo: Bool) {
         var parts = raw.split(separator: "-").map(String.init)
         var dark = false
+        var duo = false
         var lang = "ja"
         // Any display language's code ("ko", "vi" …; "zh" for zh-TW) picks the language.
         let codes = Set(L10n.supported.filter { !$0.contains("-") } + ["zh"])
-        while let last = parts.last, parts.count > 1, last == "dark" || codes.contains(last) {
-            if last == "dark" { dark = true } else { lang = last == "zh" ? "zh-TW" : last }
+        while let last = parts.last, parts.count > 1, last == "dark" || last == "duo" || codes.contains(last) {
+            if last == "dark" { dark = true } else if last == "duo" { duo = true } else { lang = last == "zh" ? "zh-TW" : last }
             parts.removeLast()
         }
         L10n.lang = lang
@@ -34,7 +35,7 @@ enum UIPreview {
                     "coach.chunkSwap", PaperTone.storageKey, PageRule.storageKey, InkTone.storageKey] + DevChoices.retiredKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
-        return (parts.joined(separator: "-"), dark)
+        return (parts.joined(separator: "-"), dark, duo)
     }
 }
 
@@ -75,9 +76,22 @@ extension View {
 #if DEBUG
 struct UIPreviewRoot: View {
     let name: String
+    /// "-duo": the scene on iPhone Duo's inner screen (the regular width class), scaled to the simulator (`DuoCanvas`).
+    var duo: Bool = false
     @State private var router = AppRouter()
 
     var body: some View {
+        Group {
+            if duo { DuoCanvas { scene } } else { scene }
+        }
+        // Scenes that mark a known element of their own (the quiz card, the analysis view, the web-images
+        // section) are ready only when that element is up; every other scene when its root appears.
+        .uiReady(Self.marksOwnElement.contains(name) ? "root-\(name)" : "preview")
+        .environment(router)
+    }
+
+    @ViewBuilder
+    private var scene: some View {
         Group {
             switch name {
             case "cutout": CelebrationPreview(withCutout: false)
@@ -150,9 +164,6 @@ struct UIPreviewRoot: View {
             case "jadetail": LanguageCardPreview(kind: .ja)
             case "quiz": ReviewPreview(learning: "zh-TW", answered: false)
             case "answer": ReviewPreview(learning: "zh-TW", answered: true)
-            // iPhone Duo open (2026-10-25): the quiz with the photo on the left and the choices on the right, on a
-            // Duo-shaped canvas in the regular width class.
-            case "quiz-duo": DuoCanvas { ReviewPreview(learning: "zh-TW", answered: false) }
             case "jaquiz": ReviewPreview(learning: "ja", answered: false)
             case "enanswer": ReviewPreview(learning: "en", answered: true)
             case "endetail": LanguageCardPreview(kind: .en)
@@ -194,10 +205,6 @@ struct UIPreviewRoot: View {
             default: Text("unknown preview: \(name)")
             }
         }
-        // Scenes that mark a known element of their own (the quiz card, the analysis view, the web-images
-        // section) are ready only when that element is up; every other scene when its root appears.
-        .uiReady(Self.marksOwnElement.contains(name) ? "root-\(name)" : "preview")
-        .environment(router)
     }
 
     private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer",
@@ -2037,7 +2044,7 @@ private struct SpreadPreview: View {
     var demoTurn = false
     /// 「振り返る」 open on today's left page.
     var lookBack = false
-    private static let canvas = CGSize(width: 1000, height: 860)
+    private static var canvas: CGSize { DuoScreen.inner }
     /// The book is built once the fixtures are in (its first spread is chosen as it appears).
     @State private var seeded = false
 
@@ -2127,11 +2134,19 @@ private struct DiaryLookBackPreview: View {
     }
 }
 
-/// A screen as iPhone Duo's inner display shows it: drawn on a 1000 × 860 pt canvas in the regular width class and
-/// scaled to the simulator's width (as `SpreadPreview` draws the book).
+/// iPhone Duo's inner screen, open like a book (the fold down the middle), in points: 669 × 951, from Xcode 27.1's
+/// iPhone Duo simulator (its inner display is 2007 × 2853 px at 3×, as a developer measured it on the Apple forums,
+/// thread 847883 — Apple's spec page gives 1878 × 2670 px for the panel). CI's `duo` job prints the simulator's own
+/// displays; the simulator cannot be unfolded from the command line, so the inner screen is drawn here instead.
+enum DuoScreen {
+    static let inner = CGSize(width: 669, height: 951)
+}
+
+/// A screen as iPhone Duo's inner display shows it: drawn on its size (`DuoScreen.inner`) in the regular width class
+/// and scaled to the simulator's width (as `SpreadPreview` draws the book).
 private struct DuoCanvas<Content: View>: View {
     @ViewBuilder let content: () -> Content
-    private static var canvas: CGSize { CGSize(width: 1000, height: 860) }
+    private static var canvas: CGSize { DuoScreen.inner }
 
     var body: some View {
         GeometryReader { geo in

@@ -24,6 +24,11 @@ struct ReviewView: View {
     /// Bumped by 「いま復習する」: the screen closes the word list and scrolls back up to the quiz card.
     @State private var showQuizRequest = 0
     @Environment(\.appReduceMotion) private var reduceMotion
+    /// iPhone Duo open (owner 2026-10-25 / 10-28: 「左側に撮った画像、右側に複数の選択肢」): the photo stays on the left
+    /// page, and once answered the answer sheet comes up on the right page only, under the choices, off the fold.
+    @Environment(\.horizontalSizeClass) private var widthClass
+    @State private var viewportWidth: CGFloat = 0
+    private var wide: Bool { widthClass == .regular }
 
     /// Room kept under the card for the floating tab bar (58 pt + its 4 pt + a little air).
     private static let tabBarClearance: CGFloat = 70
@@ -33,8 +38,9 @@ struct ReviewView: View {
         ZStack {
             AppBackground()
             GeometryReader { geo in
-                Color.clear.onAppear { viewportHeight = geo.size.height }
+                Color.clear.onAppear { viewportHeight = geo.size.height; viewportWidth = geo.size.width }
                     .onChange(of: geo.size.height) { _, h in viewportHeight = h }
+                    .onChange(of: geo.size.width) { _, w in viewportWidth = w }
             }
             ScrollViewReader { proxy in
                 ScrollView {
@@ -120,6 +126,9 @@ struct ReviewView: View {
                 .padding(.bottom, 66)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
                 .background(alignment: .bottom) { Theme.card.frame(height: 80) }
+                // Duo open: the right page's width (the card's right column, past the gap over the fold).
+                .frame(width: wide && viewportWidth > 0 ? QuizCard.rightColumnWidth(viewportWidth) : nil)
+                .frame(maxWidth: .infinity, alignment: .trailing)
                 .ignoresSafeArea(edges: .bottom)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .id(card.id)
@@ -491,8 +500,18 @@ struct QuizCard: View {
     private var compact: Bool { (fitHeight ?? 1000) < 460 }
 
     /// A wide screen (iPhone Duo open, owner 2026-10-25: 「iphone duoで復習モードは左側に撮った画像、右側に４択の選択を
-    /// 表示して」): the photo on the left, the question and the choices on the right, until the card is answered.
-    private var sideBySide: Bool { widthClass == .regular && !isAnswered }
+    /// 表示して」, 10-28 「左側に撮った画像、右に複数の選択肢を並べて」): the photo on the left page, the question and the
+    /// choices on the right, answered or not (the answer sheet then comes up on the right page, `ReviewView`).
+    private var sideBySide: Bool { widthClass == .regular }
+
+    /// The gap between the photo and the choices when side by side: it sits over the fold.
+    static let sideGap: CGFloat = 24
+
+    /// The right column's width on a screen `width` wide (the review's 16 pt margins, the card's padding, the gap):
+    /// the answer sheet takes it on the Duo.
+    static func rightColumnWidth(_ width: CGFloat) -> CGFloat {
+        max(0, (width - 32 - cardPadding * 2 - sideGap) / 2 + cardPadding + 16)
+    }
 
     /// The photo's height: what is left of `fitHeight`, kept between a small but readable picture and 300 pt. Side by
     /// side, the card's whole height (up to 520 pt).
@@ -509,9 +528,9 @@ struct QuizCard: View {
     private var liveMeaning: String { ReaderLanguage.gloss((dex.sticker(id: card.sticker.id) ?? card.sticker).word?.meaningJa ?? "") }
 
     var body: some View {
-        let layout = sideBySide ? AnyLayout(HStackLayout(alignment: .center, spacing: 22)) : AnyLayout(VStackLayout(spacing: Self.gap))
+        let layout = sideBySide ? AnyLayout(HStackLayout(alignment: .center, spacing: Self.sideGap)) : AnyLayout(VStackLayout(spacing: Self.gap))
         layout {
-            if isAnswered {
+            if isAnswered && !sideBySide {
                 // Answered: the photo makes way for the answer sheet; the quiz label and the memory badge stay.
                 HStack {
                     HStack(spacing: 6) {
