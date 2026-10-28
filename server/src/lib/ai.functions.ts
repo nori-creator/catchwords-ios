@@ -39,6 +39,7 @@ import {
   type UsageChunk,
 } from "./extras";
 import { chunkVerifyMode, describeChunkGate, gateUsageChunks } from "./chunk-quality";
+import { allowsSimplePartners } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
 import {
   readerMeaning,
@@ -63,6 +64,8 @@ import {
   sameSentence,
   examplePatternsRule,
   pickExamplePatterns,
+  coverChunks,
+  chunkExamplesRule,
   applyFixedMainExample,
   checkMainExampleLabel,
   chunksMatchSentence,
@@ -78,6 +81,7 @@ import {
   type GeneratedCard,
   type GeneratedCardReply,
 } from "./card-schema";
+import { bandGenLevels, bandLevels, isLevelSection, withoutLevelExtras } from "./level-content";
 import {
   CARD_REUSE_VERSION,
   candidateCard,
@@ -107,7 +111,14 @@ import {
   testPhotoRank,
 } from "./ai-test-photos";
 import { claude5ThinkingOff } from "./claude-thinking";
-import { positionStats, withObjectPoints } from "./suggestion-position";
+import {
+  locateInstruction,
+  objectsNeedingBoxes,
+  positionStats,
+  readLocatedBoxes,
+  withLocatedBoxes,
+  withObjectPoints,
+} from "./suggestion-position";
 import { WordCandidatesSchema, legacyUsageOf, normalizeRegister } from "./text-search-flow";
 import { normalizeNameRegister } from "./candidate-register";
 
@@ -169,6 +180,7 @@ import {
   getAi,
   getAiFor,
   getAiAttemptChain,
+  type AiTarget,
   getUserLevelGoal,
   getUserLevels,
   getUserTargetLanguage,
@@ -336,6 +348,10 @@ function recordSuggestRun(
     capMs?: number | null;
     /** 位置の付き方のまとめ（`positionStats`。語は入れない）。 */
     positions?: ReturnType<typeof positionStats>;
+    /** 1回目の答えの位置（枠の聞き直しの前）。 */
+    first_positions?: ReturnType<typeof positionStats>;
+    /** 枠の聞き直し（`locateMissingObjects`。聞かなかった回は null）。 */
+    locate?: { asked: number; got: number; ms: number; via?: string; error?: string } | null;
   },
 ): void {
   console.info(
@@ -363,6 +379,8 @@ function recordSuggestRun(
         ...(run.preMs != null ? { pre_ms: run.preMs } : {}),
         ...(run.capMs != null ? { cap_ms: run.capMs } : {}),
         ...(run.positions ? { positions: run.positions } : {}),
+        ...(run.first_positions ? { first_positions: run.first_positions } : {}),
+        ...(run.locate ? { locate: run.locate } : {}),
         attempts: run.attempts.map((a) => ({
           label: a.label,
           ms: a.ms,
@@ -623,8 +641,9 @@ ${langRule}
 - ${BASIC_LEVEL_RULE}
 - ${objectLabelRule(explanationLanguageName(reader))}
 - 物は最大5つ、1つの物の呼び方は最大3つ。
-- 物ごとに、その物の**最初の呼び方**に box_2d を付ける: 写真の中でその物を囲む枠を
-  [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。同じ group の2つ目以降の呼び方には付けなくてよい。
+- **物ごとに、その物の最初の呼び方に box_2d を必ず付ける**（省かない。アプリは名前の札をこの枠の上に置き、
+  この枠で物を切り抜く）: 写真の中でその物**だけ**を囲む枠を [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。
+  物の前にいる人・物の上に乗った物を囲まない。同じ group の2つ目以降の呼び方には付けなくてよい。
 
 **同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
 - ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
@@ -643,6 +662,70 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
 
   const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|colloquial|specific|academic|proper のどれか","label":"写っている物の一般的な呼び名(解説の言語・物の1つ目の候補だけ)","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
   return { profile, instruction };
+}
+
+/** 枠だけを聞き直す1回の締め切り（答えは短いので、1番手の候補より短く）。 */
+const LOCATE_TIMEOUT_MS = 8_000;
+/** 型の例文を足す小さな呼び出しの締め切り（`coverChunks`）。過ぎたらカードはそのまま返す。 */
+const CHUNK_EXAMPLES_TIMEOUT_MS = 8_000;
+
+type SuggestionItem = z.infer<typeof SuggestionSchema>["suggestions"][number];
+
+/**
+ * 写真の候補のうち、枠の無い物（前の物と同じ場所の枠の物も）の枠を、同じ AI に枠だけを聞いて付ける。
+ * 聞き直しが落ちても候補はそのまま返す（タグは iOS が写真に散らす。前と同じ）。
+ */
+async function locateMissingObjects(
+  target: AiTarget | undefined,
+  imageBase64: string,
+  items: SuggestionItem[],
+  stop: AbortSignal,
+): Promise<{
+  items: SuggestionItem[];
+  log: { asked: number; got: number; ms: number; via?: string; error?: string } | null;
+}> {
+  const keys = objectsNeedingBoxes(items);
+  if (keys.length === 0 || !target) return { items, log: null };
+  const started = Date.now();
+  try {
+    const result = await generateText({
+      model: target.model,
+      abortSignal: AbortSignal.any([AbortSignal.timeout(LOCATE_TIMEOUT_MS), stop]),
+      maxRetries: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: locateInstruction(items, keys) },
+            { type: "image", image: imageBase64 },
+          ],
+        },
+      ],
+    });
+    const boxes = readLocatedBoxes(parseJsonFromAiText(result.text ?? ""), keys);
+    const out = withLocatedBoxes(items, boxes);
+    return {
+      items: out,
+      log: {
+        asked: keys.length,
+        got: keys.length - objectsNeedingBoxes(out).length,
+        ms: Date.now() - started,
+        via: target.label,
+      },
+    };
+  } catch (e) {
+    console.warn("suggestWords: 枠の聞き直しに失敗", e instanceof Error ? e.message : String(e));
+    return {
+      items,
+      log: {
+        asked: keys.length,
+        got: 0,
+        ms: Date.now() - started,
+        via: target.label,
+        error: e instanceof Error ? e.message.slice(0, 120) : "failed",
+      },
+    };
+  }
 }
 
 export const suggestWords = createServerFn({ method: "POST" })
@@ -779,7 +862,15 @@ export const suggestWords = createServerFn({ method: "POST" })
     // AI が枠の確保より先に答えた時は、確保を待ってから渡す（断られたら渡さない）。
     const refused = await capRefusal;
     if (refused) throw refused;
-    const parsed = outcome.value;
+    // 枠の無い物（同じ場所の枠も）は、枠だけをもう一度聞く（`suggestion-position.ts`、2026-10-26）。
+    const firstPositions = positionStats(outcome.value.suggestions);
+    const located = await locateMissingObjects(
+      targets.find((t) => t.label === outcome.via) ?? targets[0],
+      data.imageBase64,
+      outcome.value.suggestions,
+      capStop.signal,
+    );
+    const parsed = { ...outcome.value, suggestions: located.items };
     recordSuggestRun(context, {
       ok: true,
       ms: Date.now() - startedAt,
@@ -791,6 +882,8 @@ export const suggestWords = createServerFn({ method: "POST" })
       capMs,
       // 位置の付き方（枠を返したか・物の数・点が何か所に散ったか）。タグが重なった時に後から読む。
       positions: positionStats(parsed.suggestions),
+      first_positions: firstPositions,
+      locate: located.log,
     });
     const correctTaiwanReading = await readingCheckLoad;
     /**
@@ -1239,10 +1332,17 @@ export const generateCard = createServerFn({ method: "POST" })
      * 保存の後も残る。その文を「与えられた文」として指示に入れ、その文のための札と、それ以外のパターンだけを
      * 書かせる（新しい文をメインに書くと、その札は保存で外れ、古い文に札が付かないまま数だけ増える）。
      */
-    const existingMain = readExistingMainSentence(cardAdmin, {
+    const legacyMain = readExistingMainSentence(cardAdmin, {
       language: targetProfile(data.targetLanguage).code,
       headword: data.headword,
     });
+    /**
+     * **この人の帯**（`docs/sharing-rules.md`）。帯の付いた語の例文・チャンクは、その帯の級（代表の級 — S7）で作り、
+     * メインの例文もその帯の行の物だけを「決まった文」にする（別の帯・共有の行の文は使わない）。古い語は今までどおり。
+     */
+    const bandInfo = import("./level-content.server").then((m) =>
+      m.callerBandForHeadword(cardAdmin, context.userId, targetProfile(data.targetLanguage).code, data.headword),
+    );
     const reservation = reserveAiCallFor(context.userId, "card").then(
       (r) => ({ ok: true as const, usageId: r.usageId }),
       (error: unknown) => ({ ok: false as const, error }),
@@ -1251,7 +1351,7 @@ export const generateCard = createServerFn({ method: "POST" })
     // 前は 10 回の往復を1つずつ待っていた（ほとんどが同じ profiles の行）。枠の確保が
     // 断られたら、控えを返せない時はここで止まる（AI は呼ばない）。
     // 級は現在と目標の両方を読む（例文は「現在の級で読める・目標の級まで」— `exampleLevelRule`）。
-    const [ai, levels, levelRule, langRule, explainLang, l1Gram, l1Info, pro] = await Promise.all([
+    const [ai, userLevels, userLevelRule, langRule, explainLang, l1Gram, l1Info, pro, { band, wordId: bandWordId }] = await Promise.all([
       getAiFor("card", "card"),
       getUserLevels(context.userId),
       levelInstruction(context.userId),
@@ -1266,10 +1366,22 @@ export const generateCard = createServerFn({ method: "POST" })
       l1Rule(context.userId, "wordorder"),
       getLearnerL1(context.userId),
       isProUser(context.userId),
+      bandInfo,
     ]);
+    const levels = band ? bandLevels(band, targetProfile(data.targetLanguage).levels) : userLevels;
+    const levelRule = band ? await levelInstruction(context.userId, levels) : userLevelRule;
+    const existingMain: Promise<string | null> = band
+      ? bandWordId
+        ? import("./level-content.server")
+            .then((m) =>
+              m.readLevelContent(cardAdmin, bandWordId, explanationKey(explainLang, l1Info.code), band),
+            )
+            .then((r) => r?.example_sentence ?? null)
+        : Promise.resolve(null)
+      : legacyMain;
     const genKey: CardGenKey = {
       v: CARD_REUSE_VERSION,
-      levels: `${levels.current}>${levels.goal}`,
+      levels: band ? bandGenLevels(band) : `${levels.current}>${levels.goal}`,
       model: pro ? ai.modelRichPremium : ai.modelRich,
       pro,
       sections: data.sections ? [...data.sections].sort() : null,
@@ -1420,7 +1532,9 @@ ${cardProfile.chunkPrompt.posRule}
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ${chunkCountRule(data.headword)} 各 {parts:[{text,pos,slot,ja,pinyin,zhuyin,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない), fits, why}。
+    ? `- usage_chunks: ${chunkHardRules(data.headword, NL, levelGoal)}
+  ${chunkCountRule(data.headword)} 各 {parts:[{text,pos,slot,ja,pinyin,zhuyin,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない), note, fits, why}。
+  ${chunkNoteRule(NL)}
   ${chunkSenseRule(data.headword, "上の meaning_ja に書いた意味")}
   ${formulaChunkRule(cardProfile.code)}
   ${specificChunkRule(data.headword, levelGoal)}
@@ -1461,7 +1575,7 @@ ${l1Gram}`
   ○ 文旦・肉燥麵(台湾の名物 → specialty) / 悠遊卡(台湾だけの仕組み → institution) /
     その土地だけの言い方(→ regional_word)
   **迷ったら空文字にする。** 誤って限定と書くほうが、書かないより害が大きい
-${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${cardProfile.capture.relatedExample}）。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**note は全部の語に必ず${NL}で書く**${sameLanguage(explainLang, cardProfile.code) ? "" : `。**${cardProfile.promptName}で書かない**(${cardProfile.promptName}なのは word/reading だけ。${cardProfile.promptName}の note は読めないので捨てられ、解説の無い語だけが残る)`}。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
+${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${cardProfile.capture.relatedExample}）。各 {word:${cardProfile.promptName}の語, kind, gloss:その語の短い訳(${NL}・1語〜数語。説明にしない), note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**note は全部の語に必ず${NL}で書く**${sameLanguage(explainLang, cardProfile.code) ? "" : `。**${cardProfile.promptName}で書かない**(${cardProfile.promptName}なのは word/reading だけ。${cardProfile.promptName}の note は読めないので捨てられ、解説の無い語だけが残る)`}。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
 ${wantMeasure ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
 ${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}${jaLines ? `\n${jaLines}` : ""}
 
@@ -1490,11 +1604,11 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       `extras{ ` +
       [
         want("usage_chunks") &&
-          "usage_chunks[{parts:[{text,pos,slot,ja?,pinyin?,zhuyin?,alts?:[{text,ja,pinyin?,zhuyin?}]}],ja,fits,why}]",
+          "usage_chunks[{parts:[{text,pos,slot,ja?,pinyin?,zhuyin?,alts?:[{text,ja,pinyin?,zhuyin?}]}],ja,note,fits,why}]",
         // 口語/書面の札（register_tag / register_scale）はもう頼まない（オーナー決定 2026-10-15）。
         "usage_context, frequency_level, encounter_labels[{kind,label}]",
         "scene_weights, season_months, region_scope, region_scope_kind, image_query, image_avoid[]",
-        want("related_words") && "related_words[{word,kind,note}]",
+        want("related_words") && "related_words[{word,kind,gloss,note}]",
         wantMeasure && "measure_words[{word,zhuyin,pinyin,note}]",
         wantOwn("kanji_breakdown") && "kanji_breakdown[{kanji,meaning,on,kun}]",
         wantOwn("conjugation") && "conjugation[{form,text}]",
@@ -1770,6 +1884,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
         headword: resolvedHead,
         language: cardLanguage,
         readerLang: explainLang,
+        chunks: card.extras?.usage_chunks,
         // メインが決まっている時は、メインと似た物を落としてから上限まで詰めるので、多めに受け取る。
         max: fixedMain ? MAX_EXAMPLE_PATTERNS : maxPatterns,
       });
@@ -1843,6 +1958,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           readerLang: explainLang,
           meaning: card.meaning_ja,
           measureWords: ex.measure_words,
+          allowSimplePartners: allowsSimplePartners(levelGoal),
         });
         if (gate.dropped.length > 0) {
           console.info(`generateCard: chunk gate ${describeChunkGate(gate)}`, {
@@ -1868,6 +1984,56 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       card = { ...card, extras: withChunkReadingsInExtras(card.extras ?? ex, cardLanguage) };
     }
     if (chunkVerify) console.info("generateCard: chunk verify", chunkVerify);
+    /**
+     * **型の数だけ例文**（オーナー報告 2026-10-27 紅茶拿鐵: 型が2つで例文が1つ、`coverChunks`）。門を通った型のうち
+     * 例文を持たない物に、まず同じ返事の生のパターンから拾い直し、それでも無い型だけ小さな呼び出しで書かせる。
+     * 書けなかった（時間切れ・崩れた返事）時は、カードはそのまま返す — 型も例文も捨てない。
+     */
+    {
+      const keptChunks = card.extras?.usage_chunks ?? [];
+      const coverOpts = {
+        chunks: keptChunks,
+        headword: resolvedHead,
+        language: cardLanguage,
+        readerLang: explainLang,
+        withExtra: want("examples_extra"),
+      };
+      const covered = coverChunks(card, { ...coverOpts, patterns: card.example_patterns });
+      card = covered.card;
+      if (covered.missing.length > 0 && coverOpts.withExtra) {
+        const started = Date.now();
+        const missing = covered.missing.map((i) => keptChunks[i]);
+        try {
+          const reply = await cardTargets[0].generate(
+            chunkExamplesRule({
+              ...patternBase,
+              headword: resolvedHead,
+              chunks: missing,
+            }),
+            AbortSignal.timeout(CHUNK_EXAMPLES_TIMEOUT_MS),
+          );
+          const parsed = z
+            .object({ example_patterns: z.array(ExamplePatternSchema).catch([]) })
+            .catch({ example_patterns: [] })
+            .parse(parseJsonFromAiText(reply.text ?? ""));
+          const again = coverChunks(card, { ...coverOpts, patterns: parsed.example_patterns });
+          card = again.card;
+          console.info("generateCard: 型の例文を足した", {
+            headword: resolvedHead,
+            asked: missing.length,
+            still: again.missing.length,
+            ms: Date.now() - started,
+          });
+        } catch (e) {
+          console.warn("generateCard: 型の例文を足せなかった", {
+            headword: resolvedHead,
+            asked: missing.length,
+            ms: Date.now() - started,
+            error: e instanceof Error ? e.message.slice(0, 120) : "failed",
+          });
+        }
+      }
+    }
 
     /**
      * **級は辞書が正**（オーナー指摘 2026-08-27 ⑭）。
@@ -2021,7 +2187,16 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           card: { ...out, gen: genKey },
         })),
       );
-      const trusted = trustedCardFrom(out);
+      const made = trustedCardFrom(out);
+      // 帯の付いた語の例文・チャンクは、共有の行の空きにも入れない（帯の行が受け持つ — S6）。
+      const trusted = band
+        ? {
+            ...made,
+            example_sentence: undefined,
+            example_translation: undefined,
+            extras: withoutLevelExtras(made.extras),
+          }
+        : made;
       await runAfterResponse("generateCard: fill shared word", () =>
         fillSharedWordFromCard(supabaseAdmin, {
           language: cardLanguage,
@@ -2250,8 +2425,9 @@ function formulaChunkRule(code: string): string {
     // R17「加熱（動詞）が点線になってる。点線は…入れ替え可能な具体的なもの」。
     // 2026-10-01「とても甘いのか、少し甘いのかは置き換え可能だよね。程度も変更できるように」
     // （チャンクの表示ルール C5: 程度の語だけは副詞でも入れ替えられる）。
-    `**slot を付けてよいのは ① 具体的な物・人・場所を表す名詞 ② 量詞 ③ 程度の語（很・超・非常・有點・蠻）だけ。` +
-    `動詞・形容詞・程度以外の副詞・助詞には絶対に slot を付けない。**` +
+    // 2026-10-25 オーナー「程度の品詞は入れ替え不可で很で固定にして」（C5 の改正: 程度の語は入れ替えない）。
+    `**slot を付けてよいのは ① 具体的な物・人・場所を表す名詞 ② 量詞 だけ。` +
+    `動詞・形容詞・副詞・助詞、そして程度の語（很・超・非常・有點・蠻）には絶対に slot も alts も付けない — 很 は固定。**` +
     NO_PLUS_PART_RULE +
     // 2026-10-01「芒果冰のようにひとかたまりとして普段扱われるものはチャンクを分けなくていい」（C7）。
     `\n**ネイティブが1語として使う語は分けずに1つのパーツにする**（✗ 芒果＋冰 → ○ 芒果冰、✗ 手搖＋飲）。` +
@@ -2262,8 +2438,7 @@ function formulaChunkRule(code: string): string {
     `頻度の高い順に4〜6個、[{text, ja: その語の意味（解説の言語で、短く）}]。` +
     `slot: true のパーツ自身にも ja（その語の意味。型の訳 ja の中で**その語に当たる部分と同じ書き方**）を付ける` +
     `（例: {text:"男朋友", ja:"彼氏"} と 型の訳「彼氏と喧嘩する」）。` +
-    `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友、` +
-    `芒果＋很＋甜 の 很 → 超・非常・有點・蠻）。` +
+    `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友）。` +
     `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。` +
     CHUNK_INTEGRITY_RULE +
     chunkReadingRule(code)
@@ -2304,13 +2479,52 @@ function chunkCountRule(headword: string): string {
   return (
     `ネイティブが「${headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を**2〜3個**` +
     `（自信のある物だけ。本当に高頻度で確信がある時だけ4〜5個目を足す。1つしか無ければ1つでよい。` +
-    `**数を揃えるために型を作らない**）。思いつく組み合わせを並べない — その語で口を開いたときに最初に出る形だけを、頻度の高い順に。`
+    `**数を揃えるために型を作らない**）。思いつく組み合わせを並べない — その語で口を開いたときに最初に出る形だけを返す。` +
+    // オーナー 2026-10-25「チャンクはその単語の最も自然で頻度高く使われるもの、実用性が高いもの、最も優先度の高いもの順に表示して」。
+    `\n**並べ順（配列の順 = 画面の①②③）**: ① ネイティブがその語で**最も自然に・最も頻繁に**言う型 → ② 学習者が実際に口にする場面が多い、` +
+    `**実用性の高い**型 → ③ 覚える優先度の高い型（その語ならではの動詞・状態）。程度の語＋形容詞だけの描写（很＋精緻 など）や` +
+    `まれな型は後ろへ。`
   );
 }
 
 /**
  * 型ごとの自己点検の欄（`fits` / `why`）。サーバの門は `fits: false` を落とし、保存する前に欄を外す。
  */
+/**
+ * **型ごとのひと言解説**（オーナー 2026-10-24「それぞれのチャンクにひと言解説を書いて」）。画面では電球を押すと出る。
+ * 生成と作り直しの両方がここを通る。読む人の言語でない物は保存前に落とす（`note-language.ts`）。
+ */
+function chunkHardRules(headword: string, nl: string, levelGoal: string): string {
+  // 目標 1・2級の人には簡単な動詞の型も出してよい（オーナー 2026-10-26）。3級以上は禁止のまま。
+  const simpleOk = allowsSimplePartners(levelGoal);
+  return [
+    `【使い方チャンクの絶対ルール — 1つでも破った型は配列に入れない】`,
+    `1. 「${headword}」をそのまま1つのパーツとして必ず入れる（slot にしない・別の語の中に埋めない）。`,
+    `2. パーツは2〜4個、字は合計8字以内。主語・句点（。！？）・量詞（一個/一杯/一條…）を入れない。`,
+    `3. パーツを左から続けて読むと、台湾のネイティブがそのまま言う正しい句になる。` +
+      `✗ 跌倒＋膝蓋 / ✗ 擦＋手帕＋汗水 / ✗ 站＋在＋手扶梯 → ○ 撞到＋膝蓋 / ○ 用＋手帕＋擦汗 / ○ 站＋在＋手扶梯＋上。`,
+    simpleOk
+      ? `4. 学習者の目標は 1・2級なので、吃/喝/拿/買/看/用 ＋ ${headword} のような簡単な動詞の型を1つまで入れてよい（その物で本当によく言う時だけ）。` +
+        `残りはその物だけの動詞・状態にする（○ 吹＋電風扇、沖＋馬桶、剝＋椪柑、馬桶＋塞住了、膝蓋＋破皮、用＋夾子＋夾起來）。` +
+        `${headword} ＋ 很 ＋ 好/好吃/好喝/甜/大/貴/漂亮 は書かない。`
+      : `4. どの物にも付く組み合わせは禁止: 吃/喝/拿/買/看/有/用 ＋ ${headword}、${headword} ＋ 很 ＋ 好/好吃/好喝/甜/大/貴/漂亮。` +
+        `学習者の目標は3級以上なので、その物だけの動詞・状態を選ぶ（○ 吹＋電風扇、沖＋馬桶、剝＋椪柑、馬桶＋塞住了、膝蓋＋破皮、用＋夾子＋夾起來）。`,
+    `5. 口語にする（○ 搭＋手扶梯 / ✗ 搭乘＋手扶梯）。`,
+    `6. slot は具体的な名詞・量詞だけ。很・超・非常・有點・蠻 には slot も alts も付けない（很 は固定）。`,
+    `7. 配列の順 = 画面の①②③: ネイティブが最も自然に・頻繁に言う → 実用性が高い → 覚える優先度が高い。確かな物だけ2〜3個（多くても5個）。`,
+    `8. ja は型ぜんぶの自然な訳（${nl}）。note は ${nl} で1文・40字以内（訳の言い直し・一般論にしない）。`,
+    `9. 少しでも迷ったら、その型は返さない。`,
+  ].join("\n");
+}
+
+function chunkNoteRule(nl: string): string {
+  return (
+    `各型に **note**（ひと言解説、${nl}で1文・40字ほどまで）を付ける: その型のニュアンス・使う場面・似た言い方との違い・` +
+    `学習者が間違えやすい所のうち、**いちばん役に立つ1つ**（例: 戴＋水晶手鍊 →「戴 は身につける物ぜんぶに使う。服と靴だけは 穿」）。` +
+    `型の訳（ja）を言い直しただけの文・一般論（「よく使う表現です」）にしない。${nl}以外の言語で書かない（学ぶ語の字はそのまま引いてよい）。`
+  );
+}
+
 const CHUNK_SELF_CHECK_RULE =
   `各型に **fits**（true/false）と **why**（10字ほど）を付ける: fits は「この物の本来の使い方で、ネイティブがそのまま言う型で、` +
   `上の確かめ (a)〜(g) を全部満たす」時だけ true。少しでも怪しければ false にして、**false の型は配列に入れない**（入っていればサーバが捨てる）。`;
@@ -2348,7 +2562,7 @@ const CHUNK_DEFINITION_RULE =
   `✗ 去冰＋可樂 → ○ 可樂＋去冰）。\n` +
   `4. **文にしない。** 主語＋動詞＋目的語をすべて書いた文（✗ 我買了一個紙箱）、句点のある文は型ではない。主語は入れない。\n` +
   `5. **量詞の型（一個〇〇・一杯〇〇）は書かない** — 量詞は別の欄で読む。\n` +
-  `6. 入れ替えてよく使う所（名詞・形容詞・程度の副詞のバリエーション）だけ slot にする。**学ぶ語そのものは決して slot にしない。**\n` +
+  `6. 入れ替えてよく使う所（具体的な名詞・量詞のバリエーション）だけ slot にする。**学ぶ語そのもの・程度の語（很 など）は決して slot にしない。**\n` +
   `7. 各型に必ず、型ぜんぶの自然な訳（ja）を付ける。\n` +
   `**返す前に、型を1つずつ次の順に確かめ、1つでも当てはまれば直すか外す**: ` +
   `(a) パーツを左から声に出して読むと、ネイティブがそのまま言う句か（語順・目的語の位置・裝 の目的語は中身か）` +
@@ -2449,6 +2663,8 @@ function specificChunkRule(headword: string, levelGoal: string): string {
     `✗「買${headword}」「喜歡${headword}」「有${headword}」のように、買う・好き・持っている だけを` +
     `足した形 — 名詞さえあれば言えるので、その語について何も教えていない。\n` +
     `✗「這款${headword}」「這個${headword}」のように、この・その（指示語+量詞）だけを足した形も同じ。\n` +
+    `✗ 吃／喝／拿／看／用（単独）＋${headword}、${headword}＋很＋好／好吃／好喝／甜／大／貴／漂亮 — 別の100の名詞にも付く。` +
+    `**日本語の直訳とずれる、その物専用の動詞を優先**（吹＋電風扇、沖＋馬桶、剝＋椪柑、搭＋手扶梯 — 搭乘 は硬い）。\n` +
     `○ **その語とだけ強く結び付いている**言い方（飲み物なら「半糖少冰」「加珍珠」、` +
     `動詞ならその動詞が取る決まった相手・補語、形容詞なら一緒に立つ名詞）。\n` +
     `基準は「**その語を別の語に入れ替えたら成り立たなくなるか**」。成り立つ形は書かない。\n` +
@@ -2497,6 +2713,8 @@ type SectionProposal = {
   sharedRow: Parameters<typeof claimSharedRowLanguage>[1];
   readerKey: { explainLang: string; l1: string };
   readerPatch: Parameters<typeof mergeIntoReaderExplanation>[3];
+  /** 帯の行に書く（例文・チャンクで、帯の付いた語 — `docs/sharing-rules.md` S6）。古い語は null。 */
+  levelBand?: string | null;
 };
 
 async function runSectionRegen(
@@ -2552,14 +2770,43 @@ async function runSectionRegen(
    */
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: word, error } = await supabaseAdmin
+  const { data: wordRow, error } = await supabaseAdmin
     .from("words")
     .select(
       "id, headword, language, meaning_ja, part_of_speech, source, example_sentence, example_translation, extras",
     )
     .eq("id", data.word_id)
     .maybeSingle();
-  if (error || !word) throw new Error("単語が見つかりません");
+  if (error || !wordRow) throw new Error("単語が見つかりません");
+  /**
+   * **例文・チャンクは、その人の帯の行だけを読み書きする**（`docs/sharing-rules.md` S5・S6）。帯の付いた語では、
+   * 共有の語の行と言語の置き場の例文・チャンクを見ない・書かない: 以下の「語の行」は、例文の列と extras をその帯の
+   * 行の物に差し替えた写し（意味などはそのまま）。↻（作り直しを押した時）は今の帯で作り直し、札もその帯に移す
+   * （古い語もここで新しい分け方になる）。
+   */
+  const levelMod = isLevelSection(data.section) ? await import("./level-content.server") : null;
+  const levelBand = levelMod
+    ? mode === "write" && !data.only_if_empty && (await levelMod.levelContentAvailable(supabaseAdmin))
+      ? await levelMod.profileLevelBand(userId)
+      : await levelMod.callerLevelBand(supabaseAdmin, userId, data.word_id)
+    : null;
+  const bandKey = levelBand
+    ? explanationKey(await getExplanationLanguage(userId), (await getLearnerL1(userId)).code)
+    : null;
+  const bandRow =
+    levelMod && levelBand && bandKey
+      ? await levelMod.readLevelContent(supabaseAdmin, data.word_id, bandKey, levelBand, { exact: true })
+      : null;
+  const word = levelBand
+    ? {
+        ...wordRow,
+        // 帯の行の物は人が確かめた例文ではない（`verified` の守りは共有の行の物）。
+        source: "ai",
+        example_sentence: bandRow?.example_sentence ?? null,
+        example_translation: bandRow?.example_translation ?? null,
+        extras: bandRow?.extras ?? {},
+      }
+    : wordRow;
 
   // すでに埋まっている節を、裏の自動生成が上書きしない。
   // **判定は画面と同じ関数**(`card-sections.ts`)。ここに写しを置くと、
@@ -2589,17 +2836,28 @@ async function runSectionRegen(
     await getExplanationLanguage(userId),
     (await getLearnerL1(userId)).code,
   );
-  const readerRow =
-    mode === "write" ? await readReaderExplanation(supabaseAdmin, data.word_id, readerKey) : null;
+  const readerRow = levelBand
+    ? {
+        // 帯の行は、まだ無くても書く先がある（作る）。
+        meaning: "",
+        example_translation: bandRow?.example_translation ?? null,
+        extras: normalizeExtras(bandRow?.extras ?? {}),
+        source: "ai",
+      }
+    : mode === "write"
+      ? await readReaderExplanation(supabaseAdmin, data.word_id, readerKey)
+      : null;
   /**
    * **共有の行に書くのは、その行の言語の人だけ**（2026-10-20「決して言語が混ざらないようにして」、
    * `mayWriteSharedReaderText`）。別の言語の人が作り直した意味・例文・解説を共有の行に書くと、行の
    * 目印（`explain_lang`）と中身の言語が食い違い、目印でも文字でも見分けられない行になる。
    */
-  const sharedWritable = mayWriteSharedReaderText(
-    word as Parameters<typeof mayWriteSharedReaderText>[0],
-    readerKey.explainLang,
-  );
+  const sharedWritable =
+    !levelBand &&
+    mayWriteSharedReaderText(
+      word as Parameters<typeof mayWriteSharedReaderText>[0],
+      readerKey.explainLang,
+    );
   if (mode === "write" && !readerRow && !sharedWritable) {
     // 書く先が無い（共有の行は別の言語の行、その人の行はまだ無い）。その人の行は、単語の詳細の
     // 自動生成（`generateCard` → `updateWordExtras`）が全部の項目つきで作る。AI は呼ばない。
@@ -2681,7 +2939,8 @@ async function runSectionRegen(
     sharedExtrasLang === regenLang && readerText(sharedMainScene, regenLang, mainSentence).trim()
       ? sharedMainScene
       : "";
-  const needMainLabel = mainUsable && !readerMainScene && !sharedSceneForReader;
+  // 帯の行の札は、その文を作った時に一緒に書く（ここで後から付けない）。
+  const needMainLabel = !levelBand && mainUsable && !readerMainScene && !sharedSceneForReader;
   /** 人が確かめた語（verified）の例文は書き換えないので、例文を作り直す時もその文を決まった文として扱う。 */
   const fixedExampleMain = data.section === "example" && word.source === "verified" && mainUsable;
   const mainLabelRule = (extraOpts: { translation: boolean }) =>
@@ -2854,7 +3113,7 @@ async function runSectionRegen(
         }),
     },
     usage_chunks: {
-      prompt: `${base}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","fits":true,"why":""}]}`,
+      prompt: `${base}\n${chunkHardRules(head, NL, regenLevelGoal)}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${chunkNoteRule(NL)}\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","note":"ひと言解説","fits":true,"why":""}]}`,
       // 部品の形は `extras.ts` の1つ（`ja`・`alts` を落とさない）。返ってきた型は生成と同じ門を通す
       // （`chunk-quality.ts`）。1つも残らなければ「作れなかった」— 崩れた型を書くより、空のまま次に任せる。
       schema: RegenUsageChunksSchema.transform((r, ctx) => {
@@ -2864,6 +3123,7 @@ async function runSectionRegen(
           readerLang: regenLang,
           meaning: String(word.meaning_ja ?? ""),
           measureWords: normalizeExtras(word.extras)?.measure_words,
+          allowSimplePartners: allowsSimplePartners(regenLevelGoal),
         });
         if (gate.dropped.length > 0) {
           console.info(`regenerateCardSection: chunk gate ${describeChunkGate(gate)}`, {
@@ -2879,7 +3139,7 @@ async function runSectionRegen(
       }),
     },
     related_words: {
-      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${regenProfile.capture.relatedExample}）。類義語の note には「${head}」との使い分けを必ず書く。\n**note は全部の語に必ず${NL}で書く**${sameLanguage(regenLang, regenProfile.code) ? "" : `。**${targetName}で書かない**(${targetName}なのは word/reading だけ。${targetName}の note は読めないので捨てられる — オーナー報告 2026-09-30「関連語の解説がなくなってる」)`}。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
+      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${regenProfile.capture.relatedExample}）。類義語の note には「${head}」との使い分けを必ず書く。\n**note は全部の語に必ず${NL}で書く**${sameLanguage(regenLang, regenProfile.code) ? "" : `。**${targetName}で書かない**(${targetName}なのは word/reading だけ。${targetName}の note は読めないので捨てられる — オーナー報告 2026-09-30「関連語の解説がなくなってる」)`}。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\ngloss はその語の短い訳（${NL}・1語〜数語。説明にしない — 画面で語の右に出る）。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","gloss":"短い訳(${NL})","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
       schema: z.object({
         related_words: z
           .array(
@@ -3134,6 +3394,7 @@ async function runSectionRegen(
         sharedRow: word as SectionProposal["sharedRow"],
         readerKey,
         readerPatch: readerPatch(),
+        levelBand,
       },
     };
   }
@@ -3147,6 +3408,18 @@ async function runSectionRegen(
    * 一瞬に縮む。万一消えた項目は「まだ無い」に戻るだけで、次に開いたとき
    * 裏でもう一度作られる（壊れた中身は残らない）。
    */
+  // 帯の付いた語の例文・チャンクは、その帯の行だけに書く（S6）。↻ なら札もその帯に移す（S5）。
+  if (levelMod && levelBand && bandKey) {
+    const ok = await levelMod.mergeIntoLevelContent(supabaseAdmin, data.word_id, bandKey, levelBand, {
+      ...readerPatch(),
+      example_sentence: (baseUpdate.example_sentence as string | undefined) ?? null,
+      example_translation: (baseUpdate.example_translation as string | undefined) ?? null,
+    });
+    if (ok && mode === "write" && !data.only_if_empty) {
+      await levelMod.pinStickerBand(supabaseAdmin, userId, data.word_id, levelBand, { replace: true });
+    }
+    return { ok: true, section: data.section, filled: ok };
+  }
   // その人向けの解説の行にも重ねる（画面はこちらを出す）。
   if (readerRow) {
     await mergeIntoReaderExplanation(supabaseAdmin, data.word_id, readerKey, readerPatch());
@@ -3403,6 +3676,22 @@ async function fixReportedWordItemImpl(
 
   // 共有の行が報告した人の言語の行でなければ、その人の言語の解説の行だけを直す
   // （別の言語の文を共有の行に書かない — `SectionProposal.sharedWritable`）。
+  // 帯の付いた語の例文・チャンクは、その帯の行だけを直す（`docs/sharing-rules.md` S6）。
+  if (proposal.levelBand) {
+    const { mergeIntoLevelContent } = await import("./level-content.server");
+    const fixed = await mergeIntoLevelContent(
+      supabaseAdmin,
+      p.wordId,
+      proposal.readerKey,
+      proposal.levelBand,
+      {
+        ...proposal.readerPatch,
+        example_sentence: (proposal.baseUpdate.example_sentence as string | undefined) ?? null,
+        example_translation: (proposal.baseUpdate.example_translation as string | undefined) ?? null,
+      },
+    );
+    return { fixed, by: verdict.by, item };
+  }
   if (!proposal.sharedWritable) {
     const fixed = await mergeIntoReaderExplanation(
       supabaseAdmin,

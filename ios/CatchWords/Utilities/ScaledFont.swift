@@ -41,11 +41,18 @@ struct ScaledSystemFont: ViewModifier {
     let design: Font.Design
     let monospacedDigit: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.pageTextScale) private var pageTextScale
 
     func body(content: Content) -> some View {
-        let font = Font.system(size: AppTypeScale.scaled(size, for: dynamicTypeSize), weight: weight, design: design)
+        let font = Font.system(size: AppTypeScale.scaled(size, for: dynamicTypeSize) * pageTextScale, weight: weight, design: design)
         return content.font(monospacedDigit ? font.monospacedDigit() : font)
     }
+}
+
+extension EnvironmentValues {
+    /// 「文字の大きさ」 of the word page's settings (小 0.85 / 標準 1 / 大 1.15 / 特大 1.3, docs/word-detail-design.md §9):
+    /// every size on that page, on top of the iPhone's own text size. 1 everywhere else.
+    @Entry var pageTextScale: CGFloat = 1
 }
 
 enum AppTypeScale {

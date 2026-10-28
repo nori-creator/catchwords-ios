@@ -114,6 +114,8 @@ struct PinyinRubyLine: View {
             }
         }
         .fixedSize()
+        // The characters' middle, below the pinyin line: a speaker beside the word stands on it (版25 §1).
+        .alignmentGuide(.hanCenter) { d in d[.bottom] - size * 0.6 }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(units.map(\.char).joined())
     }
@@ -224,6 +226,7 @@ struct ZhuyinWordView: View {
                     .foregroundStyle(color)
             }
             .fixedSize()
+            .alignmentGuide(.hanCenter) { d in d[.bottom] - size * 0.6 }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(headword)
         } else if let units = ZhuyinLayout.pair(headword, zhuyin) {

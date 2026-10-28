@@ -31,10 +31,10 @@ permissions:
 jobs:
   build-and-shoot:
     runs-on: macos-26
-    # 撮影までで 45〜55 分（10/16 の実行）。日記と本の見本を足して 65 分前後、main の褒める演出の見本と合わせると
-    # 75 分を超えて止められた（PR #5 の 220cde7、2026-10-25）ので 90 分。ci-previews に置くのは自分の場所だけを
-    # 取り出して数秒で済ませる。
-    timeout-minutes: 90
+    # 撮影までで 45〜55 分（10/16 の実行）。版25 の見本を足して 55 分ほど（10/25）。日記と本の見本（PR #5）と褒める演出の見本を
+    # 合わせて 76 分（10/25、75 分の上限で一度止められた）。ci-previews に置くのは自分の場所だけを取り出して数秒で済ませるが、
+    # 10/25 に一度 25 分止まったので、その手順にだけ 12 分の上限を付け、結果の保存まで届くようにする。
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@v4
 
@@ -117,6 +117,8 @@ jobs:
             -only-testing:CatchWordsTests/DiaryTests \
             -only-testing:CatchWordsTests/WordCardPrefsTests \
             -only-testing:CatchWordsTests/ServerMessageTests \
+            -only-testing:CatchWordsTests/SharingRuleTests \
+            -only-testing:CatchWordsTests/MemoMarksTests \
             CODE_SIGNING_ALLOWED=NO \
             | tee "$RUNNER_TEMP/symbols.log" | grep -E "error:|Test Case|failed|passed|TEST (SUCCEEDED|FAILED)|BUILD FAILED" || true
           grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/symbols.log" || { grep -E "error:" "$RUNNER_TEMP/symbols.log" | awk -F'error: ' '{ split($2, t, " : "); if (!(t[1] in seen)) { seen[t[1]] = 1; print } }' | head -10 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; echo "::error::図鑑の影の SF Symbols の確認に失敗しました（上のログを見てください）"; exit 1; }
@@ -172,7 +174,7 @@ jobs:
           UDID=$(cat "$RUNNER_TEMP/udid"); BUNDLE_ID=$(cat "$RUNNER_TEMP/bundle"); DATA=$(cat "$RUNNER_TEMP/datadir")
           READY="$DATA/Library/Caches/ui-ready/preview"
           # 名前 / 画面の決まった要素が出てから待つ秒 / コマ数（撮影の間隔はおよそ 0.4〜0.6 秒）
-          for spec in "tabbar 2 1" "picker 2 1" "cutout 0 12" "reward 0 14" "variants 0 10" "get 0 16" "get-again 0 16" "landing 0 16" "landing-again 0 16" "analyzing 0 16" "scanslow 0 24" "hero 2 1" "memorial 0 10" "hero-dark 2 1" "tabbar-dark 2 1" "carousel 2 1" "detail 3 1" "detail-dark 3 1" "settings 2 1" "settings-dark 2 1" "settings-en 2 1" "settings-zh 2 1" "aisettings 2 1" "aisettings-dark 2 1" "aisettings-en 2 1" "aisettings-zh 2 1" "aistats 2 1" "aistats-en 2 1" "aistats-zh 2 1" "aicosts 2 1" "aicosts-en 2 1" "aicosts-zh 2 1" "detail-en 3 1" "detail-zh 3 1" "hero-zh 2 1" "auth 3 1" "auth-dark 3 1" "auth-en 3 1" "auth-zh 3 1" "signin 2 1" "signin-en 2 1" "onboarding-en 3 1" "onboarding-zh 3 1" "aiconsent 2 1" "aiconsent-en 2 1" "aiconsent-zh 2 1" "paywall-en 2 1" "paywall-zh 2 1" "dex-en 2 1" "dex-zh 2 1" "jadetail-en 3 1" "jadetail-zh 3 1" "endetail-ja 3 1" "endetail-zh 3 1" "quiz-en 2 1" "answer-en 2 1" "answer-zh 2 1" "jaquiz-en 2 1" "jaquiz-zh 2 1" "enanswer-ja 2 1" "enanswer-zh 2 1" "picker-en 2 1" "japicker-en 2 1" "japicker-zh 2 1" "enpicker-ja 2 1" "enpicker-zh 2 1" "done 3 1" "done-en 3 1" "done-zh 3 1" "homeload 1 1" "homeload-en 1 1" "chunks 2 1" "chunks-en 2 1" "answer 2 1" "tips 3 1" "tips-zh 3 1" "examples 3 1" "examples-en 3 1" "sunscreen 3 1" "sunscreen-en 3 1" "sunscreen-zh 3 1" "unsaved 3 1" "unsaved-en 3 1" "devlog 2 1" "selfie 3 1" "selfie-original 3 1" "selfie-zh 3 1" "slides 1 14" "choose 1 1" "choose-en 1 1" "choose-zh 1 1" "typed 1 1" "typed-en 1 1" "tips-en 3 1" "picker4 6 1" "picker4-en 6 1" "picker4-nopos 6 1" "tabbar-en 2 1" "praise 0 10" "praise-en 0 10" "praise-first 0 10" "praise-first-zh 0 10" "praise-retention 0 10" "review-ask 3 1" "home-again 4 1" "readings 2 1" "readings-en 2 1" "readings-pinyin 2 1" "reports 2 1" "reports-en 2 1" "map 3 1" "map-en 3 1" "regen 2 1" "chunks-narrow 2 1" "patterns 3 1" "patterns-en 3 1" "patterns-zh 3 1" "patterns-pinyin 3 1" "patterns-pos 3 1" "patterns-dark 3 1" "patterns-legacy 3 1" "settings-es 2 1" "settings-ko 2 1" "settings-vi 2 1" "onboarding-es 3 1" "onboarding-ko 3 1" "onboarding-vi 3 1" "auth-es 3 1" "auth-ko 3 1" "auth-vi 3 1" "detail-es 3 1" "detail-ko 3 1" "detail-vi 3 1" "dex-es 2 1" "tabbar-ko 2 1" "paywall-vi 2 1" "choose-es 1 1" "picker-ko 2 1" "answer-vi 2 1" "diary 2 1" "diary-en 2 1" "diary-zh 2 1" "diary-style 2 1" "spread 0 8" "spread-en 3 1" "spread-curl 3 1" "spread-curl-late 3 1" "spread-cover 2 1" "spread-lookback 3 1" "diary-lookback 2 1" "diary-notes 2 1" "diary-correction 3 1" "diary-correction-en 3 1" "quiz-duo 3 1"; do
+          for spec in "tabbar 2 1" "picker 2 1" "cutout 0 12" "reward 0 14" "variants 0 10" "get 0 16" "get-again 0 16" "landing 0 16" "landing-again 0 16" "analyzing 0 16" "scanslow 0 24" "hero 2 1" "memorial 0 10" "hero-dark 2 1" "tabbar-dark 2 1" "carousel 2 1" "detail 3 1" "detail-dark 3 1" "settings 2 1" "settings-dark 2 1" "settings-en 2 1" "settings-zh 2 1" "aisettings 2 1" "aisettings-dark 2 1" "aisettings-en 2 1" "aisettings-zh 2 1" "aistats 2 1" "aistats-en 2 1" "aistats-zh 2 1" "aicosts 2 1" "aicosts-en 2 1" "aicosts-zh 2 1" "detail-en 3 1" "detail-zh 3 1" "hero-zh 2 1" "auth 3 1" "auth-dark 3 1" "auth-en 3 1" "auth-zh 3 1" "signin 2 1" "signin-en 2 1" "onboarding-en 3 1" "onboarding-zh 3 1" "aiconsent 2 1" "aiconsent-en 2 1" "aiconsent-zh 2 1" "paywall-en 2 1" "paywall-zh 2 1" "dex-en 2 1" "dex-zh 2 1" "jadetail-en 3 1" "jadetail-zh 3 1" "endetail-ja 3 1" "endetail-zh 3 1" "quiz-en 2 1" "answer-en 2 1" "answer-zh 2 1" "jaquiz-en 2 1" "jaquiz-zh 2 1" "enanswer-ja 2 1" "enanswer-zh 2 1" "picker-en 2 1" "japicker-en 2 1" "japicker-zh 2 1" "enpicker-ja 2 1" "enpicker-zh 2 1" "done 3 1" "done-en 3 1" "done-zh 3 1" "homeload 1 1" "homeload-en 1 1" "chunks 2 1" "chunks-en 2 1" "answer 2 1" "tips 3 1" "tips-zh 3 1" "examples 3 1" "examples-en 3 1" "sunscreen 3 1" "sunscreen-en 3 1" "sunscreen-zh 3 1" "unsaved 3 1" "unsaved-en 3 1" "devlog 2 1" "selfie 3 1" "selfie-original 3 1" "selfie-zh 3 1" "slides 1 14" "choose 1 1" "choose-en 1 1" "choose-zh 1 1" "typed 1 1" "typed-en 1 1" "tips-en 3 1" "picker4 6 1" "picker4-en 6 1" "picker4-nopos 6 1" "tabbar-en 2 1" "praise 0 10" "praise-en 0 10" "praise-first 0 10" "praise-first-zh 0 10" "praise-retention 0 10" "review-ask 3 1" "home-again 4 1" "readings 2 1" "readings-en 2 1" "readings-pinyin 2 1" "reports 2 1" "reports-en 2 1" "map 3 1" "map-en 3 1" "regen 2 1" "chunks-narrow 2 1" "patterns 3 1" "patterns-en 3 1" "patterns-zh 3 1" "patterns-pinyin 3 1" "patterns-pos 3 1" "patterns-dark 3 1" "patterns-legacy 3 1" "word25 3 1" "word25-chunks 3 1" "word25-pinyin 3 1" "word25-examples 3 1" "word25-pinyinex 4 1" "word25-xl 3 1" "word25-small 3 1" "word25-related 3 1" "word25-memo 3 1" "word25-links 3 1" "word25-review 3 1" "word25-reviewzh 3 1" "word25-panel 4 1" "word25-dark 3 1" "word25-chunks-dark 3 1" "word25-examples-dark 3 1" "word25-panel-dark 4 1" "word25-chunks-en 3 1" "word25-examples-en 3 1" "word25-related-en 3 1" "word25-panel-en 4 1" "word25-chunks-zh 3 1" "word25-examples-zh 3 1" "word25-panel-zh 4 1" "word25-chunks-es 3 1" "word25-examples-es 3 1" "word25-panel-es 4 1" "word25-chunks-ko 3 1" "word25-examples-ko 3 1" "word25-panel-ko 4 1" "word25-chunks-vi 3 1" "word25-examples-vi 3 1" "word25-panel-vi 4 1" "word25-links-vi 3 1" "settings-es 2 1" "settings-ko 2 1" "settings-vi 2 1" "onboarding-es 3 1" "onboarding-ko 3 1" "onboarding-vi 3 1" "auth-es 3 1" "auth-ko 3 1" "auth-vi 3 1" "detail-es 3 1" "detail-ko 3 1" "detail-vi 3 1" "dex-es 2 1" "tabbar-ko 2 1" "paywall-vi 2 1" "choose-es 1 1" "picker-ko 2 1" "answer-vi 2 1" "diary 2 1" "diary-en 2 1" "diary-zh 2 1" "diary-style 2 1" "spread 0 8" "spread-en 3 1" "spread-curl 3 1" "spread-curl-late 3 1" "spread-cover 2 1" "spread-lookback 3 1" "diary-lookback 2 1" "diary-notes 2 1" "diary-correction 3 1" "diary-correction-en 3 1" "quiz-duo 3 1"; do
             set -- $spec
             name=$1; wait_s=$2; frames=$3
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
@@ -351,6 +353,8 @@ jobs:
 
       - name: 見本の画面を ci-previews ブランチに置く（Claude が読める場所）
         if: always()
+        timeout-minutes: 12
+        continue-on-error: true
         env:
           HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |
@@ -362,8 +366,12 @@ jobs:
           STAGE="$RUNNER_TEMP/previews-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
           cp "$SRC"/*.png "$STAGE"/ 2>/dev/null || true
           [ -d "$SRC/previews" ] && cp "$SRC"/previews/*.png "$SRC"/previews/*.txt "$STAGE"/ 2>/dev/null || true
+          # 半分の幅に縮めて置く（10/25 に原寸 350 枚・約 500 MB の push が2回続けて 12 分を超えた）。原寸は artifact にある。
+          for f in "$STAGE"/*.png; do [ -f "$f" ] && sips --resampleWidth 603 "$f" >/dev/null 2>&1 || true; done
+          du -sh "$STAGE" || true
           echo "${{ github.sha }}" > "$STAGE/COMMIT"
-          CI_PREVIEWS_REPLACE=1 bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+          # API で置く（ブランチを取り出さない — 10/25、取り出すだけで 5 分を超え、3 回続けて 12 分の上限で止まった）。
+          GITHUB_TOKEN="${{ github.token }}" python3 scripts/push_ci_previews_api.py "${{ github.repository }}" \
             "$DIR" "previews for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
 
       - name: 結果を保存する

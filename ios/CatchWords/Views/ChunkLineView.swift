@@ -1,19 +1,19 @@
 import SwiftUI
 
-/// One usage chunk as a formula (docs/chunk-rules.md C17–C18, owner 2026-10-23): the blocks as one continuous phrase —
-/// no boxes, no ＋ between them — the translation under it, and a button that reads the whole chunk, level with the
-/// phrase. The same view in the word page's 「使い方パターン」 and in the previews.
+/// One usage chunk as the owner approved it in 版25 (docs/word-detail-design.md §3): its number, the blocks joined by
+/// ＋ on one line, and a quiet speaker, all level with the characters; the translation under it with a light bulb that
+/// opens the chunk's one-line note. The same view in the word page's 「使い方チャンク」 (inside a grey box) and in the
+/// previews.
 ///
-/// - The word being learned is blue (`Theme.primaryInk`, the examples' blue; text only, no wash — owner 2026-10-23
-///   evening: 「青い背景が一体感を分断」). The words it is used with are black and heavy: they are what the learner is to
-///   remember (`ChunkRole.partner`). The glue (很・的・把, prepositions) is grey.
-/// - A swappable block (a dashed line under it, ▾) opens a wheel of the other words natives put there — only words that
-///   keep the same formula and change its meaning (C5). Picking one reads that word, swaps it into the chunk and its
-///   translation; the right button reads the new chunk. Any other block reads its own word.
-/// - 「品詞」 on the card (`chunk.posColors`, off by default — owner 2026-10-23): every block in its part of speech's colour.
+/// - A block of the word it is used with is a box in its part of speech's colour (verb red, noun blue, adjective green).
+///   The word being learned and the glue (很・要・的…) are black, as heavy as the word, with no box (owner 2026-10-24).
+/// - A swappable block (dashed frame, no arrow) opens the wheel of the other words natives put there (C5, unchanged).
+///   Picking one reads it and swaps it into the chunk and its translation. Any other block reads its own word.
+/// - The chunk never wraps (owner 2026-10-25 「チャンクは必ず一行」): when it is too wide the boxes' padding and the ＋
+///   tighten first, then the whole chunk gets smaller.
 struct ChunkLineView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.pageTextScale) private var pageTextScale
     enum Size { case large, compact }
 
     let chunk: UsageChunk
@@ -22,17 +22,22 @@ struct ChunkLineView: View {
     var size: Size = .large
     /// Previews only: the part whose wheel is open at first.
     var startOpen: Int? = nil
+    /// The chunk's number on the page (nil: none drawn).
+    var number: Int? = nil
+    /// Tapping the number goes to the example that uses this chunk (nil: there is none, the number is plain).
+    var onNumber: (() -> Void)? = nil
+    /// The first-swap hint goes under this chunk's line (the first chunk with a dashed word, the first time).
+    var showCoach: Bool = false
+    var dismissCoach: () -> Void = {}
+    /// Keys of the review blur (the chunk line and its translation).
+    var reviewKey: String = ""
 
     @State private var open: Int?
+    @State private var noteOpen = false
     /// Part index → chosen text.
     @State private var pick: [Int: String] = [:]
     /// 設定 › 発音表記: zhuyin (default) or pinyin over each block (the same choice as the word's own reading).
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
-    /// 「品詞」 on the card: the blocks in their parts of speech's colours (owner 2026-10-23: off unless asked).
-    @AppStorage("chunk.posColors") private var posColors: Bool = false
-    /// The diary's 「振り返る」 shows the colours whatever the card's 「品詞」 says (owner 2026-10-25: 「習った単語の詳細の
-    /// チャンクは品詞ごとで色分け」).
-    @Environment(\.chunkPOSColorsOn) private var posForced
 
     private var shown: [ChunkPart] {
         chunk.parts.enumerated().map { i, p in
@@ -61,10 +66,8 @@ struct ChunkLineView: View {
     }
 
     /// The zhuyin drawn beside each character of a block, exactly as the word page's headword draws it
-    /// (`ZhuyinWordView`: small and faint, to the right of each hanzi — owner 2026-10-16: 「チャンクの注音も見出しと同じに」):
-    /// a Mandarin chunk, 発音表記 = 注音, and a zhuyin that gives one syllable per character. nil otherwise — then the
-    /// block keeps its one reading line over it (pinyin, or a reading that does not pair). Pure, so ChunkReadingTests
-    /// checks it.
+    /// (`ZhuyinWordView`: small and faint, to the right of each hanzi): a Mandarin chunk, 発音表記 = 注音, and a zhuyin that
+    /// gives one syllable per character. nil otherwise. Pure, so ChunkReadingTests checks it.
     static func sideZhuyin(for part: ChunkPart, target: String, pref: String) -> String? {
         guard target.hasPrefix("zh"), pref != "pinyin",
               let z = part.zhuyin?.trimmingCharacters(in: .whitespaces), !z.isEmpty,
@@ -76,48 +79,128 @@ struct ChunkLineView: View {
         pick.isEmpty ? chunk.ja : ChunkRules.swappedTranslation(chunk.ja, original: chunk.parts, shown: shown, reader: L10n.lang)
     }
 
+    private var note: String? {
+        guard let n = chunk.note?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty else { return nil }
+        return n
+    }
+
+    /// Where the translation, the note and the wheel start: under the chunk, right of the number.
+    private var indent: CGFloat { number == nil ? 0 : 36 }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: size == .large ? 8 : 5) {
-            // The voice button stands level with the phrase (owner 2026-10-23: 「音声ボタンは必ずチャンクと同じ高さに」).
-            HStack(alignment: .center, spacing: 10) {
-                // One line when it fits: the blocks shrink together (text, zhuyin and pinyin alike) down to a readable
-                // smallest size, and only below that do they wrap (owner 2026-10-16: 「1行に収まるよう文字を小さく」).
-                // Each size is a candidate of its own, largest first (at most five: `fitScales`).
-                let scales = fitScales
+        VStack(alignment: .leading, spacing: 0) {
+            // Number, chunk and speaker on the middle of the characters (§3: 0 pt apart in the mock).
+            HStack(alignment: .hanCenter, spacing: 8) {
+                if let number { numberView(number) }
                 ViewThatFits(in: .horizontal) {
-                    oneLine(scales, 0)
-                    oneLine(scales, 1)
-                    oneLine(scales, 2)
-                    oneLine(scales, 3)
-                    oneLine(scales, 4)
-                    FlowRow(spacing: wordGap(1), alignment: .chunkText) { parts(scale: scales.last ?? 1) }
+                    oneLine(tight: false, scale: 1)
+                    oneLine(tight: true, scale: 1)
+                    oneLine(tight: true, scale: 0.92)
+                    oneLine(tight: true, scale: 0.85)
+                    oneLine(tight: true, scale: 0.8)
+                    oneLine(tight: true, scale: 0.75)
+                    oneLine(tight: true, scale: 0.68)
+                    oneLine(tight: true, scale: 0.6)
+                    oneLine(tight: true, scale: 0.52)
                 }
-                Spacer(minLength: 0)
-                PronounceCircle(text: ChunkRules.spoken(shown, target: target), size: size == .large ? 38 : 32)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .reviewBlur(reviewKey + "-zh", .target)
+                DetailSpeakButton(text: ChunkRules.spoken(shown, target: target), style: size == .large ? .normal : .small)
             }
-            if !translation.isEmpty {
-                Text(translationText)
-                    .scaledFont(size: size == .large ? 16 : 13)
-                    .foregroundStyle(Theme.muted)
-                    .lineSpacing(3)
-                    .contentTransition(.opacity)
-                    .animation(.easeOut(duration: 0.2), value: translation)
+            if showCoach {
+                SwapCoachMark(dismiss: dismissCoach)
+                    .padding(.leading, indent)
+                    .padding(.top, 6)
+                    .transition(.opacity)
+            }
+            if !translation.isEmpty || note != nil {
+                HStack(alignment: .center, spacing: 2) {
+                    if !translation.isEmpty {
+                        Text(translationText)
+                            .scaledFont(size: size == .large ? 16 : 13)
+                            .foregroundStyle(Theme.muted)
+                            .lineSpacing(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .contentTransition(.opacity)
+                            .animation(.easeOut(duration: 0.2), value: translation)
+                            .reviewBlur(reviewKey + "-tr", .translation)
+                    }
+                    Spacer(minLength: 0)
+                    if note != nil { bulb }
+                }
+                .padding(.leading, indent)
+                .padding(.top, 4)
+                .frame(minHeight: 32)
             }
             if let i = open, let part = chunk.parts[safe: i] {
                 wheel(i, part)
+                    .padding(.leading, indent)
+                    .padding(.top, 8)
                     .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            if noteOpen, let note {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "lightbulb")
+                        .scaledFont(size: 15)
+                        .foregroundStyle(Theme.foreground)
+                        .accessibilityHidden(true)
+                    Text(note)  // lang-ok: ReaderLanguage.clean (usageChunks note)
+                        .scaledFont(size: 15)
+                        .foregroundStyle(Theme.foreground)
+                        .lineSpacing(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, indent)
+                .padding(.top, 6)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: open)
+        .animation(.easeOut(duration: 0.2), value: noteOpen)
         .onAppear { if let startOpen { open = startOpen } }
     }
 
-    /// The translation with the partner words' meanings in the text's colour and a little heavier (C18: what to
-    /// remember), as long as nothing is swapped in (a swapped translation is read as it comes).
+    @ViewBuilder
+    private func numberView(_ n: Int) -> some View {
+        if let onNumber {
+            Button(action: onNumber) {
+                DetailNumber(n: n)
+                    .frame(width: 28, height: 36)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(PressableStyle(scale: 0.9))
+            .accessibilityLabel(Text(verbatim: "\(n)"))
+            .accessibilityHint(L("押すと使った例文へ"))
+        } else {
+            DetailNumber(n: n)
+                .frame(width: 28, height: 36)
+        }
+    }
+
+    /// The white-and-black bulb (no colour): opens and closes the note under the translation.
+    private var bulb: some View {
+        Button {
+            Haptics.selection()
+            noteOpen.toggle()
+        } label: {
+            Image(systemName: "lightbulb")
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(Theme.foreground)
+                .frame(width: 34, height: 34)
+                .background(noteOpen ? Theme.card : Color.clear, in: Circle())
+                .contentShape(Circle().inset(by: -5))
+        }
+        .buttonStyle(PressableStyle(scale: 0.9))
+        .accessibilityLabel(L("解説"))
+        .accessibilityValue(noteOpen ? L("表示中") : L("非表示"))
+    }
+
+    /// The translation with the partner words' meanings in the text's colour and a little heavier (what to remember),
+    /// as long as nothing is swapped in (a swapped translation is read as it comes).
     private var translationText: AttributedString {
         var out = AttributedString(translation)
         guard pick.isEmpty else { return out }
-        let weight = AppTypeScale.scaled(size == .large ? 16 : 13, for: dynamicTypeSize)
+        let weight = detailFontSize(size == .large ? 16 : 13, dynamicTypeSize, pageTextScale)
         for gloss in ChunkRules.partnerGlosses(chunk, headword: headword, target: target) {
             guard let r = out.range(of: gloss) else { continue }
             out[r].foregroundColor = Theme.foreground
@@ -126,19 +209,11 @@ struct ChunkLineView: View {
         return out
     }
 
-    /// The block text's own size at scale 1 (owner 2026-10-23: the formula's characters at 28 pt).
-    private var baseSize: CGFloat { size == .large ? 28 : 18 }
+    /// The block text's own size at scale 1 (§3: 24 pt).
+    private var baseSize: CGFloat { size == .large ? 24 : 18 }
 
-    /// The space between two blocks: the only thing that separates words now that there is no ＋.
-    private func wordGap(_ scale: CGFloat) -> CGFloat { (size == .large ? 12 : 8) * scale }
-
-    /// The sizes tried for one line, largest first: never under 80% of the normal size, and a hanzi never under 15 pt
-    /// (at the reader's text size). A compact chunk is already at 18 pt, so it hardly shrinks before it wraps.
-    private var fitScales: [CGFloat] {
-        Self.fitScales(base: AppTypeScale.scaled(baseSize, for: dynamicTypeSize))
-    }
-
-    /// Pure, so ChunkReadingTests checks it.
+    /// The sizes the chunk tried before 版25 (largest first, never under 80 % nor a hanzi under 15 pt). Kept for the
+    /// previews and ChunkReadingTests; the page now tightens first and then shrinks further (`body`), never wrapping.
     nonisolated static func fitScales(base: CGFloat) -> [CGFloat] {
         let smallest = max(0.8, min(1, 15 / max(base, 1)))
         var scales: [CGFloat] = [1]
@@ -148,111 +223,84 @@ struct ChunkLineView: View {
         return scales
     }
 
-    /// The chunk on one line at the `k`-th size of `scales` (the smallest when there are fewer).
-    private func oneLine(_ scales: [CGFloat], _ k: Int) -> some View {
-        let scale = scales[min(k, scales.count - 1)]
-        return HStack(alignment: .chunkText, spacing: wordGap(scale)) { parts(scale: scale) }
-            .fixedSize(horizontal: true, vertical: false)
+    /// The chunk on one line: `tight` narrows the boxes' sides and the ＋ (tried before anything gets smaller).
+    private func oneLine(tight: Bool, scale: CGFloat) -> some View {
+        HStack(alignment: .hanCenter, spacing: 0) {
+            ForEach(Array(shown.enumerated()), id: \.offset) { i, part in
+                if i > 0 { plus(tight: tight, scale: scale) }
+                block(i, part, tight: tight, scale: scale)
+            }
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
-    /// Every block stands on the middle of its characters (`.chunkText`), not on the middle of a block — a reading over
-    /// the text makes its block taller upwards (owner 2026-10-21: 「プラスは漢字の高さに合わせて」, kept for the words now
-    /// that the ＋ is gone).
-    @ViewBuilder
-    private func parts(scale: CGFloat) -> some View {
-        ForEach(Array(shown.enumerated()), id: \.offset) { i, part in
-            block(i, part, scale: scale)
-        }
+    private func charSize(_ scale: CGFloat) -> CGFloat { detailFontSize(baseSize, dynamicTypeSize, pageTextScale) * scale }
+
+    private func plus(tight: Bool, scale: CGFloat) -> some View {
+        let s = charSize(scale)
+        return Text(verbatim: "＋")
+            .font(.system(size: s * 0.7, weight: .bold))
+            .foregroundStyle(Theme.muted)
+            .padding(.horizontal, s * (tight ? 0.08 : 0.22))
+            .alignmentGuide(.hanCenter) { d in d[VerticalAlignment.center] }
+            .accessibilityHidden(true)
     }
 
-    /// The colour of a block's characters: by its role (C18), or by its part of speech when 「品詞」 is on. The headword
-    /// stays blue either way (owner 2026-10-23 evening: 「青はそのままで」); the colours are barely darkened so the red
-    /// stays vivid (「赤色ももう少し鮮やかな色に」).
-    private func ink(role: ChunkRole, pos: String) -> Color {
-        if posColors || posForced, role != .head {
-            return ChunkKind(pos: pos).ink.mix(with: colorScheme == .dark ? .white : .black, by: size == .large ? 0.12 : 0.1)
-        }
-        switch role {
-        case .head: return Theme.primaryInk
-        case .partner: return Theme.foreground
-        case .frame: return Theme.muted
-        }
-    }
-
-    private func block(_ i: Int, _ part: ChunkPart, scale: CGFloat) -> some View {
+    private func block(_ i: Int, _ part: ChunkPart, tight: Bool, scale: CGFloat) -> some View {
         let original = chunk.parts[safe: i] ?? part
         let role = ChunkRules.role(original, headword: headword, target: target)
         let swappable = role != .head && ChunkRules.isSwappable(original, headword: headword, target: target)
-        let isOpen = open == i
-        let big = size == .large
-        let ink = ink(role: role, pos: part.pos)
-        let weight: Font.Weight = role == .partner ? .heavy : role == .frame ? .medium : .bold
-        let charSize = AppTypeScale.scaled(baseSize * scale, for: dynamicTypeSize)
+        let boxed = role == .partner
+        let kind = ChunkKind(pos: part.pos)
+        let ink: Color = boxed ? kind.ink.mix(with: Theme.foreground, by: 0.18) : Theme.foreground
+        let weight: Font.Weight = boxed ? .bold : .heavy
+        let s = charSize(scale)
+        let perChar = readingPref == "pinyin" && target.hasPrefix("zh")
+            ? PinyinLayout.pair(part.text, pinyin: part.pinyin, zhuyin: part.zhuyin) : nil
+        let corner = 12 * scale
         return Button {
             SoundService.shared.speak(part.text)
             if swappable {
                 Haptics.selection()
-                open = isOpen ? nil : i
+                if showCoach { dismissCoach() }
+                open = open == i ? nil : i
             }
         } label: {
-            let side = Self.sideZhuyin(for: part, target: target, pref: readingPref)
-            // Pinyin over each character (`PinyinRubyLine`, as the headword); a reading that does not pair one syllable
-            // per character stays one line over the block.
-            let perChar = side == nil && readingPref == "pinyin" && target.hasPrefix("zh")
-                ? PinyinLayout.pair(part.text, pinyin: part.pinyin, zhuyin: part.zhuyin) : nil
-            let reading = side == nil && perChar == nil ? Self.reading(for: part, target: target, pref: readingPref) : nil
-            VStack(spacing: 1) {
-                // The token's reading, small, over its text (server chunk tokens, 2026-10-15); none on older cards.
-                if let reading {
-                    Text(reading)
-                        .scaledFont(size: (big ? 10.5 : 9) * scale, weight: .medium)
-                        .foregroundStyle(Theme.muted)
+            Group {
+                if target.hasPrefix("zh") {
+                    // At exactly this size: the word itself shows no zhuyin (pinyin with ピンイン chosen).
+                    RubyWord(text: part.text, zhuyin: part.zhuyin, pinyin: part.pinyin, size: s, weight: weight, color: ink,
+                             hideZhuyin: role == .head)
+                } else {
+                    Text(part.text)
+                        .font(.system(size: s, weight: weight))
+                        .foregroundStyle(ink)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .accessibilityHidden(true)
-                }
-                HStack(spacing: 3) {
-                    if let side {
-                        // The headword's own view and settings: zhuyin to the right of each character, a size up
-                        // (0.36) so the symbols stay legible beside 28 pt characters.
-                        ZhuyinWordView(headword: part.text, zhuyin: side, size: charSize, weight: weight, color: ink,
-                                       language: "zh-TW", zhuyinScale: 0.36)
-                            .contentTransition(.opacity)
-                    } else if let perChar {
-                        PinyinRubyLine(units: perChar, size: charSize, weight: weight, color: ink, readingColor: Theme.muted)
-                            .contentTransition(.opacity)
-                    } else {
-                        Text(part.text)
-                            .font(.system(size: charSize, weight: weight))
-                            .lineLimit(1)
-                            .contentTransition(.opacity)
-                    }
-                    if swappable {
-                        Image(systemName: "chevron.down")
-                            .scaledFont(size: (big ? 12 : 9) * scale, weight: .bold)
-                            .foregroundStyle(Theme.muted)
-                            .rotationEffect(.degrees(isOpen ? 180 : 0))
-                    }
-                }
-                // With pinyin over each character the row is taller upwards: its characters' middle is a little above
-                // its bottom, not its centre.
-                .alignmentGuide(.chunkText) { d in perChar == nil ? d[VerticalAlignment.center] : d[.bottom] - charSize * 0.6 }
-            }
-            .foregroundStyle(ink)
-            .padding(.vertical, 2)
-            // A swappable block: a dashed line under its characters (the dashed box is gone with the boxes).
-            .overlay(alignment: .bottom) {
-                if swappable {
-                    DashedLine()
-                        .stroke(ink.opacity(0.55), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                        .frame(height: 2)
-                        .padding(.trailing, (big ? 16 : 12) * scale)
+                        .fixedSize()
                 }
             }
-            .frame(minHeight: 44)
+            .contentTransition(.opacity)
+            // The middle of the characters, under a pinyin line when one sits over them.
+            .alignmentGuide(.hanCenter) { d in perChar == nil ? d[VerticalAlignment.center] : d[.bottom] - s * 0.6 }
+            .padding(.horizontal, boxed ? (tight ? 7 : 12) * scale : 2 * scale)
+            .padding(.vertical, 4 * scale)
+            .frame(minHeight: 52 * scale)
+            .background {
+                if boxed {
+                    RoundedRectangle(cornerRadius: corner, style: .continuous)
+                        .fill(Theme.card.mix(with: kind.ink, by: swappable ? 0.04 : 0.09))
+                }
+            }
+            .overlay {
+                if boxed {
+                    RoundedRectangle(cornerRadius: corner, style: .continuous)
+                        .strokeBorder(kind.ink.opacity(swappable ? 0.6 : 0.35),
+                                      style: StrokeStyle(lineWidth: 1.5, dash: swappable ? [5, 3] : []))
+                }
+            }
             .contentShape(.rect)
         }
-        .buttonStyle(PressableStyle(scale: 0.94))
+        .buttonStyle(PressableStyle(scale: 0.95))
         .accessibilityLabel(part.text)
         .accessibilityHint(swappable ? L("ほかの語に入れ替えられます") : "")
         .accessibilityAddTraits(role == .head ? .isHeader : [])
@@ -295,29 +343,6 @@ struct ChunkLineView: View {
             .accessibilityLabel(L("閉じる"))
         }
         .padding(.horizontal, 6)
-        .background(Theme.secondary.opacity(0.8), in: .rect(cornerRadius: 14, style: .continuous))
+        .background(Theme.card, in: .rect(cornerRadius: 14, style: .continuous))
     }
-}
-
-/// A horizontal line across its frame's middle (the dashed line under a swappable block).
-private struct DashedLine: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: rect.minX, y: rect.midY))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        return p
-    }
-}
-
-private extension VerticalAlignment {
-    /// The middle of a chunk block's characters (below its reading, when one sits over them).
-    nonisolated enum ChunkText: AlignmentID {
-        static func defaultValue(in d: ViewDimensions) -> CGFloat { d[VerticalAlignment.center] }
-    }
-    nonisolated static let chunkText = VerticalAlignment(ChunkText.self)
-}
-
-extension EnvironmentValues {
-    /// Every formula below in its parts of speech's colours, whatever 「品詞」 is set to (the diary's 「振り返る」).
-    @Entry var chunkPOSColorsOn: Bool = false
 }

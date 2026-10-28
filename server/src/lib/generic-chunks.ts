@@ -1,3 +1,4 @@
+import { parseLevelStep } from "./level-scale";
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
 
 /**
@@ -199,4 +200,61 @@ export function withoutGenericChunks<T extends { parts?: ReadonlyArray<{ text?: 
   language?: string | null,
 ): T[] {
   return (chunks ?? []).filter((c) => c && !isGenericChunk(c.parts, headword, language));
+}
+
+/**
+ * **弱い相手**（オーナー 2026-10-24、貼られた分析「汎用すぎるストップワード・チャンクの乱用」: 地瓜・蛋糕・椪柑のすべてに
+ * 「〜＋很＋甜」、珍珠奶茶に「喝＋〜」「〜＋很＋好喝」、夾子に「拿＋夾子」）。
+ *
+ * `LIGHT_WORDS` と違って**すぐには落とさない** — 喝 は飲み物にしか付かない（2026-08-28 の決定）ので、ほかに型が無い語では
+ * 残す。その語に強い型が2つ以上あれば落とし、無ければ最後へ回す（`chunk-quality.ts` の `gateUsageChunks`）。
+ */
+export const WEAK_PARTNERS: Record<string, readonly string[]> = {
+  "zh-TW": [
+    // 動作: どの食べ物・飲み物・物にも付く
+    "吃", "喝", "拿", "看", "用", "做", "吃了", "喝了",
+    // 様子: どの食べ物・物にも付く（很＋〜）
+    "好", "好吃", "好喝", "甜", "大", "小", "貴", "便宜", "漂亮", "好看", "可愛", "多", "少",
+  ],
+};
+
+/**
+ * **目標が 1・2級（帯 A）の人には、簡単な動詞の型（吃＋小籠包・喝＋珍奶）も出してよい**（オーナー 2026-10-26「レベルAの
+ * ユーザーには出して全く問題ない」「レベルの低い人は簡単な動詞も表示していいけど、レベルに合わせて変えて」）。
+ * 3級以上が目標の人には出さない（指示文の禁止と門の落とし方 — `chunkHardRules`・`gateUsageChunks`）。
+ */
+export function allowsSimplePartners(levelGoal: string | null | undefined): boolean {
+  const step = parseLevelStep(levelGoal ?? "");
+  return typeof step === "number" && step <= 2;
+}
+
+/** 程度の語。弱い相手かを数える時は骨組みとして外に置く（很＋甜 の 很）。 */
+const WEAK_FRAME = new Set(["很", "超", "非常", "有點", "蠻", "好", "太", "真", "最"]);
+
+/**
+ * 見出し語・骨組み・程度の語を外して残った物が、全部「弱い相手」なら真（喝＋珍珠奶茶、珍珠奶茶＋很＋好喝、拿＋夾子）。
+ * 台湾華語だけ（ほかの言語は表が無いので偽）。
+ */
+export function isWeakPartnerChunk(
+  parts: ReadonlyArray<{ text?: string | null } | null | undefined> | null | undefined,
+  headword: string,
+  language?: string | null,
+): boolean {
+  const weak = WEAK_PARTNERS[normalizeTargetLanguage(language)];
+  if (!weak) return false;
+  const weakSet = new Set(weak.map(normalize));
+  const frame = listFor(FRAME_WORDS, language);
+  const head = normalize(headword);
+  const content: string[] = [];
+  for (const p of parts ?? []) {
+    const text = normalize(p?.text ?? "");
+    if (!text) continue;
+    if (head && (text === head || text.includes(head) || head.includes(text))) continue;
+    if (frame.has(text)) continue;
+    // 「很好喝」のように程度の語が付いたままの札も、程度の語を外して見る。
+    const bare = [...WEAK_FRAME].reduce((t, d) => (t.startsWith(d) && t.length > d.length ? t.slice(d.length) : t), text);
+    if (WEAK_FRAME.has(text)) continue;
+    content.push(bare);
+  }
+  return content.length > 0 && content.every((w) => weakSet.has(w));
 }

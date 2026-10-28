@@ -31,6 +31,37 @@ export const EXAMPLE_PROMPT_VERSION = 3;
 /** パターンの上限（メインの例文を含む）。 */
 export const MAX_EXAMPLE_PATTERNS = 4;
 
+/**
+ * **例文の字数の上限**（句読点を数えない）。画面は例文を必ず2行以内・読める大きさ（16px 以上）で出す（オーナー 2026-10-25
+ * 「2行以上になるときは文字を小さくして…ただし文字が読めないような大きさにはしないで」）。24字なら iPhone の幅で
+ * 文字の大きさ「特大」でも2行に入る（模型で測った）。これより長い文は、ほかに無い時だけ使う。
+ */
+export const EXAMPLE_MAX_HAN = 24;
+
+/** 例文の字数（漢字・かな・英数字。句読点・記号・空白は数えない）。 */
+export function exampleLength(sentence: string): number {
+  return [...(sentence ?? "")].filter((c) => /[\p{L}\p{N}]/u.test(c)).length;
+}
+
+/** 型（チャンク）の字を、例文がそのまま続けて含むか（入れ替えの語は候補のどれでもよい）。 */
+export function containsChunk(
+  sentence: string,
+  chunks: ReadonlyArray<{ parts?: ReadonlyArray<{ text?: string | null; alts?: ReadonlyArray<{ text?: string | null }> | null }> | null }> | null | undefined,
+): boolean {
+  const s = (sentence ?? "").replace(/\s+/g, "");
+  return (chunks ?? []).some((c) => {
+    const parts = (c?.parts ?? []).filter((p) => (p?.text ?? "").trim());
+    if (parts.length < 2) return false;
+    // 入れ替えの候補ごとに組み立てて探す（候補は多くても数個）。
+    let forms = [""];
+    for (const p of parts) {
+      const choices = [p.text ?? "", ...((p.alts ?? []).map((a) => a?.text ?? ""))].map((t) => t.trim()).filter(Boolean);
+      forms = forms.flatMap((f) => choices.map((t) => f + t)).slice(0, 64);
+    }
+    return forms.some((f) => f && s.includes(f));
+  });
+}
+
 /** モデルが返すパターン1つ（`example_patterns` の要素）。型違いは落とさず空にする。 */
 export const ExamplePatternSchema = z.object({
   situation: z.string().catch(""),
@@ -227,7 +258,14 @@ export function sameSentence(a: string | null | undefined, b: string | null | un
  */
 export function pickExamplePatterns(
   patterns: readonly ExamplePattern[] | null | undefined,
-  opts: { headword: string; language: string; readerLang: string; max?: number },
+  opts: {
+    headword: string;
+    language: string;
+    readerLang: string;
+    max?: number;
+    /** 同じ返事の型。在れば、型を字のまま含む例文を先にする（画面で「チャンク①を使った例文」になる）。 */
+    chunks?: Parameters<typeof containsChunk>[1];
+  },
 ): PickedExample[] {
   const max = Math.max(1, opts.max ?? MAX_EXAMPLE_PATTERNS);
   // 漢字の言語（台湾華語）は語形が変わらないので、見出し語がそのまま文に入っているはず。
@@ -261,8 +299,13 @@ export function pickExamplePatterns(
       i,
     });
   });
+  // 24字以内の文だけで足りればそれだけを使う（長い文は2行に入らない）。無ければ短い順に（例文が空になるよりよい）。
+  const short = ok.filter((e) => exampleLength(e.sentence) <= EXAMPLE_MAX_HAN);
+  const pool = short.length ? short : [...ok].sort((a, b) => exampleLength(a.sentence) - exampleLength(b.sentence));
+  // 型を含む文を先に（よく使う順はその中で保つ）。
+  const withChunk = (e: (typeof ok)[number]) => (opts.chunks?.length ? (containsChunk(e.sentence, opts.chunks) ? 1 : 0) : 0);
   const kept: typeof ok = [];
-  for (const e of ok.sort((a, b) => b.share - a.share || a.i - b.i)) {
+  for (const e of pool.sort((a, b) => withChunk(b) - withChunk(a) || b.share - a.share || a.i - b.i)) {
     if (kept.some((k) => nearDuplicateExample(k, e, head))) continue;
     kept.push(e);
   }
@@ -455,6 +498,20 @@ export function guardExampleColumns<U extends Record<string, unknown>>(
 }
 
 /**
+ * 実在の名前の決まり（オーナー 2026-10-25「台湾人が使うような具体名や実際のもの、場所、人、お店、出来事、イベント、
+ * 歴史、文化、ニュースなど実際の単語が最も自然な場合、使う頻度が高い場合は例文に含めて。ネイティブが使わないのに
+ * 無理やり不自然に具体的な名称や出来事は入れないで」）。名前の有無は自然さで決める（入れる数の目標は持たない）。
+ * 実在の人・出来事について作り話を書かせないため、有名な人は名前だけ・ニュースは毎年のように起きる物に限る。
+ */
+export const REAL_NAMES_RULE =
+  `台湾の人がその場面で**実際にその名前で言うのが最も自然・よくある**なら、実在の名前（店・チェーン・場所・駅・行事・` +
+  `歴史や文化・毎年のように起きる出来事）を入れる（○ 便當「我去7-11買個便當」/ 月餅「中秋節快到了，要買月餅嗎？」/ ` +
+  `雨衣「颱風天騎車要穿雨衣喔」/ 悠遊卡「搭捷運要刷悠遊卡」）。` +
+  `**ネイティブがふつう言わない所に名前・出来事を足さない**（✗ 雨傘「我在信義區新光三越買了雨傘」→ ○「外面下雨了，帶雨傘喔」）。` +
+  `名前は実在して正しい物だけ（作らない・間違えない）。実在の人について事実でない事・評価を書かない。` +
+  `日付で変わる最近のニュース・値段は書かない。`;
+
+/**
  * 例文の作り方の指示（カード生成と例文の作り直しの `example_patterns`）。
  *
  * `max` = 返すパターンの上限。追加の例文の節を頼まない呼び出し（Web の既定）では 1（いちばんよく使う場面だけ）。
@@ -478,7 +535,14 @@ export function examplePatternsRule(opts: {
       : `パターンは**よく使う順に1〜${max}個**。本当に別々の状況でよく使う時だけ複数にする。` +
         `その語がふだん1つの状況でしか使われないなら1個でよい。**数を合わせるために場面を作らない。**`;
   return [
-    `- example_patterns: **例文は「ネイティブがその語をいちばんよく使う場面のパターン」から作る。** 次の順に考えて、配列で返す。`,
+    `- example_patterns: 【例文の絶対ルール — 1つでも破った文は配列に入れない】`,
+    `  a. 自分が目の前の誰かに言う一人称のセリフ。説明文・看板・アナウンス・小説の地の文・三人称の描写は禁止。`,
+    `  b. 句読点を除いて ${EXAMPLE_MAX_HAN}字以内（12字以上）。長い文は画面で2行に入らない。`,
+    `  c. 「${headword}」をそのまま含む。同じ返事に usage_chunks があれば、そのうち1つを字のまま続けて含む。`,
+    `  d. その語をネイティブが実際に口にする場面だけ（✗ 馬桶 で「請問馬桶在哪裡？」— 場所を聞くなら 廁所）。`,
+    `  e. ${REAL_NAMES_RULE}`,
+    `  詳しい手順:`,
+    `- example_patterns の作り方: **例文は「ネイティブがその語をいちばんよく使う場面のパターン」から作る。** 次の順に考えて、配列で返す。`,
     `  1. ネイティブ（${targetName}の話し手）が「${headword}」を実際に口にする状況・場面・気持ちのうち、**いちばんよく使うもの**を思い浮かべ、パターンに分ける。`,
     `  2. **似たパターンは絶対に2つに分けない。** 同じ場所・同じ相手・同じ用件・同じ気持ちの状況は1つにまとめる` +
       `（✗「店で注文するとき」と「屋台で頼むとき」を別にする / ✗ 主語や名詞を入れ替えただけの同じ形の文を2つ書く）。`,
@@ -486,6 +550,16 @@ export function examplePatternsRule(opts: {
     `     share は、その語が使われる場面全体のうち、そのパターンが占める割合の目安（0〜100 の整数）。`,
     `  4. パターンごとに、**その場面でネイティブが実際にいちばん自然に言う一文**を1つだけ書く（sentence、${targetName}）。` +
       `教科書の作文・説明文にしない。「${headword}」を必ず含める。`,
+    // オーナー 2026-10-24（貼られた分析「説明文・看板・小説調の例文」「チャンクと例文の連動」）。
+    `     **自分が目の前の誰かに言う一人称のセリフにする。** 説明文（✗「台灣的珍珠奶茶很有名」）・看板やアナウンス調・` +
+      `小説の地の文や三人称の描写（✗「他昨天在公園…」）・その語をネイティブが使わない場面の文` +
+      `（✗ 馬桶 で「請問馬桶在哪裡？」— 場所を聞くなら 廁所）は書かない。**12〜${EXAMPLE_MAX_HAN}字**、息継ぎ1〜2回で言える長さ（画面では注音付きで必ず2行以内に収めるので、長い文は字が小さくなる — オーナー 2026-10-25）。` +
+      `語気助詞（喔/耶/啦/吧/啊）は自然な時だけ。`,
+    `     **中身は、その場面で台湾の人がいちばん自然に・よく言う、実用的な文にする。** 実在の店・場所・行事・文化などの名前は e の決まりどおり` +
+      `（自然な時は入れる・不自然なら入れない）。名前を入れても ${EXAMPLE_MAX_HAN}字以内は守る。`,
+    `     **同じ返事に usage_chunks（使い方の型）があるなら、型1つにつき例文1つ、型の順に書き、各例文はその型を字をそのまま続けて含める**` +
+      `（入れ替えの語は alts の1つに替えてよい）。画面の「例文」には型を使った例文だけを型の番号①②③で出す — 型を含まない例文は出ない` +
+      `（オーナー 2026-10-26「例文はチャンク専用」）。`,
     `     **重ね言葉にしない。** 見出し語がもう量詞・名詞の字を含む時、同じ字を量詞にして重ねない` +
       `（✗「送了一束花束」「這束花束」→ ○「送了一個花束」「這個花束好漂亮」/ ✗「一杯杯子」→ ○「一個杯子」）。` +
       `ネイティブが言わない言い回し・意味の重なる語の組み合わせを書かない。`,
@@ -880,4 +954,129 @@ export function mayWriteMainLabel(
   if (!scene) return true;
   const forSentence = typeof e.example_scene_for === "string" ? e.example_scene_for.trim() : "";
   return !!forSentence && !sameSentence(forSentence, sentence);
+}
+
+/*
+ * ---------------------------------------------------------------------------------------------
+ * **型（チャンク）の数だけ例文を出す**（オーナー報告 2026-10-27「例文は表示したチャンクと同じ数だけそのチャンクを
+ * 使った例文を表示して。いま紅茶ラテを撮ったらチャンクが二つあるのに例文がひとつだけになってる」）。
+ *
+ * 指示文はもう「型1つにつき例文1つ」と頼んでいるが、守られない回がある。落ちる道は3つ:
+ * 1. AI が型の数より少なく書いた。
+ * 2. 書いたが `pickExamplePatterns` が落とした（似た文型の2つ目・24字を超えた文）。
+ * 3. 例文を選んだ後で型の門（`gateUsageChunks`）が型を入れ替え・落とし、残った型を含む文が選ばれていない。
+ *
+ * 直し方: 型の門の**後**に、例文を持たない型を数える（`chunksWithoutExample`）。まず同じ返事の生の
+ * パターンから、その型を含む文を拾い直す（`coverChunks` — 2・3 の道。AI は呼ばない）。それでも足りない型だけ、
+ * 小さな呼び出しで1文ずつ書かせる（`chunkExamplesRule`、1 の道）。足した文は追加の例文の後ろへ入る
+ * （画面は型の順に並べ替える — iOS `ChunkRules.chunkExamples`）。
+ * ---------------------------------------------------------------------------------------------
+ */
+
+type ChunkLike = NonNullable<Parameters<typeof containsChunk>[1]>[number];
+
+/** 例文（メイン＋追加）の文の並び。 */
+function exampleSentences(card: CardLike): string[] {
+  const extra = (card.extras?.examples_extra as Array<{ zh?: string | null }> | undefined) ?? [];
+  return [card.example_sentence ?? "", ...extra.map((e) => e?.zh ?? "")].filter((s) => s.trim());
+}
+
+/** どの例文にも字のまま入っていない型の番号（型の順）。 */
+export function chunksWithoutExample(
+  chunks: readonly ChunkLike[] | null | undefined,
+  sentences: readonly string[],
+): number[] {
+  return (chunks ?? []).flatMap((c, i) => (sentences.some((s) => containsChunk(s, [c])) ? [] : [i]));
+}
+
+/**
+ * 例文を持たない型に、`patterns` の中からその型を含む文を1つずつ足す（型の順）。メインの例文が空なら
+ * 最初の1つをメインに。`withExtra` が false（追加の例文を頼まない呼び出し）なら、メインが空の時だけ埋める。
+ * 文の確かめは `pickExamplePatterns` と同じ（学習言語・見出し語・重ね言葉・自己点検）。似た文型でも、
+ * 別の型を受け持つ文は残す — 型ごとに1文が要るので。
+ */
+export function coverChunks<T extends CardLike>(
+  card: T,
+  opts: {
+    chunks: readonly ChunkLike[] | null | undefined;
+    patterns: readonly ExamplePattern[] | null | undefined;
+    headword: string;
+    language: string;
+    readerLang: string;
+    withExtra: boolean;
+  },
+): { card: T; missing: number[] } {
+  let out = card;
+  const chunks = opts.chunks ?? [];
+  for (const i of chunksWithoutExample(chunks, exampleSentences(out))) {
+    const hasMain = !!(out.example_sentence ?? "").trim();
+    if (hasMain && !opts.withExtra) break;
+    const used = exampleSentences(out);
+    const [hit] = pickExamplePatterns(
+      (opts.patterns ?? []).filter((p) => containsChunk(p.sentence ?? "", [chunks[i]])),
+      { headword: opts.headword, language: opts.language, readerLang: opts.readerLang, max: MAX_EXAMPLE_PATTERNS },
+    ).filter((e) => !used.some((s) => sameSentence(s, e.sentence)));
+    if (!hit) continue;
+    if (!hasMain) {
+      const keep = (out.extras?.examples_extra as unknown[] | undefined) ?? [];
+      out = applyExamplePatterns(out, [hit], { withExtra: false });
+      if (opts.withExtra) {
+        out = {
+          ...out,
+          extras: { ...out.extras, examples_extra: keep, example_pattern_count: 1 + keep.length },
+        };
+      }
+      continue;
+    }
+    const extra = [...((out.extras?.examples_extra as unknown[] | undefined) ?? []), toExtraExample(hit)];
+    out = {
+      ...out,
+      extras: { ...out.extras, examples_extra: extra, example_pattern_count: 1 + extra.length },
+    };
+  }
+  return { card: out, missing: chunksWithoutExample(chunks, exampleSentences(out)) };
+}
+
+/** 型のパーツを1つの句に（入れ替えの候補は「/」で並べる）。指示文に見せるため。 */
+function chunkText(c: ChunkLike): string {
+  return (c?.parts ?? [])
+    .map((p) => {
+      const alts = (p?.alts ?? []).map((a) => (a?.text ?? "").trim()).filter(Boolean);
+      const t = (p?.text ?? "").trim();
+      return alts.length ? `[${[t, ...alts].join("/")}]` : t;
+    })
+    .join("");
+}
+
+/**
+ * 例文を持たない型だけに、1文ずつ書かせる小さな指示（`coverChunks` で拾えなかった時だけ呼ぶ）。
+ * 決まりは本体の例文と同じ（一人称のセリフ・字数・ネイティブが実際に言う場面・実在の名前）。返す形は
+ * `example_patterns`（同じ門 `coverChunks` を通す）。
+ */
+export function chunkExamplesRule(opts: {
+  headword: string;
+  targetName: string;
+  nl: string;
+  chunks: readonly ChunkLike[];
+  levelRule: string;
+  chunkRoles: string;
+  sceneMax?: number;
+}): string {
+  const { headword, targetName, nl, chunks, levelRule, chunkRoles } = opts;
+  const sceneMax = opts.sceneMax ?? SCENE_MAX_CHARS.ja;
+  return [
+    `${targetName}の語「${headword}」の使い方の型（チャンク）ごとに、その型を使った例文を1つずつ書く。`,
+    `型（この順に、1つにつき例文1つ。[ ] の中は入れ替えの候補で、どれか1つを使う）:`,
+    ...chunks.map((c, i) => `${i + 1}. ${chunkText(c)}`),
+    `【例文の絶対ルール】`,
+    `a. 自分が目の前の誰かに言う一人称のセリフ。説明文・看板・アナウンス・小説の地の文・三人称の描写は禁止。`,
+    `b. 句読点を除いて 12〜${EXAMPLE_MAX_HAN}字。`,
+    `c. 「${headword}」と、その型の字を**そのまま続けて**含む（間に別の字を入れない）。`,
+    `d. その型をネイティブが実際に口にする場面で、台湾の人がいちばん自然に・よく言う、実用的な文。`,
+    `e. ${REAL_NAMES_RULE}`,
+    `scene: その文がまさに口にされる状況の短い1行（${nl}で${sceneMax}字以内）。scene_fits: 文だけを読んだネイティブが思い浮かべる場面と scene が同じなら true。`,
+    levelRule,
+    `JSON だけを返す: {"example_patterns":[{"share":0,"sentence":"${targetName}の例文","translation":"自然な訳(${nl})","scene":"短い1行(${nl})","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`,
+    `chunks は sentence をパーツ分解した [{text,pos}]（pos は ${chunkRoles}）。`,
+  ].join("\n");
 }

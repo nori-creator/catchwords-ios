@@ -491,17 +491,23 @@ struct DexSilhouette: View {
         return image
     }
 
-    /// The shape as a plain bitmap (its alpha only, `side` px on its longer side: a shadow is drawn at most about
-    /// 60 pt): SwiftUI draws a symbol or catalog `UIImage` by looking it up in its catalog again, on the main
-    /// thread — the first 図鑑 still spent 13 s in that lookup with the symbols kept as `UIImage`s (DexOpenTests on
-    /// ffa9b08, 2026-10-20). A bitmap is only drawn.
+    /// The shape as a plain bitmap (`side` px on its longer side: a shadow is drawn at most about 60 pt): SwiftUI
+    /// draws a symbol or catalog `UIImage` by looking it up in its catalog again, on the main thread — the first 図鑑
+    /// still spent 13 s in that lookup with the symbols kept as `UIImage`s (DexOpenTests on ffa9b08, 2026-10-20).
+    /// A bitmap is only drawn.
+    ///
+    /// Black on a clear RGBA bitmap, not an alpha-only one: on the device an alpha-only image was read as an opaque
+    /// grey picture, so the template tint filled its whole frame and every shadow showed as a grey rectangle
+    /// (owner 2026-10-27: 「図鑑の影の部分が四角で表示されている。ちゃんとそのものの影を写して」).
     nonisolated private static func rasterized(_ symbol: UIImage, side: CGFloat) -> UIImage? {
         let s = symbol.size
         guard s.width > 0, s.height > 0 else { return nil }
         let k = side / max(s.width, s.height)
         let w = max(1, Int((s.width * k).rounded())), h = max(1, Int((s.height * k).rounded()))
-        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w, space: CGColorSpaceCreateDeviceGray(),
-                                  bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue) else { return nil }
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        ctx.clear(CGRect(x: 0, y: 0, width: w, height: h))
         // UIKit's drawing: top-left origin, in the bitmap's pixels.
         ctx.translateBy(x: 0, y: CGFloat(h))
         ctx.scaleBy(x: k, y: -k)

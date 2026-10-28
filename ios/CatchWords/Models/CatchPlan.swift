@@ -31,6 +31,10 @@ nonisolated enum CatchPlan {
         var point: CGPoint
         var box: CGRect?
         var own: Bool
+        /// The thing can be a person or what a person wears (its category: a person, a body part, clothes…). False: a
+        /// Vision instance that is mostly a person is never its cut-out (owner 2026-10-26: 鞦韆's tag cut out the man
+        /// pushing the swing — Vision does not see a swing's thin frame, only the people at it).
+        var mayBePerson: Bool = true
     }
 
     /// The mask pixels a thing keeps, on the plan's grid (the label mask copy, `width` × `height`, row after row).
@@ -91,26 +95,24 @@ nonisolated enum CatchPlan {
 
     /// `colours`: the photo at the mask's grid, 3 bytes (RGB) a pixel, row after row (`InstanceMasks.colourGrid`); it
     /// lets a shared instance be split along the photo's own edges (nil: along the mask alone, as in the unit tests).
-    static func plan(things: [Thing], mask: [UInt8], width w: Int, height h: Int, colours: [UInt8]? = nil) -> [Placement] {
+    /// `people`: where people are on the same grid (`InstanceMasks.personGrid`, 1 = a person; nil = not known).
+    static func plan(things: [Thing], mask: [UInt8], width w: Int, height h: Int, colours: [UInt8]? = nil,
+                     people: [UInt8]? = nil) -> [Placement] {
         let hasMask = w > 0 && h > 0 && mask.count >= w * h && mask.contains { $0 != 0 }
-        // Each thing with a place of its own takes its own instance, nearest pairs first (`assignInstances`).
-        var labels: [Int?] = hasMask
-            ? assignInstances(things.map { $0.own ? ranked(mask: mask, width: w, height: h, to: $0.point) : [] })
-            : Array(repeating: nil, count: things.count)
         var totals = [Int](repeating: 0, count: 256)
         if hasMask { for v in mask where v != 0 { totals[Int(v)] += 1 } }
-        // A thing without a place of its own takes a free instance (the largest first): its tag then sits on a real thing.
-        if hasMask, things.indices.contains(where: { !things[$0].own && labels[$0] == nil }) {
-            var taken = Set(labels.compactMap { $0 })
-            let area = Double(w * h)
-            let bySize = (1..<256).filter { Double(totals[$0]) / area >= 0.012 }
-                .sorted { totals[$0] != totals[$1] ? totals[$0] > totals[$1] : $0 < $1 }
-            for i in things.indices where !things[i].own && labels[i] == nil {
-                guard let free = bySize.first(where: { !taken.contains($0) }) else { break }
-                labels[i] = free
-                taken.insert(free)
-            }
-        }
+        // The instances that are mostly a person: never the cut-out of a thing that cannot be one (`Thing.mayBePerson`).
+        let personLabels = hasMask ? Self.personLabels(mask: mask, people: people, totals: totals, width: w, height: h) : []
+        let barred: [Set<Int>] = things.map { $0.mayBePerson ? [] : personLabels }
+        // Each thing with a place of its own takes its own instance, nearest pairs first (`assignInstances`).
+        // A thing without a place of its own takes none (owner 2026-10-26: with no position from the AI, the swing took
+        // "the largest free instance" — the man beside it — and its cut-out was the man). Its tag goes to a spot of its
+        // own (`spreadSpots`) and its sticker is the photo (`CatchObject`), never another thing.
+        let labels: [Int?] = hasMask
+            ? assignInstances(things.indices.map { i in
+                things[i].own ? ranked(mask: mask, width: w, height: h, to: things[i].point).filter { !barred[i].contains($0.label) } : []
+            })
+            : Array(repeating: nil, count: things.count)
         let anchors = hasMask ? CatchAnchor.anchors(mask: mask, width: w, height: h) : [:]
         // Each placed thing's box on the mask grid, and how much of every instance lies inside it.
         let boxes: [CGRect?] = things.map { $0.own ? $0.box : nil }
@@ -132,6 +134,7 @@ nonisolated enum CatchPlan {
             guard hasMask, boxes[i] != nil, areas[i] > 0 else { return nil }
             let inBox = counts[i], area = areas[i]
             let present = { (l: Int) -> Bool in
+                guard !barred[i].contains(l) else { return false }
                 let n = Double(inBox[l])
                 return n >= presence * Double(area)
                     && (n / Double(max(1, totals[l])) >= sharedShare || n / Double(area) >= CutCoverage.fillsBox)
@@ -145,6 +148,7 @@ nonisolated enum CatchPlan {
             }
             // Another thing's own instance is never taken in as a piece of this one.
             let theirs = Set(things.indices.filter { $0 != i }.compactMap { labels[$0] }).subtracting([chosen])
+                .union(barred[i])
             let note: String? = chosen == labels[i] ? nil : "took the instance most present in its box"
             let decision = CutCoverage.decide(chosen: chosen, inBox: inBoxMap, totals: totalMap, boxArea: area, excluding: theirs)
             var ls = [chosen]
@@ -205,6 +209,18 @@ nonisolated enum CatchPlan {
                              sharedWith: rivals)
         }
 
+        // A cut-out that covers only a small corner of its thing's box is something smaller in front of the thing or in
+        // it (the child sitting in the swing, inside the swing's box), not the thing: no mask of its own, so Vision
+        // looks again round the box, and the sticker is the photo when nothing whole is found there either.
+        if hasMask {
+            for i in out.indices where out[i].cut != .noMask {
+                guard let box = boxes[i], things[i].own else { continue }
+                let mine = pixels(of: out[i].cut, mask: mask, width: w, height: h)
+                guard let share = boxCover(mine, box: box, width: w, height: h), share < Self.minBoxCover else { continue }
+                out[i] = Placement(label: nil, cut: .noMask, anchor: things[i].point,
+                                   note: String(format: "its instance covers only %.0f%% of its box: not the thing", share * 100))
+            }
+        }
         // A thing with no mask of its own whose tag would sit on another thing: the tag goes on the part of its own box
         // that no other thing covers (owner 2026-10-22: 「オーブンの単語のタグの配置が間違ってる…何回もこのタグの配置の
         // エラー発生してる」 — the oven stood behind a sauce bottle; the middle of the AI's box round the oven lay on the
@@ -249,6 +265,54 @@ nonisolated enum CatchPlan {
             }
         }
         return out
+    }
+
+    // MARK: Is it the thing?
+
+    /// A cut-out must cover this share of its thing's box (its outline's bounding box against the AI's box): less is a
+    /// smaller thing in front of the thing or in it. A box twice as wide and high as the thing is still 25%.
+    static let minBoxCover: Double = 0.15
+    /// An instance with this share of its pixels on people is a person (`InstanceMasks.personGrid`).
+    static let personShare: Double = 0.5
+
+    /// How much of `box` (0–1 of the photo) the bounding box of `keep` covers (0–1); nil = nothing kept.
+    static func boxCover(_ keep: Keep, box: CGRect, width w: Int, height h: Int) -> Double? {
+        var x0 = w, y0 = h, x1 = -1, y1 = -1
+        for y in 0..<h {
+            for x in 0..<w where keep.bits[y * w + x] != 0 {
+                x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y)
+            }
+        }
+        guard x1 >= x0, y1 >= y0 else { return nil }
+        return cover(CGRect(x: CGFloat(x0) / CGFloat(w), y: CGFloat(y0) / CGFloat(h),
+                            width: CGFloat(x1 - x0 + 1) / CGFloat(w), height: CGFloat(y1 - y0 + 1) / CGFloat(h)), of: box)
+    }
+
+    /// The share of `box` that `rect` covers (both 0–1 of the photo).
+    static func cover(_ rect: CGRect, of box: CGRect) -> Double {
+        let area = box.width * box.height
+        guard area > 0 else { return 1 }
+        let o = rect.intersection(box)
+        return o.isNull ? 0 : Double(o.width * o.height / area)
+    }
+
+    /// The labels of the instances that are mostly people (`personShare` of their pixels on `people`).
+    static func personLabels(mask: [UInt8], people: [UInt8]?, totals: [Int], width w: Int, height h: Int) -> Set<Int> {
+        guard let people, people.count >= w * h else { return [] }
+        var on = [Int](repeating: 0, count: 256)
+        for k in 0..<(w * h) where mask[k] != 0 && people[k] != 0 { on[Int(mask[k])] += 1 }
+        return Set((1..<256).filter { totals[$0] > 0 && Double(on[$0]) >= personShare * Double(totals[$0]) })
+    }
+
+    /// Whether a cut on the plan's grid (1 = kept) is mostly a person.
+    static func isPerson(_ bits: [UInt8], people: [UInt8]?) -> Bool {
+        guard let people, people.count == bits.count else { return false }
+        var all = 0, on = 0
+        for k in bits.indices where bits[k] != 0 {
+            all += 1
+            if people[k] != 0 { on += 1 }
+        }
+        return all > 0 && Double(on) >= personShare * Double(all)
     }
 
     // MARK: Splitting one instance between things

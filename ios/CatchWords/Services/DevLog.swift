@@ -39,6 +39,7 @@ final class DevLog {
         entries.insert(Entry(id: UUID().uuidString, at: now, area: area, text: line), at: 0)
         if entries.count > Self.limit { entries.removeLast(entries.count - Self.limit) }
         persist()
+        ErrorReporting.devLog(area: area, text: line)
         #if DEBUG
         print("[DevLog] \(area): \(line)")
         #endif

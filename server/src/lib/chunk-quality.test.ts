@@ -1,3 +1,4 @@
+import { allowsSimplePartners } from "./generic-chunks";
 import { describe, expect, it } from "vitest";
 import production from "./__fixtures__/chunk-quality-production.json";
 import {
@@ -767,12 +768,14 @@ describe("落としてはいけない: 本番の 33 語（良い型）", () => {
     }
   });
 
-  it("落ちるのは理由の分かる物だけ（量詞・汎用・1語・主語のある文・同じ訳）で、全体の 85% 以上が残る", () => {
+  it("落ちるのは理由の分かる物だけ（量詞・汎用・弱い相手・1語・主語のある文・同じ訳）で、全体の 80% 以上が残る", () => {
     let total = 0;
     let kept = 0;
     const allowed = new Set<ChunkDropReason>([
       "measure_word",
       "generic",
+      // 2026-10-24: 汎用の相手（用＋〜・喝＋〜・〜＋很＋甜）は、強い型が2つ以上ある語では落とす。
+      "weak_partner",
       "compound_split",
       "single_token",
       "sentence",
@@ -792,7 +795,9 @@ describe("落としてはいけない: 本番の 33 語（良い型）", () => {
       for (const d of g.dropped)
         expect({ text: d.text, ok: allowed.has(d.reason) }).toEqual({ text: d.text, ok: true });
     }
-    expect(kept / total).toBeGreaterThanOrEqual(0.85);
+    // 2026-10-24: 汎用の相手（用指甲剪・吃甜筒・喝優酪乳）を落とすようにしたので 85% → 80%。
+    // どれも強い型が2つ残る語（指甲剪 → 找/借、甜筒 → 拿著/很脆、優酪乳 → 無糖/助消化）。
+    expect(kept / total).toBeGreaterThanOrEqual(0.8);
   });
 
   it("名指しで残る型（拉開拉鍊・戴眼鏡・沖馬桶・涼拌竹筍・裝咖啡在保溫瓶・煎牛排・擦防曬乳）", () => {
@@ -818,5 +823,81 @@ describe("落としてはいけない: 本番の 33 語（良い型）", () => {
     ]) {
       expect(keptTexts).toContain(t);
     }
+  });
+});
+
+describe("弱い相手・ひと言解説・很の固定（オーナー 2026-10-24/25）", () => {
+  const ctx = { headword: "珍珠奶茶", meaning: "タピオカミルクティー", language: "zh-TW", readerLang: "ja" };
+  const c = (texts: string[], ja: string, note?: string) => ({
+    parts: texts.map((t) => ({ text: t, pos: t === "珍珠奶茶" ? "N" : t === "很" ? "Adv" : "V" })),
+    ja,
+    note,
+    fits: true,
+    why: "",
+  });
+  it("強い型が2つ以上あれば 喝＋〜・〜＋很＋好喝 を落とす", () => {
+    const g = gateUsageChunks(
+      [
+        c(["喝", "珍珠奶茶"], "タピオカミルクティーを飲む"),
+        c(["珍珠奶茶", "半糖少冰"], "タピオカミルクティーを微糖・氷少なめで"),
+        c(["加", "珍珠"], "タピオカを追加する"),
+        c(["珍珠奶茶", "很", "好喝"], "タピオカミルクティーはとてもおいしい"),
+      ].map((x, i) => (i === 2 ? { ...x, parts: [{ text: "加", pos: "V" }, { text: "珍珠", pos: "N" }, { text: "珍珠奶茶", pos: "N" }] } : x)),
+      ctx,
+    );
+    const texts = g.kept.map((k) => k.parts.map((p) => p.text).join(""));
+    expect(texts).not.toContain("喝珍珠奶茶");
+    expect(texts).not.toContain("珍珠奶茶很好喝");
+    expect(g.dropped.filter((d) => d.reason === "weak_partner").length).toBe(2);
+  });
+  it("目標 1・2級の人には 喝＋〜 も強い型と同じに残す（順もそのまま。オーナー 2026-10-26）", () => {
+    const g = gateUsageChunks(
+      [
+        c(["喝", "珍珠奶茶"], "タピオカミルクティーを飲む"),
+        c(["珍珠奶茶", "半糖少冰"], "タピオカミルクティーを微糖・氷少なめで"),
+        c(["點", "珍珠奶茶"], "タピオカミルクティーを注文する"),
+      ],
+      { ...ctx, allowSimplePartners: true },
+    );
+    expect(g.kept.map((k) => k.parts.map((p) => p.text).join(""))[0]).toBe("喝珍珠奶茶");
+    expect(g.dropped.filter((d) => d.reason === "weak_partner")).toHaveLength(0);
+  });
+  it("簡単な動詞の型を許すのは目標 1・2級だけ", () => {
+    expect(allowsSimplePartners("TOCFL-1")).toBe(true);
+    expect(allowsSimplePartners("TOCFL-2")).toBe(true);
+    expect(allowsSimplePartners("TOCFL-3")).toBe(false);
+    expect(allowsSimplePartners("TOCFL-5")).toBe(false);
+    expect(allowsSimplePartners("")).toBe(false);
+  });
+  it("強い型が足りなければ弱い型は残し、最後へ回す", () => {
+    const g = gateUsageChunks(
+      [c(["喝", "珍珠奶茶"], "タピオカミルクティーを飲む"), c(["珍珠奶茶", "半糖少冰"], "タピオカミルクティーを微糖・氷少なめで")],
+      ctx,
+    );
+    expect(g.kept.map((k) => k.parts.map((p) => p.text).join(""))).toEqual(["珍珠奶茶半糖少冰", "喝珍珠奶茶"]);
+  });
+  it("ひと言解説（note）は保存する形に残る", () => {
+    const g = gateUsageChunks([c(["珍珠奶茶", "半糖少冰"], "タピオカミルクティーを微糖・氷少なめで", "半糖は甘さ半分、少冰は氷少なめ。注文の決まり文句")], ctx);
+    expect(g.kept[0].note).toBe("半糖は甘さ半分、少冰は氷少なめ。注文の決まり文句");
+  });
+  it("很 に slot・alts が付いて返っても、保存する形では外す", () => {
+    const g = gateUsageChunks(
+      [
+        {
+          parts: [
+            { text: "珍珠奶茶", pos: "N" },
+            { text: "很", pos: "Adv", slot: true, alts: [{ text: "超", ja: "すごく" }] },
+            { text: "Q", pos: "Vs" },
+          ],
+          ja: "タピオカミルクティーがもちもちしている",
+          fits: true,
+          why: "",
+        },
+      ],
+      ctx,
+    );
+    const hen = g.kept[0]?.parts.find((p) => p.text === "很");
+    expect(hen?.slot).toBeUndefined();
+    expect(hen?.alts).toBeUndefined();
   });
 });

@@ -69,7 +69,8 @@ export function explainOf(
     .filter((m) => !!m.word?.trim())
     .slice(0, 2)
     .map((m) => ({ word: m.word, note: fit(m.note) }));
-  const note = fit((ex.taiwan_note || ex.usage_context || "").trim());
+  // 台湾メモの強調の印（`**`、単語の詳細だけが描く）は、答え合わせでは外す。
+  const note = fit((ex.taiwan_note || ex.usage_context || "").replaceAll("**", "").trim());
   if (!chunks.length && !related.length && !measures.length && !note) return null;
   return { chunks, related, measures, note };
 }

@@ -27,8 +27,9 @@ nonisolated extension DemoDatabase {
         case "getScanContext": result = scanContext()
         case "searchImageCandidates": result = ["candidates": imageCandidates(query: DJ.str(data["query"]) ?? "")]
         case "regenerateCardSection": result = ["ok": false, "filled": false]
-        // The web's dictionary is not in the demo: no readings, so the example sentences stay as they are.
-        case "readSentences": result = ["readings": [Any]()]
+        // The web's dictionary is not in the demo: only the 版25 preview's sentences are read (`Word25Preview`), the
+        // others stay as they are.
+        case "readSentences": result = ["readings": Word25Preview.demoReadings(DJ.strings(data["sentences"]))]
         case "reportAndFixSection":
             let item = DJ.str(data["item"]) ?? "auto"
             if item == "auto" {

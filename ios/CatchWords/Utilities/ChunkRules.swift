@@ -7,16 +7,21 @@ import Foundation
 nonisolated struct UsageChunk: Codable, Sendable, Hashable {
     var parts: [ChunkPart]
     var ja: String
+    /// 「ひと言解説」 under the light bulb (server `usage_chunks[].note`, 2026-10-25): one sentence in the reader's language.
+    /// nil on older cards — then the bulb is not drawn (docs/word-detail-design.md §3).
+    var note: String?
 
-    init(parts: [ChunkPart], ja: String) {
+    init(parts: [ChunkPart], ja: String, note: String? = nil) {
         self.parts = parts
         self.ja = ja
+        self.note = note
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         parts = (try? c.decode([ChunkPart].self, forKey: .parts)) ?? []
         ja = (try? c.decode(String.self, forKey: .ja)) ?? ""
+        note = ChunkPart.reading(try? c.decodeIfPresent(String.self, forKey: .note))
     }
 
     var text: String { parts.map(\.text).joined() }
@@ -431,7 +436,8 @@ nonisolated enum ChunkRules {
     // MARK: - C18 Roles (what each block is to the learner)
 
     /// Glue words of a Mandarin formula, drawn faint: never what the learner is to remember about the word.
-    static let frameWords: Set<String> = ["的", "了", "把", "被", "在", "跟", "給", "也", "都", "就", "不", "沒", "和", "對", "從", "往", "幫", "替", "著", "過", "嗎", "吧", "呢", "是", "有"]  // l10n-ignore (Mandarin words)
+    /// 版25 (owner 2026-10-24): the helping verbs 要・會・能・可以 are glue too — black with no box, like 很.
+    static let frameWords: Set<String> = ["的", "了", "把", "被", "在", "跟", "給", "也", "都", "就", "不", "沒", "和", "對", "從", "往", "幫", "替", "著", "過", "嗎", "吧", "呢", "是", "有", "要", "會", "能", "可以"]  // l10n-ignore (Mandarin words)
 
     /// A part-of-speech tag of glue (pos.ts): prepositions, particles, conjunctions, determiners, and the old role mark C.
     static func isGluePos(_ pos: String) -> Bool {
@@ -521,5 +527,195 @@ nonisolated enum ChunkRules {
         guard !notes.isEmpty else { return out }
         let l = DisplayLanguages.find(reader) ?? DisplayLanguages.find(DisplayLanguages.fallback)!
         return out + l.openBracket + notes.joined(separator: l.listSeparator) + l.closeBracket
+    }
+
+    // MARK: - 版25 The chunk inside an example (docs/word-detail-design.md §4, §10)
+
+    /// Where a chunk stands in an example sentence: the chunk's place in the card's order (its number is `chunk + 1`), the
+    /// run's first character and length (in `Character`s of the sentence), and for each character of the run the part it
+    /// belongs to (a swappable part's other word counts as that part).
+    nonisolated struct ExampleHit: Sendable, Hashable {
+        /// The chunk the example is shown under (its number).
+        var chunk: Int
+        /// That chunk's characters: from `start`, `length` characters (the whole stretch when its parts stand apart).
+        var start: Int
+        var length: Int
+        /// The part of each of the chunk's characters, in order (empty when its parts stand apart — `cells` has them).
+        var parts: [ChunkPart]
+        /// Every character of the sentence that belongs to a chunk — this one and every other chunk found in the
+        /// sentence (owner 2026-10-26: 「例文内に複数のチャンクがある場合は、すべてのチャンクの色を変えて」) — and its part.
+        var cells: [Int: ChunkPart] = [:]
+        /// Whether the chunk's characters stand as one run (then the run is kept on one line).
+        var together: Bool { !parts.isEmpty }
+    }
+
+    /// Where one chunk stands in the sentence: as one run — as written, or with a swappable part's other word in its
+    /// place — or, failing that, its parts in order with at most `maxGap` characters between them (小籠包一定要配薑絲 holds
+    /// 小籠包＋配＋薑絲). nil when it does not stand there.
+    static func chunkPlace(_ chars: [Character], chunk: UsageChunk, maxGap: Int = 4) -> (start: Int, length: Int, run: Bool, cells: [Int: ChunkPart])? {
+        let parts = chunk.parts.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard !parts.isEmpty, !chars.isEmpty else { return nil }
+        let own = parts.map { $0.text.trimmingCharacters(in: .whitespaces) }
+        var candidates = [own]
+        for (i, p) in parts.enumerated() where p.slot == true {
+            for a in p.alts ?? [] {
+                let t = a.text.trimmingCharacters(in: .whitespaces)
+                guard !t.isEmpty, t != own[i] else { continue }
+                var swapped = own
+                swapped[i] = t
+                candidates.append(swapped)
+            }
+        }
+        for texts in candidates {
+            let run = Array(texts.joined())
+            guard !run.isEmpty, let at = firstRun(run, in: chars) else { continue }
+            var cells: [Int: ChunkPart] = [:]
+            var k = at
+            for (i, t) in texts.enumerated() {
+                for _ in 0..<t.count { cells[k] = parts[i]; k += 1 }
+            }
+            return (at, run.count, true, cells)
+        }
+        // Apart: needs two parts or more, each found after the one before it.
+        guard parts.count > 1 else { return nil }
+        for texts in candidates {
+            var from = 0
+            var first: Int?
+            var cells: [Int: ChunkPart] = [:]
+            var ok = true
+            for (i, t) in texts.enumerated() {
+                let piece = Array(t)
+                guard let at = firstRun(piece, in: chars, from: from),
+                      first == nil || at - from <= maxGap else { ok = false; break }
+                if first == nil { first = at }
+                for k in at..<(at + piece.count) { cells[k] = parts[i] }
+                from = at + piece.count
+            }
+            if ok, let first { return (first, from - first, false, cells) }
+        }
+        return nil
+    }
+
+    /// The first chunk (in the card's order) whose characters stand in the sentence as one run — as written, or with a
+    /// swappable part's other word in its place. With `chunk`, that chunk (as one run or with its parts apart). The hit's
+    /// `cells` also hold every other chunk found in the sentence. nil when none does (then the example has no number and
+    /// no colours). Mandarin and Japanese only (their chunks are written without spaces).
+    static func exampleHit(sentence: String, chunks: [UsageChunk], target: String, chunk wanted: Int? = nil) -> ExampleHit? {
+        guard target != "en" else { return nil }
+        let chars = Array(sentence)
+        guard !chars.isEmpty else { return nil }
+        let places = chunks.map { chunkPlace(chars, chunk: $0) }
+        let primary: Int?
+        if let wanted {
+            primary = places.indices.contains(wanted) && places[wanted] != nil ? wanted : nil
+        } else {
+            primary = places.firstIndex { $0?.run == true }
+        }
+        guard let primary, let place = places[primary] else { return nil }
+        var cells = place.cells
+        // Chunks may share characters (吃＋小籠包 and 小籠包＋配＋薑絲 share 小籠包): the shown chunk's part wins there.
+        for (i, other) in places.enumerated() where i != primary {
+            guard let other else { continue }
+            cells.merge(other.cells) { mine, _ in mine }
+        }
+        let parts = place.run ? (place.start..<(place.start + place.length)).compactMap { place.cells[$0] } : []
+        return ExampleHit(chunk: primary, start: place.start, length: place.length, parts: parts, cells: cells)
+    }
+
+    /// 「例文」 under 版25's rule (owner 2026-10-26, 「解説はチャンク、例文はチャンク専用」): for each chunk in the card's order,
+    /// the first example not taken yet that holds it — one example per chunk, numbered like the chunk. Examples that
+    /// hold no chunk are left out. Empty when no example holds any chunk (then the page shows the examples unnumbered).
+    static func chunkExamples(sentences: [String], chunks: [UsageChunk], target: String) -> [(example: Int, hit: ExampleHit)] {
+        var used = Set<Int>()
+        var out: [(example: Int, hit: ExampleHit)] = []
+        for c in chunks.indices {
+            for e in sentences.indices where !used.contains(e) {
+                guard let hit = exampleHit(sentence: sentences[e], chunks: chunks, target: target, chunk: c) else { continue }
+                used.insert(e)
+                out.append((e, hit))
+                break
+            }
+        }
+        return out
+    }
+
+    /// The first place `run` stands in `chars`.
+    private static func firstRun(_ run: [Character], in chars: [Character], from: Int = 0) -> Int? {
+        guard !run.isEmpty, run.count <= chars.count else { return nil }
+        var i = from
+        while i + run.count <= chars.count {
+            if Array(chars[i..<(i + run.count)]) == run { return i }
+            i += 1
+        }
+        return nil
+    }
+
+    /// Marks that never begin a line (they go with the run before them) and that never end one (with the run after).
+    static let closingMarks: Set<String> = ["，", "。", "！", "？", "、", "；", "：", "…", "」", "』", "）", ")", ",", ".", "!", "?", ";", ":", "～", "~"]  // l10n-ignore (punctuation)
+    static let openingMarks: Set<String> = ["「", "『", "（", "("]  // l10n-ignore (punctuation)
+
+    /// The runs of an example's characters that stay on one line (§4): the chunk's run (`span`), each of the sentence's
+    /// `words` (longest first, so 馬桶刷 is kept before 馬桶), every other character alone; a closing mark joins the run
+    /// before it and an opening mark the run after it, so no line starts with 「，」. Returns the characters' indexes per run.
+    static func exampleGroups(_ chars: [String], words: [String], span: Range<Int>?) -> [[Int]] {
+        guard !chars.isEmpty else { return [] }
+        guard chars.count > 1 else { return [[0]] }
+        // joined[k]: characters k and k + 1 stay on the same line.
+        var joined = [Bool](repeating: false, count: chars.count)
+        let wordChars = words.map { Array($0.trimmingCharacters(in: .whitespaces)).map(String.init) }
+            .filter { $0.count > 1 }
+            .sorted { $0.count > $1.count }
+        for w in wordChars {
+            var i = 0
+            while i + w.count <= chars.count {
+                if Array(chars[i..<(i + w.count)]) == w {
+                    for k in i..<(i + w.count - 1) { joined[k] = true }
+                    i += w.count
+                } else {
+                    i += 1
+                }
+            }
+        }
+        if let span, span.lowerBound >= 0, span.upperBound <= chars.count, span.count > 1 {
+            for k in span.lowerBound..<(span.upperBound - 1) { joined[k] = true }
+        }
+        for i in chars.indices {
+            if closingMarks.contains(chars[i]), i > 0 { joined[i - 1] = true }
+            if openingMarks.contains(chars[i]), i < chars.count - 1 { joined[i] = true }
+        }
+        var out: [[Int]] = []
+        var run: [Int] = []
+        for i in chars.indices {
+            run.append(i)
+            if !joined[i] {
+                out.append(run)
+                run = []
+            }
+        }
+        if !run.isEmpty { out.append(run) }
+        return out
+    }
+
+    /// Lines of runs, greedily (§4): each line takes the runs that fit — `first` wide for the first line (the speaker
+    /// sits at its end), `rest` wide for the others — with `gap` between two runs. A run wider than a line still gets
+    /// a line of its own (never cut). `widths`: each run's own width. Returns the runs' indexes per line.
+    static func lines(widths: [Double], gap: Double, first: Double, rest: Double) -> [[Int]] {
+        var out: [[Int]] = []
+        var line: [Int] = []
+        var used = 0.0
+        for (i, w) in widths.enumerated() {
+            let room = out.isEmpty ? first : rest
+            let need = line.isEmpty ? w : used + gap + w
+            if line.isEmpty || need <= room + 0.0001 {
+                line.append(i)
+                used = need
+            } else {
+                out.append(line)
+                line = [i]
+                used = w
+            }
+        }
+        if !line.isEmpty { out.append(line) }
+        return out
     }
 }

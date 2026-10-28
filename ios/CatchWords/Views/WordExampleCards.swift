@@ -9,16 +9,16 @@ struct WordMeaningCard: View {
     var body: some View {
         SectionCard(title: CardSection.meaning.title, icon: CardSection.meaning.icon) {
             Text(meaning)
-                .scaledFont(size: 26, weight: .medium)
+                .scaledFont(size: 24, weight: .medium)
                 .foregroundStyle(Theme.foreground)
+                .lineSpacing(4)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .reviewBlur("meaning-tr", .translation)
         }
     }
 }
 
-/// 「例文」: the scene it is said in (a small label above, as on the extra examples; owner 2026-10-14
-/// 「例文は追加の例文のように…状況場面感情の説明を短く例文のうえに書いて」), the sentence with the word marked, its
-/// translation, and its voice.
+/// 「例文」 with one sentence (the review's answer sheet): the same box as the word page's examples (§4).
 struct WordExampleCard: View {
     let sentence: String
     let translation: String?
@@ -28,42 +28,133 @@ struct WordExampleCard: View {
     var language: String = NativeAPI.targetLanguage
 
     var body: some View {
-        WordExamplesCard(examples: [ExampleItem(sentence: sentence, translation: translation, scene: scene.isEmpty ? nil : scene)],
-                         headword: headword, known: known, language: language)
+        DetailExamplesCard(examples: [ExampleItem(sentence: sentence, translation: translation, scene: scene.isEmpty ? nil : scene)],
+                           headword: headword, chunks: [], known: known, language: language)
     }
 }
 
-/// The word page's 「例文」 with every usage pattern's example (owner 2026-10-15: 「追加の例文」 is gone): each with its
-/// short situation label right above it (only the label written for that very sentence, `ExampleItem.all`), the
-/// sentence with the word marked, its translation and its voice.
+/// The word page's examples before 版25 (kept for older callers): now the same box as 「例文」.
 struct WordExamplesCard: View {
     let examples: [ExampleItem]
     let headword: String
+    var known: [SentenceReadings.Known] = []
+    var language: String = NativeAPI.targetLanguage
+
+    var body: some View {
+        DetailExamplesCard(examples: examples, headword: headword, chunks: [], known: known, language: language)
+    }
+}
+
+/// The word page's 「例文」 (docs/word-detail-design.md §4, 版25): each sentence in a grey box with the number of the chunk
+/// it uses above the box's top-left corner (none when it uses none), the sentence within two lines with the chunk in
+/// its parts' colours, the speaker at the end of the first line, and the translation under it. No scene label (owner
+/// 2026-10-24: 「場面の一言は出さない」).
+struct DetailExamplesCard: View {
+    let examples: [ExampleItem]
+    let headword: String
+    /// The chunks as the page numbers them (`usage_chunks` in the server's order, as shown).
+    let chunks: [UsageChunk]
+    /// The chunk each example is shown under, as the page worked it out (`ChunkRules.chunkExamples`). nil: looked up here.
+    var hits: [ChunkRules.ExampleHit?]? = nil
     /// The words the card already reads (`SentenceReadings.known`): they win over the dictionary in the sentences.
     var known: [SentenceReadings.Known] = []
     /// The word's learning language: only a Mandarin sentence gets readings.
     var language: String = NativeAPI.targetLanguage
-    /// Every sentence's reading of each character (owner 2026-10-22: 「例文の漢字にピンインまたは注音をすべて書いて」).
+    /// The example the page just jumped to from a chunk's number: its box glows blue for a moment.
+    var flash: Int? = nil
+    @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
     @State private var readings: [String: [SentenceUnit]] = [:]
 
+    /// Pinyin over the examples only with ピンイン chosen (owner 2026-10-25: 「注音の設定のときは例文にピンイン書かなくていい」).
+    private var showsPinyin: Bool { readingPref == "pinyin" && language.hasPrefix("zh") }
+
     var body: some View {
-        SectionCard(title: L("例文"), icon: "text.quote") {
-            VStack(spacing: 10) {
-                ForEach(Array(examples.enumerated()), id: \.offset) { _, ex in
-                    ExampleBlock(example: ex, headword: headword,
-                                 units: readings[ex.sentence] ?? (language.hasPrefix("zh") ? SentenceReadings.shared.cached(ex.sentence) : nil))
+        SectionCard(title: CardSection.example.title, icon: CardSection.example.icon) {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(Array(examples.enumerated()), id: \.offset) { i, ex in
+                    DetailExampleRow(example: ex, index: i, headword: headword, language: language,
+                                     hit: hits.flatMap { $0.indices.contains(i) ? $0[i] : nil }
+                                        ?? ChunkRules.exampleHit(sentence: ex.sentence, chunks: chunks, target: language),
+                                     pinyin: showsPinyin ? pinyin(for: ex.sentence) : nil,
+                                     flashing: flash == i)
+                        .id("example-\(i)")
                 }
             }
         }
-        .task(id: examples.map(\.sentence)) {
-            guard language.hasPrefix("zh") else { return }
+        .task(id: examples.map(\.sentence).joined(separator: "\n") + "|" + readingPref) {
+            guard showsPinyin else { return }
             let found = await SentenceReadings.shared.load(examples.map(\.sentence), known: known)
             withAnimation(.easeOut(duration: 0.2)) { readings = found }
         }
     }
+
+    /// The pinyin of each character, when the server's readings of this very sentence are at hand.
+    private func pinyin(for sentence: String) -> [String?]? {
+        guard let units = readings[sentence] ?? SentenceReadings.shared.cached(sentence),
+              units.count == sentence.count else { return nil }
+        return units.map { u -> String? in
+            guard let p = u.pinyin?.trimmingCharacters(in: .whitespaces), !p.isEmpty else { return nil }
+            return p
+        }
+    }
 }
 
-/// One example: its label, the sentence, the translation, and the voice button.
+/// One example of 「例文」 (§4): number, then the grey box with the sentence and its translation.
+struct DetailExampleRow: View {
+    let example: ExampleItem
+    let index: Int
+    let headword: String
+    let language: String
+    let hit: ChunkRules.ExampleHit?
+    let pinyin: [String?]?
+    var flashing: Bool = false
+    @AppStorage("detail.speechRate") private var speechRate: Double = 1
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let hit {
+                DetailNumber(n: hit.chunk + 1)
+                    .padding(.leading, 2)
+                    .accessibilityLabel(L("チャンク\(hit.chunk + 1)を使った例文"))
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                ExampleSentenceView(sentence: example.sentence, headword: headword, target: language, hit: hit,
+                                    words: example.words, pinyin: pinyin, reserve: 38) {
+                    DetailSpeakButton(text: example.sentence, style: .small)
+                }
+                .reviewBlur("ex-\(index)-zh", .target)
+                .accessibilityAction(named: L("発音を聞く")) {
+                    SoundService.shared.speak(example.sentence, rate: speechRate)
+                }
+                .accessibilityIdentifier("example.sentence")
+                if let t = example.translation?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {
+                    Text(t)
+                        .scaledFont(size: 14)
+                        .foregroundStyle(Theme.muted)
+                        .lineSpacing(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .reviewBlur("ex-\(index)-tr", .translation)
+                }
+            }
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+            .padding(.leading, 14)
+            .padding(.trailing, 12)
+            .background(Theme.secondary, in: .rect(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Theme.primary, lineWidth: 3)
+                    .opacity(flashing ? 1 : 0)
+                    .animation(.easeOut(duration: 0.3), value: flashing)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("example.block")
+    }
+}
+
+/// One example (before 版25): its label, the sentence, the translation, and the voice button.
 struct ExampleBlock: View {
     let example: ExampleItem
     let headword: String

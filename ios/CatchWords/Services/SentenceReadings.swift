@@ -39,6 +39,19 @@ final class SentenceReadings {
     nonisolated private static let file = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("sentence-readings.json")
 
+    #if DEBUG
+    /// The screen previews (`-uiPreview word25-pinyinex`) have no server: their sentences' readings are put here first.
+    func seedForPreview(_ readings: [[String: Any]]) {
+        loadIfNeeded()
+        for r in readings {
+            guard let sentence = r["sentence"] as? String, let raw = r["units"] as? [[String: Any]] else { continue }
+            let u = raw.map { SentenceUnit(char: $0["char"] as? String ?? "", pinyin: $0["pinyin"] as? String,
+                                           zhuyin: $0["zhuyin"] as? String) }
+            if u.map(\.char).joined() == sentence { keep(sentence, u) }
+        }
+    }
+    #endif
+
     /// What is kept for this sentence (nothing asked).
     func cached(_ sentence: String) -> [SentenceUnit]? {
         loadIfNeeded()

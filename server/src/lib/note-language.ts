@@ -72,8 +72,8 @@ export function dropForeignNote(text: string | null | undefined, explanationLang
  */
 export type NoteBearingExtras = {
   measure_words?: Array<{ note?: string }> | null;
-  related_words?: Array<{ note?: string }> | null;
-  usage_chunks?: Array<{ ja?: string }> | null;
+  related_words?: Array<{ note?: string; gloss?: string }> | null;
+  usage_chunks?: Array<{ ja?: string; note?: string }> | null;
 };
 
 export function scrubForeignNotes<T extends NoteBearingExtras>(
@@ -88,14 +88,20 @@ export function scrubForeignNotes<T extends NoteBearingExtras>(
     );
   }
   if (Array.isArray(out.related_words)) {
-    out.related_words = out.related_words.map((r) =>
-      r && looksLikeTargetNote(r.note, explanationLang) ? { ...r, note: "" } : r,
-    );
+    out.related_words = out.related_words.map((r) => {
+      if (!r) return r;
+      let o = looksLikeTargetNote(r.note, explanationLang) ? { ...r, note: "" } : r;
+      if (looksLikeTargetNote(o.gloss, explanationLang)) o = { ...o, gloss: "" };
+      return o;
+    });
   }
   if (Array.isArray(out.usage_chunks)) {
-    out.usage_chunks = out.usage_chunks.map((c) =>
-      c && looksLikeTargetNote(c.ja, explanationLang) ? { ...c, ja: "" } : c,
-    );
+    out.usage_chunks = out.usage_chunks.map((c) => {
+      if (!c) return c;
+      let o = looksLikeTargetNote(c.ja, explanationLang) ? { ...c, ja: "" } : c;
+      if (looksLikeTargetNote(o.note, explanationLang)) o = { ...o, note: "" };
+      return o;
+    });
   }
   return out;
 }
@@ -138,6 +144,14 @@ export function looksWrongForReader(
   // 違う言語（R17「日本語にしてるのに、図鑑のスライドの意味や例文の訳に英語が表示される」）。
   // 5文字未満（「OK」「USB」）は略語として残す。漢字・かなが在っても、欧文が大半なら違う。
   const mostlyLatin = latin >= 5 && latin > cjk * 3 && latinWords >= 2;
+  // ハングルの文（韓国語）は、日本語・台湾華語で読む人には違う言語（2026-10-25 点検: 戴・穿 のような漢字を
+  // 引いた韓国語の解説が、漢字が在るので日本語・中文として通っていた）。学ぶ語の字は引用でよく出るが、ハングルは出ない。
+  // iOS の `LanguageRules.looksWrong` と同じ線: 日本語は ハングル ≥ かな＋漢字、台湾華語は ハングル ≥ 漢字。
+  const hangulCount = (s.match(/[가-힯ᄀ-ᇿ]/g) ?? []).length;
+  const kanaCount = (s.match(/[ぁ-ゟァ-ヺ]/g) ?? []).length;
+  const hanCount = (s.match(/[㐀-䶿一-鿿々]/g) ?? []).length;
+  if (lang === "ja" && hangulCount > 0 && hangulCount >= kanaCount + hanCount) return true;
+  if (lang.startsWith("zh") && hangulCount > 0 && hangulCount >= hanCount) return true;
   if (lang === "ja") {
     if (!opts.hanOnlyOk && looksLikeTargetNote(s, "ja")) return true;
     if (!HAN.test(s) && !KANA.test(s) && latin >= 5) return true;
@@ -200,7 +214,7 @@ export function readerText(
 export function scrubForReader<
   T extends {
     examples_extra?: Array<{ zh?: string; ja?: string }> | null;
-    usage_chunks?: Array<{ ja?: string }> | null;
+    usage_chunks?: Array<{ ja?: string; note?: string }> | null;
   },
 >(extras: T, readerLang: string): T {
   if (!extras || typeof extras !== "object") return extras;
@@ -211,9 +225,12 @@ export function scrubForReader<
     );
   }
   if (Array.isArray(out.usage_chunks)) {
-    out.usage_chunks = out.usage_chunks.map((c) =>
-      c && looksWrongForReader(c.ja, readerLang) ? { ...c, ja: "" } : c,
-    );
+    out.usage_chunks = out.usage_chunks.map((c) => {
+      if (!c) return c;
+      let o = looksWrongForReader(c.ja, readerLang) ? { ...c, ja: "" } : c;
+      if (looksWrongForReader(o.note, readerLang)) o = { ...o, note: "" };
+      return o;
+    });
   }
   return out;
 }
@@ -295,7 +312,7 @@ export function scrubExtrasForReader<T>(extras: T, readerLang: string): T {
   // なってる」 — 漢字だけ5字以上の注記は、日本語の読み手には中文）。
   eachItem("examples_extra", [{ name: "ja", source: "zh" }, { name: "scene" }]);
   eachItem("measure_words", [{ name: "note" }]);
-  eachItem("related_words", [{ name: "note" }]);
+  eachItem("related_words", [{ name: "note" }, { name: "gloss", short: true }]);
   eachItem("phrasal_verbs", [{ name: "meaning", short: true }]);
   eachItem("etymology_relatives", [{ name: "note" }]);
   eachItem("kanji_breakdown", [{ name: "meaning", short: true }]);
@@ -319,6 +336,7 @@ export function scrubExtrasForReader<T>(extras: T, readerLang: string): T {
       if (!chunk || typeof chunk !== "object") return chunk;
       const c = { ...(chunk as Record<string, unknown>) };
       if (wrong(c.ja)) c.ja = "";
+      if (wrong(c.note)) c.note = "";
       if (Array.isArray(c.parts)) {
         c.parts = c.parts.map((part) => {
           if (!part || typeof part !== "object") return part;

@@ -14,6 +14,7 @@ struct AppInfoView: View {
     @State private var disk: (images: Int64, voices: Int64, snapshot: Int64)?
     @State private var copied = false
     @State private var logCopied = false
+    @State private var sentrySent: Bool?
     @State private var log = DevLog.shared
 
     var body: some View {
@@ -56,6 +57,17 @@ struct AppInfoView: View {
                 AdminRow(label: L("サイト"), value: AppConfig.webBaseURL.host() ?? AppConfig.webBaseURL.absoluteString)
                 AdminRow(label: L("データベース"), value: URL(string: AppConfig.supabaseURL)?.host() ?? AppConfig.supabaseURL)
                 AdminRow(label: L("AI の状態"), value: aiStatus)
+            }
+            // Sentry (`ErrorReporting`): whether this build reports, and one test message to see that reports arrive.
+            Section(L("エラーの記録")) {
+                AdminRow(label: "Sentry", value: ErrorReporting.isOn ? L("送る") : L("送らない（開発用ビルド）"))
+                Button {
+                    sentrySent = ErrorReporting.sendTest()
+                    if sentrySent == true { Haptics.success() } else { Haptics.warning() }
+                } label: {
+                    Text(sentrySent == true ? L("テストを送りました") : L("テストを送る"))
+                }
+                .disabled(!ErrorReporting.isOn || sentrySent == true)
             }
             Section {
                 AdminRow(label: L("図鑑の語（この学習言語）"), value: AdminFormat.int(dex.stickers.count))

@@ -58,6 +58,7 @@ import {
 } from "./shared-word-guard";
 import { findGeneratedCard, type GeneratedCardLookup, type TrustedCard } from "./generated-cards";
 import { explanationKey } from "./word-explanation";
+import { bandGenLevels, withoutLevelExtras, type LevelBandKey } from "./level-content";
 import {
   alignExampleExtras,
   exampleMatchesSentence,
@@ -1077,9 +1078,15 @@ export async function upsertWord(
       language,
       headword: word.headword,
     });
-    const incoming = lookup.available
+    const fromCard = lookup.available
       ? (lookup.card?.extras ?? null)
       : (word.extras as unknown as Record<string, unknown>);
+    // 帯の付いた語の例文・チャンクは共有の行に入れない（帯の行が受け持つ — `docs/sharing-rules.md` S6）。
+    const { callerLevelBand } = await import("./level-content.server");
+    const incoming =
+      fromCard && (await callerLevelBand(supabaseAdmin, userId, wordId))
+        ? withoutLevelExtras(fromCard)
+        : fromCard;
     if (incoming) {
       const { data: cur } = await supabaseAdmin
         .from("words")
@@ -1419,6 +1426,20 @@ export const saveSticker = createServerFn({ method: "POST" })
     }
     if (res.error) throw new Error(res.error.message);
 
+    /**
+     * **保存した時の帯を札に書く**（`docs/sharing-rules.md` S4 — 後でレベルを変えても、この語の例文・チャンクは
+     * 変わらない）。書けなくても保存は成功（最初に読む時に、その時の帯で書く — `callerLevelBand`）。
+     */
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const lc = await import("./level-content.server");
+      if (await lc.levelContentAvailable(supabaseAdmin)) {
+        await lc.pinStickerBand(supabaseAdmin, userId, wordId, await lc.profileLevelBand(userId));
+      }
+    } catch (e) {
+      console.warn("saveSticker: 札に帯を書けない", (e as Error)?.message);
+    }
+
     // KPI: was this the user's very first catch? (onboarding §2 — the client
     // shows the SRS teaser「明日この単語を覚えてるか聞くね」.)
     const { count } = await supabase
@@ -1470,6 +1491,18 @@ export type WordExtrasDeps = {
     explainLang: string;
     l1: string;
   }) => Promise<GeneratedCardLookup>;
+  /**
+   * この人がこの語で使う帯（`docs/sharing-rules.md` S4）。`null` = 古い語（今までどおり）。渡さなければ
+   * `admin` から引く（`callerLevelBand`）。
+   */
+  levelBand?: () => Promise<LevelBandKey | null>;
+  /** その帯の例文・チャンクの空きを埋める（`fillLevelContent`）。渡さなければ `admin` に書く。 */
+  fillLevel?: (input: {
+    word_id: string;
+    key: { explainLang: string; l1: string };
+    band: LevelBandKey;
+    card: TrustedCard;
+  }) => Promise<boolean>;
   /** 読む人の言語の解説の行を置く（`saveWordExplanation`）。 */
   saveExplanation: (input: {
     word_id: string;
@@ -1580,6 +1613,24 @@ export async function applyWordExtrasUpdate(
           l1: key.l1,
         })
       : { available: true, card: null, kind: null };
+  /**
+   * **例文・チャンクはその人の帯の行へ**（`docs/sharing-rules.md` S1・S2・S6）。帯の付いた語では、共有の語の行にも
+   * 言語の置き場にも例文・チャンクを書かない（同じ言語の別の帯の人に出さない）。その帯のために作ったカードの物
+   * だけを帯の行の空きに入れる（別の帯の級で作ったカードは使わない — 次に開いた時に、その帯で作る）。
+   */
+  const band = await (deps.levelBand ??
+    (async () => {
+      const { callerLevelBand } = await import("./level-content.server");
+      return callerLevelBand(supabaseAdmin, userId, data.word_id);
+    }))();
+  let levelSaved = true;
+  if (band && lookup.available && lookup.card && lookup.card.gen?.levels === bandGenLevels(band)) {
+    levelSaved = await (deps.fillLevel ??
+      (async (i) => {
+        const { fillLevelContent } = await import("./level-content.server");
+        return fillLevelContent(supabaseAdmin, i.word_id, i.key, i.band, i.card);
+      }))({ word_id: data.word_id, key, band, card: lookup.card });
+  }
   let content: {
     extras: Record<string, unknown>;
     patch: Partial<Record<string, string>> | undefined;
@@ -1612,6 +1663,20 @@ export async function applyWordExtrasUpdate(
       // 共有の列は、画面が「欠けている」と送ってきた回だけ（今までと同じ回数）。
       patch: data.patch ? sharedColumnsFromCard(card) : undefined,
       readerMeaning: card.meaning_ja,
+    };
+  }
+
+  if (band) {
+    content = {
+      ...content,
+      extras: withoutLevelExtras(content.extras),
+      patch: content.patch
+        ? Object.fromEntries(
+            Object.entries(content.patch).filter(
+              ([k]) => k !== "example_sentence" && k !== "example_translation",
+            ),
+          )
+        : undefined,
     };
   }
 
@@ -1700,17 +1765,19 @@ export async function applyWordExtrasUpdate(
         (sharedTextIsReaders ? shared.meaning_ja : "") ||
         "",
     ),
-    example_translation:
-      (lookup.available
-        ? exampleMatchesSentence(lookup.card?.example_sentence, shownSentence)
-          ? lookup.card?.example_translation
-          : undefined
-        : data.patch?.example_translation) ??
-      (sharedTextIsReaders ? shared.example_translation : null) ??
-      null,
-    extras: merged,
+    // 帯の付いた語の例文の訳は帯の行（上の `fillLevel`）。
+    example_translation: band
+      ? null
+      : ((lookup.available
+          ? exampleMatchesSentence(lookup.card?.example_sentence, shownSentence)
+            ? lookup.card?.example_translation
+            : undefined
+          : data.patch?.example_translation) ??
+        (sharedTextIsReaders ? shared.example_translation : null) ??
+        null),
+    extras: band ? withoutLevelExtras(merged) : merged,
   })) as { saved?: boolean } | undefined;
-  return { ok: true, saved: saved?.saved ?? true };
+  return { ok: true, saved: (saved?.saved ?? true) && levelSaved };
 }
 
 // --- User feedback: report a wrong word (§ self-improvement) -----------------

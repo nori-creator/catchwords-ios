@@ -80,3 +80,115 @@ export function positionStats(
     distinct_points: points.size,
   };
 }
+
+/**
+ * **枠の無い物は、枠だけをもう一度聞く**（2026-10-26 オーナー報告: 「カメラでスキャンした時に物の上に名前のタグが
+ * 出ない」。公園の写真で 空・ビル・木・草 のタグが写真の上に格子のように並び、ブランコの写真ではブランコのタグを
+ * 押すと人が切り抜かれた）。
+ *
+ * 原因は端末ではなく AI の答え。`ai_runs` の `positions` を読むと、写真の候補の AI（`gemini-3.5-flash-lite`）は
+ * 指示に box_2d を書いても**枠を1つも返さない回がある**（iOS の本番 10 回中 6 回、Android が呼ぶ Lovable の
+ * サーバーでも 65 回中 21 回。返す回は全部の物に返し、返さない回は全部に返さない）。枠が無いと iOS は物の場所が
+ * 分からず、タグを写真に散らし（`TagPlacement.spreadSpots`）、切り抜きも物を探せない。Android の手の写真は、
+ * たまたま枠が返った回だった。
+ *
+ * 枠の無い物（同じ物の別の物と同じ枠になった物も）だけを、**物を囲む枠を返すだけの短い指示**で同じ AI にもう一度
+ * 聞く（Google の画像の理解の資料の物の検出と同じ形: [ymin, xmin, ymax, xmax]、0〜1000）。名前を書き出す長い指示より、
+ * 枠だけの指示の方が確かに返る。
+ */
+export type LocatableItem = {
+  headword: string;
+  group?: number | null;
+  label?: string | null;
+  box_2d?: Box2d;
+  point?: [number, number];
+};
+
+/** 2つの点がこれより近ければ、同じ場所（iOS の `TagPlacement.distinct` の 0.02 と同じ）。 */
+const SAME_PLACE = 20;
+
+/**
+ * 枠を聞き直す物（`group` の番号）。枠の無い物と、前の物と同じ場所の枠を持つ物（別々の物に同じ枠を書いた回）。
+ * 番号の無い候補は1つずつ別の物（iOS の `CatchObject.groups` と同じ）なので、その時は並びの番号を使う。
+ */
+export function objectsNeedingBoxes(items: readonly LocatableItem[]): number[] {
+  const seen = new Set<number>();
+  const placed: Array<[number, number]> = [];
+  const need: number[] = [];
+  items.forEach((it, i) => {
+    const key = objectKey(it, i);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const p = it.point;
+    if (!p || placed.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) <= SAME_PLACE)) {
+      need.push(key);
+      return;
+    }
+    placed.push(p);
+  });
+  return need;
+}
+
+function objectKey(it: LocatableItem, index: number): number {
+  return typeof it.group === "number" ? it.group : 10_000 + index;
+}
+
+/** 枠だけを聞く指示文。物ごとに番号・見出し語・ふだんの呼び名（あれば）を並べる。 */
+export function locateInstruction(items: readonly LocatableItem[], keys: readonly number[]): string {
+  const lines = keys.map((key) => {
+    const names = items
+      .filter((it, i) => objectKey(it, i) === key)
+      .flatMap((it) => [it.headword, it.label ?? ""])
+      .map((s) => s.trim())
+      .filter((s, i, all) => s && all.indexOf(s) === i);
+    return `- id ${key}: ${names.join(" / ")}`;
+  });
+  return `この写真の中で、次の物がそれぞれどこに写っているかを答えてください。
+${lines.join("\n")}
+
+- 物ごとに、その物**だけ**を囲む枠を box_2d = [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。
+- 物の前にある物・物の上の人は枠の中心にしない。物そのものを囲む。
+- 写っていない物は書かない。
+必ずJSONだけを返す。形式: {"boxes":[{"id":0,"box_2d":[ymin,xmin,ymax,xmax]}]}`;
+}
+
+/** 聞き直しの答え（`{"boxes":[{"id","box_2d"}]}`）から、番号ごとの枠。形の崩れた物は捨てる。 */
+export function readLocatedBoxes(raw: unknown, keys: readonly number[]): Map<number, Box2d> {
+  const out = new Map<number, Box2d>();
+  const list = (raw as { boxes?: unknown } | null)?.boxes;
+  if (!Array.isArray(list)) return out;
+  for (const entry of list) {
+    const e = entry as { id?: unknown; box_2d?: unknown } | null;
+    const id = typeof e?.id === "number" ? e.id : Number(e?.id);
+    const box = validBox2d(e?.box_2d);
+    if (!box || !keys.includes(id) || out.has(id)) continue;
+    out.set(id, box);
+  }
+  return out;
+}
+
+/**
+ * 聞き直した枠を物の全部の呼び方に付ける。まだ枠の付いていない物の中心と同じ場所になる枠は使わない
+ * （同じ場所に2つのタグは置かない）。
+ */
+export function withLocatedBoxes<T extends LocatableItem>(items: readonly T[], boxes: Map<number, Box2d>): T[] {
+  if (boxes.size === 0) return [...items];
+  const taken: Array<[number, number]> = [];
+  const keyed = items.map((it, i) => ({ it, key: objectKey(it, i) }));
+  const firstPoint = new Map<number, [number, number]>();
+  for (const { it, key } of keyed) {
+    if (it.point && !boxes.has(key) && !firstPoint.has(key)) firstPoint.set(key, it.point);
+  }
+  taken.push(...firstPoint.values());
+  const use = new Map<number, Box2d>();
+  for (const [key, box] of boxes) {
+    const c = boxCenter(box);
+    if (taken.some((q) => Math.hypot(q[0] - c[0], q[1] - c[1]) <= SAME_PLACE)) continue;
+    taken.push(c);
+    use.set(key, box);
+  }
+  return keyed.map(({ it, key }) => {
+    const box = use.get(key);
+    return box ? { ...it, box_2d: box, point: boxCenter(box) } : it;
+  });
+}

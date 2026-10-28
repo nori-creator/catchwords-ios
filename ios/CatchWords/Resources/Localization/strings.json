@@ -9057,6 +9057,195 @@
   "ko": "{1}문장은 자연스럽습니다",
   "vi": "{1} câu đã tự nhiên"
  },
+ "復習モード": {
+  "en": "Review mode",
+  "zh-TW": "複習模式",
+  "es": "Modo repaso",
+  "ko": "복습 모드",
+  "vi": "Chế độ ôn tập"
+ },
+ "押すまでぼかし、押すと答えが出る": {
+  "en": "Blurred until you tap; tap to see the answer",
+  "zh-TW": "點一下前先模糊，點了就顯示答案",
+  "es": "Borroso hasta que lo toques; tócalo para ver la respuesta",
+  "ko": "누르기 전에는 흐리게, 누르면 답이 보여요",
+  "vi": "Làm mờ cho đến khi chạm; chạm để xem đáp án"
+ },
+ "ぼかす所": {
+  "en": "What to blur",
+  "zh-TW": "要模糊的部分",
+  "es": "Qué difuminar",
+  "ko": "흐리게 할 부분",
+  "vi": "Phần làm mờ"
+ },
+ "訳": {
+  "en": "Translation",
+  "zh-TW": "翻譯",
+  "es": "Traducción",
+  "ko": "번역",
+  "vi": "Bản dịch"
+ },
+ "文字と音": {
+  "en": "Text & sound",
+  "zh-TW": "文字與聲音",
+  "es": "Texto y sonido",
+  "ko": "글자와 소리",
+  "vi": "Chữ và âm thanh"
+ },
+ "文字の大きさ": {
+  "en": "Text size",
+  "zh-TW": "文字大小",
+  "es": "Tamaño del texto",
+  "ko": "글자 크기",
+  "vi": "Cỡ chữ"
+ },
+ "小さいと1画面に多く入る": {
+  "en": "Smaller fits more on one screen",
+  "zh-TW": "字越小，一個畫面能放越多",
+  "es": "Más pequeño, más contenido en pantalla",
+  "ko": "작을수록 한 화면에 더 많이 보여요",
+  "vi": "Chữ nhỏ hơn thì hiện được nhiều hơn"
+ },
+ "小": {
+  "en": "Small",
+  "zh-TW": "小",
+  "es": "Pequeño",
+  "ko": "작게",
+  "vi": "Nhỏ"
+ },
+ "標準": {
+  "en": "Default",
+  "zh-TW": "標準",
+  "es": "Normal",
+  "ko": "기본",
+  "vi": "Mặc định"
+ },
+ "大": {
+  "en": "Large",
+  "zh-TW": "大",
+  "es": "Grande",
+  "ko": "크게",
+  "vi": "Lớn"
+ },
+ "特大": {
+  "en": "Extra large",
+  "zh-TW": "特大",
+  "es": "Muy grande",
+  "ko": "아주 크게",
+  "vi": "Rất lớn"
+ },
+ "発音の速さ": {
+  "en": "Speech speed",
+  "zh-TW": "發音速度",
+  "es": "Velocidad de voz",
+  "ko": "발음 속도",
+  "vi": "Tốc độ phát âm"
+ },
+ "長押しはこの 0.7 倍": {
+  "en": "Long-press plays at 0.7× this speed",
+  "zh-TW": "長按會以這個速度的 0.7 倍播放",
+  "es": "Mantén pulsado para oírlo a 0,7×",
+  "ko": "길게 누르면 이 속도의 0.7배로 재생",
+  "vi": "Nhấn giữ để phát ở 0,7× tốc độ này"
+ },
+ "この速さで聞く": {
+  "en": "Listen at this speed",
+  "zh-TW": "用這個速度聽",
+  "es": "Escuchar a esta velocidad",
+  "ko": "이 속도로 듣기",
+  "vi": "Nghe ở tốc độ này"
+ },
+ "スイッチで表示・非表示、≡ を押したまま動かして並べ替え": {
+  "en": "Use the switch to show or hide. Hold ≡ and drag to reorder.",
+  "zh-TW": "用開關顯示或隱藏，按住 ≡ 拖曳來排序",
+  "es": "Usa el interruptor para mostrar u ocultar. Mantén ≡ y arrastra para reordenar.",
+  "ko": "스위치로 표시·숨기기, ≡를 누른 채 끌어서 순서 변경",
+  "vi": "Bật/tắt để hiện hoặc ẩn. Giữ ≡ và kéo để sắp xếp."
+ },
+ "解説": {
+  "en": "Note",
+  "zh-TW": "解說",
+  "es": "Nota",
+  "ko": "설명",
+  "vi": "Giải thích"
+ },
+ "点線の枠の語は、押すとほかの語に入れ替えられます": {
+  "en": "Tap a word in a dashed box to swap it for another word.",
+  "zh-TW": "點虛線框裡的詞，就能換成其他詞",
+  "es": "Toca una palabra en un recuadro punteado para cambiarla por otra.",
+  "ko": "점선 상자 안의 단어를 누르면 다른 단어로 바꿀 수 있어요",
+  "vi": "Chạm vào từ trong khung nét đứt để đổi sang từ khác."
+ },
+ "OK": {
+  "en": "OK",
+  "zh-TW": "好",
+  "es": "OK",
+  "ko": "확인",
+  "vi": "OK"
+ },
+ "Google検索": {
+  "en": "Google search",
+  "zh-TW": "Google 搜尋",
+  "es": "Buscar en Google",
+  "ko": "Google 검색",
+  "vi": "Tìm trên Google"
+ },
+ "チャンク{1}を使った例文": {
+  "en": "Example using chunk {1}",
+  "zh-TW": "用到第 {1} 個組塊的例句",
+  "es": "Ejemplo con la expresión {1}",
+  "ko": "표현 {1}을(를) 쓴 예문",
+  "vi": "Câu ví dụ dùng cụm từ {1}"
+ },
+ "復習中 {1} / {2}": {
+  "en": "Reviewing {1} / {2}",
+  "zh-TW": "複習中 {1} / {2}",
+  "es": "Repasando {1} / {2}",
+  "ko": "복습 중 {1} / {2}",
+  "vi": "Đang ôn {1} / {2}"
+ },
+ "答えはぼかしてあります。ダブルタップで表示": {
+  "en": "The answer is blurred. Double-tap to show it.",
+  "zh-TW": "答案已模糊。點兩下顯示",
+  "es": "La respuesta está difuminada. Toca dos veces para verla.",
+  "ko": "답이 흐리게 가려져 있어요. 두 번 탭하면 보여요",
+  "vi": "Đáp án đang bị làm mờ. Chạm hai lần để xem."
+ },
+ "押すと使った例文へ": {
+  "en": "Tap to go to the example that uses it",
+  "zh-TW": "點一下前往用到它的例句",
+  "es": "Toca para ir al ejemplo que la usa",
+  "ko": "누르면 이 표현을 쓴 예문으로 이동",
+  "vi": "Chạm để đến câu ví dụ dùng cụm từ này"
+ },
+ "チャンク": {
+  "en": "Chunks",
+  "zh-TW": "組塊",
+  "es": "Expresiones",
+  "ko": "표현",
+  "vi": "Cụm từ"
+ },
+ "使われ方": {
+  "en": "In use",
+  "zh-TW": "實際用法",
+  "es": "Uso real",
+  "ko": "쓰임",
+  "vi": "Thực tế"
+ },
+ "項目へ移る": {
+  "en": "Jump to a section",
+  "zh-TW": "跳到項目",
+  "es": "Ir a una sección",
+  "ko": "항목으로 이동",
+  "vi": "Đi đến mục"
+ },
+ "ブラウザで開く": {
+  "en": "Opens in the browser",
+  "zh-TW": "在瀏覽器開啟",
+  "es": "Se abre en el navegador",
+  "ko": "브라우저에서 열림",
+  "vi": "Mở trong trình duyệt"
+ },
  "1枚ずつ撮り続けてきた積み重ねです": {
   "en": "It all comes from taking one photo after another",
   "zh-TW": "這是你一張一張拍下來的累積",
@@ -9238,5 +9427,40 @@
   "es": "Tu constancia",
   "ko": "지속률은",
   "vi": "Tỷ lệ duy trì của bạn"
+ },
+ "エラーの記録": {
+  "en": "Error reports",
+  "zh-TW": "錯誤記錄",
+  "es": "Informes de errores",
+  "ko": "오류 기록",
+  "vi": "Báo cáo lỗi"
+ },
+ "送る": {
+  "en": "On",
+  "zh-TW": "傳送",
+  "es": "Activado",
+  "ko": "보냄",
+  "vi": "Bật"
+ },
+ "送らない（開発用ビルド）": {
+  "en": "Off (development build)",
+  "zh-TW": "不傳送（開發用版本）",
+  "es": "Desactivado (versión de desarrollo)",
+  "ko": "보내지 않음 (개발용 빌드)",
+  "vi": "Tắt (bản dựng phát triển)"
+ },
+ "テストを送る": {
+  "en": "Send a test",
+  "zh-TW": "傳送測試",
+  "es": "Enviar una prueba",
+  "ko": "테스트 보내기",
+  "vi": "Gửi thử"
+ },
+ "テストを送りました": {
+  "en": "Test sent",
+  "zh-TW": "已傳送測試",
+  "es": "Prueba enviada",
+  "ko": "테스트를 보냈습니다",
+  "vi": "Đã gửi thử"
  }
 }

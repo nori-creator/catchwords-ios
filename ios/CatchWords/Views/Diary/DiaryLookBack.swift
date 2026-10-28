@@ -4,10 +4,10 @@ import SwiftUI
 /// （場所付き）スクロールしてその日の出来事を確認でき、習った単語の詳細のチャンクは品詞ごとで色分け」).
 ///
 /// The day's timeline, oldest first: when each word was caught, where (the reader-language place name,
-/// `LocalizedPlaceText`), and the word as the album shows it. A tap on a word opens its 使い方 — the same cards as the
-/// word page (`PatternsCardContent`: scene, formula, example with its reading on every character), every formula in
-/// its parts of speech's colours (`chunkPOSColorsOn`) with the legend under them. Nothing here writes into the diary
-/// (owner 2026-10-25: 「習ったチャンクはタップしても日記に貼れないようにする」).
+/// `LocalizedPlaceText`), and the word as the album shows it. A tap on a word opens its 使い方チャンク — the same grey
+/// boxes as the word page (版25, `ChunkLineView`: the blocks in their parts of speech's colours, the translation and the
+/// bulb), with the colours' names under them. Nothing here writes into the diary (owner 2026-10-25: 「習ったチャンクは
+/// タップしても日記に貼れないようにする」).
 ///
 /// On the book (iPhone Duo) it takes the place of the left page, so the diary stays open on the right while the day is
 /// read on the left; on the iPhone it is a sheet over the diary.
@@ -153,31 +153,66 @@ struct DiaryLookBack: View {
         }
     }
 
-    /// The word's 使い方, in its parts of speech's colours.
+    /// The word's 使い方チャンク as the word page shows them (版25): each in its grey box, in the server's order, at most five.
     @ViewBuilder
     private func usage(_ s: Sticker) -> some View {
         let head = s.word?.headword ?? ""
-        let patterns = (s.word?.extras?.usagePatterns ?? []).filter(\.hasContent)
-        let chunks = (s.word?.extras?.usageChunks ?? []).filter { !$0.parts.isEmpty }
-        if patterns.isEmpty && chunks.isEmpty {
+        let chunks = Self.chunks(s.word?.extras?.usageChunks ?? [], headword: head, target: target)
+        if chunks.isEmpty {
             Text(L("この語の使い方はまだありません"))
                 .scaledFont(size: 13)
                 .foregroundStyle(Self.ink.opacity(0.55))
         } else {
-            PatternsCardContent(patterns: patterns, examples: [], chunks: chunks, headword: head, target: target,
-                                known: SentenceReadings.known(headword: head, pinyin: s.word?.pinyin,
-                                                              chunks: chunks + patterns.map(\.chunk)),
-                                refine: { Self.tidy($0, headword: head, target: target) })
-                .environment(\.chunkPOSColorsOn, true)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(chunks.enumerated()), id: \.offset) { i, c in
+                    ChunkLineView(chunk: c, headword: head, target: target, size: .compact, number: i + 1)
+                        .padding(.vertical, 10)
+                        .padding(.leading, 8)
+                        .padding(.trailing, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(onPaper ? Self.ink.opacity(0.06) : Theme.secondary,
+                                    in: .rect(cornerRadius: 16, style: .continuous))
+                }
+                legend(chunks, headword: head)
+            }
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
+    }
+
+    /// The colours' names, only the parts of speech that occur (名詞 always: the word itself is one — owner 2026-10-20).
+    private func legend(_ chunks: [UsageChunk], headword: String) -> some View {
+        let kinds = Set(chunks.flatMap(\.parts).filter { ChunkRules.role($0, headword: headword, target: target) == .partner }
+            .map { ChunkKind(pos: $0.pos) }).union([.noun])
+        return HStack(spacing: 12) {
+            ForEach(ChunkKind.allCases.filter { kinds.contains($0) }, id: \.self) { k in
+                HStack(spacing: 5) {
+                    Circle().fill(k.ink).frame(width: 8, height: 8)
+                    Text(k.label).scaledFont(size: 12).foregroundStyle(Self.ink.opacity(0.6)).lineLimit(1)
+                }
+            }
+        }
+        .padding(.top, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The chunks the word page shows: in the page's shape (`tidy`), no repeats, at most five.
+    static func chunks(_ raw: [UsageChunk], headword: String, target: String) -> [UsageChunk] {
+        var seen = Set<String>()
+        var out: [UsageChunk] = []
+        for r in raw {
+            guard let c = tidy(r, headword: headword, target: target), seen.insert(c.text).inserted else { continue }
+            out.append(c)
+            if out.count == 5 { break }
+        }
+        return out
     }
 
     /// A formula in the page's shape (docs/chunk-rules.md C7/C8: one word one block, a degree word with its adjective),
     /// or nil when it is not a pattern.
     static func tidy(_ c: UsageChunk, headword: String, target: String) -> UsageChunk? {
         guard !c.parts.isEmpty else { return nil }
-        let t = UsageChunk(parts: ChunkRules.tidy(c.parts, headword: headword, target: target, reader: L10n.lang), ja: c.ja)
+        let t = UsageChunk(parts: ChunkRules.tidy(c.parts, headword: headword, target: target, reader: L10n.lang), ja: c.ja,
+                           note: c.note)
         guard ChunkRules.isPattern(original: c.parts, tidied: t.parts), t.text != headword else { return nil }
         return t
     }

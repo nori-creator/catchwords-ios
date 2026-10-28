@@ -72,7 +72,54 @@ export type WordExplanationResult = {
    * 「すぐ古くなる」扱いにして、次に開いた時に読み直す（PR #189 の点検 P2 — 30 分持たない）。
    */
   labelPending?: boolean;
+  /**
+   * **その人の帯の例文・チャンク**（`docs/sharing-rules.md` S6）。`null` / 無い = 古い語（今までどおり `picked` と
+   * 共有の語の行を出す）。在れば、例文・チャンクは**これだけ**を出す（行がまだ無ければ中身は空 — 作りに行く）。
+   * `picked` は古い iOS のために変えない。
+   */
+  level?: {
+    band: string;
+    example_sentence: string | null;
+    example_translation: string | null;
+    extras: Record<string, unknown>;
+  } | null;
 };
+
+/** その人の帯の例文・チャンク（S6）。古い語なら null。読みは型の札に付ける。 */
+async function levelForReader(
+  userId: string,
+  wordId: string,
+  key: { explainLang: string; l1: string },
+  language: string | null,
+): Promise<WordExplanationResult["level"]> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { callerLevelBand, readLevelContent } = await import("./level-content.server");
+    const band = await callerLevelBand(supabaseAdmin, userId, wordId);
+    if (!band) return null;
+    const row = await readLevelContent(supabaseAdmin, wordId, key, band);
+    let extras: Record<string, unknown> = {};
+    if (row) {
+      const { splitLevelExtras } = await import("./level-content");
+      extras = splitLevelExtras(row.extras).level;
+      try {
+        const { withChunkReadingsInExtras } = await import("./chunk-readings.server");
+        extras = withChunkReadingsInExtras(extras as never, language) as Record<string, unknown>;
+      } catch (e) {
+        console.warn("getWordExplanation: 帯の型の読みを付けられなかった", (e as Error)?.message);
+      }
+    }
+    return {
+      band,
+      example_sentence: row?.example_sentence ?? null,
+      example_translation: row?.example_translation ?? null,
+      extras,
+    };
+  } catch (e) {
+    console.warn("getWordExplanation: 帯の例文・チャンクを読めない", (e as Error)?.message);
+    return null;
+  }
+}
 
 export const getWordExplanation = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -146,7 +193,13 @@ export const getWordExplanation = createServerFn({ method: "GET" })
             word,
           })
         : false;
-      return { picked, unavailable: false, ...(labelPending ? { labelPending } : {}) };
+      const level = await levelForReader(
+        context.userId,
+        data.word_id,
+        explanationKey(data.explain_lang, data.l1),
+        word?.language ?? null,
+      );
+      return { picked, unavailable: false, ...(labelPending ? { labelPending } : {}), level };
     }
     /**
      * 台湾華語の語なら、型の札に読み（拼音・注音）を付けて返す（2026-10-15、`chunk-readings.server.ts`）。
@@ -178,7 +231,13 @@ export const getWordExplanation = createServerFn({ method: "GET" })
           word,
         })
       : false;
-    return { picked, unavailable: false, ...(labelPending ? { labelPending } : {}) };
+    const level = await levelForReader(
+      context.userId,
+      data.word_id,
+      explanationKey(data.explain_lang, data.l1),
+      word?.language ?? null,
+    );
+    return { picked, unavailable: false, ...(labelPending ? { labelPending } : {}), level };
   });
 
 /**

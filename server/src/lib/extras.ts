@@ -62,6 +62,12 @@ export type ChunkPart = z.infer<typeof ChunkPartSchema>;
 export const UsageChunkSchema = z.object({
   parts: z.array(ChunkPartSchema).catch([]),
   ja: z.string().catch(""),
+  /**
+   * **ひと言解説**（オーナー 2026-10-24「それぞれのチャンクにひと言解説を書いて」）。読む人の言語で1文:
+   * その型のニュアンス・使う場面・似た型との違い・学習者が間違えやすい所。画面では電球を押すと出る。
+   * 古い語には無い（その時は電球を出さない）。
+   */
+  note: z.string().optional().catch(undefined),
 });
 export type UsageChunk = z.infer<typeof UsageChunkSchema>;
 
@@ -97,6 +103,11 @@ export const RelatedWordSchema = z.object({
   word: z.string(),
   kind: z.enum(["syn", "ant", "rel"]).catch("rel"),
   note: z.string().catch(""),
+  /**
+   * **その語の訳**（読む人の言語で、短い1語〜数語）。画面では語の右に置く（オーナー 2026-10-24「反義語、類義語、
+   * 関連語は単語の右に訳を書いて、下に…詳しい違いなどの解説」）。古い語には無い（その時は出さない）。
+   */
+  gloss: z.string().optional().catch(undefined),
   /**
    * 読み(オーナー指示 2026-08-27 ⑧「発音記号がないから書き足して」)。
    *

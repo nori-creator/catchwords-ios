@@ -123,10 +123,11 @@ struct ForgettingCurveSheet: View {
         var segIndex = 0
         func sample(from a: Date, to b: Date, seg: Int) {
             let span = b.timeIntervalSince(a)
-            let steps = max(2, Int(span / 86_400 * 2))
+            // Unrounded values, 8 points a day (at most 400 a stretch): whole percents every half day drew a staircase.
+            let steps = min(400, max(8, Int(span / 86_400 * 8)))
             for i in 0...steps {
                 let t = a.addingTimeInterval(span * Double(i) / Double(steps))
-                past.append(Pt(date: t, value: Double(MemoryMath.percent(intervalDays: interval, ease: ease, last: a, now: t)), series: "past\(seg)"))
+                past.append(Pt(date: t, value: MemoryMath.exactPercent(intervalDays: interval, ease: ease, last: a, now: t), series: "past\(seg)"))
             }
         }
         for h in history where h.reviewedAt <= now {
@@ -143,9 +144,9 @@ struct ForgettingCurveSheet: View {
         let todayVal = Double(MemoryMath.percent(intervalDays: interval, ease: ease, last: segStart, now: now))
         let horizon = max(7.0, now.timeIntervalSince(origin) / 86_400)
         var future: [Pt] = []
-        for i in 0...24 {
-            let t = now.addingTimeInterval(horizon * 86_400 * Double(i) / 24)
-            future.append(Pt(date: t, value: Double(MemoryMath.percent(intervalDays: interval, ease: ease, last: segStart, now: t)), series: "future"))
+        for i in 0...120 {
+            let t = now.addingTimeInterval(horizon * 86_400 * Double(i) / 120)
+            future.append(Pt(date: t, value: MemoryMath.exactPercent(intervalDays: interval, ease: ease, last: segStart, now: t), series: "future"))
         }
         return (past, future, marks, jumps, Pt(date: now, value: todayVal, series: "today"))
     }
@@ -179,6 +180,7 @@ struct ForgettingCurveSheet: View {
                 LineMark(x: .value("date", p.date), y: .value("%", max(yMin, p.value)), series: .value("s", "future"))
                     .foregroundStyle(Theme.primary)
                     .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [6, 5]))
+                    .interpolationMethod(.monotone)
             }
             // The rise at each review, drawn from where the line was (never under the axis) to 100%, in the line's
             // own blue (owner 2026-10-16).
@@ -191,6 +193,7 @@ struct ForgettingCurveSheet: View {
                 LineMark(x: .value("date", p.date), y: .value("%", max(yMin, p.value)), series: .value("s", p.series))
                     .foregroundStyle(Theme.primary)
                     .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    .interpolationMethod(.monotone)
             }
             ForEach(d.reviews) { p in
                 PointMark(x: .value("date", p.date), y: .value("%", p.value))
@@ -210,7 +213,7 @@ struct ForgettingCurveSheet: View {
                         VStack(spacing: 1) {
                             Text(Calendar.current.isDateInToday(picked.date) ? L("今日") : JPDate.monthDay(picked.date))
                                 .scaledFont(size: 12, weight: .semibold).foregroundStyle(Theme.muted)
-                            Text("\(Int(picked.value))%").scaledFont(size: 17, weight: .heavy, monospacedDigit: true)
+                            Text("\(Int(picked.value.rounded()))%").scaledFont(size: 17, weight: .heavy, monospacedDigit: true)
                                 .foregroundStyle(Theme.foreground)
                         }
                         .padding(.horizontal, 10).padding(.vertical, 5)
