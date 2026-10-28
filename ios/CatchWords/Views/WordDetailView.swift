@@ -83,6 +83,7 @@ struct WordDetailView: View {
     @State private var slideForward: Bool = true
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var widthClass
 
     /// The word as the dex has it now. A page opened on a catch still being saved (owner 2026-10-11: 「キャッチしたての
     /// ときその単語の詳細に進めない」 — it now opens at once) becomes the saved word in place when the save is done.
@@ -519,6 +520,11 @@ struct WordDetailView: View {
     /// Seconds each photo stays before the next slides in (owner 2026-10-15: 1枚目→2枚目→…→最後→1枚目 automatically).
     static let slideInterval: Double = 3
 
+    /// The photo's widest on iPhone Duo's open screen (the regular width class, owner 2026-10-28 「iphone duo用に完全
+    /// 対応」): across the whole 669 pt a 4 : 5 photo stood about 800 pt tall, nearly the screen; at 440 pt it takes about
+    /// as much of the screen as on an iPhone, in the middle of the page.
+    static let wideHeroWidth: CGFloat = 440
+
     /// The slideshow waits while a finger is on the photo, while the selfie or an original photo is shown, while the
     /// photo sheet is open, while the photo is off screen and while the app is in the background.
     private var slidePaused: Bool {
@@ -533,6 +539,7 @@ struct WordDetailView: View {
                 .id(heroPage)
                 .transition(slideTransition)
         }
+        .frame(maxWidth: widthClass == .regular ? Self.wideHeroWidth : .infinity)
         .simultaneousGesture(
             DragGesture(minimumDistance: 24)
                 .updating($swiping) { _, state, _ in state = true }

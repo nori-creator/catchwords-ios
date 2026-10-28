@@ -387,11 +387,16 @@ jobs:
 
   # TestFlight は Release で組み立てる。Debug だけの名前（#if DEBUG の中のもの）を外で使うと Release だけ壊れる
   # （1.0.1 (1036) の前に一度起きた）。シミュレーター向けに Release で組み立てて、それを先に見つける。署名はしない。
+  # TestFlight と同じ Xcode 27.1（iOS 27.1 SDK、iPhone Duo のため。ios-release.yml）で組み立てる。
   release-build:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Xcode の版と、App Store Connect へ送る道具（altool）があるか
+        run: |
+          xcodebuild -version
+          xcrun --find altool && xcrun altool --version || echo "::warning::この Xcode に altool が見つかりません（ios-release.yml の送る手順が止まります）"
       - name: Release で組み立てる（TestFlight と同じ設定。署名なし）
         working-directory: ios
         run: |
@@ -410,10 +415,11 @@ jobs:
   # iPhone Duo（オーナー 2026-10-28「iphone duo用に完全対応させて。このアプリを」）: 内側の画面を全面で使うには iOS 27.1 SDK
   # （Xcode 27.1）で組み立てる必要がある（古い SDK では内側で「見慣れた大きさの枠」の中に出るだけ — Apple の Tech Talk
   # 「Design for iPhone Duo」）。GitHub の xcode-27 の画像には Xcode 27.1 と iPhone Duo のシミュレーター（iOS 27.1）がある。
-  # ここでは (1) Xcode 27.1 で組み立てられるか、(2) Duo のシミュレーターで主な画面を撮る（起動した時は閉じた外側の画面）、
-  # (3) シミュレーターが知らせる画面と写真の大きさを記録する（内側の大きさを UIPreview の DuoScreen と照らすため）。
-  # シミュレーターを開いて内側にするコマンドは無い（Apple Developer Forums 847883）ので、内側の画面は build-and-shoot の
-  # 「…-duo」の見本（DuoCanvas）で撮る。写真は ci-previews の runs/<ブランチ>-duo/ に置く。
+  # ここでは (1) Xcode 27.1 で組み立てられるか、(2) Duo のシミュレーターの2つの画面（内側 2007×2853 と外側 1398×2034、
+  # どちらも 3 倍）のそれぞれで主な画面を撮る、(3) シミュレーターが知らせる画面と写真の大きさを記録する。シミュレーターを
+  # 開く・閉じるコマンドは見つかっていない（Apple Developer Forums 847883）ので、アプリが出ていない方の画面は黒く写るはず。
+  # 内側の画面は build-and-shoot の「…-duo」の見本（DuoCanvas、669×951 pt）でも撮る。写真は ci-previews の
+  # runs/<ブランチ>-duo/ に置く。
   duo:
     runs-on: xcode-27
     timeout-minutes: 60
@@ -485,6 +491,25 @@ jobs:
           # シミュレーターの画面（ディスプレイ）の一覧
           xcrun simctl io "$UDID" enumerate > "$OUT/displays.txt" 2>&1
           cat "$OUT/displays.txt"
+          # Duo のシミュレーターは画面が2つあり、撮る画面を番号で名指しする（`--display=<番号>`。"internal" / "external" は
+          # 通らない）。番号と画素数は、名指ししない時の simctl の断りの文（"--display=3  LCD-1 (primary-1) 2007x2853"）
+          # から読む。どの画面も撮る（duo-<画面>-<幅>x<高さ>.png）。
+          xcrun simctl io "$UDID" screenshot "$OUT/probe.png" > "$OUT/display-list.txt" 2>&1
+          rm -f "$OUT/probe.png"
+          DISPLAYS=$(sed -n 's/.*--display=\([0-9][0-9]*\) .* \([0-9][0-9]*x[0-9][0-9]*\)$/\1:\2/p' "$OUT/display-list.txt" | tr '\n' ' ')
+          echo "displays: ${DISPLAYS:-one}" | tee -a "$OUT/display-list.txt"
+          # この simctl に Duo を開く・閉じる命令があるかを読むため、使い方の一覧を残す。
+          { xcrun simctl help; echo; xcrun simctl io "$UDID" 2>&1; } > "$OUT/simctl-help.txt" 2>&1
+          shoot() {
+            if [ -n "$DISPLAYS" ]; then
+              for e in $DISPLAYS; do
+                xcrun simctl io "$UDID" screenshot --display="${e%%:*}" "$OUT/duo-$1-${e##*:}.png" >/dev/null 2>&1 \
+                  || echo "::warning::$1 を画面 ${e%%:*}（${e##*:}）で撮れませんでした"
+              done
+            else
+              xcrun simctl io "$UDID" screenshot "$OUT/duo-$1.png" >/dev/null 2>&1 || echo "::warning::$1 を撮れませんでした"
+            fi
+          }
           DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
           READY="$DATA/Library/Caches/ui-ready/preview"
           for spec in "home 3" "tabbar 2" "dex 2" "detail 3" "word25 3" "quiz 2" "answer 3" "settings 2" "camblocked 2" "picker 2" "aiconsent 2" "paywall 2" "diary 2" "diary-lookback 2" "onboarding 3" "praise 2" "get 3" "variants 2" "landing 3" "reward 3"; do
@@ -496,11 +521,7 @@ jobs:
             while [ ! -f "$READY" ] && [ $n -lt 80 ]; do sleep 0.25; n=$((n + 1)); done
             [ -f "$READY" ] || echo "::warning::$name の画面が出るのを待ちきれませんでした"
             sleep "$wait_s"
-            xcrun simctl io "$UDID" screenshot "$OUT/duo-$name.png" >/dev/null 2>&1 || echo "::warning::$name を撮れませんでした"
-          done
-          # 内側の画面を名指しで撮れるか（閉じたままなら黒い・撮れないはず）。どちらの名前が通るかを記録する。
-          for d in internal external; do
-            xcrun simctl io "$UDID" screenshot --display="$d" "$OUT/duo-display-$d.png" > "$OUT/display-$d.txt" 2>&1
+            shoot "$name"
           done
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
           # 写真の画素数（縮める前）: 画面の大きさを UIPreview の DuoScreen と照らす

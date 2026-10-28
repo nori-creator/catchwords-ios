@@ -42,7 +42,10 @@ concurrency:
 
 jobs:
   archive-and-upload:
-    runs-on: macos-26
+    # iPhone Duo の内側の画面を全面で使うには iOS 27.1 SDK で組み立てる（オーナー 2026-10-28「iphone duo用に完全対応させて」。
+    # 古い SDK では内側で「見慣れた大きさの枠」の中に出るだけ）。xcode-27 の画像の既定は Xcode 27.1（27A9275、Apple が
+    # 2026-10-15 に出した正式版）。ios-check の release-build も同じ画像で Release を組み立てて確かめている。
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4

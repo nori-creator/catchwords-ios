@@ -1115,6 +1115,8 @@ private struct LanguageCardPreview: View {
 private struct ReviewPreview: View {
     let learning: String
     let answered: Bool
+    @Environment(\.horizontalSizeClass) private var widthClass
+    @State private var width: CGFloat = 0
 
     private var card: ReviewCard {
         ImageCache.shared.set(PreviewFixtures.photo, for: "preview/review.jpg")
@@ -1156,14 +1158,18 @@ private struct ReviewPreview: View {
         ZStack(alignment: .bottom) {
             AppBackground()
             ScrollView {
+                // The review's own margins (ReviewView), so the card stands as it does in the app.
                 QuizCard(card: c, choices: choices, percent: 62, isAnswered: answered, onAnswer: { _, _ in }, onBadge: {})
+                    .padding(.horizontal, 16)
                     .padding(.top, 40)
                     .uiReady("preview")
             }
             if answered {
                 AnswerPanel(sticker: c.sticker, correct: true, onDex: {}, onNext: {})
+                    .answerSheetColumn(wide: widthClass == .regular, width: width)
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 

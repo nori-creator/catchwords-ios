@@ -126,9 +126,7 @@ struct ReviewView: View {
                 .padding(.bottom, 66)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
                 .background(alignment: .bottom) { Theme.card.frame(height: 80) }
-                // Duo open: the right page's width (the card's right column, past the gap over the fold).
-                .frame(width: wide && viewportWidth > 0 ? QuizCard.rightColumnWidth(viewportWidth) : nil)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .answerSheetColumn(wide: wide, width: viewportWidth)
                 .ignoresSafeArea(edges: .bottom)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .id(card.id)
@@ -466,6 +464,37 @@ struct FlowRow: Layout {
     }
 }
 
+/// The quiz photo's box: the card's width at `height` on iPhone; on the Duo's left page, a 3 : 4 portrait of the page's
+/// width, no taller than `height` (centred on the page by the card, after the photo's overlays).
+private struct PhotoBox: ViewModifier {
+    let sideBySide: Bool
+    let height: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if sideBySide {
+            // Capped by width so the 3 : 4 box is never taller than `height` (the card sits in a scroll view, which
+            // leaves the height open).
+            content
+                .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                .frame(maxWidth: height * 3 / 4)
+        } else {
+            content
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+        }
+    }
+}
+
+extension View {
+    /// The answer sheet's width: the whole screen on iPhone; with the Duo open (`wide`), the right page only — the quiz
+    /// card's right column, past the gap over the fold — on a screen `width` wide.
+    func answerSheetColumn(wide: Bool, width: CGFloat) -> some View {
+        frame(width: wide && width > 0 ? QuizCard.rightColumnWidth(width) : nil)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}
+
 /// 4択クイズ: photo → 「meaning」はどれ？ → 4 headwords with zhuyin + pronounce buttons.
 struct QuizCard: View {
     @Environment(DexStore.self) private var dex
@@ -514,7 +543,8 @@ struct QuizCard: View {
     }
 
     /// The photo's height: what is left of `fitHeight`, kept between a small but readable picture and 300 pt. Side by
-    /// side, the card's whole height (up to 520 pt).
+    /// side, at most the card's whole height (up to 520 pt), the picture's box a 3 : 4 portrait of the left page's width
+    /// (a photo is taken upright at 3 : 4; a box as tall as the card left grey bands above and under it).
     private var photoHeight: CGFloat {
         if sideBySide { return min(520, max(240, (fitHeight ?? 420) - Self.cardPadding * 2)) }
         guard let fitHeight, lowerHeight > 0 else { return compact ? 120 : 200 }
@@ -528,7 +558,9 @@ struct QuizCard: View {
     private var liveMeaning: String { ReaderLanguage.gloss((dex.sticker(id: card.sticker.id) ?? card.sticker).word?.meaningJa ?? "") }
 
     var body: some View {
-        let layout = sideBySide ? AnyLayout(HStackLayout(alignment: .center, spacing: Self.sideGap)) : AnyLayout(VStackLayout(spacing: Self.gap))
+        // Side by side, the right page starts at the top like a book's page: the question and the choices stay clear
+        // of the answer sheet that comes up under them on the same page (`ReviewView`).
+        let layout = sideBySide ? AnyLayout(HStackLayout(alignment: .top, spacing: Self.sideGap)) : AnyLayout(VStackLayout(spacing: Self.gap))
         layout {
             if isAnswered && !sideBySide {
                 // Answered: the photo makes way for the answer sheet; the quiz label and the memory badge stay.
@@ -554,8 +586,7 @@ struct QuizCard: View {
                 let path = pic?.path
                 let isCutout = pic?.isCutout == true
                 (isCutout ? Color.clear : Theme.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: photoHeight)
+                    .modifier(PhotoBox(sideBySide: sideBySide, height: photoHeight))
                     .overlay {
                         StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
                             .padding(isCutout ? 2 : 6)
@@ -567,6 +598,8 @@ struct QuizCard: View {
                     .overlay(alignment: .topTrailing) {
                         if let percent { badge(percent).padding(.trailing, 4) }
                     }
+                    // Side by side: the left page's whole width, so both pages stay as wide as the answer sheet's.
+                    .frame(maxWidth: sideBySide ? .infinity : nil)
                     .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
             }
 
