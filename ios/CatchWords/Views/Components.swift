@@ -367,6 +367,7 @@ struct WelcomeBurst: Shape {
         }
         return p
     }
+}
 
 /// A small blue pill for a short label (「STEP 1」 on the first tour's cards, 「はじめに」 on the onboarding's last screen).
 struct StepPill: View {

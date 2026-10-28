@@ -527,5 +527,3 @@ private struct WelcomeSparkleShape: Shape {
         return p
     }
 }
-
-}
