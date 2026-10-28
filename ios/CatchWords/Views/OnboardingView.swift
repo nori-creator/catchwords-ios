@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// First-run setup (FirstCatchQuestions / FirstCatchNotifications / FirstCatchReady).
-/// 4 questions (display, TOCFL level, time, goals) → notifications → ready; then the guide over the real screens
+/// 4 questions (display, goals, TOCFL level, time) → notifications → ready; then the guide over the real screens
 /// (`TourStep`).
 /// Language / target go to `profiles`; goals, minutes and reminders to auth user_metadata
 /// (same keys the web writes: learning_preferences / notification_preferences).
@@ -71,7 +71,8 @@ struct OnboardingView: View {
     static let fixedTarget = "zh-TW"
 
     /// The questions asked, in order (step numbers: 0 display, 1 learning language, 2 time, 3 goals, 4 TOCFL level).
-    static var questionSteps: [Int] { showsTargetStep ? [0, 1, 4, 2, 3] : [0, 4, 2, 3] }
+    /// Owner 2026-10-28: display language, goals, TOCFL level, then the daily time.
+    static var questionSteps: [Int] { showsTargetStep ? [0, 1, 3, 4, 2] : [0, 3, 4, 2] }
     /// Every screen the progress bar counts: the questions, the reminders and the ready screen.
     static var totalSteps: Int { questionSteps.count + 2 }
 
