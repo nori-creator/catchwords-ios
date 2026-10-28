@@ -4,7 +4,7 @@ import AuthenticationServices
 /// The first screen before signing in (the owner's design of 2026-10-11).
 ///
 /// The app icon and 「CatchWords」 at the top left; three word stickers cut out of that design (a latte 「咖啡」,
-/// a plant 「植物」 and a croissant 「可頌」: the words are Taiwanese Mandarin) with a sparkle; the tagline
+/// a plant 「植物」 and a croissant 「麵包」: the words are Taiwanese Mandarin, on the album's own tags) with a sparkle; the tagline
 /// 「日常のすべてが学びになる」 and one line under it; then the ways in: Google and Apple right here (the same web
 /// sign-in as the sign-in screen), 「メールでログイン」 and 「初めての方は 新規登録」 (both open the sign-in screen
 /// with the mail form already open), and the agreement to the terms.
@@ -12,8 +12,8 @@ import AuthenticationServices
 /// Motion (the app's opening, owner 2026-10-27: 「アプリを開いたときのアニメーション、モーションデザインにこだわって」): the
 /// first time in a launch the icon pops up in the middle of the screen (where the blank launch screen left off) and
 /// flies to its place at the top left while 「CatchWords」 slides out of it; the stickers pop in one after another and
-/// float gently, the sparkle twinkles; the tagline rises out of a blur line by line and 「学び」 pops in on a blue pill
-/// (`HeadlineReveal`); the ways in rise one after another. A tap on a sticker says its word and shows its reading.
+/// float gently, the sparkle twinkles; the tagline rises out of a blur line by line (`HeadlineReveal`; 「学び」 stays
+/// black, owner 2026-10-28); the ways in rise one after another. A tap on a sticker says its word.
 /// Back from the mail screen only the quick part plays. With reduced motion only the still picture.
 struct WelcomeView: View {
     /// 「メールでログイン」.
@@ -130,7 +130,7 @@ struct WelcomeView: View {
 
     private var copy: some View {
         VStack(spacing: 10) {
-            RevealHeadline(marked: L("日常のすべてが\n**学び**になる"), size: 32, active: appeared, delay: 0.12, duration: 1.0)
+            RevealHeadline(marked: L("日常のすべてが\n学びになる"), size: 32, active: appeared, delay: 0.12, duration: 1.0)
                 .lineLimit(2)
             Text(L("街で出会う言葉を、ステッカーに。"))
                 .scaledFont(size: 15, weight: .medium)
@@ -342,10 +342,15 @@ private struct WelcomeStickers: View {
 
     private struct Piece {
         let image: String
-        /// The word on the sticker and its readings (said and shown when the sticker is tapped).
+        /// The word on the sticker's tag and its readings (the tag is the album's own `WordTag`; a tap says the word).
         let word: String
         let zhuyin: String
         let pinyin: String
+        /// Where the tag goes on the picture (its centre and size in the picture's pixels) and its lean: the place the
+        /// label printed on the design's pictures had (owner 2026-10-28: 「名前のタグの字体もアプリの本物に揃えて」 —
+        /// the printed labels were a handwriting face; they were taken off the pictures).
+        let tag: CGRect
+        let tagTilt: Double
         /// Centre and size in design pixels.
         let x: CGFloat
         let y: CGFloat
@@ -359,10 +364,14 @@ private struct WelcomeStickers: View {
 
     private static let pieces: [Piece] = [
         Piece(image: "welcome_sticker_coffee", word: "咖啡", zhuyin: "ㄎㄚ ㄈㄟ", pinyin: "kāfēi",  // l10n-ignore (target word)
+              tag: CGRect(x: 101 - 85, y: 295 - 40, width: 170, height: 80), tagTilt: -12,
               x: 244, y: 421, w: 395, h: 352, delay: 0.05, bob: 10, period: 3.6),
         Piece(image: "welcome_sticker_plant", word: "植物", zhuyin: "ㄓˊ ㄨˋ", pinyin: "zhíwù",  // l10n-ignore (target word)
+              tag: CGRect(x: 275 - 78, y: 360 - 39, width: 156, height: 78), tagTilt: -9,
               x: 645, y: 365, w: 372, h: 420, delay: 0.17, bob: 12, period: 4.2),
-        Piece(image: "welcome_sticker_croissant", word: "可頌", zhuyin: "ㄎㄜˇ ㄙㄨㄥˋ", pinyin: "kěsòng",  // l10n-ignore (target word)
+        // 麵包 (owner 2026-10-28: 「パンは麵包にして」).
+        Piece(image: "welcome_sticker_croissant", word: "麵包", zhuyin: "ㄇㄧㄢˋ ㄅㄠ", pinyin: "miànbāo",  // l10n-ignore (target word)
+              tag: CGRect(x: 233 - 95, y: 245 - 36, width: 190, height: 72), tagTilt: -12,
               x: 440, y: 682, w: 407, h: 299, delay: 0.29, bob: 9, period: 3.9),
     ]
     private static let designWidth: CGFloat = 864
@@ -389,6 +398,7 @@ private struct WelcomeStickers: View {
                 ForEach(0..<Self.pieces.count, id: \.self) { i in
                     let p = Self.pieces[i]
                     WelcomeSticker(image: p.image, word: p.word, zhuyin: p.zhuyin, pinyin: p.pinyin,
+                                   tag: p.tag, tagTilt: p.tagTilt, pictureWidth: p.w,
                                    width: p.w * s, height: p.h * s, delay: p.delay,
                                    bob: p.bob * s, period: p.period, appeared: appeared, animate: animate)
                         .position(x: ox + p.x * kx, y: oy + (p.y - Self.designTop) * ky)
@@ -403,13 +413,17 @@ private struct WelcomeStickers: View {
     }
 }
 
-/// One sticker: pops in (turning upright as it lands), then floats up and down. A tap squashes it, says its word and
-/// shows its reading above it for a moment — the app's tags do the same.
+/// One sticker: pops in (turning upright as it lands), then floats up and down. Its name is on the album's own tag
+/// (`WordTag`: the app's type, the reading as the reading setting says). A tap squashes it and says the word.
 private struct WelcomeSticker: View {
     let image: String
     let word: String
     let zhuyin: String
     let pinyin: String
+    /// The tag's place and lean on the picture (picture pixels), and the picture's width in those pixels.
+    let tag: CGRect
+    let tagTilt: Double
+    let pictureWidth: CGFloat
     let width: CGFloat
     let height: CGFloat
     let delay: Double
@@ -420,10 +434,9 @@ private struct WelcomeSticker: View {
 
     @State private var up: Bool = false
     @State private var squash: Bool = false
-    @State private var showsReading: Bool = false
-    @State private var taps: Int = 0
 
     var body: some View {
+        let k = width / pictureWidth
         Group {
             if let img = WelcomeImage.load(image) {
                 Image(uiImage: img)
@@ -433,20 +446,13 @@ private struct WelcomeSticker: View {
             }
         }
         .frame(width: width, height: height)
+        .overlay(alignment: .topLeading) {
+            WordTag(text: word, zhuyin: zhuyin, pinyin: pinyin, tilt: tagTilt, size: tag.height * k * 0.42,
+                    minSize: CGSize(width: tag.width * k, height: tag.height * k * 0.86))
+                .position(x: tag.midX * k, y: tag.midY * k)
+        }
         .shadow(color: Color(hex: 0x1C4A80).opacity(0.16), radius: 10, y: 6)
         .scaleEffect(x: squash ? 1.08 : 1, y: squash ? 0.9 : 1, anchor: .bottom)
-        .overlay(alignment: .top) {
-            if showsReading {
-                // The app's own reading layout (zhuyin beside each character, or pinyin above, as 設定 › 発音表記).
-                ZhuyinWordView(headword: word, zhuyin: zhuyin, size: 19, weight: .bold, pinyin: pinyin, language: "zh-TW")
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Theme.card, in: Capsule())
-                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
-                .offset(y: -18)
-                .transition(.scale(scale: 0.4, anchor: .bottom).combined(with: .opacity))
-            }
-        }
         .contentShape(.rect)
         .onTapGesture { say() }
         .offset(y: up ? -bob : 0)
@@ -461,18 +467,12 @@ private struct WelcomeSticker: View {
     }
 
     private func say() {
-        taps += 1
-        let tap = taps
         Haptics.impact(.light)
         SoundService.shared.speak(word)
         withAnimation(.spring(response: 0.16, dampingFraction: 0.5)) { squash = true }
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.62)) { showsReading = true }
         Task {
             try? await Task.sleep(for: .milliseconds(140))
             withAnimation(.spring(response: 0.4, dampingFraction: 0.45)) { squash = false }
-            try? await Task.sleep(for: .milliseconds(1700))
-            guard tap == taps else { return }
-            withAnimation(.easeOut(duration: 0.25)) { showsReading = false }
         }
     }
 }

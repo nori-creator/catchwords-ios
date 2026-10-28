@@ -1,17 +1,21 @@
 import SwiftUI
 
-/// FirstCatchFlow の体験段（撮る → 選ぶ → 図鑑 → 復習 → 完了）。
+/// FirstCatchFlow の体験段（撮る → 選ぶ → 図鑑 → 単語の頁 → 復習 → ホーム → 完了）。
 /// Web 版は見本の画面を別に組むが、iOS 版はログイン後に始まるので**本物の画面の上に**案内を重ねる。
 /// 撮った1枚は本物の図鑑に入る（登録後の引き継ぎが要らない）。
 ///
 /// 2026-10-27（オーナー: 「チュートリアルが操作が分かりにくく…どうやってチュートリアルを進めたらいいか分からない」）:
-/// 説明だけの段（ホームの紹介・図鑑の表示の切り替え・復習の紹介）をやめ、どの段も「何をタップすればいいか」を言う。
-/// 札にはいつも4つの段（`TourPhase`）のどこにいるかを出し、押す所には手の印を重ね、暗い所を押したら光る所を知らせる。
+/// どの段も「何をタップすればいいか」を言い、札にはいつも段（`TourPhase`）のどこにいるかを出し、押す所には手の印を重ね、
+/// 暗い所を押したら光る所を知らせる。2026-10-28（「実際のアプリの画面を使ってチュートリアルを作って」「ユーザーが最初に
+/// 体験すべき機能をチュートリアルですべて案内して」）: 作り物の紹介の頁はやめ、本物の画面で、単語の頁（項目への移動・表示する
+/// 項目）とホームのアルバムまで案内する。説明はその画面に本当にある物だけを言う。
 enum TourStep: String, Equatable {
     case off
     case tapCamera, shoot, pick, detail, peel
-    case added, word
+    case added
+    case wordJump, wordSections
     case reviewPick, reviewNext
+    case homeAlbum
     case complete
 
     var anchor: TourAnchor? {
@@ -21,20 +25,24 @@ enum TourStep: String, Equatable {
         case .pick: .pick
         case .detail: .headword
         case .peel: .peel
+        case .wordJump: .wordJump
+        case .wordSections: .wordSections
         case .reviewPick: .quiz
         case .reviewNext: .reviewNext
-        case .off, .added, .word, .complete: nil
+        case .homeAlbum: .album
+        case .off, .added, .complete: nil
         }
     }
 
-    /// Which of the four steps the card counts this one as.
+    /// Which of the steps the card counts this one as (the home's album, the last look, counts none).
     var phase: TourPhase? {
         switch self {
         case .tapCamera, .shoot: .shoot
         case .pick, .detail, .peel: .pick
-        case .added, .word: .collect
+        case .added: .collect
+        case .wordJump, .wordSections: .word
         case .reviewPick, .reviewNext: .review
-        case .off, .complete: nil
+        case .off, .homeAlbum, .complete: nil
         }
     }
 
@@ -46,24 +54,49 @@ enum TourStep: String, Equatable {
         case .detail: L("発音を聞く")
         case .peel: L("図鑑に入れる")
         case .added: L("図鑑に追加しました！")
-        case .word: L("意味と使い方")
+        case .wordJump: L("単語の頁")
+        case .wordSections: L("表示する項目と順番")
         case .reviewPick: L("写真で思い出す")
         case .reviewNext: L("復習")
+        case .homeAlbum: L("ホーム")
         default: nil
         }
     }
 
+    /// What the step does for the learner — the hassle it takes away, what other ways of learning do not give (owner
+    /// 2026-10-28: 「どんなところが優れていて、どんなペインを解除し、ほかのアプリとは違うのか」). Only what this screen
+    /// really does.
+    var benefit: String? {
+        switch self {
+        case .tapCamera: L("単語帳に書き写す手間はいりません。見つけた物を撮るだけで学べます。")
+        case .shoot: L("名前を知らない物でも大丈夫。辞書で調べる前に、まず撮るだけ。")
+        case .pick: L("AIが写真の中の物を見つけて、台湾華語の名前を付けます。")
+        case .detail: L("その場で台湾華語の発音を聞けます。")
+        case .peel: L("撮った写真と、出会った場所も一緒に残ります。")
+        case .added: L("集めたことばは分類ごとに図鑑へ。影は、まだ集めていない物です。")
+        case .wordJump: L("意味だけでなく、よく使う組み合わせ（チャンク）、例文、量詞、台湾メモまで1つの頁に。")
+        case .wordSections: L("見たい項目だけを、見やすい大きさで。")
+        case .reviewPick: L("単語だけの暗記ではなく、自分の写真で思い出すから記憶に残ります。")
+        case .reviewNext: L("覚え具合に合わせて、忘れかけた頃にまた出題されます。")
+        case .homeAlbum: L("毎日の発見が、日付ごとのアルバムになります。")
+        default: nil
+        }
+    }
+
+    /// What to do now.
     var text: String {
         switch self {
-        case .tapCamera: L("下の青いカメラボタンをタップ。名前を知らない物でも大丈夫です。")
-        case .shoot: L("身のまわりの物にカメラを向けて、シャッターをタップ。AIが写真から学べることばを見つけます。")
-        case .pick: L("写真の中のものに、AIが見つけたことばを付けました。残したいことばをタップしてください。")
-        case .detail: L("スピーカーをタップすると、発音を聞けます。聞けたら「次へ」。")
-        case .peel: L("「図鑑に追加」を押すと、撮った写真と一緒に図鑑に入ります。")
-        case .added: L("撮った写真と一緒に、ことばが並びます。開いて、意味と使い方を見てみましょう。")
-        case .word: L("意味も使い方も、この写真から。例文を確認したら、復習を試してみましょう。")
-        case .reviewPick: L("自分の写真を手がかりに4択で思い出します。写真に合うことばをタップ。")
+        case .tapCamera: L("下の青いカメラボタンをタップしてください。")
+        case .shoot: L("身のまわりの物にカメラを向けて、シャッターをタップ。撮ってある写真は左下の「写真」から使えます。")
+        case .pick: L("残したいことばのタグをタップしてください。")
+        case .detail: L("スピーカーをタップして発音を聞いたら「次へ」。")
+        case .peel: L("「図鑑に追加」をタップしてください。")
+        case .added: L("撮ったことばを開いてみましょう。")
+        case .wordJump: L("上の項目をタップすると、その場所へ移ります。")
+        case .wordSections: L("このボタンで、表示する項目と順番、文字の大きさ、発音の速さを変えられます。")
+        case .reviewPick: L("写真に合うことばをタップ。")
         case .reviewNext: L("答えを確かめたら「次へ」。")
+        case .homeAlbum: L("撮った写真は、ホームに並びます。")
         default: ""
         }
     }
@@ -71,16 +104,17 @@ enum TourStep: String, Equatable {
     /// Spotlight の `interactive`: 光っている所だけ押せる。false なら札のボタンで進む。
     var isInteractive: Bool {
         switch self {
-        case .added, .word: false
+        case .added, .homeAlbum: false
         default: true
         }
     }
 
     var nextLabel: String? {
         switch self {
-        case .detail: L("次へ")
+        case .detail, .wordJump: L("次へ")
         case .added: L("ことばを開く")
-        case .word: L("復習してみる")
+        case .wordSections: L("復習してみる")
+        case .homeAlbum: L("完了")
         default: nil
         }
     }
@@ -97,6 +131,8 @@ enum TourStep: String, Equatable {
 
     var isReview: Bool { self == .reviewPick || self == .reviewNext }
     var isCapture: Bool { self == .shoot || self == .pick || self == .detail || self == .peel }
+    /// The steps shown over the word's page (its sheet has a guide layer of its own).
+    var isWord: Bool { self == .wordJump || self == .wordSections }
 
     /// The old device-wide flag "the first tour is still to run". Now only a hand-over: kept per account
     /// (`tour.pending.<userId>`, R6-05) like `OnboardingState`, so one account's unfinished tour never opens
@@ -128,29 +164,32 @@ enum TourStep: String, Equatable {
 
 /// The guide's four steps, the same on the onboarding's last screen (what is coming) and on every card (where you are).
 enum TourPhase: Int, CaseIterable {
-    case shoot, pick, collect, review
+    case shoot, pick, collect, word, review
 
     var label: String {
         switch self {
         case .shoot: L("撮る")
         case .pick: L("選ぶ")
         case .collect: L("図鑑")
+        case .word: L("単語")
         case .review: L("復習")
         }
     }
 
+    /// The tab bar's own icons where there is one (図鑑 book, 復習 sparkles), so the steps read like the app.
     var icon: String {
         switch self {
         case .shoot: "camera.fill"
         case .pick: "hand.tap.fill"
-        case .collect: "book.closed.fill"
+        case .collect: "book"
+        case .word: "text.book.closed"
         case .review: "sparkles"
         }
     }
 }
 
-/// ① 撮る — ② 選ぶ — ③ 図鑑 — ④ 復習: the steps done ticked, the current one blue. With `current` nil (the onboarding's
-/// preview) all four are shown alike, coming in one after another once `shown`.
+/// ① 撮る — ② 選ぶ — ③ 図鑑 — ④ 単語 — ⑤ 復習: the steps done ticked, the current one blue. With `current` nil (the
+/// onboarding's preview) all are shown alike, coming in one after another once `shown`.
 struct TourPhaseRow: View {
     let current: TourPhase?
     var shown: Bool = true
@@ -215,7 +254,7 @@ struct TourPhaseRow: View {
 }
 
 enum TourAnchor: Hashable {
-    case cameraTab, shutter, pick, headword, peel, quiz, reviewNext
+    case cameraTab, shutter, pick, headword, peel, wordJump, wordSections, quiz, reviewNext, album
 }
 
 struct TourAnchorKey: PreferenceKey {
@@ -259,6 +298,8 @@ struct TourLayer: View {
     let anchors: [TourAnchor: Anchor<CGRect>]
     let onNext: () -> Void
     let onSkip: () -> Void
+    /// Room kept under a card at the bottom: the tab bar's (84) over the tabs, little over the word's page (a sheet).
+    var bottomClearance: CGFloat = 84
 
     @Environment(\.appReduceMotion) private var reduceMotion
     @State private var pulse: Bool = false
@@ -302,7 +343,7 @@ struct TourLayer: View {
                             TourCoachCard(step: step, missed: missed, onNext: onNext, onSkip: onSkip)
                                 .padding(.horizontal, 16)
                                 .padding(.top, cardOnTop ? insets.top + 12 : 0)
-                                .padding(.bottom, cardOnTop ? 0 : max(insets.bottom, 12) + 84)
+                                .padding(.bottom, cardOnTop ? 0 : max(insets.bottom, 12) + bottomClearance)
                             if cardOnTop { Spacer(minLength: 0) }
                         }
                     }
@@ -408,6 +449,22 @@ struct TourCoachCard: View {
                 Text(title).scaledFont(size: 19, weight: .heavy).foregroundStyle(Theme.foreground)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let benefit = step.benefit {
+                Label {
+                    Text(benefit)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.primary)
+                }
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(Theme.primaryInk)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.primary.opacity(0.08), in: .rect(cornerRadius: 14, style: .continuous))
+            }
             Text(step.text)
                 .scaledFont(size: 15)
                 .foregroundStyle(Theme.foreground.opacity(0.85))
@@ -466,7 +523,7 @@ struct TourCoachCard: View {
     }
 }
 
-/// 「最初のキャッチ、完了！」— 撮った写真と紙吹雪、いまできるようになった3つ。
+/// 「最初のキャッチ、完了！」— 撮った写真と紙吹雪、案内でやってみたこと。
 struct TourCompleteView: View {
     let sticker: Sticker?
     let onDone: () -> Void
@@ -513,13 +570,14 @@ struct TourCompleteView: View {
                         .foregroundStyle(Theme.foreground)
                         .staggerIn(burst, delay: 0.25, distance: 10)
                 }
-                RevealHeadline(marked: L("最初のキャッチ、**完了**！"), size: 26, delay: 0.3)
+                RevealHeadline(marked: L("最初のキャッチ、完了！"), size: 26, delay: 0.3)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 14)
                 VStack(alignment: .leading, spacing: 12) {
                     recap(L("撮って、ことばを見つけた"), icon: TourPhase.shoot.icon, delay: 0.85)
                     recap(L("図鑑に集めた"), icon: TourPhase.collect.icon, delay: 1.0)
-                    recap(L("写真で思い出した"), icon: TourPhase.review.icon, delay: 1.15)
+                    recap(L("単語の頁で使い方を見た"), icon: TourPhase.word.icon, delay: 1.15)
+                    recap(L("写真で思い出した"), icon: TourPhase.review.icon, delay: 1.3)
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -531,7 +589,7 @@ struct TourCompleteView: View {
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
                     .padding(.top, 14)
-                    .staggerIn(burst, delay: 1.3, distance: 6)
+                    .staggerIn(burst, delay: 1.45, distance: 6)
                 Spacer(minLength: 12)
                 PrimaryButton(title: L("はじめる"), icon: "arrow.right", sheen: true, action: onDone)
                     .padding(.bottom, 24)

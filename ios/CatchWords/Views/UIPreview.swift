@@ -160,10 +160,8 @@ struct UIPreviewRoot: View {
             case "auth": AuthView()
             case "signin": AuthView(startOnOptions: true)
             case "onboarding": OnboardingView {}
-            // The first screens (owner 2026-10-27): the intro's 2nd and 3rd pages, the goals, the ready screen; the
-            // first guide's card over the tab bar, after the catch, and its end; the welcome screen's opening, frame by frame.
-            case "obstory2": OnboardingView(page: 1) {}
-            case "obstory3": OnboardingView(page: 2) {}
+            // The first screens (owner 2026-10-27): the goals, the ready screen; the first guide's card over the tab bar,
+            // after the catch, and its end; the welcome screen's opening, frame by frame.
             case "obgoals": OnboardingView(start: .questions, step: 3) {}
             case "obready": OnboardingView(start: .ready) {}
             case "tour": TourPreview(step: .tapCamera)

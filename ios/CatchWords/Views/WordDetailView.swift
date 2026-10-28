@@ -183,6 +183,7 @@ struct WordDetailView: View {
         .padding(.vertical, 2)
         .background(Theme.background)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
+        .tourAnchor(.wordJump)
     }
 
     /// Once the page is on screen: the hero's picture, and the previews' starting state.
@@ -363,6 +364,7 @@ struct WordDetailView: View {
             .buttonStyle(PressableStyle(scale: 0.9))
             .accessibilityLabel(L("表示する項目と順番"))
             .accessibilityIdentifier("detail.sections")
+            .tourAnchor(.wordSections)
             .popover(isPresented: $showSections, arrowEdge: .top) {
                 SectionsPanel(prefs: prefs, sampleWord: headword, sampleMeaning: word?.meaningJa ?? "")
                     .accessibilityIdentifier("detail.sections.panel")

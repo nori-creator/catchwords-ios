@@ -172,9 +172,7 @@ struct ReviewView: View {
         .onChange(of: router.reviewNow) { _, _ in applyReviewNow() }
         // The tour's practice needs a word in the dex: without one there is nothing to quiz, so finish.
         .task(id: router.tour.isReview && practiceCards.isEmpty) {
-            if router.tour.isReview && practiceCards.isEmpty {
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) { router.tour = .complete }
-            }
+            if router.tour.isReview && practiceCards.isEmpty { router.tourToHome() }
         }
         // R5 「学習言語台湾華語なのに英語の4択が表示されてる」: a switched learning language starts a fresh queue.
         .onChange(of: profile.targetLanguage) { _, _ in
@@ -211,7 +209,7 @@ struct ReviewView: View {
             router.advanceTour(from: .reviewNext, to: .reviewPick)
         } else {
             practiceIndex = 0
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) { router.tour = .complete }
+            router.tourToHome()
         }
     }
 

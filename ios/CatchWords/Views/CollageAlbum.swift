@@ -446,6 +446,8 @@ struct WordTag: View {
     /// (owner 2026-10-20: 「単語の詳細の見出しの大きさのバランスにして」 — at 15 pt the reading's 9 pt minimum made it as
     /// big as the characters). 20 pt keeps the reading legible; an English word, with no reading, stays at 15 pt.
     var size: CGFloat? = nil
+    /// The paper's least size (the welcome screen's tags cover the place of the label once printed on its pictures).
+    var minSize: CGSize? = nil
     private var textSize: CGFloat { size ?? (NativeAPI.targetLanguage == "en" ? 15 : 20) }
 
     /// The tag's height without a reading at 15 pt (the album keeps half of it under the photo).
@@ -458,7 +460,7 @@ struct WordTag: View {
                        readingColor: Self.ink.opacity(0.75), pinyin: pinyin, proportionalReading: true)
             .padding(.horizontal, 12)
             .padding(.vertical, 2)
-            .frame(minHeight: Self.height * min(textSize, 15) / 15)
+            .frame(minWidth: minSize?.width, minHeight: max(minSize?.height ?? 0, Self.height * min(textSize, 15) / 15))
             .background(Color(hex: 0xF6E4C8), in: .rect(cornerRadius: 3, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).stroke(Color(hex: 0xE6CFA8), lineWidth: 0.5))
             .shadow(color: Color(hex: 0x5A4630).opacity(0.22), radius: 2.5, y: 1.5)

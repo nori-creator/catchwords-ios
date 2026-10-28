@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// First-run setup (FirstCatchIntro / FirstCatchQuestions / FirstCatchNotifications / FirstCatchReady).
-/// intro (3 pages: 撮る → 図鑑 → 思い出す) → 3 questions (display, time, goals) → notifications → ready.
+/// First-run setup (FirstCatchQuestions / FirstCatchNotifications / FirstCatchReady).
+/// 3 questions (display, time, goals) → notifications → ready; then the guide over the real screens (`TourStep`).
 /// Language / target go to `profiles`; goals, minutes and reminders to auth user_metadata
 /// (same keys the web writes: learning_preferences / notification_preferences).
 ///
-/// Owner 2026-10-27: the question about favourite photo themes (interests) is gone, and the intro shows what the app
-/// does before anything is asked (「アプリの面白さ凄さが伝わらない」). The server reads no interests as everyday life.
+/// Owner 2026-10-27: the question about favourite photo themes (interests) is gone (the server reads no interests as
+/// everyday life). Owner 2026-10-28: no pages of their own before the questions (「実際のアプリの画面を使ってチュートリアルを
+/// 作って」): what the app does is shown on its real screens by the guide that follows.
 struct OnboardingView: View {
     let onFinish: () -> Void
 
@@ -14,11 +15,10 @@ struct OnboardingView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(\.appReduceMotion) private var reduceMotion
 
-    enum Stage: Int { case intro, questions, notifications, ready }
+    enum Stage: Int { case questions, notifications, ready }
 
-    @State private var stage: Stage = .intro
+    @State private var stage: Stage = .questions
     @State private var step: Int = 0
-    @State private var introPage: Int = 0
     @State private var forward: Bool = true
     @State private var uiLanguage: String = L10n.lang
     @State private var targetLanguage: String = OnboardingView.fixedTarget
@@ -34,12 +34,11 @@ struct OnboardingView: View {
     @AppStorage("sound.level") private var soundLevel: String = "subtle"
     @AppStorage("haptics.enabled") private var hapticsOn: Bool = true
 
-    /// `start`/`step`/`page`: where it opens (the simulator check's pictures of the later screens, `UIPreview`).
-    init(start: Stage = .intro, step: Int = 0, page: Int = 0, onFinish: @escaping () -> Void) {
+    /// `start`/`step`: where it opens (the simulator check's pictures of the later screens, `UIPreview`).
+    init(start: Stage = .questions, step: Int = OnboardingView.questionSteps[0], onFinish: @escaping () -> Void) {
         self.onFinish = onFinish
         _stage = State(initialValue: start)
         _step = State(initialValue: step)
-        _introPage = State(initialValue: page)
     }
 
     static var goalList: [(id: String, label: String, icon: String)] { [
@@ -91,7 +90,6 @@ struct OnboardingView: View {
             OnboardingBackdrop()
             Group {
                 switch stage {
-                case .intro: intro
                 case .questions: questions
                 case .notifications: notifications
                 case .ready: ready
@@ -107,71 +105,13 @@ struct OnboardingView: View {
         .sheet(isPresented: $showMenu) { menu.presentationDetents([.large]) }
     }
 
-    // MARK: - Intro
-
-    /// Three pages that show the app before it asks anything: a photo gets its word, the words gather in the 図鑑, and
-    /// the learner's own photo brings the word back. Swiped, or 「次へ」; 「スキップ」 goes straight to the questions.
-    private var intro: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                LogoMark(size: 28)
-                Text(verbatim: "CatchWords")
-                    .scaledFont(size: 18, weight: .heavy)
-                    .foregroundStyle(Theme.foreground)
-                Spacer()
-                if introPage < IntroStory.pages - 1 {
-                    Button(L("スキップ")) { go(.questions, step: Self.questionSteps[0]) }
-                        .scaledFont(size: 15, weight: .semibold)
-                        .foregroundStyle(Theme.muted)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .transition(.opacity)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 6)
-            .animation(.easeOut(duration: 0.2), value: introPage)
-            TabView(selection: $introPage) {
-                ForEach(0..<IntroStory.pages, id: \.self) { i in
-                    IntroStory(page: i, active: introPage == i)
-                        .tag(i)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .onChange(of: introPage) { _, _ in Haptics.selection() }
-            IntroDots(count: IntroStory.pages, index: introPage)
-                .padding(.bottom, 18)
-            let last = introPage == IntroStory.pages - 1
-            PrimaryButton(title: last ? L("はじめる") : L("次へ"), icon: "arrow.right", sheen: last) {
-                if last {
-                    go(.questions, step: Self.questionSteps[0])
-                } else {
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { introPage += 1 }
-                }
-            }
-            .padding(.horizontal, 24)
-            .accessibilityIdentifier("onboarding.next")
-            Button(L("アカウントをお持ちの方はログイン")) { finishToLogin() }
-                .scaledFont(size: 14, weight: .medium)
-                .foregroundStyle(Theme.primaryInk)
-                .frame(minHeight: 44)
-                .padding(.bottom, 8)
-                .opacity(last ? 1 : 0)
-                .allowsHitTesting(last)
-                .animation(.easeOut(duration: 0.25), value: last)
-        }
-    }
-
     // MARK: - Questions
 
     private var questions: some View {
         VStack(alignment: .leading, spacing: 0) {
-            progressHeader(index: (Self.questionSteps.firstIndex(of: step) ?? 0) + 1) {
-                if let i = Self.questionSteps.firstIndex(of: step), i > 0 {
-                    go(.questions, step: Self.questionSteps[i - 1], back: true)
-                } else {
-                    go(.intro, step: 0, back: true)
-                }
-            }
+            // The first question has nothing before it (the guide's start is after the questions).
+            let at = Self.questionSteps.firstIndex(of: step) ?? 0
+            progressHeader(index: at + 1, back: at > 0 ? { go(.questions, step: Self.questionSteps[at - 1], back: true) } : nil)
             RevealHeadline(marked: questionTitle, size: 28, alignment: .leading, duration: 0.8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -334,42 +274,35 @@ struct OnboardingView: View {
         VStack(spacing: 0) {
             progressHeader(index: Self.totalSteps) { go(.notifications, step: 0, back: true) }
             Spacer(minLength: 8)
+            // The app's own mark, no photos (owner 2026-10-28: 「海とかコーヒーの写真…昔のものを使い回さないで」).
             Appearing { shown in
                 ZStack {
                     Circle()
-                        .fill(RadialGradient(colors: [Theme.primary.opacity(0.22), .clear], center: .center, startRadius: 0, endRadius: 160))
-                        .frame(width: 320, height: 320)
+                        .fill(RadialGradient(colors: [Theme.primary.opacity(0.22), .clear], center: .center, startRadius: 0, endRadius: 130))
+                        .frame(width: 260, height: 260)
                         .scaleEffect(shown ? 1 : 0.6)
                         .opacity(shown ? 1 : 0)
                         .animation(.easeOut(duration: 0.9), value: shown)
-                    OnboardingPrint(name: "first_catch_cafe", label: "咖啡", ratio: 1.25)  // l10n-ignore (target word)
-                        .frame(width: 150)
-                        .rotationEffect(.degrees(shown ? -9 : -2))
-                        .offset(x: shown ? -62 : 0, y: shown ? 6 : 20)
-                        .staggerIn(shown, delay: 0.12)
-                    OnboardingPrint(name: "first_catch_ready", label: "海", ratio: 1)  // l10n-ignore (target word)
-                        .frame(width: 170)
-                        .rotationEffect(.degrees(shown ? 5 : 0))
-                        .offset(x: shown ? 56 : 0, y: shown ? -4 : 20)
-                        .staggerIn(shown, delay: 0.2)
+                    LogoMark(size: 96)
+                        .scaleEffect(shown ? 1 : 0.6)
+                        .opacity(shown ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.62).delay(0.1), value: shown)
                 }
-                .shadow(color: .black.opacity(0.12), radius: 18, y: 10)
-                .animation(.spring(response: 0.8, dampingFraction: 0.72).delay(0.1), value: shown)
             }
-            .frame(height: 250)
+            .frame(height: 200)
             RevealHeadline(marked: L("準備ができました！"), size: 30, delay: 0.25)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 24)
                 .padding(.top, 18)
             Appearing { shown in
                 VStack(spacing: 18) {
-                    Text(L("このあと、実際に1枚撮りながら使い方を案内します。"))
+                    Text(L("このあと、実際に1枚撮りながら、このアプリでできることを案内します。"))
                         .scaledFont(size: 15).foregroundStyle(Theme.muted)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .staggerIn(shown, delay: 0.55, distance: 8)
                     TourPhaseRow(current: nil, shown: shown, baseDelay: 0.7)
-                    Label(L("約1分"), systemImage: "clock")
+                    Label(L("約2分"), systemImage: "clock")
                         .scaledFont(size: 13, weight: .semibold)
                         .foregroundStyle(Theme.primaryInk)
                         .padding(.horizontal, 12)
@@ -395,14 +328,16 @@ struct OnboardingView: View {
 
     // MARK: - Shared chrome
 
-    private func progressHeader(index: Int, back: @escaping () -> Void) -> some View {
+    private func progressHeader(index: Int, back: (() -> Void)?) -> some View {
         HStack(spacing: 10) {
-            Button(action: back) {
+            Button { back?() } label: {
                 Image(systemName: "chevron.left").font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Theme.foreground)
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel(L("戻る"))
+            .opacity(back == nil ? 0 : 1)
+            .disabled(back == nil)
             // One segment per screen, the ones done filled (the count reads at a glance, no numbers to read).
             HStack(spacing: 5) {
                 ForEach(1...Self.totalSteps, id: \.self) { i in
@@ -489,10 +424,6 @@ struct OnboardingView: View {
                     Button(L("最初の質問に答え直す"), systemImage: "list.bullet.clipboard") {
                         showMenu = false
                         go(.questions, step: 0, back: true)
-                    }
-                    Button(L("最初の画面に戻る"), systemImage: "arrow.counterclockwise") {
-                        showMenu = false
-                        go(.intro, step: 0, back: true)
                     }
                     Button(L("ログインする"), systemImage: "person.crop.circle") {
                         showMenu = false
@@ -644,47 +575,6 @@ private struct ChoiceRow: View {
 
 
 
-/// Album-style print (white paper + word in the bottom margin), photo kept at its own ratio.
-struct OnboardingPrint: View {
-    let name: String
-    let label: String
-    let ratio: CGFloat
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Color(hex: 0xEEE8DC)
-                .aspectRatio(1 / ratio, contentMode: .fit)
-                .overlay {
-                    if let img = OnboardingImage.load(name) {
-                        Image(uiImage: img).resizable().aspectRatio(contentMode: .fill).allowsHitTesting(false)
-                    }
-                }
-                .clipped()
-            Text(label)
-                .scaledFont(size: 15)
-                .foregroundStyle(Color(hex: 0x33291F))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .padding([.horizontal, .top], 6)
-        .padding(.bottom, 8)
-        .background(Color(hex: 0xFFFDF8))
-        .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
-    }
-}
-
-enum OnboardingImage {
-    private static var cache: [String: UIImage] = [:]
-    static func load(_ name: String) -> UIImage? {
-        if let c = cache[name] { return c }
-        guard let path = Bundle.main.path(forResource: name, ofType: "webp"),
-              let img = UIImage(contentsOfFile: path) else { return nil }
-        cache[name] = img
-        return img
-    }
-}
-
-
 // MARK: - Motion pieces
 
 /// Hands its content `shown`: false on the first frame, true right after, so `staggerIn` children come in one after
@@ -724,442 +614,5 @@ struct OnboardingBackdrop: View {
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 7).repeatForever(autoreverses: true)) { drift = true }
         }
-    }
-}
-
-/// The intro's page dots: the current one a longer blue capsule.
-private struct IntroDots: View {
-    let count: Int
-    let index: Int
-
-    var body: some View {
-        HStack(spacing: 7) {
-            ForEach(0..<count, id: \.self) { i in
-                Capsule()
-                    .fill(i == index ? AnyShapeStyle(Theme.brandGradient) : AnyShapeStyle(Theme.foreground.opacity(0.15)))
-                    .frame(width: i == index ? 24 : 7, height: 7)
-            }
-        }
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: index)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(index + 1) / \(count)")
-    }
-}
-
-/// One page of the intro: its scene, the headline with its keyword on a pill, one line under it.
-private struct IntroStory: View {
-    static let pages = 3
-    let page: Int
-    let active: Bool
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Group {
-                switch page {
-                case 0: IntroCatchScene(active: active)
-                case 1: IntroDexScene(active: active)
-                default: IntroQuizScene(active: active)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
-            RevealHeadline(marked: title, size: 30, active: active, delay: 0.3, duration: 1.1)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 24)
-                .padding(.top, 22)
-            Text(sub)
-                .scaledFont(size: 15)
-                .foregroundStyle(Theme.muted)
-                .multilineTextAlignment(.center)
-                .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 32)
-                .padding(.top, 10)
-                .staggerIn(active, delay: 0.75, distance: 8)
-        }
-        .padding(.bottom, 14)
-    }
-
-    private var title: String {
-        [L("撮るだけで、\n**ことば**になる"), L("集めたことばは\n**図鑑**に並ぶ"), L("自分の写真で\n**思い出す**")][page]
-    }
-
-    private var sub: String {
-        [L("気になる物を撮るだけ。AIが写真の中の物の名前と発音を教えてくれます。"),
-         L("撮った写真と出会った場所ごと、あなただけの単語帳に。"),
-         L("忘れかけた頃に、自分の写真で4択の復習。出会った場面ごと覚えられます。")][page]
-    }
-}
-
-/// A scene's own timeline: `run` when its page comes in; put back to the start (`reset`) a moment after it left, once
-/// it has slid out of sight, so it plays again next time.
-private extension View {
-    func introTimeline(active: Bool, reduceMotion: Bool, finish: @escaping () -> Void, reset: @escaping () -> Void,
-                       run: @escaping () async -> Void) -> some View {
-        task(id: active) {
-            if !active {
-                try? await Task.sleep(for: .milliseconds(600))
-                if !Task.isCancelled { reset() }
-                return
-            }
-            if reduceMotion { finish() } else { await run() }
-        }
-    }
-}
-
-/// Page 1: a photo of a café table; a scan passes over it, the cup is framed, and its word pops up on a tag (a tap on
-/// the tag says it, as in the app).
-private struct IntroCatchScene: View {
-    let active: Bool
-
-    @Environment(\.appReduceMotion) private var reduceMotion
-    @State private var shown = false
-    @State private var scan: CGFloat = 0
-    @State private var scanning = false
-    @State private var found = false
-    @State private var said = 0
-
-    /// The cup in first_catch_cafe, as fractions of the picture.
-    private static let cup = CGRect(x: 0.32, y: 0.63, width: 0.49, height: 0.21)
-    private static let word = "咖啡"  // l10n-ignore (target word)
-
-    var body: some View {
-        GeometryReader { geo in
-            let h = min(geo.size.height * 0.96, geo.size.width * 0.62 * 1.5)
-            let w = h / 1.5
-            card(w: w, h: h)
-                .position(x: geo.size.width / 2, y: geo.size.height / 2)
-        }
-        .introTimeline(active: active, reduceMotion: reduceMotion, finish: {
-            shown = true
-            found = true
-        }, reset: {
-            shown = false
-            found = false
-            scanning = false
-            scan = 0
-        }, run: run)
-    }
-
-    private func card(w: CGFloat, h: CGFloat) -> some View {
-        let cup = Self.cup
-        return ZStack(alignment: .topLeading) {
-            Group {
-                if let img = OnboardingImage.load("first_catch_cafe") {
-                    Image(uiImage: img).resizable().scaledToFill()
-                } else {
-                    Theme.secondary
-                }
-            }
-            .frame(width: w, height: h)
-            .clipped()
-            LinearGradient(colors: [.clear, Theme.cyan.opacity(0.5), .white.opacity(0.9), .clear],
-                           startPoint: .top, endPoint: .bottom)
-                .frame(width: w, height: h * 0.2)
-                .offset(y: scan * h * 1.2 - h * 0.2)
-                .opacity(scanning ? 1 : 0)
-                .blendMode(.plusLighter)
-            ViewfinderCorners()
-                .stroke(.white, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                .frame(width: cup.width * w + 14, height: cup.height * h + 14)
-                .shadow(color: .black.opacity(0.25), radius: 4)
-                .scaleEffect(found ? 1 : 1.3)
-                .opacity(found ? 1 : 0)
-                .position(x: cup.midX * w, y: cup.midY * h)
-        }
-        .frame(width: w, height: h)
-        .clipShape(.rect(cornerRadius: 22, style: .continuous))
-        .padding(6)
-        .background(.white, in: .rect(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color(hex: 0x1C4A80).opacity(0.18), radius: 22, y: 12)
-        .overlay(alignment: .topLeading) {
-            tag
-                .scaleEffect(found ? 1 : 0.3, anchor: .bottom)
-                .opacity(found ? 1 : 0)
-                .position(x: 6 + cup.midX * w, y: 6 + cup.minY * h - 34)
-        }
-        .rotationEffect(.degrees(shown ? -2 : -7))
-        .scaleEffect(shown ? 1 : 0.88)
-        .blur(radius: shown ? 0 : 14)
-        .opacity(shown ? 1 : 0)
-    }
-
-    /// The word's tag, as the app's tags: reading over the word, a speaker beside it, a point under it.
-    private var tag: some View {
-        Button {
-            said += 1
-            SoundService.shared.speak(Self.word)
-        } label: {
-            VStack(spacing: 0) {
-                HStack(spacing: 8) {
-                    // The app's own reading layout (zhuyin beside each character, or pinyin above, as 設定 › 発音表記).
-                    ZhuyinWordView(headword: Self.word, zhuyin: "ㄎㄚ ㄈㄟ", size: 22, weight: .bold,  // l10n-ignore (reading)
-                                   pinyin: "kāfēi", language: "zh-TW")
-                    Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(Theme.primary, in: Circle())
-                        .symbolEffect(.bounce, value: said)
-                }
-                .padding(.leading, 14)
-                .padding(.trailing, 8)
-                .padding(.vertical, 7)
-                .background(.white, in: Capsule())
-                .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
-                TagPoint()
-                    .fill(.white)
-                    .frame(width: 14, height: 8)
-            }
-        }
-        .buttonStyle(PressableStyle(scale: 0.92))
-        .accessibilityLabel(L("発音を聞く"))
-    }
-
-    private func run() async {
-        withAnimation(.spring(response: 0.8, dampingFraction: 0.8)) { shown = true }
-        try? await Task.sleep(for: .milliseconds(500))
-        guard !Task.isCancelled else { return }
-        scan = 0
-        scanning = true
-        withAnimation(.easeInOut(duration: 0.95)) { scan = 1 }
-        try? await Task.sleep(for: .milliseconds(850))
-        guard !Task.isCancelled else { return }
-        withAnimation(.easeOut(duration: 0.3)) { scanning = false }
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { found = true }
-        Haptics.impact(.light, intensity: 0.7)
-    }
-}
-
-/// Four corner brackets, as a camera frames what it found.
-private struct ViewfinderCorners: Shape {
-    func path(in rect: CGRect) -> Path {
-        let l = min(rect.width, rect.height) * 0.28
-        var p = Path()
-        p.move(to: CGPoint(x: rect.minX, y: rect.minY + l)); p.addLine(to: CGPoint(x: rect.minX, y: rect.minY)); p.addLine(to: CGPoint(x: rect.minX + l, y: rect.minY))
-        p.move(to: CGPoint(x: rect.maxX - l, y: rect.minY)); p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY)); p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + l))
-        p.move(to: CGPoint(x: rect.maxX, y: rect.maxY - l)); p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY)); p.addLine(to: CGPoint(x: rect.maxX - l, y: rect.maxY))
-        p.move(to: CGPoint(x: rect.minX + l, y: rect.maxY)); p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY)); p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - l))
-        return p
-    }
-}
-
-/// The small point under a tag.
-private struct TagPoint: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-        p.closeSubpath()
-        return p
-    }
-}
-
-/// Page 2: a 図鑑 page filling up — six caught words drop into their squares one after another, the newest marked NEW.
-private struct IntroDexScene: View {
-    let active: Bool
-
-    @Environment(\.appReduceMotion) private var reduceMotion
-    @State private var shown = false
-    @State private var filled = 0
-
-    private static let items: [(image: String, word: String)] = [
-        ("first_catch_cat", "貓"), ("first_catch_flower", "花"), ("first_catch_ready", "海"),  // l10n-ignore (target words)
-        ("first_catch_interest_music", "吉他"), ("first_catch_interest_sports", "球鞋"), ("first_catch_cafe", "咖啡"),  // l10n-ignore (target words)
-    ]
-    private static let tilts: [Double] = [-10, 8, -6, 9, -8, 6]
-
-    var body: some View {
-        GeometryReader { geo in
-            let cardW = min(geo.size.width, 330, geo.size.height * 1.05)
-            let pad: CGFloat = 14
-            let gap: CGFloat = 10
-            let tile = (cardW - pad * 2 - gap * 2) / 3
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "book.closed.fill").font(.system(size: 13, weight: .bold))
-                    Text(L("図鑑")).scaledFont(size: 14, weight: .bold)
-                    Spacer()
-                    Text(verbatim: "\(filled)")
-                        .scaledFont(size: 14, weight: .bold, monospacedDigit: true)
-                        .contentTransition(.numericText())
-                        .foregroundStyle(Theme.primaryInk)
-                }
-                .foregroundStyle(Theme.foreground)
-                LazyVGrid(columns: Array(repeating: GridItem(.fixed(tile), spacing: gap), count: 3), spacing: gap) {
-                    ForEach(0..<Self.items.count, id: \.self) { i in
-                        cell(i, size: tile)
-                    }
-                }
-            }
-            .padding(pad)
-            .frame(width: cardW)
-            .background(Theme.card, in: .rect(cornerRadius: 26, style: .continuous))
-            .shadow(color: Color(hex: 0x1C4A80).opacity(0.16), radius: 24, y: 12)
-            .rotation3DEffect(.degrees(shown ? 0 : 22), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
-            .scaleEffect(shown ? 1 : 0.9)
-            .opacity(shown ? 1 : 0)
-            .position(x: geo.size.width / 2, y: geo.size.height / 2)
-        }
-        .introTimeline(active: active, reduceMotion: reduceMotion, finish: {
-            shown = true
-            filled = Self.items.count
-        }, reset: {
-            shown = false
-            filled = 0
-        }, run: run)
-    }
-
-    private func cell(_ i: Int, size: CGFloat) -> some View {
-        let item = Self.items[i]
-        let isIn = i < filled
-        return VStack(spacing: 5) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Theme.secondary)
-                if let img = OnboardingImage.load(item.image) {
-                    Image(uiImage: img)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size, height: size)
-                        .clipShape(.rect(cornerRadius: 14, style: .continuous))
-                        .scaleEffect(isIn ? 1 : 0.4)
-                        .rotationEffect(.degrees(isIn ? 0 : Self.tilts[i]))
-                        .opacity(isIn ? 1 : 0)
-                }
-            }
-            .frame(width: size, height: size)
-            .overlay(alignment: .topTrailing) {
-                if i == Self.items.count - 1 && isIn {
-                    Text(verbatim: "NEW")
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Theme.primary, in: Capsule())
-                        .offset(x: 6, y: -6)
-                        .transition(.scale(scale: 0.2).combined(with: .opacity))
-                }
-            }
-            Text(verbatim: item.word)
-                .scaledFont(size: 14, weight: .semibold)
-                .foregroundStyle(Theme.foreground)
-                .lineLimit(1)
-                .opacity(isIn ? 1 : 0.25)
-        }
-        .animation(.spring(response: 0.5, dampingFraction: 0.66), value: isIn)
-    }
-
-    private func run() async {
-        withAnimation(.spring(response: 0.8, dampingFraction: 0.82)) { shown = true }
-        try? await Task.sleep(for: .milliseconds(380))
-        for _ in Self.items {
-            guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.66)) { filled += 1 }
-            Haptics.impact(.soft, intensity: 0.45)
-            try? await Task.sleep(for: .milliseconds(140))
-        }
-    }
-}
-
-/// Page 3: the learner's own photo and four words; a finger picks the right one and it turns green.
-private struct IntroQuizScene: View {
-    let active: Bool
-
-    @Environment(\.appReduceMotion) private var reduceMotion
-    @State private var shown = false
-    @State private var handIn = false
-    @State private var pressed = false
-    @State private var answered = false
-
-    private static let choices = ["狗", "貓", "鳥", "魚"]  // l10n-ignore (target words)
-    private static let correct = 1
-
-    var body: some View {
-        GeometryReader { geo in
-            let cardW = min(geo.size.width * 0.86, 300, geo.size.height * 0.78)
-            VStack(spacing: 12) {
-                Group {
-                    if let img = OnboardingImage.load("first_catch_cat") {
-                        Image(uiImage: img).resizable().scaledToFill()
-                    } else {
-                        Theme.secondary
-                    }
-                }
-                .frame(width: cardW - 24, height: (cardW - 24) * 0.78)
-                .clipShape(.rect(cornerRadius: 18, style: .continuous))
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                    ForEach(0..<Self.choices.count, id: \.self) { i in choice(i) }
-                }
-            }
-            .padding(12)
-            .frame(width: cardW)
-            .background(Theme.card, in: .rect(cornerRadius: 28, style: .continuous))
-            .shadow(color: Color(hex: 0x1C4A80).opacity(0.16), radius: 24, y: 12)
-            .rotationEffect(.degrees(shown ? 2 : 7))
-            .scaleEffect(shown ? 1 : 0.88)
-            .blur(radius: shown ? 0 : 12)
-            .opacity(shown ? 1 : 0)
-            .position(x: geo.size.width / 2, y: geo.size.height / 2)
-        }
-        .introTimeline(active: active, reduceMotion: reduceMotion, finish: {
-            shown = true
-            answered = true
-        }, reset: {
-            shown = false
-            handIn = false
-            pressed = false
-            answered = false
-        }, run: run)
-    }
-
-    private func choice(_ i: Int) -> some View {
-        let right = answered && i == Self.correct
-        return HStack(spacing: 6) {
-            Text(verbatim: Self.choices[i])
-                .scaledFont(size: 20, weight: .bold)
-            if right {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 16, weight: .bold))
-                    .transition(.scale(scale: 0.2).combined(with: .opacity))
-            }
-        }
-        .foregroundStyle(right ? .white : Theme.foreground)
-        .frame(maxWidth: .infinity, minHeight: 48)
-        .background(right ? AnyShapeStyle(Theme.ok) : AnyShapeStyle(Theme.card), in: .rect(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(right ? .clear : Theme.border, lineWidth: 1.5))
-        .opacity(answered && !right ? 0.45 : 1)
-        .scaleEffect(i == Self.correct && pressed ? 0.94 : 1)
-        .overlay(alignment: .bottomTrailing) {
-            if i == Self.correct {
-                Image(systemName: "hand.point.up.left.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(.white, Theme.foreground)
-                    .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
-                    .scaleEffect(pressed ? 0.86 : 1)
-                    .offset(x: handIn ? -14 : 40, y: handIn ? 26 : 90)
-                    .opacity(handIn && !answered ? 1 : 0)
-                    .allowsHitTesting(false)
-            }
-        }
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: answered)
-        .zIndex(i == Self.correct ? 1 : 0)
-    }
-
-    private func run() async {
-        withAnimation(.spring(response: 0.8, dampingFraction: 0.8)) { shown = true }
-        try? await Task.sleep(for: .milliseconds(900))
-        guard !Task.isCancelled else { return }
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { handIn = true }
-        try? await Task.sleep(for: .milliseconds(650))
-        guard !Task.isCancelled else { return }
-        withAnimation(.easeOut(duration: 0.12)) { pressed = true }
-        try? await Task.sleep(for: .milliseconds(150))
-        guard !Task.isCancelled else { return }
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { pressed = false }
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.65)) { answered = true }
-        Haptics.correct()
     }
 }
