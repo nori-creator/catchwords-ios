@@ -84,6 +84,7 @@ struct WordDetailView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var widthClass
+    @Environment(\.pageWidthOverride) private var pageWidthOverride
 
     /// The word as the dex has it now. A page opened on a catch still being saved (owner 2026-10-11: 「キャッチしたての
     /// ときその単語の詳細に進めない」 — it now opens at once) becomes the saved word in place when the save is done.
@@ -153,7 +154,7 @@ struct WordDetailView: View {
                 // Exactly the screen's width, even when a part comes out a few points wider (an example line drawn a
                 // hair wider than measured, a long translation): wider content let the page slide sideways while it
                 // scrolled and spring back (owner 2026-10-28: 「スクロールすると横揺れする」, up to 37 px on a device).
-                .containerRelativeFrame(.horizontal)
+                .modifier(PageColumnWidth(width: pageWidthOverride))
                 // 「文字の大きさ」 and 復習モード of the page's settings (§9) reach every part of the page.
                 .environment(\.pageTextScale, CGFloat(textScale))
                 .environment(\.reviewMask, reviewMask)
@@ -2017,6 +2018,24 @@ struct SectionRefresh {
 
 extension EnvironmentValues {
     @Entry var sectionRefresh: SectionRefresh? = nil
+    /// The word page's width when the screen it is drawn on is not its window: `DuoCanvas` draws iPhone Duo's inner
+    /// screen inside the simulator's narrower window, where `containerRelativeFrame` took the window's width. nil = the
+    /// screen's width, as in the app.
+    @Entry var pageWidthOverride: CGFloat? = nil
+}
+
+/// The word page's column exactly as wide as its screen (`containerRelativeFrame`), or `width` when one is given.
+private struct PageColumnWidth: ViewModifier {
+    let width: CGFloat?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let width {
+            content.frame(width: width)
+        } else {
+            content.containerRelativeFrame(.horizontal)
+        }
+    }
 }
 
 /// Explanatory prose, one sentence per row with a hairline under each (`Sentences.split`). Each row may break between

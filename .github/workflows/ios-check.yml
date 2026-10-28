@@ -416,9 +416,10 @@ jobs:
   # （Xcode 27.1）で組み立てる必要がある（古い SDK では内側で「見慣れた大きさの枠」の中に出るだけ — Apple の Tech Talk
   # 「Design for iPhone Duo」）。GitHub の xcode-27 の画像には Xcode 27.1 と iPhone Duo のシミュレーター（iOS 27.1）がある。
   # ここでは (1) Xcode 27.1 で組み立てられるか、(2) Duo のシミュレーターの2つの画面（内側 2007×2853 と外側 1398×2034、
-  # どちらも 3 倍）のそれぞれで主な画面を撮る、(3) シミュレーターが知らせる画面と写真の大きさを記録する。シミュレーターを
-  # 開く・閉じるコマンドは見つかっていない（Apple Developer Forums 847883）ので、アプリが出ていない方の画面は黒く写るはず。
-  # 内側の画面は build-and-shoot の「…-duo」の見本（DuoCanvas、669×951 pt）でも撮る。写真は ci-previews の
+  # どちらも 3 倍）のそれぞれで主な画面を撮る、(3) シミュレーターが知らせる画面と写真の大きさを記録する。シミュレーターは
+  # 閉じた Duo として起動し、アプリは外側の画面（466×678 pt、右の約 84 pt は時計などの帯で、中身は 382 pt の幅）に出る。
+  # 開くコマンドは無く（Apple Developer Forums 847883）、画面の電源の切り替えでは代わりにならない（下の手順）ので、
+  # 開いた内側の画面は build-and-shoot の「…-duo」の見本（DuoCanvas、669×951 pt）で撮る。写真は ci-previews の
   # runs/<ブランチ>-duo/ に置く。
   duo:
     runs-on: xcode-27
@@ -527,24 +528,10 @@ jobs:
               shoot "$1$name" "$2"
             done
           }
-          # 1回目: 起動したまま（閉じた Duo。アプリは外側の画面に出て、内側は黒い）。
+          # 起動したまま（閉じた Duo）撮る: アプリは外側の画面に出て、内側は黒い。外側を切り内側を入れる
+          # （simctl io screenConfig power off / on）と system shell が落ちてアプリを開けなくなる（2026-10-28 に試した）。
+          # 開いた Duo の内側は build-and-shoot の「…-duo」の見本（DuoCanvas）で確かめる。
           shoot_all "" "$DISPLAYS"
-          # 2回目: 外側の画面の電源を切り、内側の画面の電源を入れて（simctl io screenConfig power。開いた Duo の代わり）、
-          # 内側の画面だけを撮る（duo-open-…）。内側は画素の幅がいちばん広い画面。切り替えの返事は screenconfig.txt に残す。
-          INNER=$(for e in $DISPLAYS; do px=${e##*:}; echo "${px%%x*} $e"; done | sort -n | tail -1 | cut -d' ' -f2)
-          if [ -n "$INNER" ]; then
-            xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
-            {
-              for e in $DISPLAYS; do
-                [ "$e" = "$INNER" ] && continue
-                echo "> screenConfig --display=${e%%:*} power off"; xcrun simctl io "$UDID" screenConfig --display="${e%%:*}" power off
-              done
-              echo "> screenConfig --display=${INNER%%:*} power on"; xcrun simctl io "$UDID" screenConfig --display="${INNER%%:*}" power on
-            } > "$OUT/screenconfig.txt" 2>&1
-            cat "$OUT/screenconfig.txt"
-            sleep 3
-            shoot_all "open-" "$INNER"
-          fi
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
           # 写真の画素数（縮める前）: 画面の大きさを UIPreview の DuoScreen と照らす
           for f in "$OUT"/*.png; do echo "$(basename "$f") $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {print $2}' | tr '\n' ' ')"; done | tee "$OUT/sizes.txt"

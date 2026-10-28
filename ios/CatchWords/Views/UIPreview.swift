@@ -2141,9 +2141,10 @@ private struct DiaryLookBackPreview: View {
 }
 
 /// iPhone Duo's inner screen, open like a book (the fold down the middle), in points: 669 × 951, from Xcode 27.1's
-/// iPhone Duo simulator (its inner display is 2007 × 2853 px at 3×, as a developer measured it on the Apple forums,
-/// thread 847883 — Apple's spec page gives 1878 × 2670 px for the panel). CI's `duo` job prints the simulator's own
-/// displays; the simulator cannot be unfolded from the command line, so the inner screen is drawn here instead.
+/// iPhone Duo simulator (its inner display is 2007 × 2853 px at 3×, as CI's `duo` job reads it from simctl and a
+/// developer measured it on the Apple forums, thread 847883 — Apple's spec page gives 1878 × 2670 px for the panel).
+/// The simulator starts folded and cannot be unfolded from the command line (turning the outer screen off crashes its
+/// system shell), so the inner screen is drawn here instead.
 enum DuoScreen {
     static let inner = CGSize(width: 669, height: 951)
 }
@@ -2160,6 +2161,8 @@ private struct DuoCanvas<Content: View>: View {
             content()
                 .environment(\.horizontalSizeClass, .regular)
                 .environment(\.colorScheme, .light)
+                // The word page sizes its column to its window, which here is the simulator's (narrower) one.
+                .environment(\.pageWidthOverride, Self.canvas.width)
                 .frame(width: Self.canvas.width, height: Self.canvas.height)
                 .clipped()
                 .scaleEffect(scale, anchor: .topLeading)
