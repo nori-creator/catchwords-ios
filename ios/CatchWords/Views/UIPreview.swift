@@ -165,6 +165,7 @@ struct UIPreviewRoot: View {
             case "obgoals": OnboardingView(start: .questions, step: 3) {}
             // The TOCFL level now and the goal (owner 2026-10-28).
             case "oblevel": OnboardingView(start: .questions, step: 4) {}
+            case "oblevel-wheel": OnboardingView(start: .questions, step: 4, levelWheel: .now) {}
             case "obready": OnboardingView(start: .ready) {}
             // The first guide, step by step over the real screens (owner 2026-10-28's order): the camera, the cut-out
             // on the home, the 図鑑's tab and views, the word page's sections, the memory curve, the end.

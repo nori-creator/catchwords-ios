@@ -2,12 +2,12 @@ import SwiftUI
 
 /// FirstCatchFlow の体験段. iOS 版はログイン後に始まるので**本物の画面の上に**案内を重ねる。撮った1枚は本物の図鑑に入る。
 ///
-/// 2026-10-27（オーナー: 「チュートリアルが操作が分かりにくく…どうやってチュートリアルを進めたらいいか分からない」）:
-/// どの段も「何をタップすればいいか」を言い、札にはいつも段（`TourPhase`）のどこにいるかを出し、押す所には手の印を重ね、
-/// 暗い所を押したら光る所を知らせる。2026-10-28 の順番（オーナー）: 1枚撮る → 切り抜きがホームに貼られる → 図鑑の種類
-/// （カード・地図・ギャラリー）を実際に触る（影以外の物もキャッチできると短く）→ 図鑑の単語をタップ → 単語の頁の項目を
-/// 1つずつ → 撮った語を復習 → その語の記憶の状態（忘却曲線）→ ホームで完了の祝福。札の文字は短く（「文字が多すぎて何を
-/// したらいいかよくわからない」）: 見出し・その機能の良さを1行・押す所（または「次へ」）・小さく「スキップ」。
+/// 2026-10-27（オーナー: 「チュートリアルが操作が分かりにくく…どうやってチュートリアルを進めたらいいか分からない」）: 札には
+/// いつも段（`TourPhase`）のどこにいるかを出し、押す所は光らせて手の印を重ね、暗い所を押したら光る所を知らせる。
+/// 2026-10-28 の順番（オーナー）: 1枚撮る → 切り抜きがホームに貼られる → 図鑑の種類（カード・地図・ギャラリー）を実際に
+/// 触る（影以外の物もキャッチできると短く）→ 図鑑の単語をタップ → 単語の頁の項目を1つずつ → 撮った語を復習 → その語の
+/// 記憶の状態（忘却曲線）→ ホームで完了の祝福。札は押す所のすぐ隣に出し、文は短く: 見出し・要る時だけ1行・「次へ」・小さく
+/// 「スキップ」。「〜をタップ」とは書かない（同日「そこだけ光らしたらユーザーもそこわかる」）。
 enum TourStep: String, Equatable {
     case off
     case tapCamera, shoot, pick, detail, peel
@@ -50,51 +50,48 @@ enum TourStep: String, Equatable {
         }
     }
 
-    /// A few words: what this is.
+    /// What to do, or what this is, in a few words. Owner 2026-10-28 (「チュートリアルのすべての文字文章が変だから一から
+    /// 考え直して」「操作が明らかなところは…ここをタップって書かなくていい。そこだけ光らしたらユーザーもそこわかる」): the lit
+    /// place shows where to tap, so no card says 「〜をタップ」.
     var title: String? {
         switch self {
-        case .tapCamera: L("まず1枚、撮ろう")
-        case .shoot: L("気になる物を撮る")
-        case .pick: L("ことばを選ぶ")
-        case .detail: L("発音を聞く")
-        case .peel: L("図鑑に追加")
-        case .homeAdded: L("ホームに貼りました")
-        case .dexTab: L("図鑑を開く")
-        case .dexCover: L("カード")
-        case .dexMap: L("地図")
-        case .dexGrid: L("ギャラリー")
+        case .tapCamera: L("目の前にある物を1枚撮ってみよう")
+        case .shoot: L("撮りたい物を画面に入れよう")
+        case .pick: L("覚えたいことばを選ぼう")
+        case .detail: L("発音を聞いてみよう")
+        case .peel: L("図鑑に入れよう")
+        case .homeAdded: L("ホームに貼られました")
+        case .dexTab: L("次は、図鑑を見てみよう")
+        case .dexCover: L("集めたことばのカード")
+        case .dexMap: L("地図でも見られます")
+        case .dexGrid: L("分類ごとにも見られます")
         case .dexShadow: L("影は、まだ集めていない物")
-        case .dexOpen: L("ことばを開く")
+        case .dexOpen: L("撮ったことばを開いてみよう")
         case .wordSection: L("単語の頁")
-        case .wordSettings: L("表示する項目と順番")
-        case .reviewPick: L("写真で思い出す")
+        case .wordSettings: L("項目は自由に並べ替えられます")
+        case .reviewPick: L("写真に合うことばを選ぼう")
         case .reviewNext: L("答え合わせ")
-        case .memoryCurve: L("記憶の状態")
+        case .memoryCurve: L("このことばの記憶の状態")
         default: nil
         }
     }
 
-    /// One line: what it does for the learner (owner 2026-10-28: 機能とこのアプリの特徴、すごいところ). Only what this
-    /// screen really does.
+    /// One line, only where it tells something the screen does not already show (the first step has none: owner
+    /// 2026-10-28 「撮るだけで単語帳ができますって文字消して。いらない」).
     var benefit: String? {
         switch self {
-        case .tapCamera: L("撮るだけで、単語帳ができます。")
         case .shoot: L("名前を知らない物でも大丈夫。")
-        case .pick: L("AIが写真の物に台湾華語の名前を付けます。")
-        case .detail: L("その場でネイティブの発音を聞けます。")
-        case .peel: L("写真と出会った場所も一緒に残ります。")
-        case .homeAdded: L("撮った物は切り抜かれて、その日のアルバムに。")
-        case .dexTab: L("集めたことばは図鑑に並びます。")
+        case .pick: L("写っている物に、台湾華語の名前が付きました。")
+        case .detail: L("ネイティブの発音です。まねして言ってみましょう。")
+        case .homeAdded: L("撮った物は切り抜かれ、日付ごとのアルバムに残ります。")
         case .dexCover: L("左右にめくって見返せます。")
-        case .dexMap: L("どこで出会ったか、地図で思い出せます。")
-        case .dexGrid: L("分類ごとに、集めた数が分かります。")
-        case .dexShadow: L("影にない物も、何でもキャッチできます。")
-        case .dexOpen: L("撮ったことばを詳しく学びます。")
-        case .wordSection: L("意味から使い方まで、1つの頁で学べます。")   // each section has its own (`sectionPoint`)
-        case .wordSettings: L("見たい項目だけを、見やすい大きさで。")
-        case .reviewPick: L("自分の写真で思い出すから、記憶に残ります。")
-        case .reviewNext: L("間違えても大丈夫。解説で覚え直せます。")
-        case .memoryCurve: L("色で記憶の段階が分かり、忘れかける頃にお知らせします。")
+        case .dexMap: L("どこで出会ったことばか、場所から思い出せます。")
+        case .dexGrid: L("飲み物や料理など、分類ごとに集まり具合が分かります。")
+        case .dexShadow: L("影にない物も、何でも撮って集められます。")
+        case .wordSettings: L("表示する項目と順番、文字の大きさ、発音の速さをここで変えられます。")
+        case .reviewPick: L("自分で撮った写真だから、思い出しやすい。")
+        case .reviewNext: L("間違えても、解説を読めば覚え直せます。")
+        case .memoryCurve: L("色で記憶の段階が分かります。忘れかける頃に、復習をお知らせします。")
         default: nil
         }
     }
@@ -102,31 +99,14 @@ enum TourStep: String, Equatable {
     /// The word page's sections, one line each (the section's own name is the card's title).
     static func sectionPoint(_ section: CardSection) -> String {
         switch section {
-        case .meaning: L("この語の意味と使い分け。")
-        case .usageChunks: L("ネイティブがよく使う組み合わせ。そのまま話せる形で覚えます。")
-        case .example: L("チャンクを使った例文。発音も聞けます。")
+        case .meaning: L("このことばの意味を、短く説明します。")
+        case .usageChunks: L("ネイティブがよく一緒に使う組み合わせ。この形のまま覚えると、すぐ話せます。")
+        case .example: L("チャンクを使った例文。音声でも聞けます。")
         case .measureWords: L("この物を数えるときのことば（量詞）。")
         case .relatedWords: L("一緒に覚えると便利なことば。")
-        case .taiwanNote: L("台湾ならではの言い方や習慣。")
+        case .taiwanNote: L("台湾での言い方や習慣のメモ。")
         case .realUsage: L("動画や検索で、実際の使われ方を確かめられます。")
-        default: L("この語をもっと深く知るための項目。")
-        }
-    }
-
-    /// The tap asked for, said where the eye ends up (the steps without a 「次へ」).
-    var action: String? {
-        switch self {
-        case .tapCamera: L("カメラをタップ")
-        case .shoot: L("シャッターをタップ")
-        case .pick: L("ことばのタグをタップ")
-        case .peel: L("「図鑑に追加」をタップ")
-        case .dexTab: L("図鑑をタップ")
-        case .dexMap: L("地図をタップ")
-        case .dexGrid: L("ギャラリーをタップ")
-        case .dexOpen: L("ことばをタップ")
-        case .reviewPick: L("合うことばをタップ")
-        case .reviewNext: L("「次へ」をタップ")
-        default: nil
+        default: L("このことばを深く知るための項目。")
         }
     }
 
@@ -366,6 +346,8 @@ struct TourLayer: View {
     @State private var burst: CGFloat = 1
     @State private var handIn: Bool = true
     @State private var arrival: Int = 0
+    /// The card's height, measured (it is placed beside the lit place).
+    @State private var cardHeight: CGFloat = 170
 
     var body: some View {
         let hasPlace = step.anchor.map { anchors[$0] != nil } ?? false
@@ -400,18 +382,21 @@ struct TourLayer: View {
                             hand(on: hole, in: geo.size)
                         }
                     }
-                    let cardOnTop = hole.map { $0.midY > geo.size.height * 0.5 } ?? false
                     if showsCard {
-                        VStack {
-                            if !cardOnTop { Spacer(minLength: 0) }
-                            // A new card per step (its lines come in again, `shown`), the old one fading out.
-                            TourCoachCard(step: step, section: section, missed: missed, onNext: onNext, onSkip: onSkip)
-                                .id("\(step.rawValue)-\(section?.rawValue ?? "")")
-                                .padding(.horizontal, 16)
-                                .padding(.top, cardOnTop ? insets.top + 12 : 0)
-                                .padding(.bottom, cardOnTop ? 0 : max(insets.bottom, 12) + bottomClearance)
-                            if cardOnTop { Spacer(minLength: 0) }
+                        // Right beside the lit place, pointing at it (owner 2026-10-28: 「次操作する場所の近くにその解説を
+                        // 書いて」 — the camera's card sat at the top of the screen, its button at the bottom).
+                        let place = Self.cardPlace(hole: hole, size: geo.size, insets: insets, height: cardHeight,
+                                                   bottomClearance: bottomClearance)
+                        if let hole, let down = place.pointsDown {
+                            pointer(down: down, x: hole.midX, cardMidY: place.midY, in: geo.size)
                         }
+                        // A new card per step (its lines come in again, `shown`), the old one fading out.
+                        TourCoachCard(step: step, section: section, missed: missed, onNext: onNext, onSkip: onSkip)
+                            .id("\(step.rawValue)-\(section?.rawValue ?? "")")
+                            .padding(.horizontal, 16)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
+                            .frame(width: geo.size.width)
+                            .position(x: geo.size.width / 2, y: place.midY)
                     }
                 }
                 .animation(.spring(response: 0.5, dampingFraction: 0.86), value: lit)
@@ -477,6 +462,39 @@ struct TourLayer: View {
         }
         let side = max(padded.width, padded.height)
         return CGRect(x: padded.midX - side / 2, y: padded.midY - side / 2, width: side, height: side)
+    }
+
+    /// Where the card goes: just above a place in the lower half, just below one in the upper half (the other side
+    /// when there is no room), and at the bottom (or top) edge over a place that fills the screen or when there is none.
+    /// `pointsDown`: the card points at the place under it (true) or over it (false); nil, no pointer.
+    static func cardPlace(hole: CGRect?, size: CGSize, insets: EdgeInsets, height h: CGFloat,
+                          bottomClearance: CGFloat) -> (midY: CGFloat, pointsDown: Bool?) {
+        let top = insets.top + 12
+        let bottom = size.height - max(insets.bottom, 12) - bottomClearance
+        let gap: CGFloat = 16
+        guard let hole else { return (bottom - h / 2, nil) }
+        let above = hole.minY - gap - h >= top
+        // Below a place the card may reach over the tab bar (it is dimmed); at the edge it stays above it.
+        let below = hole.maxY + gap + h <= size.height - max(insets.bottom, 12)
+        let preferAbove = hole.midY > size.height * 0.5
+        if (preferAbove && above) || (!preferAbove && !below && above) { return (hole.minY - gap - h / 2, true) }
+        if below { return (hole.maxY + gap + h / 2, false) }
+        let roomAbove = hole.minY - top
+        let roomBelow = bottom - hole.maxY
+        return roomAbove > roomBelow ? (top + h / 2, nil) : (bottom - h / 2, nil)
+    }
+
+    /// The card's little point toward the lit place (under the card, half showing).
+    private func pointer(down: Bool, x: CGFloat, cardMidY: CGFloat, in size: CGSize) -> some View {
+        let edge = cardMidY + (down ? cardHeight / 2 : -cardHeight / 2)
+        return RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(Theme.card)
+            .frame(width: 20, height: 20)
+            .rotationEffect(.degrees(45))
+            .shadow(color: .black.opacity(0.18), radius: 6, y: down ? 4 : -2)
+            .position(x: min(max(x, 44), size.width - 44), y: edge + (down ? -2 : 2))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     static func radius(for hole: CGRect) -> CGFloat {
@@ -563,7 +581,6 @@ struct TourCoachCard: View {
     let onSkip: () -> Void
 
     @Environment(\.appReduceMotion) private var reduceMotion
-    @State private var hintPulse = false
     /// The card's lines come in one after another (the card is made anew for each step).
     @State private var shown = false
 
@@ -575,8 +592,8 @@ struct TourCoachCard: View {
         section.map(TourStep.sectionPoint) ?? step.benefit
     }
 
-    /// Owner 2026-10-28 (「文字が多すぎて何したらいいかちょっと見にくい」): the steps on top, a title, one line on what it
-    /// does for the learner, and one thing to do — the place to tap, or 「次へ」; 「スキップ」 small and out of the way.
+    /// Owner 2026-10-28 (「文字が多すぎて何したらいいかちょっと見にくい」): the steps on top, a title, at most one line, and
+    /// 「次へ」 where the step goes on from the card; 「スキップ」 small and out of the way.
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let phase = step.phase {
@@ -628,17 +645,6 @@ struct TourCoachCard: View {
                     }
                     .buttonStyle(PressableStyle(scale: 0.95))
                     .accessibilityIdentifier("tour.next")
-                } else if let action = step.action {
-                    // No button here: the step goes on when the lit place is tapped. Say what to tap, where the eye ends up.
-                    Label(action, systemImage: "hand.tap.fill")
-                        .scaledFont(size: 14, weight: .bold)
-                        .foregroundStyle(Theme.primaryInk)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 40)
-                        .background(Theme.primary.opacity(hintPulse ? 0.18 : 0.09), in: Capsule())
-                        .scaleEffect(missed > 0 && hintPulse ? 1.05 : 1)
                 }
             }
             .staggerIn(shown, delay: 0.26, distance: 8)
@@ -651,10 +657,6 @@ struct TourCoachCard: View {
         .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
         .modifier(Shake(amount: CGFloat(missed)))
         .task { shown = true }
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { hintPulse = true }
-        }
         .transition(reduceMotion ? .opacity : .asymmetric(
             insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 14)),
             removal: .opacity.combined(with: .scale(scale: 0.98))))

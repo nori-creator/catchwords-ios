@@ -29,9 +29,11 @@ struct OnboardingView: View {
     /// The TOCFL level now and the goal (1…6), nil = 「わからない」 (`OnboardingLevels.resolve`).
     @State private var levelNow: Int?
     @State private var levelGoal: Int?
+    /// The level wheel open over the question (like 設定's `WheelCard`), nil when none.
+    @State private var levelWheel: LevelWheelField?
     @State private var reminderMode: String = "ai"
     @State private var isSaving: Bool = false
-    /// The profile could not be saved on 「はじめる」: shown on the ready screen, which stays so it can be retried.
+    /// The profile could not be saved on 「チュートリアルを始める」: shown on the ready screen, which stays so it can be retried.
     @State private var saveError: String?
     @State private var showMenu: Bool = false
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
@@ -40,10 +42,12 @@ struct OnboardingView: View {
     @AppStorage("haptics.enabled") private var hapticsOn: Bool = true
 
     /// `start`/`step`: where it opens (the simulator check's pictures of the later screens, `UIPreview`).
-    init(start: Stage = .questions, step: Int = OnboardingView.questionSteps[0], onFinish: @escaping () -> Void) {
+    init(start: Stage = .questions, step: Int = OnboardingView.questionSteps[0], levelWheel: LevelWheelField? = nil,
+         onFinish: @escaping () -> Void) {
         self.onFinish = onFinish
         _stage = State(initialValue: start)
         _step = State(initialValue: step)
+        _levelWheel = State(initialValue: levelWheel)
     }
 
     static var goalList: [(id: String, label: String, icon: String)] { [
@@ -108,6 +112,26 @@ struct OnboardingView: View {
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.88), value: stage)
         .animation(.spring(response: 0.5, dampingFraction: 0.88), value: step)
+        .overlay {
+            if let field = levelWheel {
+                // Fades itself in and out and leaves the tree only once invisible, like 設定's card.
+                LevelWheelCard(field: field, value: field == .now ? levelNow : levelGoal,
+                               lowest: field == .goal ? (levelNow ?? 1) : 1) { picked in
+                    var quiet = Transaction()
+                    quiet.disablesAnimations = true
+                    withTransaction(quiet) { levelWheel = nil }
+                    if field == .now {
+                        levelNow = picked
+                        // The goal is never below the level now.
+                        if let picked, let goal = levelGoal, goal < picked { levelGoal = picked }
+                    } else {
+                        levelGoal = picked
+                    }
+                }
+                .transition(.identity)
+                .zIndex(3)
+            }
+        }
         .sheet(isPresented: $showMenu) { menu.presentationDetents([.large]) }
         // The pick tick must sound the first time too (as in 設定).
         .onAppear { SoundService.shared.warmTicks() }
@@ -223,12 +247,8 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity)
         case 4:
             VStack(alignment: .leading, spacing: 22) {
-                levelPicker(L("いまのレベル"), selection: $levelNow, lowest: 1, shown: shown, delay: 0.12)
-                levelPicker(L("目標のレベル"), selection: $levelGoal, lowest: levelNow ?? 1, shown: shown, delay: 0.3)
-                    .onChange(of: levelNow) { _, now in
-                        // The goal is never below the level now.
-                        if let now, let goal = levelGoal, goal < now { levelGoal = now }
-                    }
+                levelRow(.now, value: levelNow, shown: shown, delay: 0.12)
+                levelRow(.goal, value: levelGoal, shown: shown, delay: 0.24)
             }
         default:
             VStack(spacing: 10) {
@@ -242,27 +262,32 @@ struct OnboardingView: View {
         }
     }
 
-    /// 「わからない」 and TOCFL Level 1…6 (levels under `lowest` can't be picked: a goal below the level now).
-    private func levelPicker(_ title: String, selection: Binding<Int?>, lowest: Int, shown: Bool, delay: Double) -> some View {
+    /// One level answer as 設定 shows it (owner 2026-10-28: 「スクロールして選ぶようにして、すべてのレベルを出さなくていい。
+    /// 設定のスクロールと同じようにして」): the choice in a row, the wheel opening over the page when it is tapped.
+    private func levelRow(_ field: LevelWheelField, value: Int?, shown: Bool, delay: Double) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
+            Text(field.title)
                 .scaledFont(size: 15, weight: .bold)
                 .foregroundStyle(Theme.foreground)
-                .staggerIn(shown, delay: delay)
-            LevelChip(top: nil, title: L("わからない"), isOn: selection.wrappedValue == nil, enabled: true) {
-                selection.wrappedValue = nil
-            }
-            .staggerIn(shown, delay: delay + 0.04)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                ForEach(1...6, id: \.self) { n in
-                    LevelChip(top: "TOCFL Level", title: "\(n)", isOn: selection.wrappedValue == n, enabled: n >= lowest) {  // l10n-ignore (TOCFL Level n is shared, CLAUDE.md)
-                        selection.wrappedValue = n
-                    }
-                    .staggerIn(shown, delay: delay + 0.06 + Double(n) * 0.03)
+            Button {
+                Haptics.selection()
+                levelWheel = field
+            } label: {
+                HStack {
+                    Text(LevelWheelField.label(value)).scaledFont(size: 18).foregroundStyle(Theme.foreground)
+                    Spacer()
+                    Image(systemName: "chevron.down").scaledFont(size: 14, weight: .semibold).foregroundStyle(Theme.muted)
                 }
+                .padding(.horizontal, 20).frame(minHeight: 56)
+                .background(LinearGradient(colors: [Theme.card, Color(light: 0xEEF5FF, dark: 0x132032)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                            in: .rect(cornerRadius: 22, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Theme.primary.opacity(0.2), lineWidth: 1))
+                .shadow(color: Theme.primary.opacity(0.06), radius: 6, y: 3)
             }
+            .buttonStyle(PressableStyle(scale: 0.98))
+            .accessibilityIdentifier(field == .now ? "onboarding.levelNow" : "onboarding.levelGoal")
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: selection.wrappedValue)
+        .staggerIn(shown, delay: delay)
     }
 
     private func toggle(_ set: inout Set<String>, _ v: String) {
@@ -360,7 +385,7 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24).padding(.bottom, 10)
             }
-            PrimaryButton(title: L("はじめる"), icon: "arrow.right", isLoading: isSaving, sheen: true) {
+            PrimaryButton(title: L("チュートリアルを始める"), icon: "arrow.right", isLoading: isSaving, sheen: true) {
                 Task { await finish() }
             }
             .padding(.horizontal, 24).padding(.bottom, 20)
@@ -514,7 +539,7 @@ struct OnboardingView: View {
         // native_language as the web writes it (readerL1 from the display and learning languages).
         let l1 = ReaderLanguage.l1(native: ReaderLanguage.native, target: targetLanguage)
         // The languages first, on their own: a save that fails keeps this screen (with the reason) so
-        // 「はじめる」 can be tried again, instead of finishing with the chosen languages lost.
+        // 「チュートリアルを始める」 can be tried again, instead of finishing with the chosen languages lost.
         await profile.update(["native_language": l1, "target_language": targetLanguage, "ui_language": uiLanguage])
         if let failed = profile.message { saveError = failed; return }
         ReaderLanguage.native = l1
@@ -592,41 +617,92 @@ enum OnboardingPick {
 
 private enum ChoiceLeading { case flag(String), icon(String) }
 
-/// One answer of the TOCFL question: 「わからない」 across the row, or a level (「TOCFL Level」 over its number).
-private struct LevelChip: View {
-    let top: String?
-    let title: String
-    let isOn: Bool
-    let enabled: Bool
-    let action: () -> Void
-    @Environment(\.appReduceMotion) private var reduceMotion
+/// The two TOCFL answers of the onboarding (the level now and the goal).
+enum LevelWheelField: Identifiable {
+    case now, goal
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .now: L("いまのレベル")
+        case .goal: L("目標のレベル")
+        }
+    }
+
+    /// 「わからない」 for none, else the shared notation 「TOCFL Level n」 (never translated, CLAUDE.md).
+    static func label(_ level: Int?) -> String {
+        level.map { "TOCFL Level \($0)" } ?? L("わからない")  // l10n-ignore (TOCFL Level n is shared)
+    }
+}
+
+/// 設定's wheel card (`WheelCard`) for the onboarding's TOCFL answers: the dimmed page, a white card with the title, ×,
+/// the app's ticking wheel (`TickWheel`) with 「わからない」 at its top, and 「閉じる」. A goal below the level now is not
+/// offered. The choice is handed back once, when the card has faded out.
+private struct LevelWheelCard: View {
+    let field: LevelWheelField
+    let value: Int?
+    let lowest: Int
+    let onClose: (Int?) -> Void
+    @State private var selection: String = ""
+    @State private var appeared: Bool = false
+    @State private var closing: Bool = false
+
+    private static let unknown = "unknown"
+
+    private var options: [(value: String, label: String)] {
+        let unknown: [(value: String, label: String)] = [(Self.unknown, LevelWheelField.label(nil))]
+        let levels: [(value: String, label: String)] = (lowest...6).map { ("\($0)", LevelWheelField.label($0)) }
+        return unknown + levels
+    }
 
     var body: some View {
-        Button {
-            guard !isOn else { return }
-            OnboardingPick.choose(reduceMotion: reduceMotion, action)
-        } label: {
-            VStack(spacing: 0) {
-                if let top {
-                    Text(top)
-                        .scaledFont(size: 10, weight: .semibold)
-                        .foregroundStyle(isOn ? Color.white.opacity(0.85) : Theme.muted)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea()
+                .onTapGesture(perform: close)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(field.title).scaledFont(size: 18, weight: .bold).foregroundStyle(Theme.foreground)
+                    Spacer()
+                    Button(action: close) {
+                        Image(systemName: "xmark").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.foreground)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel(L("閉じる"))
                 }
-                Text(title)
-                    .scaledFont(size: top == nil ? 16 : 22, weight: .bold)
-                    .foregroundStyle(isOn ? .white : Theme.foreground)
+                TickWheel(title: field.title, options: options, selection: $selection)
+                Button(action: close) {
+                    Text(L("閉じる")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Theme.primary, in: Capsule())
+                }
+                .buttonStyle(FadePressStyle())
+                .opacity(closing ? 0 : 1)
+                .animation(nil, value: closing)
+                .accessibilityIdentifier("wheel.close")
             }
-            .frame(maxWidth: .infinity, minHeight: top == nil ? 50 : 62)
-            .background(isOn ? AnyShapeStyle(Theme.brandGradient) : AnyShapeStyle(Color.white), in: .rect(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(isOn ? .clear : Theme.border))
-            .shadow(color: isOn ? Theme.primary.opacity(0.3) : .clear, radius: 10, y: 4)
-            .opacity(enabled ? 1 : 0.35)
+            .padding(.horizontal, 20).padding(.vertical, 16)
+            .background(Theme.card, in: .rect(cornerRadius: 28, style: .continuous))
+            .shadow(color: .black.opacity(0.2), radius: 30, y: 12)
+            .padding(.horizontal, 20)
+            .scaleEffect(appeared ? 1 : 0.94)
         }
-        .buttonStyle(PressableStyle())
-        .disabled(!enabled)
-        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .opacity(appeared ? 1 : 0)
+        .allowsHitTesting(!closing)
+        .onAppear {
+            selection = value.map { "\(max($0, lowest))" } ?? Self.unknown
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { appeared = true }
+        }
+    }
+
+    private func close() {
+        guard !closing else { return }
+        closing = true
+        let picked = Int(selection)
+        withAnimation(.easeOut(duration: 0.18)) { appeared = false }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(200))
+            onClose(picked)
+        }
     }
 }
 
