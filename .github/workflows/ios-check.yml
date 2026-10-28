@@ -202,7 +202,7 @@ jobs:
           OUT="$RUNNER_TEMP/report/videos"
           mkdir -p "$OUT"
           UDID=$(cat "$RUNNER_TEMP/udid"); BUNDLE_ID=$(cat "$RUNNER_TEMP/bundle")
-          for spec in "analyzing 9" "scanslow 13" "regen 10" "authopen 6" "onboarding 9" "tour 5"; do
+          for spec in "analyzing 9" "scanslow 13" "regen 10" "authopen 6" "onboarding 9" "tour 6" "tour-added 5" "tour-word 7" "tour-sections 6" "tour-home 6" "tourdone 5"; do
             set -- $spec
             name=$1; secs=$2
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true

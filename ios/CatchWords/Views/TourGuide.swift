@@ -195,20 +195,27 @@ struct TourPhaseRow: View {
     var shown: Bool = true
     var baseDelay: Double = 0
     var compact: Bool = false
+    /// The items come in one after another once `shown` (the onboarding's preview); the guide's card instead fills the
+    /// line up to the current step and pops its circle when it comes in.
+    var stagger: Bool = true
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(TourPhase.allCases, id: \.self) { p in
                 item(p)
-                    .staggerIn(shown, delay: baseDelay + Double(p.rawValue) * 0.08, distance: 8)
+                    .staggerIn(shown || !stagger, delay: baseDelay + Double(p.rawValue) * 0.08, distance: 8)
                 if p != .review {
-                    Capsule()
-                        .fill(done(p) ? Theme.primary : Theme.border)
-                        .frame(height: 2)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, circle / 2 - 1)
-                        .padding(.horizontal, 2)
-                        .staggerIn(shown, delay: baseDelay + Double(p.rawValue) * 0.08 + 0.04, distance: 0)
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.border)
+                        Capsule().fill(Theme.primary)
+                            .scaleEffect(x: filled(p) ? 1 : 0, anchor: .leading)
+                            .animation(.easeInOut(duration: 0.45).delay(0.1), value: shown)
+                    }
+                    .frame(height: 2)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, circle / 2 - 1)
+                    .padding(.horizontal, 2)
+                    .staggerIn(shown || !stagger, delay: baseDelay + Double(p.rawValue) * 0.08 + 0.04, distance: 0)
                 }
             }
         }
@@ -223,6 +230,13 @@ struct TourPhaseRow: View {
     private func done(_ p: TourPhase) -> Bool {
         guard let current else { return false }
         return p.rawValue < current.rawValue
+    }
+
+    /// The line after `p` is blue when the step after it is done or current; on the guide's card the last of them
+    /// (the one reaching the current step) fills as the card comes in.
+    private func filled(_ p: TourPhase) -> Bool {
+        guard let current, p.rawValue < current.rawValue else { return false }
+        return stagger || p.rawValue + 1 < current.rawValue || shown
     }
 
     private func item(_ p: TourPhase) -> some View {
@@ -242,7 +256,8 @@ struct TourPhaseRow: View {
             }
             .frame(width: circle, height: circle)
             .shadow(color: isCurrent ? Theme.primary.opacity(0.4) : .clear, radius: 6, y: 2)
-            .scaleEffect(isCurrent ? 1.08 : 1)
+            .scaleEffect(isCurrent ? (shown || stagger ? 1.08 : 0.7) : 1)
+            .animation(.spring(response: 0.45, dampingFraction: 0.55).delay(0.35), value: shown)
             Text(p.label)
                 .scaledFont(size: compact ? 10 : 12, weight: isCurrent ? .bold : .semibold)
                 .foregroundStyle(isCurrent ? Theme.primaryInk : lit ? Theme.foreground : Theme.muted)
@@ -307,8 +322,16 @@ struct TourLayer: View {
     /// Taps on the dark part during a step that wants a tap on the lit place.
     @State private var missed: Int = 0
     @State private var flash: Bool = false
+    /// Each step's arrival (owner 2026-10-28: 「モーションデザインなどを用いて…クオリティ高く解説」): the light opens wide (1)
+    /// and closes onto the place (0) like a camera focusing on it, one ring bursts out as it lands (`burst` 0 → 1), and
+    /// the finger glides in after (`handIn`).
+    @State private var iris: CGFloat = 0
+    @State private var burst: CGFloat = 1
+    @State private var handIn: Bool = true
+    @State private var arrival: Int = 0
 
     var body: some View {
+        let hasPlace = step.anchor.map { anchors[$0] != nil } ?? false
         // The safe area is read outside (the full-screen reader inside has none: the card sat under the clock, CI
         // 2026-10-27), the lit places in full-screen coordinates inside.
         GeometryReader { safe in
@@ -316,11 +339,14 @@ struct TourLayer: View {
             GeometryReader { geo in
                 let full = CGRect(origin: .zero, size: geo.size)
                 let hole: CGRect? = step.anchor.flatMap { anchors[$0] }.map { Self.holeRect(around: geo[$0]) }
-                let radius = hole.map(Self.radius(for:)) ?? 0
+                let settled = hole.map(Self.radius(for:)) ?? 0
                 // 押す所が画面に無い（表示を切り替えた等）ときは暗くせず、札だけ出して操作を妨げない。
                 let shouldDim = hole != nil || !step.isInteractive
                 let showsCard = shouldDim || step.nextLabel != nil
-                let lit = hole ?? CGRect(x: full.midX, y: full.midY, width: 0, height: 0)
+                // While it opens, the light is the place grown by up to the screen's size, rounder the wider it is.
+                let open = iris * max(geo.size.width, geo.size.height)
+                let lit = hole.map { $0.insetBy(dx: -open, dy: -open) } ?? CGRect(x: full.midX, y: full.midY, width: 0, height: 0)
+                let radius = settled + (min(lit.width, lit.height) / 2 - settled) * iris
                 let dim = SpotlightDim(hole: lit, radius: radius)
                 ZStack {
                     if shouldDim {
@@ -331,7 +357,8 @@ struct TourLayer: View {
                             .transition(.opacity)
                     }
                     if let hole {
-                        ring(hole, radius: radius)
+                        ring(hole, radius: settled)
+                            .opacity(Double(max(0, 1 - iris * 3)))
                         if step.isInteractive, hole.width < 200, hole.height < 200, !reduceMotion {
                             hand(on: hole, in: geo.size)
                         }
@@ -340,7 +367,9 @@ struct TourLayer: View {
                     if showsCard {
                         VStack {
                             if !cardOnTop { Spacer(minLength: 0) }
+                            // A new card per step (its lines come in again, `shown`), the old one fading out.
                             TourCoachCard(step: step, missed: missed, onNext: onNext, onSkip: onSkip)
+                                .id(step)
                                 .padding(.horizontal, 16)
                                 .padding(.top, cardOnTop ? insets.top + 12 : 0)
                                 .padding(.bottom, cardOnTop ? 0 : max(insets.bottom, 12) + bottomClearance)
@@ -353,9 +382,45 @@ struct TourLayer: View {
             .ignoresSafeArea()
         }
         .onAppear {
+            arrive(hasPlace)
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
             withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) { ripple = true }
+        }
+        .onChange(of: step) { _, _ in
+            Haptics.selection()
+            arrive(hasPlace)
+        }
+        // The place can come on screen after the step (the next screen still rising): the light lands when it does.
+        .onChange(of: hasPlace) { _, now in if now { arrive(true) } }
+    }
+
+    /// A step comes in: the light opens and closes onto its place, a ring bursts as it lands, the finger glides in.
+    private func arrive(_ hasPlace: Bool) {
+        arrival += 1
+        let token = arrival
+        guard !reduceMotion, hasPlace else {
+            iris = 0
+            handIn = true
+            return
+        }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) {
+            iris = 1
+            burst = 1
+            handIn = false
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(40))
+            guard token == arrival else { return }
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.88)) { iris = 0 }
+            try? await Task.sleep(for: .milliseconds(520))
+            guard token == arrival else { return }
+            withTransaction(still) { burst = 0 }
+            withAnimation(.easeOut(duration: 0.8)) { burst = 1 }
+            withAnimation(.spring(response: 0.65, dampingFraction: 0.78)) { handIn = true }
+            Haptics.impact(.soft, intensity: 0.55)
         }
     }
 
@@ -377,6 +442,11 @@ struct TourLayer: View {
                 .stroke(Theme.primary, lineWidth: 3)
                 .shadow(color: Theme.primary.opacity(pulse ? 0.9 : 0.4), radius: pulse ? 18 : 8)
                 .scaleEffect(flash ? 1.14 : pulse ? 1.03 : 1)
+            // The landing: one wide ring bursting out of the place.
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(Theme.primaryBright, lineWidth: 4)
+                .scaleEffect(1 + burst * 0.7)
+                .opacity(Double(1 - burst) * 0.9)
             // A ring spreading out from the place again and again: "here".
             if step.isInteractive && !reduceMotion {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -400,6 +470,9 @@ struct TourLayer: View {
             .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
             .scaleEffect(pulse ? 0.86 : 1, anchor: .topLeading)
             .offset(x: pulse ? -4 : 0, y: pulse ? -5 : 0)
+            // Glides in from below right once the light has landed.
+            .offset(x: handIn ? 0 : 46, y: handIn ? 0 : 84)
+            .opacity(handIn ? 1 : 0)
             .position(x: x, y: y)
             .allowsHitTesting(false)
             .transition(.opacity)
@@ -438,16 +511,19 @@ struct TourCoachCard: View {
 
     @Environment(\.appReduceMotion) private var reduceMotion
     @State private var hintPulse = false
+    /// The card's lines come in one after another (the card is made anew for each step).
+    @State private var shown = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let phase = step.phase {
-                TourPhaseRow(current: phase, compact: true)
+                TourPhaseRow(current: phase, shown: shown, compact: true, stagger: false)
                     .padding(.bottom, 2)
             }
             if let title = step.title {
                 Text(title).scaledFont(size: 19, weight: .heavy).foregroundStyle(Theme.foreground)
                     .fixedSize(horizontal: false, vertical: true)
+                    .staggerIn(shown, delay: 0.08, distance: 10)
             }
             if let benefit = step.benefit {
                 Label {
@@ -457,6 +533,7 @@ struct TourCoachCard: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Theme.primary)
+                        .symbolEffect(.bounce, value: shown)
                 }
                 .scaledFont(size: 14, weight: .semibold)
                 .foregroundStyle(Theme.primaryInk)
@@ -464,11 +541,13 @@ struct TourCoachCard: View {
                 .padding(.vertical, 9)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.primary.opacity(0.08), in: .rect(cornerRadius: 14, style: .continuous))
+                .staggerIn(shown, delay: 0.18, distance: 10)
             }
             Text(step.text)
                 .scaledFont(size: 15)
                 .foregroundStyle(Theme.foreground.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
+                .staggerIn(shown, delay: 0.28, distance: 10)
             HStack {
                 Button(L("案内を終える"), action: onSkip)
                     .scaledFont(size: 13, weight: .medium)
@@ -512,6 +591,7 @@ struct TourCoachCard: View {
         .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Theme.primary.opacity(0.12), lineWidth: 1))
         .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
         .modifier(Shake(amount: CGFloat(missed)))
+        .task { shown = true }
         .onAppear {
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { hintPulse = true }
