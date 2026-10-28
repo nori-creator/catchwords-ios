@@ -223,20 +223,18 @@ struct ConnectionFailedView: View {
     }
 }
 
-/// The app's interlocking-loop mark, drawn natively (matches the icon).
+/// The app's mark: the App Store icon itself (`AppLogo`, a copy of `AppIcon`), in the icon's rounded square. Owner
+/// 2026-10-28: the mark drawn here before (two plain rings) was not the real icon.
 struct LogoMark: View {
     var size: CGFloat
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                .fill(Theme.brandGradient)
-            HStack(spacing: -size * 0.16) {
-                Circle().stroke(.white, lineWidth: size * 0.07).frame(width: size * 0.4)
-                Circle().stroke(.white, lineWidth: size * 0.07).frame(width: size * 0.4)
-            }
-        }
-        .frame(width: size, height: size)
-        .shadow(color: Theme.primary.opacity(0.5), radius: size * 0.25, y: size * 0.08)
+        Image("AppLogo")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: size, height: size)
+            .clipShape(.rect(cornerRadius: size * 0.2237, style: .continuous))
+            .shadow(color: Theme.primary.opacity(0.5), radius: size * 0.25, y: size * 0.08)
+            .accessibilityHidden(true)
     }
 }

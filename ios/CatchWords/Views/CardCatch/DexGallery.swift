@@ -175,6 +175,8 @@ private struct DexSlotView: View {
     var goalSince: Double? = nil
     let onTargetFrame: ((CGRect) -> Void)?
     let onOpen: (Sticker) -> Void
+    /// The first tour lights the word it caught (`TourStep.dexOpen`).
+    @Environment(AppRouter.self) private var router: AppRouter?
 
     private var lang: String { NativeAPI.targetLanguage }
 
@@ -183,6 +185,7 @@ private struct DexSlotView: View {
         case .caught(let s):
             Button { onOpen(s) } label: { column(caught: s) }
                 .buttonStyle(PressableStyle(scale: 0.95))
+                .tourAnchor(.dexWord, if: router?.tour == .dexOpen && router?.tourStickerId == s.id)
                 .accessibilityIdentifier("dex.cell")
                 .accessibilityLabel(s.word?.headword ?? "")
                 // The NEW badge sits on the square's corner, outside the button (its own element: the UI tests find
@@ -566,6 +569,9 @@ struct DexModeSegment: View {
                 .accessibilityLabel(m.label)
                 .accessibilityAddTraits(on ? .isSelected : [])
                 .accessibilityIdentifier("dex.mode.\(m.rawValue)")
+                // The first tour lights the map and the gallery buttons in turn.
+                .tourAnchor(.dexMap, if: m == .map)
+                .tourAnchor(.dexGrid, if: m == .grid)
             }
         }
         .padding(4)

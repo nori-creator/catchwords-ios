@@ -1,13 +1,15 @@
 import SwiftUI
 
 /// First-run setup (FirstCatchQuestions / FirstCatchNotifications / FirstCatchReady).
-/// 3 questions (display, time, goals) → notifications → ready; then the guide over the real screens (`TourStep`).
+/// 4 questions (display, TOCFL level, time, goals) → notifications → ready; then the guide over the real screens
+/// (`TourStep`).
 /// Language / target go to `profiles`; goals, minutes and reminders to auth user_metadata
 /// (same keys the web writes: learning_preferences / notification_preferences).
 ///
 /// Owner 2026-10-27: the question about favourite photo themes (interests) is gone (the server reads no interests as
 /// everyday life). Owner 2026-10-28: no pages of their own before the questions (「実際のアプリの画面を使ってチュートリアルを
-/// 作って」): what the app does is shown on its real screens by the guide that follows.
+/// 作って」): what the app does is shown on its real screens by the guide that follows. Owner 2026-10-28: the TOCFL level
+/// now and the goal are asked (「わからない」 = level 1 now, level 2 the goal) and set as the account's first levels.
 struct OnboardingView: View {
     let onFinish: () -> Void
 
@@ -24,6 +26,9 @@ struct OnboardingView: View {
     @State private var targetLanguage: String = OnboardingView.fixedTarget
     @State private var minutes: Int = 10
     @State private var goals: Set<String> = []
+    /// The TOCFL level now and the goal (1…6), nil = 「わからない」 (`OnboardingLevels.resolve`).
+    @State private var levelNow: Int?
+    @State private var levelGoal: Int?
     @State private var reminderMode: String = "ai"
     @State private var isSaving: Bool = false
     /// The profile could not be saved on 「はじめる」: shown on the ready screen, which stays so it can be retried.
@@ -65,8 +70,8 @@ struct OnboardingView: View {
     /// The learning language while the question is hidden.
     static let fixedTarget = "zh-TW"
 
-    /// The questions asked, in order (step numbers: 0 display, 1 learning language, 2 time, 3 goals).
-    static var questionSteps: [Int] { showsTargetStep ? [0, 1, 2, 3] : [0, 2, 3] }
+    /// The questions asked, in order (step numbers: 0 display, 1 learning language, 2 time, 3 goals, 4 TOCFL level).
+    static var questionSteps: [Int] { showsTargetStep ? [0, 1, 4, 2, 3] : [0, 4, 2, 3] }
     /// Every screen the progress bar counts: the questions, the reminders and the ready screen.
     static var totalSteps: Int { questionSteps.count + 2 }
 
@@ -103,6 +108,8 @@ struct OnboardingView: View {
         .animation(.spring(response: 0.5, dampingFraction: 0.88), value: stage)
         .animation(.spring(response: 0.5, dampingFraction: 0.88), value: step)
         .sheet(isPresented: $showMenu) { menu.presentationDetents([.large]) }
+        // The pick tick must sound the first time too (as in 設定).
+        .onAppear { SoundService.shared.warmTicks() }
     }
 
     // MARK: - Questions
@@ -144,12 +151,14 @@ struct OnboardingView: View {
     }
 
     private var questionTitle: String {
-        [L("表示言語を\n選んでください"), L("学びたい言語は？"), L("1日、どれくらい\n学びたい？"), L("学ぶ目的を\n教えてください")][step]
+        [L("表示言語を\n選んでください"), L("学びたい言語は？"), L("1日、どれくらい\n学びたい？"), L("学ぶ目的を\n教えてください"),
+         L("TOCFLのレベルは？")][step]
     }
 
     private var questionHint: String {
         [L("メニューや説明に使う言語です。"), L("街で出会ったことばを、この言語で学びます。"), L("あなたのペースで。あとから変更できます。"),
-         L("いくつでも選べます。例文の場面をあなたに合わせます。")][step]
+         L("いくつでも選べます。例文の場面をあなたに合わせます。"),
+         L("例文やチャンクの難しさを合わせます。あとから設定で変更できます。")][step]
     }
 
     /// The rows of the question, coming in one after another once `shown`.
@@ -189,8 +198,8 @@ struct OnboardingView: View {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                     ForEach(Array([5, 10, 15, 30, 60].enumerated()), id: \.element) { i, m in
                         Button {
-                            Haptics.selection()
-                            minutes = m
+                            guard minutes != m else { return }
+                            OnboardingPick.choose(reduceMotion: reduceMotion) { minutes = m }
                         } label: {
                             Text(L("\(m)分"))
                                 .scaledFont(size: 18, weight: .bold)
@@ -211,6 +220,15 @@ struct OnboardingView: View {
                     .staggerIn(shown, delay: 0.4)
             }
             .frame(maxWidth: .infinity)
+        case 4:
+            VStack(alignment: .leading, spacing: 22) {
+                levelPicker(L("いまのレベル"), selection: $levelNow, lowest: 1, shown: shown, delay: 0.12)
+                levelPicker(L("目標のレベル"), selection: $levelGoal, lowest: levelNow ?? 1, shown: shown, delay: 0.3)
+                    .onChange(of: levelNow) { _, now in
+                        // The goal is never below the level now.
+                        if let now, let goal = levelGoal, goal < now { levelGoal = now }
+                    }
+            }
         default:
             VStack(spacing: 10) {
                 ForEach(Array(Self.goalList.enumerated()), id: \.element.id) { i, g in
@@ -223,8 +241,30 @@ struct OnboardingView: View {
         }
     }
 
+    /// 「わからない」 and TOCFL Level 1…6 (levels under `lowest` can't be picked: a goal below the level now).
+    private func levelPicker(_ title: String, selection: Binding<Int?>, lowest: Int, shown: Bool, delay: Double) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .scaledFont(size: 15, weight: .bold)
+                .foregroundStyle(Theme.foreground)
+                .staggerIn(shown, delay: delay)
+            LevelChip(top: nil, title: L("わからない"), isOn: selection.wrappedValue == nil, enabled: true) {
+                selection.wrappedValue = nil
+            }
+            .staggerIn(shown, delay: delay + 0.04)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                ForEach(1...6, id: \.self) { n in
+                    LevelChip(top: "TOCFL Level", title: "\(n)", isOn: selection.wrappedValue == n, enabled: n >= lowest) {  // l10n-ignore (TOCFL Level n is shared, CLAUDE.md)
+                        selection.wrappedValue = n
+                    }
+                    .staggerIn(shown, delay: delay + 0.06 + Double(n) * 0.03)
+                }
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: selection.wrappedValue)
+    }
+
     private func toggle(_ set: inout Set<String>, _ v: String) {
-        Haptics.selection()
         if set.contains(v) { set.remove(v) } else { set.insert(v) }
     }
 
@@ -302,7 +342,7 @@ struct OnboardingView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .staggerIn(shown, delay: 0.55, distance: 8)
                     TourPhaseRow(current: nil, shown: shown, baseDelay: 0.7)
-                    Label(L("約2分"), systemImage: "clock")
+                    Label(L("約3分"), systemImage: "clock")
                         .scaledFont(size: 13, weight: .semibold)
                         .foregroundStyle(Theme.primaryInk)
                         .padding(.horizontal, 12)
@@ -467,7 +507,9 @@ struct OnboardingView: View {
         if !times.isEmpty { UserDefaults.standard.set(times.joined(separator: ","), forKey: ReminderService.timesKey) }
         await ReminderService.applyReview(mode: reminderMode, times: times)
 
-        let level = ProfileStore.remap(profile.levelGoal, to: targetLanguage)
+        let picked = OnboardingLevels.resolve(now: levelNow, goal: levelGoal)
+        let current = ProfileStore.remap("TOCFL-\(picked.now)", to: targetLanguage)
+        let level = ProfileStore.remap("TOCFL-\(picked.goal)", to: targetLanguage)
         // native_language as the web writes it (readerL1 from the display and learning languages).
         let l1 = ReaderLanguage.l1(native: ReaderLanguage.native, target: targetLanguage)
         // The languages first, on their own: a save that fails keeps this screen (with the reason) so
@@ -476,8 +518,9 @@ struct OnboardingView: View {
         if let failed = profile.message { saveError = failed; return }
         ReaderLanguage.native = l1
         profile.targetLanguage = targetLanguage
-        await profile.update(["level_goal": level, "onboarded": true])
+        await profile.update(["current_level": current, "level_goal": level, "onboarded": true])
         if let failed = profile.message { saveError = failed; return }
+        profile.currentLevel = current
         profile.levelGoal = level
         profile.onboarded = true
         let prefs: [String: Any] = [
@@ -491,6 +534,16 @@ struct OnboardingView: View {
         Haptics.success()
         SoundService.shared.play(.sting)
         onFinish()
+    }
+}
+
+/// The onboarding's TOCFL answers as the account's first levels (owner 2026-10-28: 「わからないと答えたら、現状レベル1、
+/// 目標レベル2に自動設定」). An unknown goal is one above the level now (6 stays 6); the goal is never below it.
+enum OnboardingLevels {
+    static func resolve(now: Int?, goal: Int?) -> (now: Int, goal: Int) {
+        let n = min(max(now ?? 1, 1), 6)
+        let g = goal.map { min(max($0, n), 6) } ?? min(n + 1, 6)
+        return (n, g)
     }
 }
 
@@ -525,7 +578,56 @@ enum OnboardingState {
 
 // MARK: - Pieces
 
+/// A pick in the first questions sounds and moves like a choice in 設定 (owner 2026-10-28: 「ユーザーが選択するとき、効果音や
+/// アニメーションをアプリ内の設定のものと同じにして」): the 設定 pick tick (`SoundService.settingChanged`), a selection tap,
+/// and the 設定 pills' spring (0.3 / 0.72).
+enum OnboardingPick {
+    static func choose(reduceMotion: Bool, _ change: () -> Void) {
+        Haptics.selection()
+        SoundService.shared.settingChanged()
+        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.72)) { change() }
+    }
+}
+
 private enum ChoiceLeading { case flag(String), icon(String) }
+
+/// One answer of the TOCFL question: 「わからない」 across the row, or a level (「TOCFL Level」 over its number).
+private struct LevelChip: View {
+    let top: String?
+    let title: String
+    let isOn: Bool
+    let enabled: Bool
+    let action: () -> Void
+    @Environment(\.appReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button {
+            guard !isOn else { return }
+            OnboardingPick.choose(reduceMotion: reduceMotion, action)
+        } label: {
+            VStack(spacing: 0) {
+                if let top {
+                    Text(top)
+                        .scaledFont(size: 10, weight: .semibold)
+                        .foregroundStyle(isOn ? Color.white.opacity(0.85) : Theme.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                Text(title)
+                    .scaledFont(size: top == nil ? 16 : 22, weight: .bold)
+                    .foregroundStyle(isOn ? .white : Theme.foreground)
+            }
+            .frame(maxWidth: .infinity, minHeight: top == nil ? 50 : 62)
+            .background(isOn ? AnyShapeStyle(Theme.brandGradient) : AnyShapeStyle(Color.white), in: .rect(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(isOn ? .clear : Theme.border))
+            .shadow(color: isOn ? Theme.primary.opacity(0.3) : .clear, radius: 10, y: 4)
+            .opacity(enabled ? 1 : 0.35)
+        }
+        .buttonStyle(PressableStyle())
+        .disabled(!enabled)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
 
 private struct ChoiceRow: View {
     let leading: ChoiceLeading
@@ -533,11 +635,11 @@ private struct ChoiceRow: View {
     let sub: String?
     let isOn: Bool
     let action: () -> Void
+    @Environment(\.appReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {
-            Haptics.selection()
-            action()
+            OnboardingPick.choose(reduceMotion: reduceMotion, action)
         } label: {
             HStack(spacing: 14) {
                 switch leading {
@@ -558,7 +660,9 @@ private struct ChoiceRow: View {
                     Circle().stroke(isOn ? Theme.primary : Theme.border, lineWidth: 2).frame(width: 26, height: 26)
                     if isOn {
                         Circle().fill(Theme.primary).frame(width: 26, height: 26)
+                            .transition(.scale(scale: 0.3).combined(with: .opacity))
                         Image(systemName: "checkmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(.white)
+                            .transition(.scale(scale: 0.3).combined(with: .opacity))
                     }
                 }
             }

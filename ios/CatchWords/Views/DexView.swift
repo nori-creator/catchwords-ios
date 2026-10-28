@@ -212,10 +212,17 @@ struct DexView: View {
         .onAppear { if router.landing != nil || router.landingStickerId != nil { showGallery() } }
         .onChange(of: router.landing?.stickerId) { _, id in if id != nil { showGallery() } }
         .onChange(of: router.landingStickerId) { _, id in if id != nil { showGallery() } }
-        .onChange(of: mode) { _, _ in
+        .onChange(of: mode) { _, m in
+            // The first tour: each view the learner switches to moves the guide on (地図 → ギャラリー → the shadows).
+            if m == .map { router.advanceTour(from: .dexMap, to: .dexGrid) }
+            if m == .grid { router.advanceTour(from: .dexGrid, to: .dexShadow) }
             // Switching views redraws the gallery (`renderDex`): the landing's focus goes.
             guard router.landing == nil else { return }
             focus = nil
+        }
+        // The first tour starts on the slide dex (カード), whatever view was open last.
+        .onChange(of: router.tour) { _, step in
+            if step == .dexCover, mode != .cover { mode = .cover }
         }
     }
 
@@ -481,6 +488,12 @@ struct DexView: View {
             .scrollIndicators(.hidden)
             .refreshable { await dex.load() }
             .onAppear { takeLanding(proxy) }
+            // The first tour: the word it caught is brought into view for the shadows' card and its tap.
+            .task(id: router.tour) {
+                guard router.tour == .dexShadow || router.tour == .dexOpen, let id = router.tourStickerId else { return }
+                try? await Task.sleep(for: .milliseconds(250))
+                await scroll(to: id, proxy: proxy)
+            }
             .onChange(of: router.landing?.stickerId) { old, new in
                 // The landing's provisional entry was saved and got its real id: the hold (and the room made in
                 // it) and the focused slot follow it (the slot is redrawn at the same place, its fill animation

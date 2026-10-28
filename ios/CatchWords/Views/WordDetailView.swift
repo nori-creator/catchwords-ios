@@ -138,6 +138,8 @@ struct WordDetailView: View {
                     ForEach(visibleSections.filter { hasContent($0) || isFilling($0) }) { section in
                         if hasContent(section) {
                             sectionView(section)
+                                // The first tour goes through the sections one by one (owner 2026-10-28).
+                                .tourAnchor(.wordSection, if: router.tour == .wordSection && router.tourSection == section)
                                 .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)), removal: .opacity))
                         } else {
                             SectionSkeleton(title: section.title, icon: section.icon)
@@ -167,12 +169,34 @@ struct WordDetailView: View {
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .center) }
                 scrollTarget = nil
             }
+            // The first tour's section: brought up under the jump chips, where its light lands.
+            .onChange(of: router.tourSection) { _, section in
+                guard router.tour == .wordSection, let section else { return }
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.45)) { proxy.scrollTo(section.id, anchor: .top) }
+            }
+            .onAppear { syncTourSections() }
+            .onChange(of: jumpSections) { _, _ in syncTourSections() }
+            .onChange(of: router.tour) { _, _ in syncTourSections() }
             }
             }
         }
         .onChange(of: reviewOn) { _, _ in revealed = [] }
         .onChange(of: reviewHideRaw) { _, _ in revealed = [] }
         .onChange(of: current.id) { _, _ in revealed = [] }
+    }
+
+    /// The first tour's walk through this page: the sections it shows, in order; the first is lit once there is one (a
+    /// word caught a moment ago may still be getting them written).
+    private func syncTourSections() {
+        guard router.tour.isWord else { return }
+        router.tourSections = jumpSections
+        if router.tour == .wordSection, router.tourSection == nil, let first = jumpSections.first {
+            Task {
+                try? await Task.sleep(for: .milliseconds(450))
+                guard router.tour == .wordSection, router.tourSection == nil else { return }
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { router.tourSection = first }
+            }
+        }
     }
 
     /// The jump chips under the top bar (§0).

@@ -649,17 +649,20 @@ struct CaptureView: View {
         // Photos uploaded while the celebration was on screen now belong to this save (`reset` must not delete them).
         vm.handOffUploads(to: draft)
         if router.tour == .peel || router.tour == .detail {
+            // The first tour: the cut-out goes onto the home's album first (owner 2026-10-28: 「ホーム画面にその撮った
+            // ものが切り抜かれてホーム画面に追加される流れ」); the 図鑑 is its next stop.
             router.tourStickerId = local.sticker.id
-            router.tour = .added
+            Self.landOnHome(router: router)
+        } else {
+            // The sticker itself leaves the stage and flies into the word's slot in the dex (film v6).
+            if let f = stickerFrame {
+                router.catchStar = CatchStar(center: CGPoint(x: f.midX, y: f.midY), size: 52, k: 1,
+                                             image: vm.cutout ?? vm.stickerFallback(), box: f.size)
+            }
+            // The dex page rises over this screen, then the camera is put back.
+            CatchLanding.land(stickerId: local.sticker.id, router: router, calm: reduceMotion,
+                              goal: CatchGoal.make(headword: want.headword, stickers: dex.stickers, lang: NativeAPI.targetLanguage))
         }
-        // The sticker itself leaves the stage and flies into the word's slot in the dex (film v6).
-        if let f = stickerFrame {
-            router.catchStar = CatchStar(center: CGPoint(x: f.midX, y: f.midY), size: 52, k: 1,
-                                         image: vm.cutout ?? vm.stickerFallback(), box: f.size)
-        }
-        // The dex page rises over this screen, then the camera is put back.
-        CatchLanding.land(stickerId: local.sticker.id, router: router, calm: reduceMotion,
-                          goal: CatchGoal.make(headword: want.headword, stickers: dex.stickers, lang: NativeAPI.targetLanguage))
         // This screen goes away with the tab: the background save holds what it needs itself.
         let model = vm, store = dex, planStore = plan, nav = router
         // The cut-out of this catch, for a praise that says the learner was the first to catch it.
@@ -697,20 +700,30 @@ struct CaptureView: View {
         }
         if router.tour == .peel || router.tour == .detail {
             router.tourStickerId = owned.stickerId
-            router.tour = .added
+            Self.landOnHome(router: router)
+        } else {
+            // The sticker itself leaves the stage and flies into the word's square in the dex (film v6).
+            if let f = stickerFrame {
+                router.catchStar = CatchStar(center: CGPoint(x: f.midX, y: f.midY), size: 52, k: 1,
+                                             image: vm.cutout ?? vm.stickerFallback(), box: f.size)
+            }
+            CatchLanding.land(stickerId: owned.stickerId, router: router, calm: reduceMotion, alreadyCaught: true)
         }
-        // The sticker itself leaves the stage and flies into the word's square in the dex (film v6).
-        if let f = stickerFrame {
-            router.catchStar = CatchStar(center: CGPoint(x: f.midX, y: f.midY), size: 52, k: 1,
-                                         image: vm.cutout ?? vm.stickerFallback(), box: f.size)
-        }
-        CatchLanding.land(stickerId: owned.stickerId, router: router, calm: reduceMotion, alreadyCaught: true)
         let model = vm
         Task {
             try? await Task.sleep(for: .milliseconds(700))
             model.reset()
         }
         return true
+    }
+
+    /// The tour's catch: the home screen comes up, where the cut-out is pasted onto today's album (`albumPasteID`).
+    private static func landOnHome(router: AppRouter) {
+        router.catchStar = nil
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
+            router.tab = .home
+            router.tour = .homeAdded
+        }
     }
 
     private static func finishRecord(owned: OwnedWord, photo: UIImage?, cutout: UIImage?, location: CLLocation?,

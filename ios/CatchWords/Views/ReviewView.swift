@@ -127,9 +127,11 @@ struct ReviewView: View {
         }
         .overlay {
             if let s = curveSticker {
-                ZStack {
+                // In the first tour its card sits under the curve: the curve goes up and a little shorter.
+                let guided = router.tour == .memoryCurve
+                ZStack(alignment: guided ? .top : .center) {
                     Color.black.opacity(0.32).ignoresSafeArea()
-                        .onTapGesture { closeCurve() }
+                        .onTapGesture { if router.tour != .memoryCurve { closeCurve() } }
                     ForgettingCurveSheet(sticker: s, store: store, onReviewNow: {
                         guard !router.tour.isReview else { return }
                         let answered = answer != nil
@@ -137,14 +139,15 @@ struct ReviewView: View {
                         if answered { goNext() }
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { legendOpen = false }
                         showQuizRequest += 1
-                    }, onClose: { closeCurve() })
-                    .frame(maxHeight: 640)
+                    }, onClose: { if router.tour == .memoryCurve { router.tourFinish() } else { closeCurve() } })
+                    .frame(maxHeight: guided ? 470 : 640)
                     .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))
+                    .tourAnchor(.memoryCurve)
                     .shadow(color: .black.opacity(0.2), radius: 30, y: 12)
                     .padding(.horizontal, 16)
                     // Kept clear of the tab bar drawn over this screen (owner 2026-10-16: 「今が復習どき」 and its
                     // button were under it): when the card is taller than the room left, it scrolls inside.
-                    .padding(.top, 8)
+                    .padding(.top, guided ? 48 : 8)
                     .padding(.bottom, Self.tabBarClearance + 12)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.92).combined(with: .opacity))
                 }
@@ -172,7 +175,16 @@ struct ReviewView: View {
         .onChange(of: router.reviewNow) { _, _ in applyReviewNow() }
         // The tour's practice needs a word in the dex: without one there is nothing to quiz, so finish.
         .task(id: router.tour.isReview && practiceCards.isEmpty) {
-            if router.tour.isReview && practiceCards.isEmpty { router.tourToHome() }
+            if router.tour.isReview && practiceCards.isEmpty { router.tourFinish() }
+        }
+        // The tour's last look: the word just practised, on its forgetting curve (owner 2026-10-28: 「その単語の記憶の
+        // 状態が忘却曲線のグラフを表示して…最適な復習のタイミングが分かる」). It closes when the tour moves on.
+        .onChange(of: router.tour) { _, step in
+            if step == .memoryCurve, let s = practiceCards.first?.sticker {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { curveSticker = s }
+            } else if step == .complete || step == .off, curveSticker != nil {
+                closeCurve()
+            }
         }
         // R5 「学習言語台湾華語なのに英語の4択が表示されてる」: a switched learning language starts a fresh queue.
         .onChange(of: profile.targetLanguage) { _, _ in
@@ -186,14 +198,12 @@ struct ReviewView: View {
         .reviewLiveActivity(store: store, dex: dex, answered: answer != nil, enabled: !router.tour.isReview)
     }
 
-    /// FirstCatchPractice: 撮った1枚（と図鑑にあればもう1枚）で、4択を記録せずに試す。
+    /// FirstCatchPractice: 撮った1枚で、4択を記録せずに試す（owner 2026-10-28: 「自分が今取ったものを復習」）。Its word
+    /// gone or never saved: another word of the dex instead.
     private var practiceCards: [ReviewCard] {
-        let own = router.tourStickerId.flatMap { dex.sticker(id: $0) }
-        let other = dex.stickers.first { $0.id != own?.id && $0.word != nil }
-        return [own, other].compactMap { s in
-            guard let s, s.word != nil else { return nil }
-            return ReviewCard(review: ReviewState(stickerId: s.id, ease: 2.5, intervalDays: 0, repetitions: 0), sticker: s)
-        }
+        let own = router.tourStickerId.flatMap { dex.sticker(id: $0) }.flatMap { $0.word == nil ? nil : $0 }
+        guard let s = own ?? dex.stickers.first(where: { $0.word != nil }) else { return [] }
+        return [ReviewCard(review: ReviewState(stickerId: s.id, ease: 2.5, intervalDays: 0, repetitions: 0), sticker: s)]
     }
 
     private func goNext() {
@@ -209,7 +219,7 @@ struct ReviewView: View {
             router.advanceTour(from: .reviewNext, to: .reviewPick)
         } else {
             practiceIndex = 0
-            router.tourToHome()
+            router.advanceTour(from: .reviewNext, to: .memoryCurve)
         }
     }
 

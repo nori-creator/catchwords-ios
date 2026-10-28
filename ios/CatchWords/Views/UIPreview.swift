@@ -163,22 +163,39 @@ struct UIPreviewRoot: View {
             // The first screens (owner 2026-10-27): the goals, the ready screen; the first guide's card over the tab bar,
             // after the catch, and its end; the welcome screen's opening, frame by frame.
             case "obgoals": OnboardingView(start: .questions, step: 3) {}
+            // The TOCFL level now and the goal (owner 2026-10-28).
+            case "oblevel": OnboardingView(start: .questions, step: 4) {}
             case "obready": OnboardingView(start: .ready) {}
+            // The first guide, step by step over the real screens (owner 2026-10-28's order): the camera, the cut-out
+            // on the home, the 図鑑's tab and views, the word page's sections, the memory curve, the end.
             case "tour": TourPreview(step: .tapCamera)
-            case "tour-added": TourPreview(step: .added)
-            // The guide over the word's page (its jump chips) and over the home's album, as in the app.
+            case "tour-home": HomePreview(metAgain: true)
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .homeAdded, anchors: anchors, onNext: {}, onSkip: {})
+                }
+            case "tour-dextab": TourPreview(step: .dexTab)
+            case "tour-dexmap": DexView()
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .dexMap, anchors: anchors, onNext: {}, onSkip: {})
+                }
+            case "tour-shadow": DexView(startInGallery: true)
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .dexShadow, anchors: anchors, onNext: {}, onSkip: {})
+                }
             case "tour-word": DetailPreview()
                 .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-                    TourLayer(step: .wordJump, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12)
+                    TourLayer(step: .wordSection, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12,
+                              section: router.tourSection)
+                }
+                .onAppear {
+                    router.tourSection = .usageChunks
+                    router.tour = .wordSection
                 }
             case "tour-sections": DetailPreview()
                 .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-                    TourLayer(step: .wordSections, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12)
+                    TourLayer(step: .wordSettings, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12)
                 }
-            case "tour-home": HomePreview(metAgain: true)
-                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-                    TourLayer(step: .homeAlbum, anchors: anchors, onNext: {}, onSkip: {})
-                }
+            case "tour-curve": CurveTourPreview()
             case "tourdone": TourCompleteView(sticker: nil) {}
             case "authopen": AuthView()
             case "aiconsent": AIConsentView()
@@ -670,6 +687,37 @@ private struct TourPreview: View {
         }
         .overlayPreferenceValue(TourAnchorKey.self) { anchors in
             TourLayer(step: step, anchors: anchors, onNext: {}, onSkip: {})
+        }
+    }
+}
+
+/// The tour's last look: the practised word's forgetting curve, its card over it (`-uiPreview tour-curve`).
+private struct CurveTourPreview: View {
+    @Environment(ReviewStore.self) private var store
+
+    private var sticker: Sticker {
+        ImageCache.shared.set(PreviewFixtures.photo, for: "preview/review.jpg")
+        let w: [String: Any] = ["id": "rq", "headword": "芒果", "reading_zhuyin": "ㄇㄤˊ ㄍㄨㄛˇ", "language": "zh-TW",  // l10n-ignore (target-language data)
+                                "meaning_ja": L10n.lang == "en" ? "mango" : "マンゴー"]  // l10n-ignore (preview data)
+        let data = (try? JSONSerialization.data(withJSONObject: w)) ?? Data()
+        let word = try? JSONDecoder().decode(Word.self, from: data)
+        return Sticker(id: "review", wordId: "rq", objectImageUrl: "preview/review.jpg", cutoutImageUrl: nil, selfieImageUrl: nil,
+                       caption: nil, locationName: nil, takenAt: Date(), captureType: "photo", word: word)
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            AppBackground()
+            Color.black.opacity(0.32).ignoresSafeArea()
+            ForgettingCurveSheet(sticker: sticker, store: store, onReviewNow: {}, onClose: {})
+                .frame(maxHeight: 470)
+                .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))
+                .tourAnchor(.memoryCurve)
+                .padding(.horizontal, 16)
+                .padding(.top, 48)
+        }
+        .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+            TourLayer(step: .memoryCurve, anchors: anchors, onNext: {}, onSkip: {})
         }
     }
 }

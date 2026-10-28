@@ -92,6 +92,7 @@ struct HomeView: View {
                                 onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
                                 finishRequest: finishEditing
                             )
+                            .environment(\.albumPasteID, router.tour == .homeAdded ? router.tourStickerId : nil)
                             .transition(.opacity)
                         }
                     }
