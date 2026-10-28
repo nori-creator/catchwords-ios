@@ -215,12 +215,12 @@ jobs:
           done
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
           ls -la "$OUT"
-          # オンボードと案内の録画は、6 コマ/秒の小さな JPEG にも切って ci-previews に置く（Claude が動きを見て、見本の
+          # オンボードと案内の録画は、起動の白い画面（約 2.5 秒）を除いて 10 コマ/秒の小さな JPEG にも切って ci-previews に置く（Claude が動きを見て、見本の
           # 動画に組み直せるように。録画そのものは artifact にだけ置く）。
           MOTION="$RUNNER_TEMP/report/motion"
           mkdir -p "$MOTION"
           for name in authopen onboarding tour tour-added tour-word tour-sections tour-home tourdone; do
-            [ -f "$OUT/scan-${name}.mp4" ] && swift scripts/video_frames.swift "$OUT/scan-${name}.mp4" "$MOTION" "motion-${name}" 6 360 || echo "::warning::$name のコマを切れませんでした"
+            [ -f "$OUT/scan-${name}.mp4" ] && swift scripts/video_frames.swift "$OUT/scan-${name}.mp4" "$MOTION" "motion-${name}" 10 320 2.5 || echo "::warning::$name のコマを切れませんでした"
           done
           du -sh "$MOTION" || true
 

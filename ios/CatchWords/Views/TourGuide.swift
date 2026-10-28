@@ -338,7 +338,7 @@ struct TourLayer: View {
             let insets = safe.safeAreaInsets
             GeometryReader { geo in
                 let full = CGRect(origin: .zero, size: geo.size)
-                let hole: CGRect? = step.anchor.flatMap { anchors[$0] }.map { Self.holeRect(around: geo[$0]) }
+                let hole: CGRect? = step.anchor.flatMap { anchors[$0] }.map { Self.holeRect(around: geo[$0], in: full) }
                 let settled = hole.map(Self.radius(for:)) ?? 0
                 // 押す所が画面に無い（表示を切り替えた等）ときは暗くせず、札だけ出して操作を妨げない。
                 let shouldDim = hole != nil || !step.isInteractive
@@ -425,9 +425,14 @@ struct TourLayer: View {
     }
 
     /// The lit place: the element with a margin; a round thing (the camera disc, the shutter, the speaker) a circle.
-    static func holeRect(around r: CGRect) -> CGRect {
+    /// A place as wide as the screen (the word page's jump bar, the home's album) stays inside it: its ring ran off
+    /// both sides (CI 2026-10-28).
+    static func holeRect(around r: CGRect, in screen: CGRect) -> CGRect {
         let padded = r.insetBy(dx: -8, dy: -8)
-        guard abs(padded.width - padded.height) < 16 else { return padded }
+        guard abs(padded.width - padded.height) < 16 else {
+            let inside = padded.intersection(screen.insetBy(dx: 6, dy: 6))
+            return inside.isNull || inside.isEmpty ? padded : inside
+        }
         let side = max(padded.width, padded.height)
         return CGRect(x: padded.midX - side / 2, y: padded.midY - side / 2, width: side, height: side)
     }
@@ -437,21 +442,26 @@ struct TourLayer: View {
     }
 
     private func ring(_ hole: CGRect, radius: CGFloat) -> some View {
-        ZStack {
+        // Growth in points, the same on every side: a wide place swelled by a share of its width went off screen.
+        func grown(_ points: CGFloat) -> CGSize {
+            CGSize(width: 1 + 2 * points / max(hole.width, 1), height: 1 + 2 * points / max(hole.height, 1))
+        }
+        let wide = hole.width > 200
+        return ZStack {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(Theme.primary, lineWidth: 3)
                 .shadow(color: Theme.primary.opacity(pulse ? 0.9 : 0.4), radius: pulse ? 18 : 8)
-                .scaleEffect(flash ? 1.14 : pulse ? 1.03 : 1)
-            // The landing: one wide ring bursting out of the place.
+                .scaleEffect(grown(flash ? 8 : pulse ? 2 : 0))
+            // The landing: one wide ring bursting out of the place (a screen-wide place only a little: no room).
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(Theme.primaryBright, lineWidth: 4)
-                .scaleEffect(1 + burst * 0.7)
+                .scaleEffect(grown(burst * (wide ? 6 : 36)))
                 .opacity(Double(1 - burst) * 0.9)
             // A ring spreading out from the place again and again: "here".
             if step.isInteractive && !reduceMotion {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(Theme.primaryBright, lineWidth: 2)
-                    .scaleEffect(ripple ? 1.35 : 1)
+                    .scaleEffect(grown(ripple ? (wide ? 6 : 18) : 0))
                     .opacity(ripple ? 0 : 0.8)
             }
         }
@@ -630,18 +640,24 @@ struct TourCompleteView: View {
                             .offset(x: burst ? cos(angle) * reach : 0, y: burst ? sin(angle) * reach : 0)
                             .opacity(burst ? 0.9 : 0)
                     }
-                    let path = sticker?.heroPath
-                    Color.white
-                        .frame(width: 200, height: 200)
-                        .overlay {
-                            StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
-                                .padding(10)
-                                .allowsHitTesting(false)
+                    Group {
+                        if let path = sticker?.heroPath {
+                            Color.white
+                                .frame(width: 200, height: 200)
+                                .overlay {
+                                    StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
+                                        .padding(10)
+                                        .allowsHitTesting(false)
+                                }
+                                .clipShape(.rect(cornerRadius: 28, style: .continuous))
+                        } else {
+                            // No picture of the catch (not found): the app's mark, never an empty white card (CI 2026-10-28).
+                            LogoMark(size: 150)
                         }
-                        .clipShape(.rect(cornerRadius: 28, style: .continuous))
-                        .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
-                        .rotationEffect(.degrees(burst ? -3 : -12))
-                        .scaleEffect(burst ? 1 : 0.6)
+                    }
+                    .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+                    .rotationEffect(.degrees(burst ? -3 : -12))
+                    .scaleEffect(burst ? 1 : 0.6)
                 }
                 .frame(height: 270)
                 if let head = sticker?.word?.headword {
