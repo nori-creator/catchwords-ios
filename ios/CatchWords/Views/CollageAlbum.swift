@@ -283,9 +283,6 @@ private struct CollagePiece: View {
                 .overlay(alignment: .topLeading) {
                     if editing && canEdit { removeButton }
                 }
-                .overlay(alignment: .topTrailing) {
-                    if sticker.isSample && !(editing && canEdit) { SampleMark().offset(x: 6, y: -8) }
-                }
                 .scaleEffect(lifted ? 1.06 : 1)
                 .rotationEffect(.degrees(p.rot + w.rot))
                 .offset(y: w.lift)
@@ -407,6 +404,11 @@ private struct CollagePiece: View {
                         if !word.isEmpty {
                             WordTag(text: word, zhuyin: sticker.word?.readingZhuyin, pinyin: sticker.word?.pinyin,
                                     tilt: Self.tagTilt(sticker.id))
+                                // 「見本」 on the tag itself: the photo's frame is wider than a tall cut-out, so a mark
+                                // on its corner floated away from the drink (CI preview 2026-10-28).
+                                .overlay(alignment: .topTrailing) {
+                                    if sticker.isSample { SampleMark().offset(x: 12, y: -14) }
+                                }
                                 .offset(x: Self.tagShift(sticker.id) * size.w, y: WordTag.height / 2)
                         }
                     }

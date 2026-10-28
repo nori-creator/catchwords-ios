@@ -627,11 +627,15 @@ struct TourCompleteView: View {
                     ForEach(0..<18, id: \.self) { i in
                         let angle = Double(i) / 18 * 2 * .pi
                         let reach = 70 + Double(i % 3) * 14
+                        // Wider than tall and short below, inside the 150pt row: never over the headline (CI preview
+                        // 2026-10-28: pieces fell on 「チュートリアル完了！」).
+                        let dx = cos(angle) * reach * 1.45
+                        let dy = sin(angle) * reach * (sin(angle) > 0 ? 0.5 : 0.7)
                         RoundedRectangle(cornerRadius: 2)
                             .fill(Self.confetti[i % Self.confetti.count])
                             .frame(width: 7, height: 12)
                             .rotationEffect(.degrees(Double(i) * 37 + (burst ? 200 : 0)))
-                            .offset(x: burst ? cos(angle) * reach : 0, y: burst ? sin(angle) * reach : 0)
+                            .offset(x: burst ? dx : 0, y: burst ? dy : 0)
                             .opacity(burst ? 0.9 : 0)
                     }
                     LogoMark(size: 68)
@@ -673,6 +677,7 @@ struct TourCompleteView: View {
                             .animation(reduceMotion ? nil : .easeOut(duration: 0.4).delay(0.6), value: burst)
                     }
                     .scaleEffect(burst ? 1 : 0.6)
+                    .opacity(burst ? 1 : 0)
                     if let w = sticker?.word {
                         WordTag(text: w.headword, zhuyin: w.readingZhuyin, pinyin: w.pinyin, tilt: 6, size: 20)
                             .padding(.bottom, 18)

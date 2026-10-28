@@ -196,6 +196,7 @@ struct UIPreviewRoot: View {
                 .overlayPreferenceValue(TourAnchorKey.self) { anchors in
                     TourLayer(step: .wordSettings, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12)
                 }
+                .onAppear { router.tour = .wordSettings }
             case "tour-curve": CurveTourPreview()
             case "tourdone": TourCompleteView(sticker: SampleSticker.make(reader: L10n.lang, takenAt: Date())) {}
             // The sample 珍珠奶茶 a new account starts with (owner 2026-10-28): alone on the home and in the dex.

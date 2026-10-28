@@ -1387,8 +1387,8 @@ struct WordDetailView: View {
 
     /// The first chunk with a dashed word, while the first-swap hint has not been seen (nil: no hint).
     private var coachChunk: Int? {
-        // Not over the first tour's card on this very section (owner 2026-10-28: the two overlapped).
-        guard !swapCoachSeen, !router.tour.isWord else { return nil }
+        // Never while the first tour runs (owner 2026-10-28: its black tip overlapped the tour's card).
+        guard !swapCoachSeen, router.tour == .off else { return nil }
         return chunks.firstIndex { c in
             c.parts.contains { p in
                 ChunkRules.role(p, headword: headword, target: learningLang) != .head
