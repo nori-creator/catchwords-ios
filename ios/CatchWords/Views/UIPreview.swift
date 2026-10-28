@@ -166,6 +166,19 @@ struct UIPreviewRoot: View {
             case "obready": OnboardingView(start: .ready) {}
             case "tour": TourPreview(step: .tapCamera)
             case "tour-added": TourPreview(step: .added)
+            // The guide over the word's page (its jump chips) and over the home's album, as in the app.
+            case "tour-word": DetailPreview()
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .wordJump, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12)
+                }
+            case "tour-sections": DetailPreview()
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .wordSections, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12)
+                }
+            case "tour-home": HomePreview(metAgain: true)
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .homeAlbum, anchors: anchors, onNext: {}, onSkip: {})
+                }
             case "tourdone": TourCompleteView(sticker: nil) {}
             case "authopen": AuthView()
             case "aiconsent": AIConsentView()
