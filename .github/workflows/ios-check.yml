@@ -500,9 +500,10 @@ jobs:
           echo "displays: ${DISPLAYS:-one}" | tee -a "$OUT/display-list.txt"
           # この simctl に Duo を開く・閉じる命令があるかを読むため、使い方の一覧を残す。
           { xcrun simctl help; echo; xcrun simctl io "$UDID" 2>&1; } > "$OUT/simctl-help.txt" 2>&1
+          # shoot <名前> <画面の一覧>: その時の画面を、一覧の画面それぞれで撮る（一覧が空なら名指ししないで1枚）。
           shoot() {
-            if [ -n "$DISPLAYS" ]; then
-              for e in $DISPLAYS; do
+            if [ -n "$2" ]; then
+              for e in $2; do
                 xcrun simctl io "$UDID" screenshot --display="${e%%:*}" "$OUT/duo-$1-${e##*:}.png" >/dev/null 2>&1 \
                   || echo "::warning::$1 を画面 ${e%%:*}（${e##*:}）で撮れませんでした"
               done
@@ -512,17 +513,38 @@ jobs:
           }
           DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
           READY="$DATA/Library/Caches/ui-ready/preview"
-          for spec in "home 3" "tabbar 2" "dex 2" "detail 3" "word25 3" "quiz 2" "answer 3" "settings 2" "camblocked 2" "picker 2" "aiconsent 2" "paywall 2" "diary 2" "diary-lookback 2" "onboarding 3" "praise 2" "get 3" "variants 2" "landing 3" "reward 3"; do
-            name=${spec%% *}; wait_s=${spec##* }
+          # shoot_all <接頭辞> <画面の一覧>: 主な画面を1つずつ開いて撮る（duo-<接頭辞><画面>-<幅>x<高さ>.png）。
+          shoot_all() {
+            for spec in "home 3" "tabbar 2" "dex 2" "detail 3" "word25 3" "quiz 2" "answer 3" "settings 2" "camblocked 2" "picker 2" "aiconsent 2" "paywall 2" "diary 2" "diary-lookback 2" "onboarding 3" "praise 2" "get 3" "variants 2" "landing 3" "reward 3"; do
+              name=${spec%% *}; wait_s=${spec##* }
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
+              rm -f "$READY"
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW >/dev/null || { echo "::warning::$name を開けませんでした"; continue; }
+              n=0
+              while [ ! -f "$READY" ] && [ $n -lt 80 ]; do sleep 0.25; n=$((n + 1)); done
+              [ -f "$READY" ] || echo "::warning::$name の画面が出るのを待ちきれませんでした"
+              sleep "$wait_s"
+              shoot "$1$name" "$2"
+            done
+          }
+          # 1回目: 起動したまま（閉じた Duo。アプリは外側の画面に出て、内側は黒い）。
+          shoot_all "" "$DISPLAYS"
+          # 2回目: 外側の画面の電源を切り、内側の画面の電源を入れて（simctl io screenConfig power。開いた Duo の代わり）、
+          # 内側の画面だけを撮る（duo-open-…）。内側は画素の幅がいちばん広い画面。切り替えの返事は screenconfig.txt に残す。
+          INNER=$(for e in $DISPLAYS; do px=${e##*:}; echo "${px%%x*} $e"; done | sort -n | tail -1 | cut -d' ' -f2)
+          if [ -n "$INNER" ]; then
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
-            rm -f "$READY"
-            xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW >/dev/null || { echo "::warning::$name を開けませんでした"; continue; }
-            n=0
-            while [ ! -f "$READY" ] && [ $n -lt 80 ]; do sleep 0.25; n=$((n + 1)); done
-            [ -f "$READY" ] || echo "::warning::$name の画面が出るのを待ちきれませんでした"
-            sleep "$wait_s"
-            shoot "$name"
-          done
+            {
+              for e in $DISPLAYS; do
+                [ "$e" = "$INNER" ] && continue
+                echo "> screenConfig --display=${e%%:*} power off"; xcrun simctl io "$UDID" screenConfig --display="${e%%:*}" power off
+              done
+              echo "> screenConfig --display=${INNER%%:*} power on"; xcrun simctl io "$UDID" screenConfig --display="${INNER%%:*}" power on
+            } > "$OUT/screenconfig.txt" 2>&1
+            cat "$OUT/screenconfig.txt"
+            sleep 3
+            shoot_all "open-" "$INNER"
+          fi
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
           # 写真の画素数（縮める前）: 画面の大きさを UIPreview の DuoScreen と照らす
           for f in "$OUT"/*.png; do echo "$(basename "$f") $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {print $2}' | tr '\n' ' ')"; done | tee "$OUT/sizes.txt"
