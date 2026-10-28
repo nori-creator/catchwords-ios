@@ -28,6 +28,9 @@ final class SampleStickerTests: XCTestCase {
             let examples = ExampleItem.all(sentence: w.exampleSentence, translation: w.exampleTranslation, extras: w.extras, target: "zh-TW")
             XCTAssertEqual(examples.count, 2, "\(code): examples")
             for ex in examples {
+                // A reader of the learning language itself gets no translation: the same sentence is never repeated
+                // under it (`LanguageRules.looksWrong` with its source).
+                if code == "zh-TW" { XCTAssertNil(ex.translation, "zh-TW: 「\(ex.sentence)」 repeated as its own translation"); continue }
                 XCTAssertFalse((ex.translation ?? "").isEmpty, "\(code): 「\(ex.sentence)」 without its translation")
                 XCTAssertFalse(LanguageRules.looksWrong(ex.translation, reader: code, source: ex.sentence),
                                "\(code): translation 「\(ex.translation ?? "")」")
