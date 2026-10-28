@@ -48,7 +48,11 @@ struct RootView: View {
                             .zIndex(1)
                     }
                     if needsOnboarding {
-                        OnboardingView { withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { onboardingDone = true } }
+                        OnboardingView {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { onboardingDone = true }
+                            // The sample word, in the album, the dex and the review before the first photo.
+                            dex.installSample()
+                        }
                             .environment(\.colorScheme, .light)
                             .statusBarTone(.dark)
                             .transition(.opacity.combined(with: .scale(scale: 1.02)))

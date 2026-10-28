@@ -189,6 +189,7 @@ final class DexStore {
             serverAnswered = true
             // 「保存待ち」 words of this language that are not on screen yet (launch without a snapshot, a language switch).
             restoreUnsaved()
+            installSample()
             loadError = nil
             hasLoaded = true
             UITestTrace.once("dex read from the server", "words=\(stickers.count)")
@@ -279,6 +280,7 @@ final class DexStore {
         }
         guard client.userId == uid else { return }
         reviews = Dictionary(rows.map { ($0.stickerId, $0) }, uniquingKeysWith: { a, _ in a })
+        keepSampleReview()
     }
 
     /// Same number the review screen shows (srs.ts retentionNow; origin = last review, else the catch).
@@ -332,7 +334,8 @@ final class DexStore {
     /// asked again later.
     private func sign(_ paths: [String]) async {
         var seen = Set<String>()
-        let unique = paths.filter { seen.insert($0).inserted }
+        // The sample word's pictures are in the app bundle: nothing to sign.
+        let unique = paths.filter { !SampleSticker.isSamplePath($0) && seen.insert($0).inserted }
         guard !unique.isEmpty, client.session != nil else { return }
         let uid = client.userId
         let chunks = stride(from: 0, to: unique.count, by: 100).map { Array(unique[$0..<min($0 + 100, unique.count)]) }
@@ -449,6 +452,7 @@ final class DexStore {
         albumPlacements = places
         hasLoaded = true
         restoreUnsaved()
+        installSample()
         UITestTrace.once("dex snapshot restored", "words=\(stickers.count)")
     }
 
@@ -470,7 +474,7 @@ final class DexStore {
                                   x: $0.albumX, y: $0.albumY, scale: $0.albumScale, rot: $0.albumRot)
         }
         let payload = DexSnapshot.Payload(version: DexSnapshot.version,
-                                          stickers: stickers.filter { !Self.isProvisional($0.id) },
+                                          stickers: stickers.filter { !Self.isProvisional($0.id) && !$0.isSample },
                                           albumHidden: Array(albumHidden), placements: placements)
         let lang = language
         let reader = L10n.lang
@@ -794,6 +798,7 @@ final class DexStore {
             // Saved for another learning language than the one shown now: it belongs to that dex, not this one.
             stickers.removeAll { $0.id == provisionalId }
         }
+        retireSample(ifDuplicating: shown)
         adopted?(shown)
         scheduleSnapshot()
         // The photos are already in the local cache under these paths (`cacheLocal` above): signing never holds
@@ -1183,9 +1188,50 @@ final class DexStore {
         explanations = [:]
         levels = [:]
         readerMeanings = [:]
-        stickers = stickers.map(applyReader)
-        let ids = Array(Set(stickers.map(\.wordId)))
+        // The sample word is written again for the new language from its file (`applyReader` would blank it: its text
+        // is marked for the old one). Provisional entries and the sample have no word id to ask the server about.
+        stickers = stickers.map { $0.isSample ? (SampleSticker.make(reader: L10n.lang, takenAt: $0.takenAt) ?? $0) : applyReader($0) }
+        let ids = Array(Set(stickers.map(\.wordId))).filter { !$0.isEmpty }
         Task { await loadReaderMeanings(ids, afterLanguageSwitch: true) }
+    }
+
+    // MARK: - The sample word (SampleSticker: on this phone only)
+
+    /// This account's words, the bundled sample left out (praise, the widgets, the statistics count the learner's own).
+    var wordCount: Int { stickers.filter { !$0.isSample }.count }
+
+    /// Puts the sample word in the dex when this account has it (`SampleSticker.isEnabled`): after onboarding, and at
+    /// every read of the dex (it is kept in no snapshot and on no server). A real 珍珠奶茶 retires it for good.
+    func installSample() {
+        guard let uid = client.userId, language == "zh-TW", SampleSticker.isEnabled(userId: uid) else { return }
+        guard !stickers.contains(where: { $0.isSample }) else { return }
+        let key = DexCatalog.norm(SampleSticker.headword, lang: language)
+        if stickers.contains(where: { !$0.isSample && DexCatalog.norm($0.word?.headword ?? "", lang: language) == key }) {
+            SampleSticker.markDeleted(userId: uid)
+            return
+        }
+        guard SampleSticker.image() != nil,
+              let sample = SampleSticker.make(reader: L10n.lang, takenAt: SampleSticker.addedAt(userId: uid)) else { return }
+        SampleSticker.seedReadings()
+        let at = stickers.firstIndex { $0.takenAt < sample.takenAt } ?? stickers.count
+        stickers.insert(sample, at: at)
+        keepSampleReview()
+    }
+
+    /// The learner caught the real word: the sample has done its job.
+    func retireSample(ifDuplicating saved: Sticker) {
+        guard !saved.isSample, let sample = stickers.first(where: { $0.isSample }),
+              DexCatalog.norm(saved.word?.headword ?? "", lang: language) == DexCatalog.norm(sample.word?.headword ?? "", lang: language)
+        else { return }
+        stickers.removeAll { $0.isSample }
+        reviews[sample.id] = nil
+        SampleSticker.markDeleted(userId: client.userId)
+    }
+
+    /// The sample's review state (kept on this phone) next to the server's rows, whenever those are read again.
+    private func keepSampleReview() {
+        guard let uid = client.userId, stickers.contains(where: { $0.isSample }) else { return }
+        reviews[SampleSticker.id] = SampleSticker.reviewState(userId: uid)
     }
 
     /// web `getReaderMeanings`: the meanings written in the reader's language, 200 words at a time.
@@ -1619,7 +1665,7 @@ final class DexStore {
         struct Res: Decodable { let saved: Bool }
         // A re-encounter's page is not a sticker: this phone keeps it (the server's list holds sticker ids only).
         var ok = false
-        if !Self.isEncounterAlbumEntry(id) {
+        if !Self.isEncounterAlbumEntry(id), !id.hasPrefix(SampleSticker.prefix) {
             ok = (try? await NativeAPI.call("setAlbumHidden", ["sticker_id": id, "hidden": hidden], as: Res.self))?.saved ?? false
         }
         var local = localAlbumHidden()
@@ -1701,7 +1747,9 @@ final class DexStore {
     func saveAlbumLayout(_ items: [(id: String, order: Int, size: AlbumSize, place: AlbumPlacement)]) async -> Bool {
         // A catch still being saved has no server id yet: it is left out (it keeps its automatic place).
         // Re-encounter pages are kept on this phone (`saveLocalEncounterPlacements`), not sent.
-        let payload: [[String: Any]] = items.filter { !Self.isProvisional($0.id) && !Self.isEncounterAlbumEntry($0.id) }.map { i in
+        let payload: [[String: Any]] = items.filter {
+            !Self.isProvisional($0.id) && !Self.isEncounterAlbumEntry($0.id) && !$0.id.hasPrefix(SampleSticker.prefix)
+        }.map { i in
             ["sticker_id": i.id, "order": i.order, "size": i.size.rawValue,
              "x": AlbumLayout.clamp(i.place.x, 0, 1), "y": AlbumLayout.clamp(i.place.y, 0, 8),
              "scale": AlbumLayout.clamp(i.place.scale, 0.45, 2.6), "rot": AlbumLayout.clamp(i.place.rot, -180, 180)]
@@ -1826,6 +1874,14 @@ final class DexStore {
 
     /// Web `deleteSticker`: the row and its photo files (and thumbnails) go together.
     func delete(_ sticker: Sticker) async throws {
+        if sticker.isSample {
+            // Never on the server: it leaves this phone, and never comes back for this account.
+            stickers.removeAll { $0.id == sticker.id }
+            reviews[sticker.id] = nil
+            SampleSticker.markDeleted(userId: client.userId)
+            scheduleSnapshot()
+            return
+        }
         _ = try await NativeAPI.call("deleteSticker", ["sticker_id": sticker.id])
         stickers.removeAll { $0.id == sticker.id }
         scheduleSnapshot()

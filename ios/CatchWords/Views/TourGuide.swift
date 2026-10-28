@@ -131,10 +131,10 @@ enum TourStep: String, Equatable {
     /// its tags sit on too (選ぶ), and the 図鑑's views while their buttons are lit.
     var dimOpacity: Double {
         switch self {
-        case .shoot: 0.25
-        case .pick: 0.42
-        case .dexMap, .dexGrid: 0.32
-        default: 0.58
+        case .shoot: 0.2
+        case .pick: 0.3
+        case .dexMap, .dexGrid: 0.25
+        default: 0.35
         }
     }
 
@@ -194,86 +194,6 @@ enum TourPhase: Int, CaseIterable {
         case .word: "text.book.closed"
         case .review: "sparkles"
         }
-    }
-}
-
-/// ① 撮る — ② ホーム — ③ 図鑑 — ④ 単語 — ⑤ 復習: the steps done ticked, the current one blue. With `current` nil (the
-/// onboarding's preview) all are shown alike, coming in one after another once `shown`.
-struct TourPhaseRow: View {
-    let current: TourPhase?
-    var shown: Bool = true
-    var baseDelay: Double = 0
-    var compact: Bool = false
-    /// The items come in one after another once `shown` (the onboarding's preview); the guide's card instead fills the
-    /// line up to the current step and pops its circle when it comes in.
-    var stagger: Bool = true
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            ForEach(TourPhase.allCases, id: \.self) { p in
-                item(p)
-                    .staggerIn(shown || !stagger, delay: baseDelay + Double(p.rawValue) * 0.08, distance: 8)
-                if p != .review {
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Theme.border)
-                        Capsule().fill(Theme.primary)
-                            .scaleEffect(x: filled(p) ? 1 : 0, anchor: .leading)
-                            .animation(.easeInOut(duration: 0.45).delay(0.1), value: shown)
-                    }
-                    .frame(height: 2)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, circle / 2 - 1)
-                    .padding(.horizontal, 2)
-                    .staggerIn(shown || !stagger, delay: baseDelay + Double(p.rawValue) * 0.08 + 0.04, distance: 0)
-                }
-            }
-        }
-        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: current)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(TourPhase.allCases.map(\.label).joined(separator: ", "))
-        .accessibilityValue(current.map { "\($0.rawValue + 1) / \(TourPhase.allCases.count)" } ?? "")
-    }
-
-    private var circle: CGFloat { compact ? 24 : 34 }
-
-    private func done(_ p: TourPhase) -> Bool {
-        guard let current else { return false }
-        return p.rawValue < current.rawValue
-    }
-
-    /// The line after `p` is blue when the step after it is done or current; on the guide's card the last of them
-    /// (the one reaching the current step) fills as the card comes in.
-    private func filled(_ p: TourPhase) -> Bool {
-        guard let current, p.rawValue < current.rawValue else { return false }
-        return stagger || p.rawValue + 1 < current.rawValue || shown
-    }
-
-    private func item(_ p: TourPhase) -> some View {
-        let isCurrent = p == current
-        let isDone = done(p)
-        let lit = isCurrent || isDone || current == nil
-        return VStack(spacing: 4) {
-            ZStack {
-                Circle()
-                    .fill(isCurrent ? AnyShapeStyle(Theme.brandGradient)
-                          : isDone ? AnyShapeStyle(Theme.primary)
-                          : current == nil ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.secondary))
-                Image(systemName: isDone ? "checkmark" : p.icon)
-                    .font(.system(size: circle * 0.42, weight: .bold))
-                    .foregroundStyle(isCurrent || isDone ? Color.white : lit ? Theme.primary : Theme.muted)
-                    .contentTransition(.symbolEffect(.replace))
-            }
-            .frame(width: circle, height: circle)
-            .shadow(color: isCurrent ? Theme.primary.opacity(0.4) : .clear, radius: 6, y: 2)
-            .scaleEffect(isCurrent ? (shown || stagger ? 1.08 : 0.7) : 1)
-            .animation(.spring(response: 0.45, dampingFraction: 0.55).delay(0.35), value: shown)
-            Text(p.label)
-                .scaledFont(size: compact ? 10 : 12, weight: isCurrent ? .bold : .semibold)
-                .foregroundStyle(isCurrent ? Theme.primaryInk : lit ? Theme.foreground : Theme.muted)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .frame(width: compact ? 50 : 60)
     }
 }
 
@@ -341,10 +261,11 @@ struct TourLayer: View {
     @State private var flash: Bool = false
     /// Each step's arrival (owner 2026-10-28: 「モーションデザインなどを用いて…クオリティ高く解説」): the light opens wide (1)
     /// and closes onto the place (0) like a camera focusing on it, one ring bursts out as it lands (`burst` 0 → 1), and
-    /// the finger glides in after (`handIn`).
+    /// the blue strokes beside it draw themselves after (`strokes`).
     @State private var iris: CGFloat = 0
     @State private var burst: CGFloat = 1
-    @State private var handIn: Bool = true
+    /// The blue strokes beside the lit place, drawn in (0 → 1) as the light lands.
+    @State private var strokes: CGFloat = 1
     @State private var arrival: Int = 0
     /// The card's height, measured (it is placed beside the lit place).
     @State private var cardHeight: CGFloat = 170
@@ -378,9 +299,7 @@ struct TourLayer: View {
                     if let hole {
                         ring(hole, radius: settled)
                             .opacity(Double(max(0, 1 - iris * 3)))
-                        if step.isInteractive, hole.width < 200, hole.height < 200, !reduceMotion {
-                            hand(on: hole, in: geo.size)
-                        }
+                        if !reduceMotion { bursts(on: hole, in: geo.size) }
                     }
                     if showsCard {
                         // Right beside the lit place, pointing at it (owner 2026-10-28: 「次操作する場所の近くにその解説を
@@ -428,7 +347,7 @@ struct TourLayer: View {
         let token = arrival
         guard !reduceMotion, hasPlace else {
             iris = 0
-            handIn = true
+            strokes = 1
             return
         }
         var still = Transaction()
@@ -436,7 +355,7 @@ struct TourLayer: View {
         withTransaction(still) {
             iris = 1
             burst = 1
-            handIn = false
+            strokes = 0
         }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(40))
@@ -446,7 +365,7 @@ struct TourLayer: View {
             guard token == arrival else { return }
             withTransaction(still) { burst = 0 }
             withAnimation(.easeOut(duration: 0.8)) { burst = 1 }
-            withAnimation(.spring(response: 0.65, dampingFraction: 0.78)) { handIn = true }
+            withAnimation(.easeOut(duration: 0.45)) { strokes = 1 }
             Haptics.impact(.soft, intensity: 0.55)
         }
     }
@@ -508,6 +427,11 @@ struct TourLayer: View {
         }
         let wide = hole.width > 200
         return ZStack {
+            // A soft white halo: the place looks lit, not only outlined (the reference pictures, 2026-10-28).
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(Color.white.opacity(0.35), lineWidth: 2)
+                .shadow(color: .white.opacity(0.9), radius: 22)
+                .scaleEffect(grown(4))
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(Theme.primary, lineWidth: 3)
                 .shadow(color: Theme.primary.opacity(pulse ? 0.9 : 0.4), radius: pulse ? 18 : 8)
@@ -530,23 +454,27 @@ struct TourLayer: View {
         .allowsHitTesting(false)
     }
 
-    /// A finger tapping the place, at its lower right (kept on screen).
-    private func hand(on hole: CGRect, in size: CGSize) -> some View {
-        let x = min(hole.midX + hole.width * 0.28 + 10, size.width - 28)
-        let y = min(hole.midY + hole.height * 0.28 + 16, size.height - 28)
-        return Image(systemName: "hand.point.up.left.fill")
-            .font(.system(size: 34))
-            .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
-            .scaleEffect(pulse ? 0.86 : 1, anchor: .topLeading)
-            .offset(x: pulse ? -4 : 0, y: pulse ? -5 : 0)
-            // Glides in from below right once the light has landed.
-            .offset(x: handIn ? 0 : 46, y: handIn ? 0 : 84)
-            .opacity(handIn ? 1 : 0)
-            .position(x: x, y: y)
-            .allowsHitTesting(false)
-            .transition(.opacity)
-            .accessibilityHidden(true)
+    /// The blue strokes at the place's upper corners (the welcome screen's mark), drawn in as the light lands; kept
+    /// inside the screen.
+    private func bursts(on hole: CGRect, in size: CGSize) -> some View {
+        let side: CGFloat = 34
+        let left = CGPoint(x: max(side / 2 + 4, hole.minX - 22), y: max(side / 2 + 4, hole.minY - 22))
+        let right = CGPoint(x: min(size.width - side / 2 - 4, hole.maxX + 22), y: max(side / 2 + 4, hole.minY - 22))
+        return ZStack {
+            burstMark(side: side).position(left)
+            burstMark(side: side).scaleEffect(x: -1).position(right)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func burstMark(side: CGFloat) -> some View {
+        WelcomeBurst()
+            .trim(from: 0, to: strokes)
+            .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            .frame(width: side, height: side)
+            .shadow(color: .white.opacity(0.8), radius: 2)
+            .scaleEffect(pulse ? 1.06 : 1)
     }
 
     private func missedTap() {
@@ -597,8 +525,15 @@ struct TourCoachCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let phase = step.phase {
-                TourPhaseRow(current: phase, shown: shown, compact: true, stagger: false)
-                    .padding(.bottom, 2)
+                // 「STEP n」 and 「n / 5」 are common notation, the same in every display language (like NEW and No.).
+                HStack {
+                    StepPill(text: "STEP \(phase.rawValue + 1)")  // l10n-ignore (common notation)
+                    Spacer()
+                    Text(verbatim: "\(phase.rawValue + 1) / \(TourPhase.allCases.count)")
+                        .scaledFont(size: 12, weight: .semibold)
+                        .foregroundStyle(Theme.muted)
+                }
+                .staggerIn(shown, delay: 0.02, distance: 6)
             }
             if let title {
                 Text(title).scaledFont(size: 20, weight: .heavy).foregroundStyle(Theme.foreground)
@@ -606,22 +541,15 @@ struct TourCoachCard: View {
                     .staggerIn(shown, delay: 0.08, distance: 10)
             }
             if let point {
-                Label {
-                    Text(point)
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.primary)
-                        .symbolEffect(.bounce, value: shown)
-                }
-                .scaledFont(size: 15, weight: .semibold)
-                .foregroundStyle(Theme.primaryInk)
-                .staggerIn(shown, delay: 0.18, distance: 10)
+                Text(point)
+                    .scaledFont(size: 15)
+                    .foregroundStyle(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .staggerIn(shown, delay: 0.18, distance: 10)
             }
             HStack(spacing: 10) {
                 Button(L("スキップ"), action: onSkip)
-                    .scaledFont(size: 13, weight: .medium)
+                    .scaledFont(size: 15, weight: .medium)
                     .foregroundStyle(Theme.muted)
                     .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                     .accessibilityHint(L("案内を終える"))
@@ -654,6 +582,18 @@ struct TourCoachCard: View {
         .padding(.bottom, 8)
         .background(Theme.card, in: .rect(cornerRadius: 26, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Theme.primary.opacity(0.12), lineWidth: 1))
+        // The small burst at the card's corner (the reference pictures).
+        .overlay(alignment: .topTrailing) {
+            WelcomeBurst()
+                .trim(from: 0, to: shown ? 1 : 0)
+                .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .frame(width: 26, height: 26)
+                .scaleEffect(x: -1)
+                .offset(x: 8, y: -12)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.4).delay(0.3), value: shown)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
         .modifier(Shake(amount: CGFloat(missed)))
         .task { shown = true }
@@ -681,65 +621,79 @@ struct TourCompleteView: View {
             Theme.background.opacity(burst ? 0.55 : 0).ignoresSafeArea()
             OnboardingBackdrop().opacity(0.6)
             VStack(spacing: 0) {
-                Spacer(minLength: 12)
+                Spacer(minLength: 8)
+                // The icon in a burst of paper (the reference picture's top).
                 ZStack {
                     ForEach(0..<18, id: \.self) { i in
                         let angle = Double(i) / 18 * 2 * .pi
-                        let reach = 96 + Double(i % 3) * 16
+                        let reach = 70 + Double(i % 3) * 14
                         RoundedRectangle(cornerRadius: 2)
                             .fill(Self.confetti[i % Self.confetti.count])
-                            .frame(width: 8, height: 14)
+                            .frame(width: 7, height: 12)
                             .rotationEffect(.degrees(Double(i) * 37 + (burst ? 200 : 0)))
                             .offset(x: burst ? cos(angle) * reach : 0, y: burst ? sin(angle) * reach : 0)
                             .opacity(burst ? 0.9 : 0)
                     }
-                    Group {
-                        if let path = sticker?.heroPath {
-                            Color.white
-                                .frame(width: 200, height: 200)
-                                .overlay {
+                    LogoMark(size: 68)
+                        .rotationEffect(.degrees(burst ? 0 : -12))
+                        .scaleEffect(burst ? 1 : 0.6)
+                }
+                .frame(height: 150)
+                RevealHeadline(marked: L("チュートリアル完了！"), size: 27, delay: 0.3)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(L("身のまわりから、ことばを増やしていこう。"))
+                    .scaledFont(size: 14)
+                    .foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 6)
+                    .staggerIn(burst, delay: 0.5, distance: 6)
+                // The catch on a tilted white card, its album tag beside it.
+                HStack(alignment: .bottom, spacing: 12) {
+                    ZStack {
+                        Color.white
+                            .frame(width: 150, height: 150)
+                            .overlay {
+                                if let path = sticker?.heroPath {
                                     StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
                                         .padding(10)
                                         .allowsHitTesting(false)
+                                } else {
+                                    // No picture of the catch (not found): the app's mark, never an empty white card.
+                                    LogoMark(size: 96)
                                 }
-                                .clipShape(.rect(cornerRadius: 28, style: .continuous))
-                        } else {
-                            // No picture of the catch (not found): the app's mark, never an empty white card (CI 2026-10-28).
-                            LogoMark(size: 150)
-                        }
+                            }
+                            .clipShape(.rect(cornerRadius: 22, style: .continuous))
+                            .shadow(color: .black.opacity(0.15), radius: 16, y: 8)
+                            .rotationEffect(.degrees(burst ? -6 : -14))
+                        WelcomeBurst()
+                            .trim(from: 0, to: burst ? 1 : 0)
+                            .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                            .frame(width: 34, height: 34)
+                            .offset(x: -86, y: -72)
+                            .animation(reduceMotion ? nil : .easeOut(duration: 0.4).delay(0.6), value: burst)
                     }
-                    .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
-                    .rotationEffect(.degrees(burst ? -3 : -12))
                     .scaleEffect(burst ? 1 : 0.6)
+                    if let w = sticker?.word {
+                        WordTag(text: w.headword, zhuyin: w.readingZhuyin, pinyin: w.pinyin, tilt: 6, size: 20)
+                            .padding(.bottom, 18)
+                            .staggerIn(burst, delay: 0.55, distance: 8)
+                    }
                 }
-                .frame(height: 270)
-                if let head = sticker?.word?.headword {
-                    Text(head)
-                        .scaledFont(size: 30, weight: .bold)
-                        .foregroundStyle(Theme.foreground)
-                        .staggerIn(burst, delay: 0.25, distance: 10)
-                }
-                RevealHeadline(marked: L("チュートリアル完了！"), size: 26, delay: 0.3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 14)
+                .padding(.top, 18)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(sticker?.word?.headword ?? "")
                 VStack(alignment: .leading, spacing: 12) {
                     recap(L("撮って、ホームに貼った"), icon: TourPhase.shoot.icon, delay: 0.85)
                     recap(L("図鑑の見方を知った"), icon: TourPhase.dex.icon, delay: 1.0)
                     recap(L("単語の頁で学んだ"), icon: TourPhase.word.icon, delay: 1.15)
                     recap(L("復習して、記憶の状態を見た"), icon: TourPhase.review.icon, delay: 1.3)
                 }
-                .padding(18)
+                .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.card, in: .rect(cornerRadius: 22, style: .continuous))
                 .shadow(color: Color(hex: 0x1C4A80).opacity(0.1), radius: 16, y: 6)
-                .padding(.top, 18)
-                Text(L("身のまわりから、ことばを増やしていこう。"))
-                    .scaledFont(size: 14)
-                    .foregroundStyle(Theme.muted)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 14)
-                    .staggerIn(burst, delay: 1.45, distance: 6)
-                Spacer(minLength: 12)
+                .padding(.top, 20)
+                Spacer(minLength: 10)
                 PrimaryButton(title: L("はじめる"), icon: "arrow.right", sheen: true, action: onDone)
                     .padding(.bottom, 24)
             }
@@ -769,8 +723,10 @@ struct TourCompleteView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Theme.primary.opacity(0.6))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.primary)
+                .frame(width: 28, height: 28)
+                .background(Theme.accent, in: .rect(cornerRadius: 8, style: .continuous))
         }
         .staggerIn(burst, delay: delay, distance: 10)
     }

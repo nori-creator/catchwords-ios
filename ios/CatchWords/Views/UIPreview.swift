@@ -197,7 +197,10 @@ struct UIPreviewRoot: View {
                     TourLayer(step: .wordSettings, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12)
                 }
             case "tour-curve": CurveTourPreview()
-            case "tourdone": TourCompleteView(sticker: nil) {}
+            case "tourdone": TourCompleteView(sticker: SampleSticker.make(reader: L10n.lang, takenAt: Date())) {}
+            // The sample 珍珠奶茶 a new account starts with (owner 2026-10-28): alone on the home and in the dex.
+            case "home-sample": HomePreview(sampleOnly: true)
+            case "dex-sample": SampleDexPreview()
             // The app's opening (owner 2026-10-28): the drop, the flood, the mark, C and W, CatchWords, the lift — onto
             // the welcome screen (a new or signed-out user) and onto the home (signed in).
             case "launch": ZStack { AuthView(); LaunchIntro {} }
@@ -1623,50 +1626,75 @@ private struct HomePreview: View {
     /// `-uiPreview home-again` (owner 2026-10-16): the newest word met again twice today — the day still shows it once
     /// and counts it once (`AlbumDay.onePerWord`).
     var metAgain = false
+    /// `-uiPreview home-sample`: the sample 珍珠奶茶 alone, as a new account's home looks before its first photo.
+    var sampleOnly = false
 
     var body: some View {
         HomeView()
             .environment(\.colorScheme, .light)  // as in MainTabView: the paper album stays paper
             .task {
-                guard metAgain else { return await dex.load() }
-                // 眼鏡 caught yesterday and met again twice today, a cup caught today: today shows 眼鏡 once, 「2語」.
+                guard metAgain || sampleOnly else { return await dex.load() }
                 let now = Date()
-                let glasses = Self.sticker("again-glasses", "眼鏡", hue: 0.58, at: now.addingTimeInterval(-86_400))
-                let cup = Self.sticker("again-cup", "杯子", hue: 0.08, at: now.addingTimeInterval(-30))
-                dex.stickers = [cup, glasses]
-                #if DEBUG
-                dex.seedEncountersForPreview([
-                    .init(id: "again-1", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
-                          place: nil, at: now.addingTimeInterval(-180)),
-                    .init(id: "again-2", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
-                          place: nil, at: now.addingTimeInterval(-120)),
-                ])
-                #endif
+                let sample = SampleSticker.make(reader: L10n.lang, takenAt: now.addingTimeInterval(-30))
+                SampleSticker.seedReadings()
+                if sampleOnly {
+                    dex.stickers = sample.map { [$0] } ?? []
+                } else {
+                    // 咖啡 caught yesterday (the welcome screen's own cut-out) and met again twice today, the sample 珍珠奶茶
+                    // today: today shows 咖啡 once, 「2語」.
+                    let coffee = Self.sticker("again-coffee", "咖啡", zhuyin: "ㄎㄚ ㄈㄟ", pinyin: "kā fēi",
+                                              image: WelcomeImage.load("welcome_sticker_coffee"), at: now.addingTimeInterval(-86_400))
+                    dex.stickers = [sample, coffee].compactMap { $0 }
+                    #if DEBUG
+                    dex.seedEncountersForPreview([
+                        .init(id: "again-1", stickerId: coffee.id, image: coffee.objectImageUrl, cutout: coffee.cutoutImageUrl,
+                              place: nil, at: now.addingTimeInterval(-180)),
+                        .init(id: "again-2", stickerId: coffee.id, image: coffee.objectImageUrl, cutout: coffee.cutoutImageUrl,
+                              place: nil, at: now.addingTimeInterval(-120)),
+                    ])
+                    #endif
+                }
                 dex.hasLoaded = true
                 try? await Task.sleep(for: .milliseconds(600))
                 UIReady.mark("preview")
             }
     }
 
-    /// A made-up word with a photo and a cut-out kept in memory (no network in the preview).
-    private static func sticker(_ id: String, _ head: String, hue: CGFloat, at: Date) -> Sticker {
-        let photo = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 450)).image { ctx in
-            UIColor(hue: hue, saturation: 0.25, brightness: 0.95, alpha: 1).setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 450))
-            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
-            ctx.cgContext.fillEllipse(in: CGRect(x: 150, y: 90, width: 300, height: 270))
-        }
-        let format = UIGraphicsImageRendererFormat()
-        format.opaque = false
-        let cutout = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 270), format: format).image { ctx in
-            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
+    /// A made-up word with a real cut-out (and a photo drawn around it) kept in memory (no network in the preview).
+    private static func sticker(_ id: String, _ head: String, zhuyin: String, pinyin: String, image: UIImage?, at: Date) -> Sticker {
+        let cutout = image ?? UIGraphicsImageRenderer(size: CGSize(width: 300, height: 270)).image { ctx in
+            UIColor(hue: 0.08, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
             ctx.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: 300, height: 270))
+        }
+        let photo = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 450)).image { ctx in
+            UIColor(hue: 0.58, saturation: 0.12, brightness: 0.96, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 450))
+            let fit = min(400 / cutout.size.width, 380 / cutout.size.height)
+            let w = cutout.size.width * fit, h = cutout.size.height * fit
+            cutout.draw(in: CGRect(x: (600 - w) / 2, y: (450 - h) / 2, width: w, height: h))
         }
         ImageCache.shared.set(photo, for: "preview/\(id).jpg")
         ImageCache.shared.set(cutout, for: "preview/\(id)-cutout.png")
-        let word = try? JSONDecoder().decode(Word.self, from: Data(#"{"id":"w-\#(id)","headword":"\#(head)"}"#.utf8))
+        let json = #"{"id":"w-\#(id)","headword":"\#(head)","reading_zhuyin":"\#(zhuyin)","pinyin":"\#(pinyin)"}"#
+        let word = try? JSONDecoder().decode(Word.self, from: Data(json.utf8))
         return Sticker(id: id, wordId: "w-\(id)", objectImageUrl: "preview/\(id).jpg", cutoutImageUrl: "preview/\(id)-cutout.png",
                        selfieImageUrl: nil, caption: nil, locationName: nil, takenAt: at, captureType: "photo", word: word)
+    }
+}
+
+/// The dex of a new account: the sample 珍珠奶茶 in its square of 飲み物 (`-uiPreview dex-sample`).
+private struct SampleDexPreview: View {
+    @Environment(DexStore.self) private var dex
+
+    var body: some View {
+        DexView(startInGallery: true)
+            .task {
+                SampleSticker.seedReadings()
+                dex.stickers = SampleSticker.make(reader: L10n.lang, takenAt: Date().addingTimeInterval(-30)).map { [$0] } ?? []
+                dex.hasLoaded = true
+                try? await Task.sleep(for: .milliseconds(800))
+                UIReady.mark("preview")
+            }
     }
 }
 

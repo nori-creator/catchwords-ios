@@ -157,6 +157,11 @@ struct CollageBoard: View {
     /// The red ✕ while rearranging: the photo leaves the album (it stays in the dex; 「アルバムから外した写真」 has it).
     private func remove(_ id: String) {
         Haptics.impact(.light)
+        // The sample word is not kept anywhere else: taking it off the album deletes it (no undo, it never comes back).
+        if let sample = dex.sticker(id: id), sample.isSample {
+            Task { try? await dex.delete(sample) }
+            return
+        }
         withAnimation(.snappy) { dex.albumUndo = id }
         Task {
             let ok = await dex.setAlbumHidden(id, hidden: true)
@@ -277,6 +282,9 @@ private struct CollagePiece: View {
                 .modifier(FlattenedWhileEditing(on: editing && canEdit, room: Self.shadowRoom))
                 .overlay(alignment: .topLeading) {
                     if editing && canEdit { removeButton }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if sticker.isSample && !(editing && canEdit) { SampleMark().offset(x: 6, y: -8) }
                 }
                 .scaleEffect(lifted ? 1.06 : 1)
                 .rotationEffect(.degrees(p.rot + w.rot))

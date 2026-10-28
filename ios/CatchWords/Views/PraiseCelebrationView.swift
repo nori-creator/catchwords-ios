@@ -174,7 +174,7 @@ enum PraiseFlow {
         let uid = SupabaseClient.shared.userId
         guard let uid else { return }
         var schedule = PraiseSchedule.load(userId: uid)
-        let total = dex.stickers.count
+        let total = dex.wordCount
         let decision = schedule.noteCatch(totalWords: total)
         schedule.save(userId: uid)
         // Never over the first tour (its own guide is on screen); the catch still counts.

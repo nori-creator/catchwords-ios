@@ -48,7 +48,7 @@ enum WidgetBridge {
         let upcoming = Array(dues.filter { $0 > now }.sorted().prefix(300))
 
         // Word of the day: a stable pick per local day from this learning language's words.
-        let pool = dex.stickers.filter { $0.word != nil && !DexStore.isProvisional($0.id) }.sorted { $0.id < $1.id }
+        let pool = dex.stickers.filter { $0.word != nil && !DexStore.isProvisional($0.id) && !$0.isSample }.sorted { $0.id < $1.id }
         var words: [WidgetWord] = []
         var keep: Set<String> = []
         if !pool.isEmpty {
@@ -82,7 +82,7 @@ enum WidgetBridge {
         removeStaleThumbs(keeping: keep)
 
         let snapshot = WidgetSnapshot(lang: L10n.lang, words: words, dueNow: dueNow, upcomingDue: upcoming,
-                                      totalWords: dex.stickers.count,
+                                      totalWords: dex.wordCount,
                                       streak: lastStreak ?? WidgetShared.load()?.streak,
                                       updatedAt: now)
         WidgetShared.save(snapshot)

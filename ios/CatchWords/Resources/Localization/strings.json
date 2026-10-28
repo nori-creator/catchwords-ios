@@ -3933,13 +3933,6 @@
   "ko": "줄이기",
   "vi": "Giảm"
  },
- "準備ができました！": {
-  "en": "You’re all set!",
-  "zh-TW": "準備好了！",
-  "es": "¡Todo listo!",
-  "ko": "준비 완료!",
-  "vi": "Đã sẵn sàng!"
- },
  "漢字の内訳": {
   "en": "Kanji breakdown",
   "zh-TW": "漢字拆解",
@@ -8987,13 +8980,6 @@
   "ko": "주변에서 단어를 하나씩 늘려 가요.",
   "vi": "Hãy tăng vốn từ từ những thứ quanh bạn."
  },
- "このあと、実際に1枚撮りながら、このアプリでできることを案内します。": {
-  "en": "Next, we’ll show you what the app can do while you take your first photo.",
-  "zh-TW": "接下來，會一邊帶你實際拍一張照片，一邊介紹這個 App 能做的事。",
-  "es": "Ahora te mostraremos lo que puede hacer la app mientras tomas tu primera foto.",
-  "ko": "이제 실제로 사진 한 장을 찍으면서 이 앱으로 할 수 있는 것을 안내할게요.",
-  "vi": "Tiếp theo, chúng tôi sẽ giới thiệu những gì ứng dụng làm được trong lúc bạn chụp tấm ảnh đầu tiên."
- },
  "単語の頁": {
   "en": "The word page",
   "zh-TW": "單字頁",
@@ -9140,13 +9126,6 @@
   "es": "Comprueba la respuesta",
   "ko": "정답 확인",
   "vi": "Xem đáp án"
- },
- "約3分": {
-  "en": "About 3 min",
-  "zh-TW": "約 3 分鐘",
-  "es": "Unos 3 min",
-  "ko": "약 3분",
-  "vi": "Khoảng 3 phút"
  },
  "このことばの意味を、短く説明します。": {
   "en": "A short explanation of what this word means.",
@@ -9357,5 +9336,40 @@
   "es": "Mira cuántas llevas en cada categoría, como bebidas o comida.",
   "ko": "음료, 요리 등 분류별로 얼마나 모았는지 알 수 있어요.",
   "vi": "Xem bạn đã sưu tầm bao nhiêu ở mỗi nhóm, như đồ uống hay món ăn."
+ },
+ "はじめに": {
+  "en": "Getting started",
+  "zh-TW": "開始",
+  "es": "Para empezar",
+  "ko": "시작하기",
+  "vi": "Bắt đầu"
+ },
+ "身のまわりが、\nあなたの単語帳に。": {
+  "en": "Everything around you\nbecomes your word list.",
+  "zh-TW": "身邊的一切，\n都是你的單字本。",
+  "es": "Todo lo que te rodea,\nen tu vocabulario.",
+  "ko": "내 주변의 모든 것이\n나만의 단어장으로.",
+  "vi": "Mọi thứ quanh bạn\ntrở thành sổ từ vựng."
+ },
+ "見つけたものを撮るだけ。\nことばを集めて、楽しく学ぼう。": {
+  "en": "Just snap what you find.\nCollect words and enjoy learning.",
+  "zh-TW": "拍下你看到的東西，\n收集詞彙，快樂學習。",
+  "es": "Haz una foto de lo que encuentres.\nColecciona palabras y aprende con gusto.",
+  "ko": "찾은 것을 찍기만 하세요.\n단어를 모으며 즐겁게 배워요.",
+  "vi": "Chỉ cần chụp thứ bạn thấy.\nSưu tầm từ vựng và học thật vui."
+ },
+ "あとで始める": {
+  "en": "Start later",
+  "zh-TW": "稍後再開始",
+  "es": "Empezar más tarde",
+  "ko": "나중에 시작",
+  "vi": "Để sau"
+ },
+ "見本": {
+  "en": "Sample",
+  "zh-TW": "範例",
+  "es": "Ejemplo",
+  "ko": "샘플",
+  "vi": "Mẫu"
  }
 }

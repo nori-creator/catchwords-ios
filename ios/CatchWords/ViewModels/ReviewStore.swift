@@ -158,7 +158,7 @@ final class ReviewStore {
             return
         }
         // Without a review row there is nothing to grade (the answer would not be saved).
-        guard sticker.word != nil, let r = review, r.id != nil else { return }
+        guard sticker.word != nil, let r = review, r.id != nil || sticker.isSample else { return }
         queue.insert(ReviewCard(review: r, sticker: sticker), at: at)
     }
 
@@ -232,9 +232,14 @@ final class ReviewStore {
             if !dex.hasLoaded { await dex.load() }
             // Only this learning language's cards (the dex is already filtered), and the daily limit is
             // counted after that filter — not before (R1 「復習の記憶の状態が他の学習言語と混ざってる」).
-            let cards = rows.compactMap { r -> ReviewCard? in
+            var cards = rows.compactMap { r -> ReviewCard? in
                 guard let s = dex.sticker(id: r.stickerId), s.word != nil else { return nil }
                 return ReviewCard(review: r, sticker: s)
+            }
+            // The sample word (no row on the server): its state is this phone's, due like any other.
+            if let sample = dex.stickers.first(where: { $0.isSample && $0.word != nil }), let r = dex.reviews[sample.id],
+               let due = r.dueAt, due <= Date() {
+                cards.append(ReviewCard(review: r, sticker: sample))
             }
             await historyTask  // doneToday is now this language's count
             // The daily limit reached: nothing more today (web getDueReviews returns [] then), but say so.
@@ -359,6 +364,18 @@ final class ReviewStore {
         }
         let r = card.review
         let now = Date()
+        if card.sticker.isSample {
+            // The sample word is graded on this phone (`SampleSticker.grade`): the same scoring, nothing sent.
+            if correct { correctCount += 1 } else if !missed.contains(where: { $0.id == card.id }) { missed.append(card) }
+            guard let uid = client.userId else { return .saved }
+            let next = SampleSticker.grade(userId: uid, correct: correct, now: now)
+            dex.reviews[card.sticker.id] = next
+            doneToday += 1
+            if let row = ReviewHistoryRow(stickerId: r.stickerId, reviewedAt: now, intervalDaysAfter: next.intervalDays, easeAfter: next.ease) {
+                allHistory.insert(row, at: 0)
+            }
+            return .saved
+        }
         guard let rid = r.id else { return .saved }
         // Counted at once: the learner moves on to the next card without waiting for the server (owner 2026-10-15
         // 「次へを押してもすぐに次の問題にならない」). Taken back below if the grade cannot be saved.

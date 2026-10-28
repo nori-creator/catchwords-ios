@@ -528,22 +528,4 @@ private struct WelcomeSparkleShape: Shape {
     }
 }
 
-/// Three short strokes by the latte, as if it had just popped up (design pixels, box 50…135 × 215…300).
-private struct WelcomeBurst: Shape {
-    private static let lines: [(CGPoint, CGPoint)] = [
-        (CGPoint(x: 126, y: 223), CGPoint(x: 125, y: 253)),
-        (CGPoint(x: 80, y: 243), CGPoint(x: 102, y: 270)),
-        (CGPoint(x: 57, y: 285), CGPoint(x: 87, y: 292)),
-    ]
-
-    func path(in rect: CGRect) -> Path {
-        let sx = rect.width / 85
-        let sy = rect.height / 85
-        var p = Path()
-        for (a, b) in Self.lines {
-            p.move(to: CGPoint(x: rect.minX + (a.x - 50) * sx, y: rect.minY + (a.y - 215) * sy))
-            p.addLine(to: CGPoint(x: rect.minX + (b.x - 50) * sx, y: rect.minY + (b.y - 215) * sy))
-        }
-        return p
-    }
 }

@@ -336,46 +336,44 @@ struct OnboardingView: View {
 
     /// Says what comes next: the guide over the real screens, one photo, about a minute, in four steps (the same four
     /// the guide's cards count, `TourPhase`). Not knowing what the guide wanted was the first complaint (2026-10-27).
+    /// The last screen before the guide, in the shape of the owner's reference picture (2026-10-28): the icon and name,
+    /// 「はじめに」, the sample 珍珠奶茶 cut-out with its real album tag, what the app is in one line, and the way in. 「あとで
+    /// 始める」 finishes without the guide.
     private var ready: some View {
         VStack(spacing: 0) {
             progressHeader(index: Self.totalSteps) { go(.notifications, step: 0, back: true) }
-            Spacer(minLength: 8)
-            // The app's own mark, no photos (owner 2026-10-28: 「海とかコーヒーの写真…昔のものを使い回さないで」).
+            Spacer(minLength: 4)
             Appearing { shown in
-                ZStack {
-                    Circle()
-                        .fill(RadialGradient(colors: [Theme.primary.opacity(0.22), .clear], center: .center, startRadius: 0, endRadius: 130))
-                        .frame(width: 260, height: 260)
-                        .scaleEffect(shown ? 1 : 0.6)
-                        .opacity(shown ? 1 : 0)
-                        .animation(.easeOut(duration: 0.9), value: shown)
-                    LogoMark(size: 96)
-                        .scaleEffect(shown ? 1 : 0.6)
-                        .opacity(shown ? 1 : 0)
-                        .animation(.spring(response: 0.6, dampingFraction: 0.62).delay(0.1), value: shown)
+                VStack(spacing: 8) {
+                    HStack(spacing: 12) {
+                        burst(shown: shown, delay: 0.5)
+                        LogoMark(size: 60)
+                            .scaleEffect(shown ? 1 : 0.6)
+                            .opacity(shown ? 1 : 0)
+                            .animation(.spring(response: 0.6, dampingFraction: 0.62).delay(0.1), value: shown)
+                        burst(shown: shown, delay: 0.6).scaleEffect(x: -1)
+                    }
+                    Text(verbatim: "CatchWords")  // l10n-ignore (the app's name)
+                        .scaledFont(size: 24, weight: .heavy)
+                        .foregroundStyle(Theme.foreground)
+                        .staggerIn(shown, delay: 0.3, distance: 6)
+                    StepPill(text: L("はじめに"))
+                        .staggerIn(shown, delay: 0.42, distance: 6)
                 }
             }
-            .frame(height: 200)
-            RevealHeadline(marked: L("準備ができました！"), size: 30, delay: 0.25)
+            OnboardingHero()
+                .frame(height: 232)
+                .padding(.top, 8)
+            RevealHeadline(marked: L("身のまわりが、\nあなたの単語帳に。"), size: 27, delay: 0.5)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 24)
-                .padding(.top, 18)
+                .padding(.top, 10)
             Appearing { shown in
-                VStack(spacing: 18) {
-                    Text(L("このあと、実際に1枚撮りながら、このアプリでできることを案内します。"))
-                        .scaledFont(size: 15).foregroundStyle(Theme.muted)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .staggerIn(shown, delay: 0.55, distance: 8)
-                    TourPhaseRow(current: nil, shown: shown, baseDelay: 0.7)
-                    Label(L("約3分"), systemImage: "clock")
-                        .scaledFont(size: 13, weight: .semibold)
-                        .foregroundStyle(Theme.primaryInk)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Theme.primary.opacity(0.1), in: Capsule())
-                        .staggerIn(shown, delay: 1.0, distance: 8)
-                }
+                Text(L("見つけたものを撮るだけ。\nことばを集めて、楽しく学ぼう。"))
+                    .scaledFont(size: 15).foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .staggerIn(shown, delay: 0.85, distance: 8)
             }
             .padding(.horizontal, 24)
             .padding(.top, 10)
@@ -388,8 +386,29 @@ struct OnboardingView: View {
             PrimaryButton(title: L("チュートリアルを始める"), icon: "arrow.right", isLoading: isSaving, sheen: true) {
                 Task { await finish() }
             }
-            .padding(.horizontal, 24).padding(.bottom, 20)
+            .padding(.horizontal, 24)
+            Button {
+                Task { await finish(startTour: false) }
+            } label: {
+                Text(L("あとで始める"))
+                    .scaledFont(size: 15, weight: .semibold)
+                    .foregroundStyle(Theme.primaryInk)
+                    .frame(minHeight: 44)
+                    .frame(maxWidth: .infinity)
+            }
+            .disabled(isSaving)
+            .accessibilityIdentifier("onboarding.later")
+            .padding(.horizontal, 24).padding(.bottom, 12)
         }
+    }
+
+    private func burst(shown: Bool, delay: Double) -> some View {
+        WelcomeBurst()
+            .trim(from: 0, to: shown ? 1 : 0)
+            .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+            .frame(width: 30, height: 30)
+            .animation(.easeOut(duration: 0.4).delay(delay), value: shown)
+            .accessibilityHidden(true)
     }
 
     // MARK: - Shared chrome
@@ -523,7 +542,9 @@ struct OnboardingView: View {
         auth.signOut(keepLanguage: true)
     }
 
-    private func finish() async {
+    /// `startTour`: false for 「あとで始める」 — onboarding is done, the guide is not started (the sample word is added
+    /// either way).
+    private func finish(startTour: Bool = true) async {
         guard !isSaving else { return }
         isSaving = true
         defer { isSaving = false }
@@ -555,8 +576,10 @@ struct OnboardingView: View {
         ]
         try? await SupabaseClient.shared.updateUserMetadata(prefs)
         OnboardingState.markDone(userId: SupabaseClient.shared.userId)
+        // The sample 珍珠奶茶 is this account's from now (put in the dex by RootView once this screen is gone).
+        SampleSticker.markAdded(userId: SupabaseClient.shared.userId)
         // 質問の後は、本物の画面で「撮る → 選ぶ → 図鑑 → 復習」を体験する（TourStep の tapCamera から）。
-        UserDefaults.standard.set(true, forKey: TourStep.pendingStorageKey(for: SupabaseClient.shared.userId))
+        if startTour { UserDefaults.standard.set(true, forKey: TourStep.pendingStorageKey(for: SupabaseClient.shared.userId)) }
         Haptics.success()
         SoundService.shared.play(.sting)
         onFinish()
@@ -770,6 +793,72 @@ struct Appearing<Content: View>: View {
 }
 
 /// The page colour with two soft lights drifting slowly behind (still with reduced motion).
+/// The sample 珍珠奶茶's cut-out on a soft blue blob, its album tag (`WordTag`) tilted beside it, blue bursts, and the
+/// blue camera disc of the tab bar at its corner: what the app does, in one picture (owner 2026-10-28, picture 1).
+struct OnboardingHero: View {
+    @Environment(\.appReduceMotion) private var reduceMotion
+    @State private var shown = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            ZStack {
+                Ellipse()
+                    .fill(Theme.accent)
+                    .frame(width: min(w * 0.72, 290), height: h * 0.78)
+                    .rotationEffect(.degrees(-8))
+                    .scaleEffect(shown ? 1 : 0.7)
+                    .opacity(shown ? 1 : 0)
+                if let img = SampleSticker.image() {
+                    Image(uiImage: img)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .frame(height: h * 0.92)
+                        .shadow(color: .black.opacity(0.18), radius: 14, y: 8)
+                        .rotationEffect(.degrees(shown ? 0 : -12))
+                        .scaleEffect(shown ? 1 : 0.6)
+                        .opacity(shown ? 1 : 0)
+                        .accessibilityLabel(SampleSticker.headword)
+                    WordTag(text: SampleSticker.headword, zhuyin: SampleSticker.zhuyin, pinyin: SampleSticker.pinyin, tilt: -8, size: 19)
+                        .position(x: w / 2 - min(w, 330) * 0.3, y: h * 0.78)
+                        .scaleEffect(shown ? 1 : 0.5)
+                        .opacity(shown ? 1 : 0)
+                        .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.6).delay(0.45), value: shown)
+                } else {
+                    LogoMark(size: 96)
+                }
+                WelcomeBurst()
+                    .trim(from: 0, to: shown ? 1 : 0)
+                    .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 44, height: 44)
+                    .position(x: w / 2 - min(w, 330) * 0.36, y: h * 0.16)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.4).delay(0.55), value: shown)
+                ZStack {
+                    Circle().fill(Theme.brandGradient)
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 46, height: 46)
+                .shadow(color: Theme.primary.opacity(0.4), radius: 10, y: 4)
+                .position(x: w / 2 + min(w, 330) * 0.34, y: h * 0.8)
+                .scaleEffect(shown ? 1 : 0.3)
+                .opacity(shown ? 1 : 0)
+                .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.55).delay(0.65), value: shown)
+            }
+            .frame(width: w, height: h)
+        }
+        .onAppear {
+            if reduceMotion { shown = true } else {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.62).delay(0.2)) { shown = true }
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
 struct OnboardingBackdrop: View {
     @Environment(\.appReduceMotion) private var reduceMotion
     @State private var drift = false

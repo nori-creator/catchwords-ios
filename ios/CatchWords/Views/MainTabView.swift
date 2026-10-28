@@ -256,7 +256,8 @@ struct MainTabView: View {
         }
         .overlay {
             if router.tour == .complete {
-                TourCompleteView(sticker: router.tourStickerId.flatMap { dex.sticker(id: $0) }) { endTour() }
+                // The catch's picture; the sample word's when the catch is gone (never the bare logo while a word exists).
+                TourCompleteView(sticker: router.tourStickerId.flatMap { dex.sticker(id: $0) } ?? dex.stickers.first { $0.isSample }) { endTour() }
                     .transition(.opacity.combined(with: .scale(scale: 1.02)))
                     .zIndex(3)
             }

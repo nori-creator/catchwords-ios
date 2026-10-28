@@ -230,6 +230,9 @@ private struct DexSlotView: View {
                     // Its save failed and it waits to be saved again (owner 2026-10-15: never removed from the dex).
                     if dex.isUnsaved(s.id) { DexUnsavedMark() }
                 }
+                .overlay(alignment: .topLeading) {
+                    if s.isSample { SampleMark().offset(x: -4, y: -4) }
+                }
                 .detailZoomSource(s.id)   // the word sheet zooms out of this square
             noText
             // A long word (冷氣遙控器) shrinks to its own column instead of running over the next one.
