@@ -65,7 +65,8 @@ struct LaunchIntro: View {
         .ignoresSafeArea()
         .contentShape(Rectangle())
         .onTapGesture { skip() }
-        .statusBarTone(.light)
+        // Over the sign-in screen or the home, which appear under it while it plays (and ask for dark text).
+        .statusBarTone(.light, covering: true)
         .accessibilityElement()
         .accessibilityLabel("CatchWords")
         .accessibilityAddTraits(.isImage)

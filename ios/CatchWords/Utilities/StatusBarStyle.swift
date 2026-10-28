@@ -23,8 +23,9 @@ final class StatusBarController {
 
     private var window: UIWindow?
     private let host = StatusBarHostController()
-    /// Screens on screen now, in the order they appeared: the last one is on top and wins.
-    private var requests: [(id: UUID, tone: StatusBarTone)] = []
+    /// Screens on screen now, in the order they appeared: the last one is on top and wins, except that a covering
+    /// view (one drawn over everything, like the opening `LaunchIntro`) wins over screens that appear under it.
+    private var requests: [(id: UUID, tone: StatusBarTone, covering: Bool)] = []
 
     /// The app's effective colour scheme (theme setting), reported by RootView.
     var baseScheme: ColorScheme = .light {
@@ -47,12 +48,12 @@ final class StatusBarController {
         update()
     }
 
-    func set(_ id: UUID, _ tone: StatusBarTone) {
+    func set(_ id: UUID, _ tone: StatusBarTone, covering: Bool = false) {
         if let i = requests.firstIndex(where: { $0.id == id }) {
             guard requests[i].tone != tone else { return }
             requests[i].tone = tone
         } else {
-            requests.append((id: id, tone: tone))
+            requests.append((id: id, tone: tone, covering: covering))
         }
         update()
     }
@@ -64,7 +65,7 @@ final class StatusBarController {
     }
 
     private func update() {
-        let tone = requests.last?.tone ?? .automatic
+        let tone = (requests.last(where: { $0.covering }) ?? requests.last)?.tone ?? .automatic
         let style: UIStatusBarStyle
         switch tone {
         case .light: style = .lightContent
@@ -125,20 +126,22 @@ private struct StatusBarRoot: ViewModifier {
 
 private struct StatusBarToneModifier: ViewModifier {
     let tone: StatusBarTone
+    var covering = false
     @State private var id = UUID()
 
     func body(content: Content) -> some View {
         content
-            .onAppear { StatusBarController.shared.set(id, tone) }
+            .onAppear { StatusBarController.shared.set(id, tone, covering: covering) }
             .onDisappear { StatusBarController.shared.remove(id) }
             .onChange(of: tone) { _, t in StatusBarController.shared.set(id, t) }
     }
 }
 
 extension View {
-    /// The status bar's text colour while this view is on screen (the most recently shown view wins).
-    func statusBarTone(_ tone: StatusBarTone) -> some View {
-        modifier(StatusBarToneModifier(tone: tone))
+    /// The status bar's text colour while this view is on screen (the most recently shown view wins; a `covering`
+    /// view, drawn over everything, also wins over the screens that appear under it).
+    func statusBarTone(_ tone: StatusBarTone, covering: Bool = false) -> some View {
+        modifier(StatusBarToneModifier(tone: tone, covering: covering))
     }
 
     /// Installs the status-bar window; put once at the app's root, inside `.preferredColorScheme`.
