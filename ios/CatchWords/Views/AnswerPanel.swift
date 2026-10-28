@@ -130,10 +130,13 @@ struct AnswerPanel: View {
                     }
                 }
                 .padding(.vertical, 2)
+                // The word page's cards, so the same guard (WordDetailView): never wider than the panel, or it slides
+                // sideways while it scrolls.
+                .containerRelativeFrame(.horizontal)
             }
             .frame(maxHeight: 330)
             .fixedSize(horizontal: false, vertical: true)
-            .scrollBounceBehavior(.basedOnSize)
+            .scrollBounceBehavior(.basedOnSize, axes: [.vertical, .horizontal])
             .scrollIndicators(.visible)
         }
     }

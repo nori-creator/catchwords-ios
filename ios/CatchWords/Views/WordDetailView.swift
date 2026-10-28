@@ -149,10 +149,16 @@ struct WordDetailView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 40)
+                // Exactly the screen's width, even when a part comes out a few points wider (an example line drawn a
+                // hair wider than measured, a long translation): wider content let the page slide sideways while it
+                // scrolled and spring back (owner 2026-10-28: 「スクロールすると横揺れする」, up to 37 px on a device).
+                .containerRelativeFrame(.horizontal)
                 // 「文字の大きさ」 and 復習モード of the page's settings (§9) reach every part of the page.
                 .environment(\.pageTextScale, CGFloat(textScale))
                 .environment(\.reviewMask, reviewMask)
             }
+            // Up and down only: never a sideways bounce.
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .background(
                 LinearGradient(colors: [Theme.background, Theme.backgroundDeep], startPoint: .top, endPoint: .bottom)
                     .ignoresSafeArea()
