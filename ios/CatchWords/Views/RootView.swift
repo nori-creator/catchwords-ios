@@ -9,6 +9,8 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     /// This account's onboarding flag on this device (`OnboardingState`), read again on every sign-in.
     @State private var onboardingDone: Bool = false
+    /// The opening (`LaunchIntro`), once per launch, over whatever screen the launch opens on.
+    @State private var showIntro: Bool = LaunchIntro.shouldPlay
 
     private var needsOnboarding: Bool {
         !onboardingDone && profile.isLoaded && !profile.loadFailed && !profile.onboarded && dex.stickers.isEmpty
@@ -121,6 +123,11 @@ struct RootView: View {
                 ConnectionFailedView(reason: reason) {
                     Task { await auth.bootstrap() }
                 }
+            }
+            if showIntro {
+                LaunchIntro { showIntro = false }
+                    .zIndex(100)
+                    .transition(.identity)
             }
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.9), value: auth.phase)

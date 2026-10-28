@@ -58,6 +58,17 @@ struct WelcomeView: View {
 
     /// The opening: the icon in the middle → its place, then the page (see the type's comment).
     private func open() async {
+        // After the app's opening (`LaunchIntro`: the mark and the name on the blue) the icon is already known: it waits at
+        // its place, and the page comes in as the blue lifts off.
+        if LaunchIntro.played, !Self.hasOpened {
+            Self.hasOpened = true
+            logoPop = true
+            docked = true
+            await LaunchIntro.waitForReveal()
+            try? await Task.sleep(for: .milliseconds(140))
+            if reduceMotion { appeared = true } else { withAnimation(.easeOut(duration: 0.45)) { appeared = true } }
+            return
+        }
         guard !reduceMotion, !Self.hasOpened else {
             logoPop = true
             docked = true

@@ -197,6 +197,10 @@ struct UIPreviewRoot: View {
                 }
             case "tour-curve": CurveTourPreview()
             case "tourdone": TourCompleteView(sticker: nil) {}
+            // The app's opening (owner 2026-10-28): the drop, the flood, the mark, C and W, CatchWords, the lift — onto
+            // the welcome screen (a new or signed-out user) and onto the home (signed in).
+            case "launch": ZStack { AuthView(); LaunchIntro {} }
+            case "launch-home": ZStack { HomePreview(); LaunchIntro {} }
             case "authopen": AuthView()
             case "aiconsent": AIConsentView()
             case "paywall": PaywallView()
