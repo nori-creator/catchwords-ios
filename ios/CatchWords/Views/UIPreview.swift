@@ -205,6 +205,10 @@ struct UIPreviewRoot: View {
             // The sample 珍珠奶茶 a new account starts with (owner 2026-10-28): alone on the home and in the dex.
             case "home-sample": HomePreview(sampleOnly: true)
             case "dex-sample": SampleDexPreview()
+            // Every view of the 図鑑 has it (owner 2026-10-29), the map with its pin in Taipei.
+            case "dex-sample-cover": SampleDexPreview(mode: .cover)
+            case "dex-sample-map": SampleDexPreview(mode: .map)
+            case "dex-sample-list": SampleDexPreview(mode: .list)
             // The app's opening (owner 2026-10-28): the drop, the flood, the mark, C and W, CatchWords, the lift — onto
             // the welcome screen (a new or signed-out user) and onto the home (signed in).
             case "launch": ZStack { AuthView(); LaunchIntro {} }
@@ -703,11 +707,16 @@ private struct TourPreview: View {
     }
 }
 
-/// The tour's last look: the practised word's forgetting curve, its card over it (`-uiPreview tour-curve`).
+/// The tour's last look: the sample word's forgetting curve with its story of three reviews (owner 2026-10-29), its card
+/// over it (`-uiPreview tour-curve`).
 private struct CurveTourPreview: View {
     @Environment(ReviewStore.self) private var store
 
     private var sticker: Sticker {
+        SampleSticker.make(reader: L10n.lang, takenAt: Date()) ?? practised
+    }
+
+    private var practised: Sticker {
         ImageCache.shared.set(PreviewFixtures.photo, for: "preview/review.jpg")
         let w: [String: Any] = ["id": "rq", "headword": "芒果", "reading_zhuyin": "ㄇㄤˊ ㄍㄨㄛˇ", "language": "zh-TW",  // l10n-ignore (target-language data)
                                 "meaning_ja": L10n.lang == "en" ? "mango" : "マンゴー"]  // l10n-ignore (preview data)
@@ -1690,9 +1699,10 @@ private struct HomePreview: View {
 /// The dex of a new account: the sample 珍珠奶茶 in its square of 飲み物 (`-uiPreview dex-sample`).
 private struct SampleDexPreview: View {
     @Environment(DexStore.self) private var dex
+    var mode: DexMode = .grid
 
     var body: some View {
-        DexView(startInGallery: true)
+        DexView(start: mode)
             .task {
                 SampleSticker.seedReadings()
                 dex.stickers = SampleSticker.make(reader: L10n.lang, takenAt: Date().addingTimeInterval(-30)).map { [$0] } ?? []

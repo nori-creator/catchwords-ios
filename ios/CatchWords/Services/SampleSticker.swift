@@ -95,8 +95,14 @@ enum SampleSticker {
     static func make(reader: String, takenAt: Date) -> Sticker? {
         guard let j = json, let word = makeWord(j, reader: reader) else { return nil }
         return Sticker(id: id, wordId: "", objectImageUrl: photoPath, cutoutImageUrl: cutoutPath, selfieImageUrl: nil,
-                       caption: nil, locationName: nil, takenAt: takenAt, captureType: "photo", word: word)
+                       caption: nil, locationName: nil, takenAt: takenAt, captureType: "photo", word: word,
+                       lat: place.lat, lng: place.lng)
     }
+
+    /// Where it was "caught": 西門町 in Taipei, so the dex's map has its pin like every other view has the sample (owner
+    /// 2026-10-29: 「すべての図鑑の種類で事前に入れた画像が表示されるようにして。マップは適当に台北市内にして」). The place's name is
+    /// read from the point in the display language, as for a real catch (`LocalizedPlaceText`).
+    nonisolated static let place = (lat: 25.0421, lng: 121.5076)
 
     private static func makeWord(_ j: [String: Any], reader: String) -> Word? {
         let texts = j["text"] as? [String: [String: String]] ?? [:]
@@ -165,12 +171,69 @@ enum SampleSticker {
         var repetitions: Int
         var lastReviewedAt: Date?
         var dueAt: Date
+        /// The learner's own answers on it, oldest first (its curve draws them after the story's). Absent in what was
+        /// kept before it was written.
+        var log: [Answer]?
     }
 
-    /// Its review state: fresh (due 10 minutes after it was added, so the first review finds a card) until graded.
-    static func reviewState(userId uid: String) -> ReviewState {
-        let kept = load(uid) ?? Kept(ease: 2.5, intervalDays: 0, repetitions: 0, lastReviewedAt: nil,
-                                     dueAt: addedAt(userId: uid).addingTimeInterval(600))
+    nonisolated private struct Answer: Codable {
+        var at: Date
+        var intervalDays: Int
+        var ease: Double
+    }
+
+    /// Its story of reviews: learned some days before it was added and reviewed on time three times (1, 2 and 5 days
+    /// after), each answer scored like a right one (`SRS.next`, 5). So its memory curve shows what reviewing does — back
+    /// to 100% at each review, a gentler slope each time — and the next review falls due on the day it is added (owner
+    /// 2026-10-29: 「何回か復習した時のグラフを表示して。復習したら100％になり、グラフの傾きが緩やかになること、また最適な
+    /// 復習なタイミングがわかることをユーザーに見せたい」).
+    nonisolated private static let storyDays: [Double] = [1, 2, 5]
+
+    private struct Story {
+        let learnedAt: Date
+        let rows: [(at: Date, state: SRS.State)]
+    }
+
+    private static func story(addedAt: Date) -> Story {
+        var state = SRS.State(ease: 2.5, intervalDays: 0, repetitions: 0)
+        var steps: [(day: Double, state: SRS.State)] = []
+        var previous = 0.0
+        for day in storyDays {
+            state = SRS.next(state, score: 5, elapsedDays: steps.isEmpty ? nil : day - previous)
+            steps.append((day, state))
+            previous = day
+        }
+        // The last review's interval runs out on the day the sample is added: it is due then.
+        let span = previous + Double(state.intervalDays)
+        let learnedAt = addedAt.addingTimeInterval(-span * 86_400)
+        return Story(learnedAt: learnedAt, rows: steps.map { (at: learnedAt.addingTimeInterval($0.day * 86_400), state: $0.state) })
+    }
+
+    private static func addedAt(_ uid: String?) -> Date { uid.map { addedAt(userId: $0) } ?? Date() }
+
+    /// When its story starts: where its memory curve begins (before the day it was added).
+    static func learnedAt(userId uid: String?) -> Date { story(addedAt: addedAt(uid)).learnedAt }
+
+    /// Its reviews for the memory curve: the story's three, then the learner's own.
+    static func history(userId uid: String?) -> [ReviewHistoryRow] {
+        let told = story(addedAt: addedAt(uid)).rows.compactMap {
+            ReviewHistoryRow(stickerId: id, reviewedAt: $0.at, intervalDaysAfter: $0.state.intervalDays, easeAfter: $0.state.ease)
+        }
+        let own = (uid.flatMap { load($0) }?.log ?? []).compactMap {
+            ReviewHistoryRow(stickerId: id, reviewedAt: $0.at, intervalDaysAfter: $0.intervalDays, easeAfter: $0.ease)
+        }
+        return told + own
+    }
+
+    /// Its review state: after the story (due 10 minutes after it was added, so the first review finds a card) until
+    /// the learner grades it.
+    static func reviewState(userId uid: String?) -> ReviewState {
+        let added = addedAt(uid)
+        let last = story(addedAt: added).rows.last
+        let told = Kept(ease: last?.state.ease ?? 2.5, intervalDays: last?.state.intervalDays ?? 0,
+                        repetitions: last?.state.repetitions ?? 0, lastReviewedAt: last?.at,
+                        dueAt: added.addingTimeInterval(600))
+        let kept = uid.flatMap { load($0) } ?? told
         return ReviewState(id: nil, stickerId: id, ease: kept.ease, intervalDays: kept.intervalDays,
                            repetitions: kept.repetitions, lastReviewedAt: kept.lastReviewedAt, dueAt: kept.dueAt)
     }
@@ -182,8 +245,9 @@ enum SampleSticker {
         let elapsed = before.lastReviewedAt.map { now.timeIntervalSince($0) / 86_400 }
         let next = SRS.next(SRS.State(ease: before.ease, intervalDays: before.intervalDays, repetitions: before.repetitions ?? 0),
                             score: correct ? 5 : 1, elapsedDays: elapsed)
+        let log = (load(uid)?.log ?? []) + [Answer(at: now, intervalDays: next.intervalDays, ease: next.ease)]
         let kept = Kept(ease: next.ease, intervalDays: next.intervalDays, repetitions: next.repetitions, lastReviewedAt: now,
-                        dueAt: now.addingTimeInterval(Double(max(1, next.intervalDays)) * 86_400))
+                        dueAt: now.addingTimeInterval(Double(max(1, next.intervalDays)) * 86_400), log: log)
         if let data = try? JSONEncoder().encode(kept) { UserDefaults.standard.set(data, forKey: key("review", uid)) }
         return reviewState(userId: uid)
     }
