@@ -182,12 +182,12 @@ enum SampleSticker {
         var ease: Double
     }
 
-    /// Its story of reviews: learned some days before it was added and reviewed on time three times (1, 2 and 5 days
-    /// after), each answer scored like a right one (`SRS.next`, 5). So its memory curve shows what reviewing does — back
+    /// Its story of reviews: learned some days before it was added and reviewed three times, 1, 3 and 8 days after (each
+    /// wait longer than the last), each answer scored like a right one (`SRS.next`, 5). So its memory curve shows what reviewing does — back
     /// to 100% at each review, a gentler slope each time — and the next review falls due on the day it is added (owner
     /// 2026-10-29: 「何回か復習した時のグラフを表示して。復習したら100％になり、グラフの傾きが緩やかになること、また最適な
     /// 復習なタイミングがわかることをユーザーに見せたい」).
-    nonisolated private static let storyDays: [Double] = [1, 2, 5]
+    nonisolated private static let storyDays: [Double] = [1, 3, 8]
 
     private struct Story {
         let learnedAt: Date
