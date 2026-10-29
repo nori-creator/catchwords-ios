@@ -676,6 +676,7 @@ struct TourCompleteView: View {
                     .padding(.bottom, 24)
             }
             .padding(.horizontal, 24)
+            .readableColumn()
         }
         .onAppear {
             Haptics.success()
