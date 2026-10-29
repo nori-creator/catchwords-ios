@@ -1812,13 +1812,6 @@
   "ko": "로그인",
   "vi": "Đăng nhập"
  },
- "ログインせずに入る（開発用）": {
-  "en": "Enter without logging in (development)",
-  "zh-TW": "不登入直接進入（開發用）",
-  "es": "Entrar sin iniciar sesión (desarrollo)",
-  "ko": "로그인하지 않고 들어가기 (개발용)",
-  "vi": "Vào mà không đăng nhập (dành cho phát triển)"
- },
  "ログインに失敗しました。もう一度お試しください。": {
   "en": "Sign-in failed. Please try again.",
   "zh-TW": "登入失敗，請再試一次。",

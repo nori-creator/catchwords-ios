@@ -236,39 +236,32 @@ struct WelcomeView: View {
                 mailForm
                     .offset(x: shake)
                     .transition(.opacity.combined(with: .move(edge: .top)))
-            } else {
-                // Mail is the small way in, under the two one-tap buttons (owner 2026-10-29: 「メールで登録、ログインを
-                // 小さくして、その分切り抜きの画像を大きくして」): no 「または」 line and no full-width button, so the stickers
-                // take that height and Google and Apple sit lower.
-                mailButton
-                    .staggerIn(appeared, delay: 0.64)
             }
 
             messages
 
-            otherPage
-                .staggerIn(appeared, delay: 0.72)
-
-            if AuthStore.devSkipLogin {
-                Button {
-                    Task { await auth.enterAsGuest() }
-                } label: {
-                    Label(L("ログインせずに入る（開発用）"), systemImage: "arrow.right.circle")
-                        .scaledFont(size: 14, weight: .semibold)
-                        .foregroundStyle(Theme.muted)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+            // Under Google and Apple only small, close lines (owner 2026-10-29: 「ユーザーが押しやすい下の方にAppleと
+            // Googleのボタン配置して」): the two buttons sit as low as the page allows, within the thumb's reach. Mail is the
+            // small way in (「メールで登録、ログインを小さくして」): no 「または」 line and no full-width button. No
+            // 「ログインせずに入る（開発用）」 either (同日「けしていい」).
+            VStack(spacing: 0) {
+                if !showMail {
+                    mailButton
+                        .staggerIn(appeared, delay: 0.64)
                 }
-                .buttonStyle(PressableStyle())
+                otherPage
+                    .staggerIn(appeared, delay: 0.72)
+                // Consent to the terms and the privacy policy is given by continuing (both pages are links).
+                Text(LegalLinks.signInAgreement())
+                    .scaledFont(size: 11)
+                    .foregroundStyle(Theme.muted)
+                    .tint(Theme.primaryInk)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 2)
+                    .accessibilityIdentifier("welcome.agreement")
+                    .staggerIn(appeared, delay: 0.76, distance: 6)
             }
-
-            // Consent to the terms and the privacy policy is given by continuing (both pages are links).
-            Text(LegalLinks.signInAgreement())
-                .scaledFont(size: 11)
-                .foregroundStyle(Theme.muted)
-                .tint(Theme.primaryInk)
-                .multilineTextAlignment(.center)
-                .accessibilityIdentifier("welcome.agreement")
-                .staggerIn(appeared, delay: 0.76, distance: 6)
+            .padding(.top, -6)
         }
         .animation(.spring(response: 0.38, dampingFraction: 0.86), value: auth.errorMessage)
         .animation(.spring(response: 0.38, dampingFraction: 0.86), value: auth.infoMessage)
