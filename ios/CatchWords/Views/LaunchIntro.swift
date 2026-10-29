@@ -122,16 +122,14 @@ struct LaunchIntro: View {
         let grow = Ease.inOutCubic(Ease.seg(t, 0.28, 0.82))
         let drop: CGFloat = 22 * Ease.outBack(Ease.seg(t, 0, 0.3))
         let d = drop + (diagonal * 1.05 - drop) * grow
-        // The circle is placed on the drop (`position` on a full-screen mask): with only a frame bigger than the screen it
-        // was laid out from the middle towards the lower right, so the blue came in from the side (owner 2026-10-29:
-        // 「右下から青い画面が広がるんで、ちょっと違和感」) instead of spreading out of the drop.
+        // The circle is a clip path drawn round the drop, not a view in `.mask`: a mask whose circle outgrew the screen
+        // was drawn from the middle of the screen towards the lower right (with a frame or with `position` alike, seen in
+        // the CI films), so the blue came in from the side and the drop never showed (owner 2026-10-29:
+        // 「右下から青い画面が広がるんで、ちょっと違和感」).
         return LinearGradient(colors: [Self.top, Self.bottom], startPoint: .top, endPoint: .bottom)
             .frame(width: size.width, height: size.height)
-            .mask {
-                Circle()
-                    .frame(width: d, height: d)
-                    .position(x: size.width / 2, y: size.height / 2 + (1 - fall) * -120)
-            }
+            .clipShape(FloodCircle(center: CGPoint(x: size.width / 2, y: size.height / 2 + (1 - fall) * -120),
+                                   diameter: d))
             // The ripple ring the drop leaves as it lands.
             .overlay {
                 let r = Ease.outCubic(Ease.seg(t, 0.26, 0.9))
@@ -284,5 +282,16 @@ private enum Ease {
     static func outBack(_ x: Double, overshoot s: Double = 1.70158) -> Double {
         let c3 = s + 1
         return 1 + c3 * pow(x - 1, 3) + s * pow(x - 1, 2)
+    }
+}
+
+/// The opening's flood: a circle of the given diameter round a point of the view's own rect.
+private struct FloodCircle: Shape {
+    var center: CGPoint
+    var diameter: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        Path(ellipseIn: CGRect(x: rect.minX + center.x - diameter / 2, y: rect.minY + center.y - diameter / 2,
+                               width: diameter, height: diameter))
     }
 }
