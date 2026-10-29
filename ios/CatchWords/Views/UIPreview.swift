@@ -798,6 +798,7 @@ private struct MemorialPreview: View {
 
     var body: some View {
         MemorialReveal(n: 30, words: 48, photos: Self.photos) {}
+            .statusBarTone(.light)  // as MemorialAlbumView sets it over the reveal
     }
 }
 /// The praise after a catch (`PraiseCelebrationView`), from a made-up standing.
