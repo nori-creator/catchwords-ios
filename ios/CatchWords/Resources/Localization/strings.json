@@ -9400,13 +9400,6 @@
   "ko": "이 단어를 얼마나 기억하는지예요",
   "vi": "Mức độ bạn nhớ từ này"
  },
- "忘れそうな頃に、復習をお知らせします。": {
-  "en": "We'll remind you to review just as you're about to forget.",
-  "zh-TW": "快忘記的時候，會提醒你複習。",
-  "es": "Te avisaremos para repasar justo cuando estés por olvidarla.",
-  "ko": "잊을 때쯤 복습을 알려 드려요.",
-  "vi": "Sắp quên thì chúng tôi sẽ nhắc bạn ôn tập."
- },
  "準備完了。\nあとは撮るだけ": {
   "en": "You're all set.\nNow just take photos",
   "zh-TW": "準備好了。\n接下來只要拍就好",
@@ -9420,5 +9413,12 @@
   "es": "Cada foto hace crecer un cuaderno de palabras solo tuyo.",
   "ko": "찍을 때마다 나만의 단어장이 자라요.",
   "vi": "Mỗi tấm ảnh, sổ từ vựng riêng của bạn lại lớn thêm."
+ },
+ "最適な復習のタイミングが分かります。": {
+  "en": "Shows the best time to review.",
+  "zh-TW": "可以知道最適合複習的時機。",
+  "es": "Te muestra el mejor momento para repasar.",
+  "ko": "가장 좋은 복습 타이밍을 알 수 있어요.",
+  "vi": "Biết được thời điểm ôn tập tốt nhất."
  }
 }

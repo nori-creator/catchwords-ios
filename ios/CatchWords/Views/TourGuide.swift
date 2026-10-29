@@ -94,7 +94,7 @@ enum TourStep: String, Equatable {
         case .wordSettings: L("文字の大きさ・発音の速さも、ここで変えられます。")
         case .reviewPick: L("見覚えのある写真だから、思い出しやすい。")
         case .reviewNext: L("間違えても、解説を読めば大丈夫です。")
-        case .memoryCurve: L("忘れそうな頃に、復習をお知らせします。")
+        case .memoryCurve: L("最適な復習のタイミングが分かります。")
         default: nil
         }
     }
