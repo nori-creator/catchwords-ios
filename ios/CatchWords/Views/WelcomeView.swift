@@ -184,11 +184,10 @@ struct WelcomeView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// The page's badge (which page this is, at a glance), its headline and one line.
+    /// The page's headline and one line (no coloured page badge: owner 2026-10-29 「色のタグ変だから消して」 — the
+    /// headline and the buttons' words say which page it is).
     private var copy: some View {
         VStack(spacing: 10) {
-            modeBadge
-                .staggerIn(appeared, delay: 0.05, distance: 6)
             RevealHeadline(marked: isSignUp ? L("日常のすべてが\n学びになる") : L("おかえりなさい"),
                            size: 32, active: appeared, delay: 0.12, duration: 1.0)
                 .lineLimit(2)
@@ -203,27 +202,6 @@ struct WelcomeView: View {
                 .staggerIn(appeared, delay: 0.45, distance: 8)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    /// 「新規登録」 (blue, a person with a plus) or 「ログイン」 (green, a person with a check).
-    private var modeBadge: some View {
-        let tint = isSignUp ? Theme.primaryInk : Theme.ok
-        return HStack(spacing: 6) {
-            Image(systemName: isSignUp ? "person.badge.plus" : "person.crop.circle.badge.checkmark")
-                .font(.system(size: 14, weight: .bold))
-                .accessibilityHidden(true)
-            Text(isSignUp ? L("新規登録") : L("ログイン"))
-                .scaledFont(size: 15, weight: .heavy)
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-        .background(tint.opacity(0.12), in: .capsule)
-        .overlay(Capsule().stroke(tint.opacity(0.3), lineWidth: 1))
-        .contentTransition(.opacity)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("welcome.mode")
     }
 
     private var ways: some View {
