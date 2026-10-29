@@ -108,6 +108,8 @@ struct OnboardingView: View {
                 case .ready: ready
                 }
             }
+            // iPhone Duo held sideways: the questions in a column in the middle (`readableColumn`).
+            .readableColumn()
             .id("\(stage.rawValue)-\(step)")
             .transition(reduceMotion ? .opacity : .asymmetric(
                 insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),

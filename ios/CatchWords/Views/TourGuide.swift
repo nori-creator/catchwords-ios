@@ -314,12 +314,13 @@ struct TourLayer: View {
                             pointer(down: down, x: hole.midX, cardMidY: place.midY, in: geo.size)
                         }
                         // A new card per step (its lines come in again, `shown`), the old one fading out.
+                        let cardWidth = Self.cardWidth(in: geo.size)
                         TourCoachCard(step: step, section: section, missed: missed, onNext: onNext, onSkip: onSkip)
                             .id("\(step.rawValue)-\(section?.rawValue ?? "")")
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, cardWidth == nil ? 16 : 0)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
-                            .frame(width: geo.size.width)
-                            .position(x: geo.size.width / 2, y: place.midY)
+                            .frame(width: cardWidth ?? geo.size.width)
+                            .position(x: Self.cardX(hole: hole, width: cardWidth, in: geo.size), y: place.midY)
                     }
                 }
                 .animation(.spring(response: 0.5, dampingFraction: 0.86), value: lit)
@@ -385,6 +386,18 @@ struct TourLayer: View {
         }
         let side = max(padded.width, padded.height)
         return CGRect(x: padded.midX - side / 2, y: padded.midY - side / 2, width: side, height: side)
+    }
+
+    /// The card's width on a wide screen (iPhone Duo open, 669 / 951 pt), nil = the screen's width less 16 pt each side as
+    /// on the iPhone: across the open Duo a card the screen's width put its lines far from the lit place.
+    static func cardWidth(in size: CGSize) -> CGFloat? {
+        size.width > 600 ? min(size.width - 32, 460) : nil
+    }
+
+    /// The card's middle: under the lit place on a wide screen (kept on the screen), else the screen's middle.
+    static func cardX(hole: CGRect?, width: CGFloat?, in size: CGSize) -> CGFloat {
+        guard let width, let hole else { return size.width / 2 }
+        return min(max(hole.midX, width / 2 + 16), size.width - width / 2 - 16)
     }
 
     /// Where the card goes: just above a place in the lower half, just below one in the upper half (the other side
