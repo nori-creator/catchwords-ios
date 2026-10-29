@@ -228,8 +228,10 @@ final class ImageCache {
         return data
     }
 
-    /// One file per key: the key's SHA-256 (paths hold slashes and may be long).
+    /// One file per key: the key's SHA-256 (paths hold slashes and may be long). The bundled sample word's pictures
+    /// are read from the app bundle itself (`SampleSticker`): never downloaded, never cleared with the cache.
     nonisolated private static func file(for key: String) -> URL {
+        if let bundled = SampleSticker.bundledImageURL(for: key) { return bundled }
         let name = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
         return dir.appendingPathComponent(name)
     }

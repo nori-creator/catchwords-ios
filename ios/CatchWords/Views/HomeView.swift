@@ -114,7 +114,7 @@ struct HomeView: View {
             withAnimation(.snappy) { dex.albumUndo = nil }
         }
         .fullScreenCover(item: Binding(get: { memorialOpen.map(MemorialDay.init) }, set: { memorialOpen = $0?.n })) { m in
-            MemorialAlbumView(n: m.n, words: dex.stickers.count, picks: Milestone.highlights(dex.stickers)) { s in
+            MemorialAlbumView(n: m.n, words: dex.wordCount, picks: Milestone.highlights(dex.stickers)) { s in
                 memorialOpen = nil
                 router.detailSticker = s
             } onClose: {
@@ -225,6 +225,7 @@ struct HomeView: View {
                                 finishRequest: finishEditing,
                                 onDiary: DiaryFeature.enabled ? { (day: Date) in diaryDay = DiaryDay(day: day) } : nil
                             )
+                            .environment(\.albumPasteID, router.tour == .homeAdded ? router.tourStickerId : nil)
                             .transition(.opacity)
                         }
                     }
@@ -300,7 +301,7 @@ struct HomeView: View {
     private var memorialBanner: some View {
         if let n = profile.createdAt.flatMap({ Milestone.today(start: $0) }),
            !memorialHidden, !Milestone.wasDismissed(n) {
-            MemorialBanner(n: n, words: dex.stickers.count, photos: Milestone.highlights(dex.stickers).count) {
+            MemorialBanner(n: n, words: dex.wordCount, photos: Milestone.highlights(dex.stickers).count) {
                 Haptics.impact(.medium)
                 memorialOpen = n
             } onDismiss: {

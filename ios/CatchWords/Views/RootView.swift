@@ -9,6 +9,8 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     /// This account's onboarding flag on this device (`OnboardingState`), read again on every sign-in.
     @State private var onboardingDone: Bool = false
+    /// The opening (`LaunchIntro`), once per launch, over whatever screen the launch opens on.
+    @State private var showIntro: Bool = LaunchIntro.shouldPlay
 
     private var needsOnboarding: Bool {
         !onboardingDone && profile.isLoaded && !profile.loadFailed && !profile.onboarded && dex.stickers.isEmpty
@@ -46,7 +48,11 @@ struct RootView: View {
                             .zIndex(1)
                     }
                     if needsOnboarding {
-                        OnboardingView { withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { onboardingDone = true } }
+                        OnboardingView {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { onboardingDone = true }
+                            // The sample word, in the album, the dex and the review before the first photo.
+                            dex.installSample()
+                        }
                             .environment(\.colorScheme, .light)
                             .statusBarTone(.dark)
                             .transition(.opacity.combined(with: .scale(scale: 1.02)))
@@ -121,6 +127,11 @@ struct RootView: View {
                 ConnectionFailedView(reason: reason) {
                     Task { await auth.bootstrap() }
                 }
+            }
+            if showIntro {
+                LaunchIntro { showIntro = false }
+                    .zIndex(100)
+                    .transition(.identity)
             }
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.9), value: auth.phase)
@@ -223,20 +234,18 @@ struct ConnectionFailedView: View {
     }
 }
 
-/// The app's interlocking-loop mark, drawn natively (matches the icon).
+/// The app's mark: the App Store icon itself (`AppLogo`, a copy of `AppIcon`), in the icon's rounded square. Owner
+/// 2026-10-28: the mark drawn here before (two plain rings) was not the real icon.
 struct LogoMark: View {
     var size: CGFloat
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                .fill(Theme.brandGradient)
-            HStack(spacing: -size * 0.16) {
-                Circle().stroke(.white, lineWidth: size * 0.07).frame(width: size * 0.4)
-                Circle().stroke(.white, lineWidth: size * 0.07).frame(width: size * 0.4)
-            }
-        }
-        .frame(width: size, height: size)
-        .shadow(color: Theme.primary.opacity(0.5), radius: size * 0.25, y: size * 0.08)
+        Image("AppLogo")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: size, height: size)
+            .clipShape(.rect(cornerRadius: size * 0.2237, style: .continuous))
+            .shadow(color: Theme.primary.opacity(0.5), radius: size * 0.25, y: size * 0.08)
+            .accessibilityHidden(true)
     }
 }

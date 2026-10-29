@@ -92,6 +92,9 @@ struct WordDetailView: View {
     /// Still being saved: no id on the server yet, so nothing here asks the server about it and the edits wait
     /// (「保存しています…」 in the top bar). A word without its word id yet waits the same way for its notes.
     private var isProvisional: Bool { DexStore.isProvisional(current.id) }
+    /// The bundled sample word: shown like any other, but nothing about it is edited, reported or asked of the server.
+    private var isSample: Bool { current.isSample }
+    private var isLocked: Bool { isProvisional || isSample }
     /// Its save failed and it waits to be saved again (「保存待ち」): kept in the dex, never removed (owner 2026-10-15).
     private var isUnsaved: Bool { dex.isUnsaved(current.id) }
     private var word: Word? { current.word }
@@ -99,7 +102,7 @@ struct WordDetailView: View {
     private var headword: String { word?.headword ?? "" }
 
     /// A selfie can be taken for this word (its own photo, a front camera, already saved).
-    private var canTakeSelfie: Bool { current.hasOwnPhoto && SelfieCamera.isAvailable && !isProvisional }
+    private var canTakeSelfie: Bool { current.hasOwnPhoto && SelfieCamera.isAvailable && !isLocked }
 
     /// 自撮りを撮る in the long-press photo sheet, under 写真を替える (owner 2026-10-14); nil = not offered.
     private var selfieHandler: ((UIImage) async -> Void)? {
@@ -134,12 +137,14 @@ struct WordDetailView: View {
                     if !photos.isEmpty { photoHero }
                     metaCard
                     heroCard
-                    if !isProvisional { EncounterHistoryView(stickerId: current.id) }
+                    if !isLocked { EncounterHistoryView(stickerId: current.id) }
                     // Web WordCard: no frequency/register meters and no separate "使う場面" card
                     // (owner: メーターいらない). Register is a chip word in the header only.
                     ForEach(visibleSections.filter { hasContent($0) || isFilling($0) }) { section in
                         if hasContent(section) {
                             sectionView(section)
+                                // The first tour goes through the sections one by one (owner 2026-10-28).
+                                .tourAnchor(.wordSection, if: router.tour == .wordSection && router.tourSection == section)
                                 .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)), removal: .opacity))
                         } else {
                             SectionSkeleton(title: section.title, icon: section.icon)
@@ -175,12 +180,34 @@ struct WordDetailView: View {
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .center) }
                 scrollTarget = nil
             }
+            // The first tour's section: brought up under the jump chips, where its light lands.
+            .onChange(of: router.tourSection) { _, section in
+                guard router.tour == .wordSection, let section else { return }
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.45)) { proxy.scrollTo(section.id, anchor: .top) }
+            }
+            .onAppear { syncTourSections() }
+            .onChange(of: jumpSections) { _, _ in syncTourSections() }
+            .onChange(of: router.tour) { _, _ in syncTourSections() }
             }
             }
         }
         .onChange(of: reviewOn) { _, _ in revealed = [] }
         .onChange(of: reviewHideRaw) { _, _ in revealed = [] }
         .onChange(of: current.id) { _, _ in revealed = [] }
+    }
+
+    /// The first tour's walk through this page: the sections it shows, in order; the first is lit once there is one (a
+    /// word caught a moment ago may still be getting them written).
+    private func syncTourSections() {
+        guard router.tour.isWord else { return }
+        router.tourSections = jumpSections
+        if router.tour == .wordSection, router.tourSection == nil, let first = jumpSections.first {
+            Task {
+                try? await Task.sleep(for: .milliseconds(450))
+                guard router.tour == .wordSection, router.tourSection == nil else { return }
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { router.tourSection = first }
+            }
+        }
     }
 
     /// The jump chips under the top bar (§0).
@@ -191,6 +218,7 @@ struct WordDetailView: View {
         .padding(.vertical, 2)
         .background(Theme.background)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
+        .tourAnchor(.wordJump)
     }
 
     /// Once the page is on screen: the hero's picture, and the previews' starting state.
@@ -220,7 +248,7 @@ struct WordDetailView: View {
         }
         // Keyed on the word id and the sticker id: a catch saved while its page is open runs these once it is saved.
         .task(id: current.wordId + "|" + L10n.lang) { await autoFill() }
-        .task(id: current.id) { if !isProvisional { await dex.autoHero(current) } }
+        .task(id: current.id) { if !isLocked { await dex.autoHero(current) } }
         // The developer's 「作り直す」 gate (`AdminAccess.isAdmin`) is asked here too, not only on 設定: asked once
         // per account, so a word page opened before 設定 ever was still offers it to an admin.
         .task { await AdminAccess.shared.refresh() }
@@ -371,6 +399,7 @@ struct WordDetailView: View {
             .buttonStyle(PressableStyle(scale: 0.9))
             .accessibilityLabel(L("表示する項目と順番"))
             .accessibilityIdentifier("detail.sections")
+            .tourAnchor(.wordSections)
             .popover(isPresented: $showSections, arrowEdge: .top) {
                 SectionsPanel(prefs: prefs, sampleWord: headword, sampleMeaning: word?.meaningJa ?? "")
                     .accessibilityIdentifier("detail.sections.panel")
@@ -416,7 +445,7 @@ struct WordDetailView: View {
                     .foregroundStyle(Theme.muted)
                     .frame(width: 44, height: 44)
                 }
-                .disabled(isSavingHead || isProvisional)
+                .disabled(isSavingHead || isLocked)
                 .accessibilityLabel(L("単語を直す"))
                 Spacer(minLength: 8)
                 DetailSpeakButton(text: headword, style: .hero)
@@ -582,12 +611,12 @@ struct WordDetailView: View {
         .task(id: "\(later.count)|\(heroPage)|\(slidePaused)") { await autoSlide(count: later.count) }
         // The selfie's cut-out (its people and what they hold) is made on this phone before the card is turned.
         .task(id: current.selfieImageUrl ?? "") {
-            if let p = current.selfieImageUrl, !isProvisional { SelfieCutouts.shared.request(p, dex: dex) }
+            if let p = current.selfieImageUrl, !isLocked { SelfieCutouts.shared.request(p, dex: dex) }
         }
         // Keyed on the photo too: a replaced photo reloads the list while the page is open. A catch still being
         // saved has no photos on the server yet (the list is read once it is saved).
         .task(id: "\(current.id)|\(current.objectImageUrl ?? "")") {
-            guard !isProvisional else { return }
+            guard !isLocked else { return }
             let all = await StickerPhoto.load(stickerId: current.id)
             laterPhotos = all.filter { !$0.first }
             heroPage = 0
@@ -822,11 +851,11 @@ struct WordDetailView: View {
             // 長押し: この単語をどの絵で見せるか選ぶ（Web HeroPhotoPicker）。 Not while the catch is still being saved.
             // A finger on the photo also holds the slideshow.
             .onLongPressGesture(minimumDuration: 0.45, perform: {
-                guard !isProvisional else { return }
+                guard !isLocked else { return }
                 Haptics.impact(.medium)
                 pickingHero = true
             }, onPressingChanged: { pressing in touching = pressing })
-            .accessibilityAction(named: L("表示する写真を選ぶ")) { if !isProvisional { pickingHero = true } }
+            .accessibilityAction(named: L("表示する写真を選ぶ")) { if !isLocked { pickingHero = true } }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(back ? L("自撮り写真") : L("写真"))
             .accessibilityAction(named: L("元の写真を見る")) {
@@ -940,7 +969,7 @@ struct WordDetailView: View {
                     .contentShape(.rect)
                 }
                 .buttonStyle(PressableStyle(scale: 0.98))
-                .disabled(isProvisional)
+                .disabled(isLocked)
                 .accessibilityLabel(L("ひと言を編集"))
             }
         }
@@ -1372,7 +1401,8 @@ struct WordDetailView: View {
 
     /// The first chunk with a dashed word, while the first-swap hint has not been seen (nil: no hint).
     private var coachChunk: Int? {
-        guard !swapCoachSeen else { return nil }
+        // Never while the first tour runs (owner 2026-10-28: its black tip overlapped the tour's card).
+        guard !swapCoachSeen, router.tour == .off else { return nil }
         return chunks.firstIndex { c in
             c.parts.contains { p in
                 ChunkRules.role(p, headword: headword, target: learningLang) != .head
@@ -1883,7 +1913,7 @@ struct WordDetailView: View {
             }
             HStack(spacing: 10) {
                 Spacer()
-                reportMenu
+                if !isSample { reportMenu }
                 Button { confirmDelete = true } label: {
                     Label(L("削除"), systemImage: "trash")
                         .scaledFont(size: 16, weight: .semibold)

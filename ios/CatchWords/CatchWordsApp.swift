@@ -59,6 +59,8 @@ struct CatchWordsApp: App {
                     .environment(plan)
                     .environment(profile)
                     .environment(review)
+                    // The status bar's colour as the app sets it (the previews showed the opening's blue under black text).
+                    .statusBarRoot()
                     .preferredColorScheme(p.dark ? .dark : .light)
                     .appTypeSizeCap()
                     .appMotionPreference()

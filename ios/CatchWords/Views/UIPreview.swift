@@ -177,8 +177,58 @@ struct UIPreviewRoot: View {
             case "aistats": AdminAiStatsPreview()
             case "aicosts": AdminAiCostsPreview()
             case "auth": AuthView()
-            case "signin": AuthView(startOnOptions: true)
+            // The same page (owner 2026-10-29): the sign-in side, and each side with its mail fields open.
+            case "signin": AuthView(startSignIn: true)
+            case "signin-mail": AuthView(startSignIn: true, startMail: true)
+            case "signup-mail": AuthView(startMail: true)
             case "onboarding": OnboardingView {}
+            // The first screens (owner 2026-10-27): the goals, the ready screen; the first guide's card over the tab bar,
+            // after the catch, and its end; the welcome screen's opening, frame by frame.
+            case "obgoals": OnboardingView(start: .questions, step: 3) {}
+            // The TOCFL level now and the goal (owner 2026-10-28).
+            case "oblevel": OnboardingView(start: .questions, step: 4) {}
+            case "oblevel-wheel": OnboardingView(start: .questions, step: 4, levelWheel: .now) {}
+            case "obready": OnboardingView(start: .ready) {}
+            // The first guide, step by step over the real screens (owner 2026-10-28's order): the camera, the cut-out
+            // on the home, the 図鑑's tab and views, the word page's sections, the memory curve, the end.
+            case "tour": TourPreview(step: .tapCamera)
+            case "tour-home": HomePreview(metAgain: true)
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .homeAdded, anchors: anchors, onNext: {}, onSkip: {})
+                }
+            case "tour-dextab": TourPreview(step: .dexTab)
+            case "tour-dexmap": DexView()
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .dexMap, anchors: anchors, onNext: {}, onSkip: {})
+                }
+            case "tour-shadow": DexView(startInGallery: true)
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .dexShadow, anchors: anchors, onNext: {}, onSkip: {})
+                }
+            case "tour-word": DetailPreview()
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .wordSection, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12,
+                              section: router.tourSection)
+                }
+                .onAppear {
+                    router.tourSection = .usageChunks
+                    router.tour = .wordSection
+                }
+            case "tour-sections": DetailPreview()
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .wordSettings, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12)
+                }
+                .onAppear { router.tour = .wordSettings }
+            case "tour-curve": CurveTourPreview()
+            case "tourdone": TourCompleteView(sticker: SampleSticker.make(reader: L10n.lang, takenAt: Date())) {}
+            // The sample 珍珠奶茶 a new account starts with (owner 2026-10-28): alone on the home and in the dex.
+            case "home-sample": HomePreview(sampleOnly: true)
+            case "dex-sample": SampleDexPreview()
+            // The app's opening (owner 2026-10-28): the drop, the flood, the mark, C and W, CatchWords, the lift — onto
+            // the welcome screen (a new or signed-out user) and onto the home (signed in).
+            case "launch": ZStack { AuthView(); LaunchIntro {} }
+            case "launch-home": ZStack { HomePreview(); LaunchIntro {} }
+            case "authopen": AuthView()
             case "aiconsent": AIConsentView()
             case "paywall": PaywallView()
             case "dex": DexView()
@@ -667,6 +717,55 @@ private struct LandingPreview: View {
 
 /// The tab bar over the home album's paper, over a map-like ground and over the camera's dark machine, with the raised
 /// camera disc (`-uiPreview tabbar`, owner 2026-10-25).
+/// The first guide over the real tab bar: its camera disc lit, the finger tapping it, the four steps on the card.
+private struct TourPreview: View {
+    let step: TourStep
+    @State private var tab: AppTab = .home
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            HomeBackground()
+            CapsuleTabBar(selection: $tab, onCamera: false)
+                .frame(height: 90)
+                .padding(.bottom, 4)
+        }
+        .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+            TourLayer(step: step, anchors: anchors, onNext: {}, onSkip: {})
+        }
+    }
+}
+
+/// The tour's last look: the practised word's forgetting curve, its card over it (`-uiPreview tour-curve`).
+private struct CurveTourPreview: View {
+    @Environment(ReviewStore.self) private var store
+
+    private var sticker: Sticker {
+        ImageCache.shared.set(PreviewFixtures.photo, for: "preview/review.jpg")
+        let w: [String: Any] = ["id": "rq", "headword": "芒果", "reading_zhuyin": "ㄇㄤˊ ㄍㄨㄛˇ", "language": "zh-TW",  // l10n-ignore (target-language data)
+                                "meaning_ja": L10n.lang == "en" ? "mango" : "マンゴー"]  // l10n-ignore (preview data)
+        let data = (try? JSONSerialization.data(withJSONObject: w)) ?? Data()
+        let word = try? JSONDecoder().decode(Word.self, from: data)
+        return Sticker(id: "review", wordId: "rq", objectImageUrl: "preview/review.jpg", cutoutImageUrl: nil, selfieImageUrl: nil,
+                       caption: nil, locationName: nil, takenAt: Date(), captureType: "photo", word: word)
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            AppBackground()
+            Color.black.opacity(0.32).ignoresSafeArea()
+            ForgettingCurveSheet(sticker: sticker, store: store, onReviewNow: {}, onClose: {})
+                .frame(maxHeight: 470)
+                .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))
+                .tourAnchor(.memoryCurve)
+                .padding(.horizontal, 16)
+                .padding(.top, 48)
+        }
+        .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+            TourLayer(step: .memoryCurve, anchors: anchors, onNext: {}, onSkip: {})
+        }
+    }
+}
+
 private struct TabBarPreview: View {
     @State private var home: AppTab = .home
     @State private var dex: AppTab = .dex
@@ -734,6 +833,7 @@ private struct MemorialPreview: View {
 
     var body: some View {
         MemorialReveal(n: 30, words: 48, photos: Self.photos) {}
+            .statusBarTone(.light)  // as MemorialAlbumView sets it over the reveal
     }
 }
 /// The praise after a catch (`PraiseCelebrationView`), from a made-up standing.
@@ -1572,50 +1672,75 @@ private struct HomePreview: View {
     /// `-uiPreview home-again` (owner 2026-10-16): the newest word met again twice today — the day still shows it once
     /// and counts it once (`AlbumDay.onePerWord`).
     var metAgain = false
+    /// `-uiPreview home-sample`: the sample 珍珠奶茶 alone, as a new account's home looks before its first photo.
+    var sampleOnly = false
 
     var body: some View {
         HomeView()
             .environment(\.colorScheme, .light)  // as in MainTabView: the paper album stays paper
             .task {
-                guard metAgain else { return await dex.load() }
-                // 眼鏡 caught yesterday and met again twice today, a cup caught today: today shows 眼鏡 once, 「2語」.
+                guard metAgain || sampleOnly else { return await dex.load() }
                 let now = Date()
-                let glasses = Self.sticker("again-glasses", "眼鏡", hue: 0.58, at: now.addingTimeInterval(-86_400))
-                let cup = Self.sticker("again-cup", "杯子", hue: 0.08, at: now.addingTimeInterval(-30))
-                dex.stickers = [cup, glasses]
-                #if DEBUG
-                dex.seedEncountersForPreview([
-                    .init(id: "again-1", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
-                          place: nil, at: now.addingTimeInterval(-180)),
-                    .init(id: "again-2", stickerId: glasses.id, image: glasses.objectImageUrl, cutout: glasses.cutoutImageUrl,
-                          place: nil, at: now.addingTimeInterval(-120)),
-                ])
-                #endif
+                let sample = SampleSticker.make(reader: L10n.lang, takenAt: now.addingTimeInterval(-30))
+                SampleSticker.seedReadings()
+                if sampleOnly {
+                    dex.stickers = sample.map { [$0] } ?? []
+                } else {
+                    // 咖啡 caught yesterday (the welcome screen's own cut-out) and met again twice today, the sample 珍珠奶茶
+                    // today: today shows 咖啡 once, 「2語」.
+                    let coffee = Self.sticker("again-coffee", "咖啡", zhuyin: "ㄎㄚ ㄈㄟ", pinyin: "kā fēi",
+                                              image: WelcomeImage.load("welcome_sticker_coffee"), at: now.addingTimeInterval(-86_400))
+                    dex.stickers = [sample, coffee].compactMap { $0 }
+                    #if DEBUG
+                    dex.seedEncountersForPreview([
+                        .init(id: "again-1", stickerId: coffee.id, image: coffee.objectImageUrl, cutout: coffee.cutoutImageUrl,
+                              place: nil, at: now.addingTimeInterval(-180)),
+                        .init(id: "again-2", stickerId: coffee.id, image: coffee.objectImageUrl, cutout: coffee.cutoutImageUrl,
+                              place: nil, at: now.addingTimeInterval(-120)),
+                    ])
+                    #endif
+                }
                 dex.hasLoaded = true
                 try? await Task.sleep(for: .milliseconds(600))
                 UIReady.mark("preview")
             }
     }
 
-    /// A made-up word with a photo and a cut-out kept in memory (no network in the preview).
-    private static func sticker(_ id: String, _ head: String, hue: CGFloat, at: Date) -> Sticker {
-        let photo = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 450)).image { ctx in
-            UIColor(hue: hue, saturation: 0.25, brightness: 0.95, alpha: 1).setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 450))
-            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
-            ctx.cgContext.fillEllipse(in: CGRect(x: 150, y: 90, width: 300, height: 270))
-        }
-        let format = UIGraphicsImageRendererFormat()
-        format.opaque = false
-        let cutout = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 270), format: format).image { ctx in
-            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
+    /// A made-up word with a real cut-out (and a photo drawn around it) kept in memory (no network in the preview).
+    private static func sticker(_ id: String, _ head: String, zhuyin: String, pinyin: String, image: UIImage?, at: Date) -> Sticker {
+        let cutout = image ?? UIGraphicsImageRenderer(size: CGSize(width: 300, height: 270)).image { ctx in
+            UIColor(hue: 0.08, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
             ctx.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: 300, height: 270))
+        }
+        let photo = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 450)).image { ctx in
+            UIColor(hue: 0.58, saturation: 0.12, brightness: 0.96, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 450))
+            let fit = min(400 / cutout.size.width, 380 / cutout.size.height)
+            let w = cutout.size.width * fit, h = cutout.size.height * fit
+            cutout.draw(in: CGRect(x: (600 - w) / 2, y: (450 - h) / 2, width: w, height: h))
         }
         ImageCache.shared.set(photo, for: "preview/\(id).jpg")
         ImageCache.shared.set(cutout, for: "preview/\(id)-cutout.png")
-        let word = try? JSONDecoder().decode(Word.self, from: Data(#"{"id":"w-\#(id)","headword":"\#(head)"}"#.utf8))
+        let json = #"{"id":"w-\#(id)","headword":"\#(head)","reading_zhuyin":"\#(zhuyin)","pinyin":"\#(pinyin)"}"#
+        let word = try? JSONDecoder().decode(Word.self, from: Data(json.utf8))
         return Sticker(id: id, wordId: "w-\(id)", objectImageUrl: "preview/\(id).jpg", cutoutImageUrl: "preview/\(id)-cutout.png",
                        selfieImageUrl: nil, caption: nil, locationName: nil, takenAt: at, captureType: "photo", word: word)
+    }
+}
+
+/// The dex of a new account: the sample 珍珠奶茶 in its square of 飲み物 (`-uiPreview dex-sample`).
+private struct SampleDexPreview: View {
+    @Environment(DexStore.self) private var dex
+
+    var body: some View {
+        DexView(startInGallery: true)
+            .task {
+                SampleSticker.seedReadings()
+                dex.stickers = SampleSticker.make(reader: L10n.lang, takenAt: Date().addingTimeInterval(-30)).map { [$0] } ?? []
+                dex.hasLoaded = true
+                try? await Task.sleep(for: .milliseconds(800))
+                UIReady.mark("preview")
+            }
     }
 }
 
