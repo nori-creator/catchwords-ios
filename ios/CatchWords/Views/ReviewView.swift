@@ -24,11 +24,12 @@ struct ReviewView: View {
     /// Bumped by 「いま復習する」: the screen closes the word list and scrolls back up to the quiz card.
     @State private var showQuizRequest = 0
     @Environment(\.appReduceMotion) private var reduceMotion
-    /// iPhone Duo open (owner 2026-10-25 / 10-28: 「左側に撮った画像、右側に複数の選択肢」): the photo stays on the left
-    /// page, and once answered the answer sheet comes up on the right page only, under the choices, off the fold.
+    /// iPhone Duo open and held sideways (owner 2026-10-29: 「見開き（横長）で開いたとき、復習は左側取った切り抜き画像、右側に
+    /// 選択肢」): the picture on the left page, the question and the choices on the right, the answer sheet coming up on the
+    /// right page only. Open and upright (「縦にした場合は上に画像、したに選択肢」) and folded, the iPhone's layout.
     @Environment(\.horizontalSizeClass) private var widthClass
     @State private var viewportWidth: CGFloat = 0
-    private var wide: Bool { widthClass == .regular }
+    private var spread: Bool { QuizCard.isSpread(widthClass: widthClass, width: viewportWidth, height: viewportHeight) }
 
     /// Room kept under the card for the floating tab bar (58 pt + its 4 pt + a little air).
     private static let tabBarClearance: CGFloat = 70
@@ -126,7 +127,7 @@ struct ReviewView: View {
                 .padding(.bottom, 66)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
                 .background(alignment: .bottom) { Theme.card.frame(height: 80) }
-                .answerSheetColumn(wide: wide, width: viewportWidth)
+                .answerSheetColumn(wide: spread, width: viewportWidth)
                 .ignoresSafeArea(edges: .bottom)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .id(card.id)
@@ -275,7 +276,7 @@ struct ReviewView: View {
     private var content: some View {
         if router.tour.isReview, let card = practiceCards[safe: practiceIndex] {
             QuizCard(card: card, choices: store.choices(for: card, dex: dex), percent: nil, isAnswered: answer != nil,
-                     fitHeight: quizFitHeight) { correct, _ in
+                     fitHeight: quizFitHeight, sideBySide: spread) { correct, _ in
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { answer = correct }
                 router.advanceTour(from: .reviewPick, to: .reviewNext)
             } onBadge: {}
@@ -293,7 +294,7 @@ struct ReviewView: View {
             ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
         } else if let card = store.current {
             QuizCard(card: card, choices: store.choices(for: card, dex: dex), percent: dex.memoryPercent(for: card.sticker), isAnswered: answer != nil,
-                     fitHeight: quizFitHeight) { correct, ms in
+                     fitHeight: quizFitHeight, sideBySide: spread) { correct, ms in
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { answer = correct }
                 // Saved in the background: 次へ moves on at once while this is still on its way.
                 Task {
@@ -505,11 +506,12 @@ struct QuizCard: View {
     /// The height the whole card should fit in (ReviewView measures it): the photo takes what the question and
     /// the four choices leave, so nothing has to be scrolled to when the card opens. nil = the photo's usual height.
     var fitHeight: CGFloat? = nil
+    /// The picture on the left, the question and the choices on the right (`isSpread(widthClass:width:height:)`).
+    var sideBySide: Bool = false
     let onAnswer: (Bool, Int) -> Void
     let onBadge: () -> Void
 
     @State private var picked: String?
-    @Environment(\.horizontalSizeClass) private var widthClass
     /// The question and the four choices together (measured; they never depend on the photo's height).
     @State private var lowerHeight: CGFloat = 0
     @State private var started: Date = Date()
@@ -528,10 +530,13 @@ struct QuizCard: View {
     /// which this changes).
     private var compact: Bool { (fitHeight ?? 1000) < 460 }
 
-    /// A wide screen (iPhone Duo open, owner 2026-10-25: 「iphone duoで復習モードは左側に撮った画像、右側に４択の選択を
-    /// 表示して」, 10-28 「左側に撮った画像、右に複数の選択肢を並べて」): the photo on the left page, the question and the
-    /// choices on the right, answered or not (the answer sheet then comes up on the right page, `ReviewView`).
-    private var sideBySide: Bool { widthClass == .regular }
+    /// iPhone Duo open and held sideways — the regular width class on a screen wider than tall (owner 2026-10-29:
+    /// 「見開き（横長）で開いたとき…左側取った切り抜き画像、右側に選択肢」): the picture on the left page, the question and the
+    /// choices on the right, answered or not (the answer sheet then comes up on the right page, `ReviewView`). Open and
+    /// upright, the picture above the choices as on the iPhone (「縦にした場合は上に画像、したに選択肢」).
+    static func isSpread(widthClass: UserInterfaceSizeClass?, width: CGFloat, height: CGFloat) -> Bool {
+        widthClass == .regular && width > height && height > 0
+    }
 
     /// The gap between the photo and the choices when side by side: it sits over the fold.
     static let sideGap: CGFloat = 24

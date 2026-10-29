@@ -39,7 +39,9 @@ struct HomeView: View {
 
     var body: some View {
         Group {
-            if widthClass == .regular { bookBody } else { albumScroll }
+            // The book with its diary only while the diary is offered (owner 2026-10-29: not for now); otherwise iPhone
+            // Duo open shows the same vertical album as the iPhone.
+            if widthClass == .regular && DiaryFeature.enabled { bookBody } else { albumScroll }
         }
         .background(HomeBackground())
         // Rearranging the album ends with 「完了」 (web: a fixed button above the tab bar), wherever the board is.
@@ -221,7 +223,7 @@ struct HomeView: View {
                                 onCamera: { router.tab = .camera },
                                 onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
                                 finishRequest: finishEditing,
-                                onDiary: { diaryDay = DiaryDay(day: $0) }
+                                onDiary: DiaryFeature.enabled ? { (day: Date) in diaryDay = DiaryDay(day: day) } : nil
                             )
                             .transition(.opacity)
                         }

@@ -14,20 +14,23 @@ enum UIPreview {
     }
 
     /// The requested scene, parsed once (it sets the display language, so never during a redraw).
-    static let parsed: (scene: String, dark: Bool, duo: Bool)? = requested.map(parse)
+    static let parsed: (scene: String, dark: Bool, duo: Bool, land: Bool)? = requested.map(parse)
 
-    /// "settings-en-dark" → scene "settings", English, dark; "…-duo" → on iPhone Duo's inner screen (`DuoCanvas`). Sets
+    /// "settings-en-dark" → scene "settings", English, dark; "…-duo" → on iPhone Duo's inner screen held upright, "…-duoland"
+    /// → held sideways (`DuoCanvas`). Sets
     /// the display language as a side effect, and puts the per-device choices a scene may set (発音表記, the developer's
     /// trials) back to their defaults first, so one scene's choice never leaks into the next launch on the same simulator.
-    static func parse(_ raw: String) -> (scene: String, dark: Bool, duo: Bool) {
+    static func parse(_ raw: String) -> (scene: String, dark: Bool, duo: Bool, land: Bool) {
         var parts = raw.split(separator: "-").map(String.init)
         var dark = false
         var duo = false
+        var land = false
         var lang = "ja"
         // Any display language's code ("ko", "vi" …; "zh" for zh-TW) picks the language.
         let codes = Set(L10n.supported.filter { !$0.contains("-") } + ["zh"])
-        while let last = parts.last, parts.count > 1, last == "dark" || last == "duo" || codes.contains(last) {
-            if last == "dark" { dark = true } else if last == "duo" { duo = true } else { lang = last == "zh" ? "zh-TW" : last }
+        while let last = parts.last, parts.count > 1, last == "dark" || last == "duo" || last == "duoland" || codes.contains(last) {
+            if last == "dark" { dark = true } else if last == "duo" { duo = true } else if last == "duoland" { duo = true; land = true }
+            else { lang = last == "zh" ? "zh-TW" : last }
             parts.removeLast()
         }
         L10n.lang = lang
@@ -35,7 +38,7 @@ enum UIPreview {
                     "coach.chunkSwap", PaperTone.storageKey, PageRule.storageKey, InkTone.storageKey] + DevChoices.retiredKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
-        return (parts.joined(separator: "-"), dark, duo)
+        return (parts.joined(separator: "-"), dark, duo, land)
     }
 }
 
@@ -76,13 +79,15 @@ extension View {
 #if DEBUG
 struct UIPreviewRoot: View {
     let name: String
-    /// "-duo": the scene on iPhone Duo's inner screen (the regular width class), scaled to the simulator (`DuoCanvas`).
+    /// "-duo": the scene on iPhone Duo's inner screen (the regular width class), scaled to the simulator (`DuoCanvas`);
+    /// "-duoland": the inner screen held sideways.
     var duo: Bool = false
+    var land: Bool = false
     @State private var router = AppRouter()
 
     var body: some View {
         Group {
-            if duo { DuoCanvas { scene } } else { scene }
+            if duo { DuoCanvas(landscape: land) { scene } } else { scene }
         }
         // Scenes that mark a known element of their own (the quiz card, the analysis view, the web-images
         // section) are ready only when that element is up; every other scene when its root appears.
@@ -1116,7 +1121,7 @@ private struct ReviewPreview: View {
     let learning: String
     let answered: Bool
     @Environment(\.horizontalSizeClass) private var widthClass
-    @State private var width: CGFloat = 0
+    @State private var size: CGSize = .zero
 
     private var card: ReviewCard {
         ImageCache.shared.set(PreviewFixtures.photo, for: "preview/review.jpg")
@@ -1159,18 +1164,21 @@ private struct ReviewPreview: View {
             AppBackground()
             ScrollView {
                 // The review's own margins (ReviewView), so the card stands as it does in the app.
-                QuizCard(card: c, choices: choices, percent: 62, isAnswered: answered, onAnswer: { _, _ in }, onBadge: {})
+                QuizCard(card: c, choices: choices, percent: 62, isAnswered: answered, sideBySide: spread,
+                         onAnswer: { _, _ in }, onBadge: {})
                     .padding(.horizontal, 16)
                     .padding(.top, 40)
                     .uiReady("preview")
             }
             if answered {
                 AnswerPanel(sticker: c.sticker, correct: true, onDex: {}, onNext: {})
-                    .answerSheetColumn(wide: widthClass == .regular, width: width)
+                    .answerSheetColumn(wide: spread, width: size.width)
             }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
     }
+
+    private var spread: Bool { QuizCard.isSpread(widthClass: widthClass, width: size.width, height: size.height) }
 }
 
 /// The word page of a catch made in selfie mode (冰火菠蘿油 held up in the selfie), opened on the selfie side: its
@@ -2147,26 +2155,30 @@ private struct DiaryLookBackPreview: View {
 /// system shell), so the inner screen is drawn here instead.
 enum DuoScreen {
     static let inner = CGSize(width: 669, height: 951)
+    /// The inner screen held sideways (owner 2026-10-29: 「見開き（横長）」).
+    static let innerLandscape = CGSize(width: inner.height, height: inner.width)
 }
 
 /// A screen as iPhone Duo's inner display shows it: drawn on its size (`DuoScreen.inner`) in the regular width class
 /// and scaled to the simulator's width (as `SpreadPreview` draws the book).
 private struct DuoCanvas<Content: View>: View {
+    /// The inner screen held sideways (`DuoScreen.innerLandscape`).
+    var landscape: Bool = false
     @ViewBuilder let content: () -> Content
-    private static var canvas: CGSize { DuoScreen.inner }
+    private var canvas: CGSize { landscape ? DuoScreen.innerLandscape : DuoScreen.inner }
 
     var body: some View {
         GeometryReader { geo in
-            let scale = geo.size.width / Self.canvas.width
+            let scale = geo.size.width / canvas.width
             content()
                 .environment(\.horizontalSizeClass, .regular)
                 .environment(\.colorScheme, .light)
                 // The word page sizes its column to its window, which here is the simulator's (narrower) one.
-                .environment(\.pageWidthOverride, Self.canvas.width)
-                .frame(width: Self.canvas.width, height: Self.canvas.height)
+                .environment(\.pageWidthOverride, canvas.width)
+                .frame(width: canvas.width, height: canvas.height)
                 .clipped()
                 .scaleEffect(scale, anchor: .topLeading)
-                .frame(width: geo.size.width, height: Self.canvas.height * scale, alignment: .topLeading)
+                .frame(width: geo.size.width, height: canvas.height * scale, alignment: .topLeading)
                 .frame(maxHeight: .infinity)
         }
         .background(Color.black)

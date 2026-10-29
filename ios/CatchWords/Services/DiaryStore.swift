@@ -192,6 +192,12 @@ nonisolated struct DiaryCorrection: Decodable, Sendable, Hashable {
     }
 }
 
+/// Whether the diary is offered: the book's spread, the day's diary page, 振り返る, 添削 and 「日記」 on the home's days.
+/// Off for now (owner 2026-10-29: 「日記の機能は一旦対応させない。今すでにある機能だけに絞る」); the code stays.
+enum DiaryFeature {
+    static let enabled = false
+}
+
 /// The diary pages this account has opened (`journal_entries`), a month at a time; what is typed is kept here at once
 /// and saved a moment after the typing stops (`saveMyDiary`). One per app (`shared`): the home's spread, its sheet and
 /// the previews read the same pages.

@@ -8,6 +8,8 @@ final class PreviewUIView: UIView {
 
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    /// Turns the preview with the screen (`CameraService.attach`).
+    var camera: CameraService? = nil
     var onTap: (CGPoint, CGPoint) -> Void
 
     func makeUIView(context: Context) -> PreviewUIView {
@@ -15,6 +17,7 @@ struct CameraPreview: UIViewRepresentable {
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         view.backgroundColor = .black
+        camera?.attach(view.previewLayer)
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
         view.addGestureRecognizer(tap)
         return view
