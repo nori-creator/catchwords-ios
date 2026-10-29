@@ -9015,13 +9015,6 @@
   "ko": "정답 확인",
   "vi": "Xem đáp án"
  },
- "このことばを深く知るための項目。": {
-  "en": "A section for getting to know this word better.",
-  "zh-TW": "深入了解這個詞的項目。",
-  "es": "Una sección para conocer mejor esta palabra.",
-  "ko": "이 단어를 더 깊이 알기 위한 항목이에요.",
-  "vi": "Mục để hiểu sâu hơn về từ này."
- },
  "チュートリアルを始める": {
   "en": "Start the tutorial",
   "zh-TW": "開始教學",
@@ -9036,20 +9029,6 @@
   "ko": "눈앞에 있는 물건을 한 장 찍어 보세요",
   "vi": "Hãy chụp một thứ ngay trước mặt bạn"
  },
- "自分で撮った写真だから、思い出しやすい。": {
-  "en": "It's your own photo, so it's easier to remember.",
-  "zh-TW": "是自己拍的照片，所以更容易想起來。",
-  "es": "Es tu propia foto, así que es más fácil recordarla.",
-  "ko": "직접 찍은 사진이라 떠올리기 쉬워요.",
-  "vi": "Là ảnh tự chụp nên dễ nhớ lại hơn."
- },
- "身のまわりが、\nあなたの単語帳に。": {
-  "en": "Everything around you\nbecomes your word list.",
-  "zh-TW": "身邊的一切，\n都是你的單字本。",
-  "es": "Todo lo que te rodea,\nen tu vocabulario.",
-  "ko": "내 주변의 모든 것이\n나만의 단어장으로.",
-  "vi": "Mọi thứ quanh bạn\ntrở thành sổ từ vựng."
- },
  "あとで始める": {
   "en": "Start later",
   "zh-TW": "稍後再開始",
@@ -9063,13 +9042,6 @@
   "es": "Ejemplo",
   "ko": "샘플",
   "vi": "Mẫu"
- },
- "1語1枚のカードになります": {
-  "en": "Each word becomes its own card",
-  "zh-TW": "每個詞都會變成一張卡片",
-  "es": "Cada palabra se convierte en una tarjeta",
-  "ko": "단어 하나가 카드 한 장이 됩니다",
-  "vi": "Mỗi từ trở thành một thẻ riêng"
  },
  "TOCFLを受けたことがない、よく知らない": {
   "en": "Never taken TOCFL, or not sure",
@@ -9092,54 +9064,12 @@
   "ko": "첫 단어를 열어 보세요",
   "vi": "Mở từ đầu tiên của bạn"
  },
- "あなたの単語帳に入れよう": {
-  "en": "Add it to your wordbook",
-  "zh-TW": "放進你的單字本",
-  "es": "Añádela a tu cuaderno de palabras",
-  "ko": "내 단어장에 넣어요",
-  "vi": "Thêm vào sổ từ của bạn"
- },
  "いまのレベルと目標に、例文やチャンクの難しさを合わせます。あとから設定で変更できます。": {
   "en": "Examples and chunks are matched to your level now and your goal. You can change this later in Settings.",
   "zh-TW": "例句和組塊的難度會配合你現在的程度和目標。之後可以在設定裡更改。",
   "es": "Los ejemplos y expresiones se ajustan a tu nivel actual y a tu meta. Puedes cambiarlo después en Ajustes.",
   "ko": "예문과 표현의 난이도를 지금 레벨과 목표에 맞춥니다. 나중에 설정에서 바꿀 수 있어요.",
   "vi": "Ví dụ và cụm từ sẽ theo trình độ hiện tại và mục tiêu của bạn. Có thể đổi sau trong Cài đặt."
- },
- "ここから、あなたのことばが増えていきます。": {
-  "en": "From here, your words keep growing.",
-  "zh-TW": "從這裡開始，你的詞彙會越來越多。",
-  "es": "A partir de aquí, tus palabras no dejan de crecer.",
-  "ko": "여기서부터 내 단어가 늘어 갑니다.",
-  "vi": "Từ đây, vốn từ của bạn sẽ ngày càng nhiều."
- },
- "このことばは、いつ忘れそう？": {
-  "en": "When might you forget this word?",
-  "zh-TW": "這個詞，什麼時候會忘？",
-  "es": "¿Cuándo podrías olvidar esta palabra?",
-  "ko": "이 단어, 언제쯤 잊을까요?",
-  "vi": "Từ này, khi nào bạn có thể quên?"
- },
- "この写真のことばは、どれ？": {
-  "en": "Which word is this photo?",
-  "zh-TW": "這張照片是哪個詞？",
-  "es": "¿Qué palabra es esta foto?",
-  "ko": "이 사진의 단어는 어느 것일까요?",
-  "vi": "Ảnh này là từ nào?"
- },
- "さあ、ことばを集めよう": {
-  "en": "Now go collect words",
-  "zh-TW": "開始收集詞彙吧",
-  "es": "Ahora, a coleccionar palabras",
-  "ko": "자, 단어를 모아 볼까요",
-  "vi": "Nào, đi thu thập từ thôi"
- },
- "まずはここだけ。意味を短く。": {
-  "en": "Start here: the meaning, in short.",
-  "zh-TW": "先看這裡就好：簡短的意思。",
-  "es": "Empieza aquí: el significado, en corto.",
-  "ko": "우선 여기만. 뜻을 짧게.",
-  "vi": "Bắt đầu từ đây: nghĩa, thật ngắn gọn."
  },
  "アカウントをお持ちの方は": {
   "en": "Already have an account?",
@@ -9148,103 +9078,12 @@
   "ko": "이미 계정이 있다면",
   "vi": "Đã có tài khoản?"
  },
- "チャンクを使った例文。音声でそのまま聞けます。": {
-  "en": "Sentences using the chunk. Hear them read aloud.",
-  "zh-TW": "用組塊造的例句，可以直接聽發音。",
-  "es": "Frases con la expresión. Escúchalas en voz alta.",
-  "ko": "표현을 쓴 예문. 그대로 음성으로 들을 수 있어요.",
-  "vi": "Câu ví dụ dùng cụm từ. Nghe đọc ngay được."
- },
- "ネイティブがよく使う組み合わせ。この形のまま覚えると、すぐ使えます。": {
-  "en": "Combinations natives really use. Learn the shape and you can say it right away.",
-  "zh-TW": "母語者常用的搭配。照這個形式記，馬上就能用。",
-  "es": "Combinaciones que usan los nativos. Apréndelas tal cual y las usarás enseguida.",
-  "ko": "원어민이 자주 쓰는 조합. 이 형태 그대로 외우면 바로 쓸 수 있어요.",
-  "vi": "Cách kết hợp người bản xứ hay dùng. Nhớ nguyên dạng là dùng được ngay."
- },
- "ネイティブの発音です。声に出すと、記憶に残ります。": {
-  "en": "A native speaker's voice. Say it aloud and it sticks.",
-  "zh-TW": "母語者的發音。跟著唸出來，記得更牢。",
-  "es": "Pronunciación nativa. Dilo en voz alta y se te quedará.",
-  "ko": "원어민 발음이에요. 소리 내어 말하면 기억에 남아요.",
-  "vi": "Giọng người bản xứ. Nói thành tiếng sẽ nhớ lâu."
- },
- "一緒に覚えると、使える場面が広がります。": {
-  "en": "Learn them together and you can use the word in more places.",
-  "zh-TW": "一起記，能用的場合更多。",
-  "es": "Apréndelas juntas y podrás usarlas en más situaciones.",
-  "ko": "함께 외우면 쓸 수 있는 상황이 넓어져요.",
-  "vi": "Học cùng nhau, bạn dùng được trong nhiều tình huống hơn."
- },
  "今の実力に近いレベルを選んでください。": {
   "en": "Pick the level closest to where you are now.",
   "zh-TW": "請選最接近你目前實力的等級。",
   "es": "Elige el nivel más cercano al tuyo ahora.",
   "ko": "지금 실력에 가장 가까운 레벨을 골라 주세요.",
   "vi": "Chọn trình độ gần nhất với bạn hiện nay."
- },
- "今日のアルバムに貼られました": {
-  "en": "Pasted on today's album",
-  "zh-TW": "貼到今天的相簿了",
-  "es": "Pegada en el álbum de hoy",
-  "ko": "오늘의 앨범에 붙었어요",
-  "vi": "Đã dán vào album hôm nay"
- },
- "写っている物に、台湾での呼び方が付きました。": {
-  "en": "What's in the photo now has its Taiwanese name.",
-  "zh-TW": "照片裡的東西，有了台灣的說法。",
-  "es": "Lo que sale en la foto ya tiene su nombre en Taiwán.",
-  "ko": "사진 속 물건에 대만에서 부르는 이름이 붙었어요.",
-  "vi": "Thứ trong ảnh đã có tên gọi ở Đài Loan."
- },
- "出会った場所も、残ります": {
-  "en": "Where you met it is kept too",
-  "zh-TW": "遇到它的地點也會留下",
-  "es": "También se guarda dónde la encontraste",
-  "ko": "만난 장소도 남아요",
-  "vi": "Nơi bạn gặp nó cũng được lưu"
- },
- "分類ごとに、集まり具合が見えます": {
-  "en": "See how each category fills up",
-  "zh-TW": "看每個分類收集了多少",
-  "es": "Mira cómo se llena cada categoría",
-  "ko": "분류별로 얼마나 모았는지 보여요",
-  "vi": "Xem mỗi nhóm đã đầy đến đâu"
- },
- "切り抜きが、日付ごとに残ります。あとで見返せます。": {
-  "en": "The cut-out is kept by date. Come back to it any time.",
-  "zh-TW": "切下的圖會按日期保存，隨時可以回頭看。",
-  "es": "El recorte se guarda por fecha. Vuelve a verlo cuando quieras.",
-  "ko": "잘라 낸 사진이 날짜별로 남아요. 나중에 다시 볼 수 있어요.",
-  "vi": "Hình cắt được lưu theo ngày. Xem lại bất cứ lúc nào."
- },
- "動画や検索で、本当に使われているか確かめられます。": {
-  "en": "Check in videos and searches that it's really used.",
-  "zh-TW": "從影片和搜尋確認它真的有人在用。",
-  "es": "Comprueba en vídeos y búsquedas que de verdad se usa.",
-  "ko": "영상과 검색으로 실제로 쓰이는지 확인할 수 있어요.",
-  "vi": "Kiểm tra qua video và tìm kiếm xem từ có thật sự được dùng."
- },
- "台湾ならではの言い方や習慣。": {
-  "en": "Sayings and habits you'll only find in Taiwan.",
-  "zh-TW": "台灣特有的說法和習慣。",
-  "es": "Expresiones y costumbres propias de Taiwán.",
-  "ko": "대만만의 표현과 습관.",
-  "vi": "Cách nói và thói quen riêng của Đài Loan."
- },
- "名前を知らなくて大丈夫。アプリが見つけます。": {
-  "en": "No need to know its name. The app finds it.",
-  "zh-TW": "不知道名字也沒關係，App 會幫你找。",
-  "es": "No hace falta saber su nombre. La app lo encuentra.",
-  "ko": "이름을 몰라도 괜찮아요. 앱이 찾아 줍니다.",
-  "vi": "Không cần biết tên. Ứng dụng sẽ tìm giúp bạn."
- },
- "場所と一緒に覚えると、思い出しやすくなります。": {
-  "en": "Remember the place and the word comes back easier.",
-  "zh-TW": "連著地點一起記，更容易想起來。",
-  "es": "Si recuerdas el lugar, la palabra vuelve más fácil.",
-  "ko": "장소와 함께 외우면 더 잘 떠올라요.",
-  "vi": "Nhớ cùng địa điểm, từ sẽ dễ nhớ lại hơn."
  },
  "専門用語の混じった講演や放送も聞き取れる": {
   "en": "Can follow talks and broadcasts with rare technical terms",
@@ -9260,61 +9099,12 @@
   "ko": "전문적인 내용도 유창하게 주고받을 수 있다",
   "vi": "Trao đổi trôi chảy cả nội dung chuyên môn"
  },
- "左右にめくるだけで、思い出す練習になります。": {
-  "en": "Flipping through is already recall practice.",
-  "zh-TW": "左右翻一翻，就是在練習回想。",
-  "es": "Solo con pasarlas ya practicas recordar.",
-  "ko": "좌우로 넘기기만 해도 떠올리는 연습이 돼요.",
-  "vi": "Chỉ lật qua lại cũng là luyện nhớ lại."
- },
  "幅広い話題で、要点をつかんで話せる": {
   "en": "Can grasp the main points and talk on a wide range of topics",
   "zh-TW": "多種話題都能掌握重點並交談",
   "es": "Capta lo esencial y conversa sobre temas variados",
   "ko": "폭넓은 주제에서 요점을 잡아 말할 수 있다",
   "vi": "Nắm được ý chính và nói về nhiều chủ đề"
- },
- "影は、まだ出会っていない物": {
-  "en": "Shadows are things you haven't met yet",
-  "zh-TW": "影子是你還沒遇到的東西",
-  "es": "Las sombras son cosas que aún no has encontrado",
-  "ko": "그림자는 아직 만나지 않은 물건",
-  "vi": "Bóng là những thứ bạn chưa gặp"
- },
- "影を埋めていこう。影にない物も、何でもキャッチできます。": {
-  "en": "Fill the shadows in. Things without a shadow can be caught too.",
-  "zh-TW": "把影子一個個填滿吧。不在影子裡的東西也能捕捉。",
-  "es": "Ve llenando las sombras. Lo que no tiene sombra también se puede atrapar.",
-  "ko": "그림자를 채워 가요. 그림자에 없는 것도 뭐든 잡을 수 있어요.",
-  "vi": "Lấp đầy các bóng. Thứ không có bóng cũng bắt được."
- },
- "忘れかける頃にお知らせ。復習は、必要な分だけ。": {
-  "en": "We'll nudge you just before you forget. Only the review you need.",
-  "zh-TW": "快忘記時提醒你，複習只做需要的量。",
-  "es": "Te avisamos justo antes de olvidar. Solo el repaso necesario.",
-  "ko": "잊을 때쯤 알려 드려요. 복습은 필요한 만큼만.",
-  "vi": "Nhắc bạn ngay trước khi quên. Ôn đúng phần cần thiết."
- },
- "撮りたい物を、画面の真ん中に": {
-  "en": "Put what you want in the middle of the screen",
-  "zh-TW": "把想拍的東西放在畫面中間",
-  "es": "Pon lo que quieras en el centro de la pantalla",
-  "ko": "찍고 싶은 물건을 화면 가운데에",
-  "vi": "Đưa thứ bạn muốn chụp vào giữa màn hình"
- },
- "撮るたびに、あなたの単語帳が育ちます。": {
-  "en": "Every photo grows your wordbook.",
-  "zh-TW": "每拍一張，你的單字本就長大一點。",
-  "es": "Cada foto hace crecer tu cuaderno de palabras.",
-  "ko": "찍을 때마다 내 단어장이 자라요.",
-  "vi": "Mỗi tấm ảnh, sổ từ của bạn lại lớn thêm."
- },
- "数えるときの言い方。注文のときに役立ちます。": {
-  "en": "How to count it. Handy when you order.",
-  "zh-TW": "數數時的說法，點餐時很好用。",
-  "es": "Cómo contarlo. Útil al pedir.",
-  "ko": "셀 때 쓰는 말. 주문할 때 도움이 돼요.",
-  "vi": "Cách đếm. Hữu ích khi gọi món."
  },
  "数字や基本の単語、短く簡単な文がわかる": {
   "en": "Understands numbers, basic words and short simple sentences",
@@ -9344,34 +9134,6 @@
   "ko": "목표로 하는 레벨을 골라 주세요.",
   "vi": "Chọn trình độ bạn muốn đạt tới."
  },
- "聞いて、声に出してみよう": {
-  "en": "Listen, then say it out loud",
-  "zh-TW": "聽一聽，再唸出來",
-  "es": "Escucha y dilo en voz alta",
-  "ko": "듣고, 소리 내어 말해 보세요",
-  "vi": "Nghe rồi nói thành tiếng"
- },
- "見せ方は、あなた好みに": {
-  "en": "Show it the way you like",
-  "zh-TW": "顯示方式，照你的喜好",
-  "es": "Muéstralo a tu manera",
-  "ko": "보기 방식은 내 취향대로",
-  "vi": "Hiển thị theo cách bạn thích"
- },
- "見たい項目と順番、文字の大きさ、発音の速さをここで。": {
-  "en": "The sections, their order, text size and speech speed, all here.",
-  "zh-TW": "要看的項目和順序、字的大小、發音速度，都在這裡。",
-  "es": "Las secciones, su orden, el tamaño del texto y la velocidad de la voz, todo aquí.",
-  "ko": "보고 싶은 항목과 순서, 글자 크기, 발음 속도를 여기서.",
-  "vi": "Mục hiển thị, thứ tự, cỡ chữ, tốc độ đọc, tất cả ở đây."
- },
- "覚えたいことばを1つ選ぼう": {
-  "en": "Pick one word to learn",
-  "zh-TW": "選一個想記的詞",
-  "es": "Elige una palabra para aprender",
-  "ko": "외우고 싶은 단어를 하나 고르세요",
-  "vi": "Chọn một từ bạn muốn học"
- },
  "身近な話題なら、文脈から内容がつかめる": {
   "en": "Follows familiar topics from context",
   "zh-TW": "熟悉的話題能從語境掌握內容",
@@ -9386,27 +9148,6 @@
   "ko": "선택해 주세요",
   "vi": "Hãy chọn"
  },
- "間違えても大丈夫。解説を読めば、次は思い出せます。": {
-  "en": "Wrong is fine. Read the note and you'll get it next time.",
-  "zh-TW": "答錯也沒關係，看過解說下次就想得起來。",
-  "es": "No pasa nada si fallas. Lee la nota y la próxima la recordarás.",
-  "ko": "틀려도 괜찮아요. 해설을 읽으면 다음엔 떠올라요.",
-  "vi": "Sai cũng không sao. Đọc giải thích, lần sau sẽ nhớ."
- },
- "集めたことばは、図鑑へ": {
-  "en": "Your words go to the collection",
-  "zh-TW": "收集的詞都在圖鑑裡",
-  "es": "Tus palabras van a la colección",
-  "ko": "모은 단어는 도감으로",
-  "vi": "Từ đã thu thập vào bộ sưu tập"
- },
- "飲み物、料理…。集めるほど、得意な分野が分かります。": {
-  "en": "Drinks, food… The more you collect, the clearer your strong areas.",
-  "zh-TW": "飲料、料理……收集越多，越知道自己擅長哪一類。",
-  "es": "Bebidas, comida… Cuanto más reúnes, más claro ves tus puntos fuertes.",
-  "ko": "음료, 요리… 모을수록 잘하는 분야가 보여요.",
-  "vi": "Đồ uống, món ăn… Càng thu thập, càng rõ bạn mạnh ở mảng nào."
- },
  "TOCFLのレベルを\n教えてください": {
   "en": "Tell us your\nTOCFL level",
   "zh-TW": "請告訴我們\n你的 TOCFL 等級",
@@ -9414,11 +9155,270 @@
   "ko": "TOCFL 레벨을\n알려 주세요",
   "vi": "Cho chúng tôi biết\ntrình độ TOCFL của bạn"
  },
- "撮るだけで、ことばが集まる。\nまずは1分、試してみよう。": {
-  "en": "Just shoot, and words pile up.\nGive it one minute.",
-  "zh-TW": "拍一拍，詞彙就會累積。\n先試一分鐘看看。",
-  "es": "Solo con fotografiar, las palabras se acumulan.\nPrueba un minuto.",
-  "ko": "찍기만 하면 단어가 모여요.\n우선 1분만 해 보세요.",
-  "vi": "Chỉ cần chụp, từ sẽ tích lũy.\nThử một phút xem."
+ "撮るだけで、\n単語が覚えられる": {
+  "en": "Just take a photo\nand learn the word",
+  "zh-TW": "拍一下，\n就能記住單字",
+  "es": "Haz una foto\ny aprende la palabra",
+  "ko": "찍기만 하면\n단어가 외워져요",
+  "vi": "Chỉ cần chụp\nlà nhớ được từ"
+ },
+ "物を撮ると、台湾華語の名前と発音が出ます。\nまずは1枚、撮ってみよう。": {
+  "en": "Photograph a thing to see its Taiwanese Mandarin name and hear it.\nStart with one photo.",
+  "zh-TW": "拍下東西，就會出現它的台灣華語名稱和發音。\n先拍一張看看吧。",
+  "es": "Haz una foto y verás su nombre en chino mandarín de Taiwán y cómo se pronuncia.\nEmpieza con una.",
+  "ko": "물건을 찍으면 대만 중국어 이름과 발음이 나와요.\n먼저 한 장 찍어 보세요.",
+  "vi": "Chụp một đồ vật để thấy tên tiếng Hoa Đài Loan và cách đọc.\nHãy thử chụp một tấm."
+ },
+ "物を画面に入れて、シャッター": {
+  "en": "Frame the thing, then take the shot",
+  "zh-TW": "把東西放進畫面，按下快門",
+  "es": "Encuadra el objeto y dispara",
+  "ko": "물건을 화면에 넣고 셔터",
+  "vi": "Đưa đồ vật vào khung rồi bấm chụp"
+ },
+ "名前を知らない物でも大丈夫です。": {
+  "en": "It's fine if you don't know its name.",
+  "zh-TW": "不知道名稱的東西也沒關係。",
+  "es": "No pasa nada si no sabes cómo se llama.",
+  "ko": "이름을 몰라도 괜찮아요.",
+  "vi": "Không biết tên cũng không sao."
+ },
+ "写った物に、名前が付きました": {
+  "en": "Everything in the photo got a name",
+  "zh-TW": "照到的東西都有名稱了",
+  "es": "Lo que sale en la foto ya tiene nombre",
+  "ko": "찍힌 물건에 이름이 붙었어요",
+  "vi": "Đồ vật trong ảnh đã có tên"
+ },
+ "覚えたい物を1つ選んでください。": {
+  "en": "Choose one you want to learn.",
+  "zh-TW": "請選一個想記住的東西。",
+  "es": "Elige una que quieras aprender.",
+  "ko": "외우고 싶은 것을 하나 고르세요.",
+  "vi": "Hãy chọn một thứ bạn muốn nhớ."
+ },
+ "発音を聞いて、まねしてみよう": {
+  "en": "Listen, then say it yourself",
+  "zh-TW": "聽聽發音，跟著唸唸看",
+  "es": "Escucha y repítelo",
+  "ko": "발음을 듣고 따라 해 보세요",
+  "vi": "Nghe phát âm rồi đọc theo"
+ },
+ "声に出すと、覚えやすくなります。": {
+  "en": "Saying it out loud helps it stick.",
+  "zh-TW": "唸出聲來，比較容易記住。",
+  "es": "Decirlo en voz alta ayuda a recordarlo.",
+  "ko": "소리 내어 말하면 더 잘 외워져요.",
+  "vi": "Đọc thành tiếng sẽ dễ nhớ hơn."
+ },
+ "図鑑に入れよう": {
+  "en": "Add it to your Collection",
+  "zh-TW": "放進圖鑑吧",
+  "es": "Añádela a tu colección",
+  "ko": "도감에 넣어 보세요",
+  "vi": "Thêm vào bộ sưu tập"
+ },
+ "これで1語目が保存されます。": {
+  "en": "That saves your first word.",
+  "zh-TW": "這樣第一個單字就存好了。",
+  "es": "Así se guarda tu primera palabra.",
+  "ko": "이렇게 첫 단어가 저장돼요.",
+  "vi": "Vậy là từ đầu tiên đã được lưu."
+ },
+ "勉強の記録が、そのままアルバムに": {
+  "en": "Your study log becomes an album",
+  "zh-TW": "學習紀錄直接變成相簿",
+  "es": "Tu registro de estudio se convierte en un álbum",
+  "ko": "공부 기록이 그대로 앨범으로",
+  "vi": "Nhật ký học trở thành album"
+ },
+ "いつ何を覚えたか、ひと目で分かります。": {
+  "en": "See at a glance what you learned and when.",
+  "zh-TW": "什麼時候記了什麼，一眼就知道。",
+  "es": "Ve de un vistazo qué aprendiste y cuándo.",
+  "ko": "언제 무엇을 외웠는지 한눈에 보여요.",
+  "vi": "Nhìn là biết bạn đã học gì, lúc nào."
+ },
+ "集めた単語は、図鑑にあります": {
+  "en": "Your words are in the Collection",
+  "zh-TW": "收集的單字都在圖鑑裡",
+  "es": "Tus palabras están en la colección",
+  "ko": "모은 단어는 도감에 있어요",
+  "vi": "Từ đã thu thập nằm trong bộ sưu tập"
+ },
+ "自分の写真が、単語カードになる": {
+  "en": "Your own photos become word cards",
+  "zh-TW": "自己的照片變成單字卡",
+  "es": "Tus propias fotos se convierten en tarjetas",
+  "ko": "내 사진이 단어 카드가 돼요",
+  "vi": "Ảnh của bạn thành thẻ từ"
+ },
+ "自分で撮った物は、思い出しやすい。": {
+  "en": "Things you photographed yourself are easier to recall.",
+  "zh-TW": "自己拍的東西比較容易想起來。",
+  "es": "Lo que fotografías tú mismo se recuerda mejor.",
+  "ko": "직접 찍은 건 떠올리기 쉬워요.",
+  "vi": "Thứ tự mình chụp sẽ dễ nhớ lại hơn."
+ },
+ "単語が、思い出の場所と結びつく": {
+  "en": "Words tied to the places you were",
+  "zh-TW": "單字和回憶中的地方連在一起",
+  "es": "Las palabras quedan unidas a los lugares",
+  "ko": "단어가 추억의 장소와 이어져요",
+  "vi": "Từ gắn với những nơi bạn đã đến"
+ },
+ "街や旅先で覚えた単語が、地図に残ります。": {
+  "en": "Words you learned around town or on trips stay on the map.",
+  "zh-TW": "在街上或旅途中記住的單字，都留在地圖上。",
+  "es": "Las palabras que aprendiste en la ciudad o de viaje quedan en el mapa.",
+  "ko": "거리나 여행지에서 외운 단어가 지도에 남아요.",
+  "vi": "Từ học được ngoài phố hay khi đi du lịch được lưu trên bản đồ."
+ },
+ "分類ごとに、集めた数が分かります": {
+  "en": "See how many you have in each category",
+  "zh-TW": "每個分類收集了多少，一看就知道",
+  "es": "Mira cuántas tienes en cada categoría",
+  "ko": "분류별로 모은 수를 알 수 있어요",
+  "vi": "Xem số từ đã thu thập theo từng nhóm"
+ },
+ "飲み物・料理など、種類ごとに並びます。": {
+  "en": "Drinks, dishes and more, each in its own group.",
+  "zh-TW": "飲料、料理等，按種類排好。",
+  "es": "Bebidas, platos y más, cada uno en su grupo.",
+  "ko": "음료, 요리 등 종류별로 나뉘어 있어요.",
+  "vi": "Đồ uống, món ăn… được xếp theo từng loại."
+ },
+ "影を埋めるほど、言える物が増える": {
+  "en": "Every shadow you fill is one more thing you can say",
+  "zh-TW": "填滿越多影子，能說的東西就越多",
+  "es": "Cada sombra que llenas es algo más que sabes decir",
+  "ko": "그림자를 채울수록 말할 수 있는 게 늘어요",
+  "vi": "Lấp càng nhiều bóng, càng nói được nhiều thứ"
+ },
+ "影にない物も、何でもキャッチできます。": {
+  "en": "You can catch anything, even things with no shadow.",
+  "zh-TW": "不在影子裡的東西也都能捕捉。",
+  "es": "También puedes atrapar lo que no tiene sombra.",
+  "ko": "그림자에 없는 것도 뭐든 잡을 수 있어요.",
+  "vi": "Thứ không có bóng cũng bắt được."
+ },
+ "この単語の意味です。まずはここだけ読めばOK。": {
+  "en": "The word's meaning. Reading just this is enough to start.",
+  "zh-TW": "這個單字的意思。先看這裡就好。",
+  "es": "El significado de la palabra. Para empezar, basta con esto.",
+  "ko": "이 단어의 뜻이에요. 우선 여기만 읽으면 돼요.",
+  "vi": "Nghĩa của từ. Lúc đầu chỉ cần đọc phần này."
+ },
+ "よく一緒に使う組み合わせ。このまま覚えると、すぐ使えます。": {
+  "en": "Words often used together. Learn them as they are and use them right away.",
+  "zh-TW": "常一起用的搭配。照這樣記住，馬上就能用。",
+  "es": "Combinaciones que se usan juntas. Apréndelas tal cual y úsalas enseguida.",
+  "ko": "자주 함께 쓰는 조합이에요. 그대로 외우면 바로 쓸 수 있어요.",
+  "vi": "Những từ hay dùng cùng nhau. Nhớ nguyên cụm là dùng được ngay."
+ },
+ "上の組み合わせを使った文です。音声も聞けます。": {
+  "en": "Sentences using the combinations above. You can listen to them too.",
+  "zh-TW": "用上面搭配造的句子，也能聽發音。",
+  "es": "Frases con las combinaciones de arriba. También puedes escucharlas.",
+  "ko": "위 조합을 쓴 문장이에요. 음성도 들을 수 있어요.",
+  "vi": "Câu dùng các cụm ở trên. Có thể nghe cả âm thanh."
+ },
+ "数えるときの言い方です。": {
+  "en": "How to count it.",
+  "zh-TW": "數數量時的說法。",
+  "es": "Cómo se cuenta.",
+  "ko": "셀 때 쓰는 말이에요.",
+  "vi": "Cách nói khi đếm."
+ },
+ "一緒に覚えると便利な単語です。": {
+  "en": "Useful words to learn alongside it.",
+  "zh-TW": "一起記會很方便的單字。",
+  "es": "Palabras útiles para aprender junto con esta.",
+  "ko": "함께 외우면 편리한 단어예요.",
+  "vi": "Những từ nên học cùng."
+ },
+ "台湾ならではの言い方や習慣です。": {
+  "en": "Expressions and customs particular to Taiwan.",
+  "zh-TW": "台灣特有的說法和習慣。",
+  "es": "Expresiones y costumbres propias de Taiwán.",
+  "ko": "대만 특유의 표현과 습관이에요.",
+  "vi": "Cách nói và phong tục riêng của Đài Loan."
+ },
+ "動画や検索で、本当の使われ方を見られます。": {
+  "en": "See how it is really used, in videos and searches.",
+  "zh-TW": "從影片和搜尋，看看實際怎麼用。",
+  "es": "Mira cómo se usa de verdad, en vídeos y búsquedas.",
+  "ko": "영상과 검색으로 실제로 어떻게 쓰이는지 볼 수 있어요.",
+  "vi": "Xem cách dùng thực tế qua video và tìm kiếm."
+ },
+ "この単語を深く知るための項目です。": {
+  "en": "A section for knowing this word better.",
+  "zh-TW": "更深入了解這個單字的項目。",
+  "es": "Una sección para conocer mejor esta palabra.",
+  "ko": "이 단어를 더 깊이 알기 위한 항목이에요.",
+  "vi": "Mục để hiểu sâu hơn về từ này."
+ },
+ "表示する項目と順番を変えられます": {
+  "en": "Change which sections show, and their order",
+  "zh-TW": "可以改變要顯示的項目和順序",
+  "es": "Cambia qué secciones se ven y su orden",
+  "ko": "표시할 항목과 순서를 바꿀 수 있어요",
+  "vi": "Đổi các mục hiển thị và thứ tự"
+ },
+ "文字の大きさ・発音の速さも、ここで変えられます。": {
+  "en": "Text size and speech speed are here too.",
+  "zh-TW": "字的大小和發音速度也能在這裡改。",
+  "es": "El tamaño del texto y la velocidad de la voz, también aquí.",
+  "ko": "글자 크기와 발음 속도도 여기서 바꿀 수 있어요.",
+  "vi": "Cỡ chữ và tốc độ đọc cũng đổi ở đây."
+ },
+ "自分の写真で、復習する": {
+  "en": "Review with your own photos",
+  "zh-TW": "用自己的照片複習",
+  "es": "Repasa con tus propias fotos",
+  "ko": "내 사진으로 복습해요",
+  "vi": "Ôn tập bằng ảnh của chính bạn"
+ },
+ "見覚えのある写真だから、思い出しやすい。": {
+  "en": "You've seen these photos before, so the words come back easily.",
+  "zh-TW": "是看過的照片，所以比較容易想起來。",
+  "es": "Ya conoces las fotos, así que recuerdas mejor.",
+  "ko": "본 적 있는 사진이라 떠올리기 쉬워요.",
+  "vi": "Ảnh quen thuộc nên dễ nhớ lại."
+ },
+ "間違えても、解説を読めば大丈夫です。": {
+  "en": "Got it wrong? Read the explanation and you'll be fine.",
+  "zh-TW": "答錯了也沒關係，看看解說就好。",
+  "es": "Si fallas, lee la explicación y listo.",
+  "ko": "틀려도 해설을 읽으면 괜찮아요.",
+  "vi": "Sai cũng không sao, đọc giải thích là được."
+ },
+ "この単語の覚え具合です": {
+  "en": "How well you remember this word",
+  "zh-TW": "這個單字記得多牢",
+  "es": "Qué tan bien recuerdas esta palabra",
+  "ko": "이 단어를 얼마나 기억하는지예요",
+  "vi": "Mức độ bạn nhớ từ này"
+ },
+ "忘れそうな頃に、復習をお知らせします。": {
+  "en": "We'll remind you to review just as you're about to forget.",
+  "zh-TW": "快忘記的時候，會提醒你複習。",
+  "es": "Te avisaremos para repasar justo cuando estés por olvidarla.",
+  "ko": "잊을 때쯤 복습을 알려 드려요.",
+  "vi": "Sắp quên thì chúng tôi sẽ nhắc bạn ôn tập."
+ },
+ "準備完了。\nあとは撮るだけ": {
+  "en": "You're all set.\nNow just take photos",
+  "zh-TW": "準備好了。\n接下來只要拍就好",
+  "es": "Todo listo.\nAhora solo haz fotos",
+  "ko": "준비 완료.\n이제 찍기만 하면 돼요",
+  "vi": "Đã sẵn sàng.\nGiờ chỉ cần chụp"
+ },
+ "撮るたびに、あなただけの単語帳が育ちます。": {
+  "en": "Every photo grows a wordbook that is yours alone.",
+  "zh-TW": "每拍一張，專屬你的單字本就長大一點。",
+  "es": "Cada foto hace crecer un cuaderno de palabras solo tuyo.",
+  "ko": "찍을 때마다 나만의 단어장이 자라요.",
+  "vi": "Mỗi tấm ảnh, sổ từ vựng riêng của bạn lại lớn thêm."
  }
 }

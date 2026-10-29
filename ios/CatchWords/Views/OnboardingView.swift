@@ -385,12 +385,12 @@ struct OnboardingView: View {
                         .staggerIn(shown, delay: 0.25, distance: 6)
                 }
             }
-            RevealHeadline(marked: L("身のまわりが、\nあなたの単語帳に。"), size: 28, delay: 0.35)
+            RevealHeadline(marked: L("撮るだけで、\n単語が覚えられる"), size: 28, delay: 0.35)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 24)
                 .padding(.top, 14)
             Appearing { shown in
-                Text(L("撮るだけで、ことばが集まる。\nまずは1分、試してみよう。"))
+                Text(L("物を撮ると、台湾華語の名前と発音が出ます。\nまずは1枚、撮ってみよう。"))
                     .scaledFont(size: 15).foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
