@@ -185,10 +185,13 @@ struct ReviewView: View {
         .task(id: router.tour.isReview && practiceCards.isEmpty) {
             if router.tour.isReview && practiceCards.isEmpty { router.tourFinish() }
         }
-        // The tour's last look: the word just practised, on its forgetting curve (owner 2026-10-28: 「その単語の記憶の
-        // 状態が忘却曲線のグラフを表示して…最適な復習のタイミングが分かる」). It closes when the tour moves on.
+        // The tour's last look: a forgetting curve (owner 2026-10-28: 「その単語の記憶の状態が忘却曲線のグラフを表示して…
+        // 最適な復習のタイミングが分かる」). The sample word's, when the account has it: its story of three reviews shows
+        // the curve back at 100% after each and flatter each time, and today's review due (owner 2026-10-29: 「何回か復習
+        // した時のグラフを表示して…ユーザーに見せたい」); the word just practised has only today's answer. It closes when
+        // the tour moves on.
         .onChange(of: router.tour) { _, step in
-            if step == .memoryCurve, let s = practiceCards.first?.sticker {
+            if step == .memoryCurve, let s = dex.stickers.first(where: { $0.isSample && $0.word != nil }) ?? practiceCards.first?.sticker {
                 withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { curveSticker = s }
             } else if step == .complete || step == .off, curveSticker != nil {
                 closeCurve()

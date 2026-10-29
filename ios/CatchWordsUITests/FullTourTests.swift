@@ -212,7 +212,10 @@ final class FullTourTests: XCTestCase {
         let landed = app.descendants(matching: .any)["dex.new"]
         let landedAgain = app.descendants(matching: .any)["dex.again"]
         let outcomes = [catchButton, again, landed, landedAgain]
-        var seen = waitForCatch(outcomes, timeout: 20)
+        // 40 s, not 20: a Japanese screen's first line breaking loads the system's MeCab dictionary on the main thread,
+        // which held the app ~10 s on a cold simulator right after the choice (CI 2026-10-29, ja/zh-TW, twice); the GET
+        // moment passed unseen during it and the word landed in the dex a moment after a 20 s wait gave up.
+        var seen = waitForCatch(outcomes, timeout: 40)
         if seen == nil {
             // The buttons the screen holds now and where (identifier @ centre), so the failure explains itself.
             let buttons = app.buttons.allElementsBoundByIndex.prefix(12).map { b in

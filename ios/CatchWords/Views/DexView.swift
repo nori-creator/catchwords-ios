@@ -86,6 +86,11 @@ struct DexView: View {
     init(startInGallery: Bool = false) {
         _mode = State(initialValue: startInGallery ? .grid : .cover)
     }
+
+    /// Opened on one view (the previews of each).
+    init(start: DexMode) {
+        _mode = State(initialValue: start)
+    }
     /// One of the dex's 20 categories (DexCatalog), or nil for all.
     @State private var categoryFilter: Int?
     @State private var dayFilter: Date?

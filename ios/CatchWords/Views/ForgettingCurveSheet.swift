@@ -37,20 +37,37 @@ struct ForgettingCurveSheet: View {
         self.store = store
         self.onReviewNow = onReviewNow
         self.onClose = onClose
+        if sticker.isSample {
+            // The sample word's reviews are its story and the learner's own answers, kept on this phone.
+            _history = State(initialValue: SampleSticker.history(userId: SupabaseClient.shared.userId))
+            return
+        }
         let known = store.allHistory.filter { $0.stickerId == sticker.id }.sorted { $0.reviewedAt < $1.reviewedAt }
         _history = State(initialValue: store.historyLoaded || !known.isEmpty ? known : nil)
     }
 
-    private var review: ReviewState? { dex.reviews[sticker.id] }
+    private var review: ReviewState? {
+        dex.reviews[sticker.id] ?? (sticker.isSample ? SampleSticker.reviewState(userId: SupabaseClient.shared.userId) : nil)
+    }
+
+    /// Where the curve begins: the catch, or for the sample the start of its story (`SampleSticker.learnedAt`).
+    private var origin: Date {
+        sticker.isSample ? min(sticker.takenAt, SampleSticker.learnedAt(userId: SupabaseClient.shared.userId)) : sticker.takenAt
+    }
 
     var body: some View {
-        let pct = dex.memoryPercent(for: sticker) ?? 100
+        let pct = dex.memoryPercent(for: sticker)
+            ?? review.map { MemoryMath.percent(intervalDays: $0.intervalDays, ease: $0.ease, last: $0.lastReviewedAt) } ?? 100
         let lv = MemoryBadge.level(pct)
         ViewThatFits(in: .vertical) {
             sheetContent(pct: pct, lv: lv)
             ScrollView { sheetContent(pct: pct, lv: lv) }
         }
         .task(id: sticker.id) {
+            if sticker.isSample {
+                history = SampleSticker.history(userId: SupabaseClient.shared.userId)
+                return
+            }
             // The word's own read (newer than the screen's when it was just reviewed). An empty answer can also mean
             // the read failed, so it never replaces rows already shown.
             let fresh = await store.history(stickerId: sticker.id)
@@ -112,7 +129,7 @@ struct ForgettingCurveSheet: View {
 
     private func curveData(_ history: [ReviewHistoryRow]) -> CurveData {
         let now = Date()
-        let origin = sticker.takenAt
+        let origin = self.origin
         var past: [Pt] = []
         var marks: [Pt] = []
         /// Where the line stood just before each review (the review lifts it back to 100%).
@@ -172,7 +189,7 @@ struct ForgettingCurveSheet: View {
         let yTop = 100 + max(3, (100 - yMin) * 0.08)
         let bands = MemoryChartStyle.bands(yMin: yMin)
         let ticks = MemoryChartStyle.ticks(yMin: yMin)
-        let start = d.past.first?.date ?? sticker.takenAt
+        let start = d.past.first?.date ?? origin
         let end = d.future.last?.date ?? d.today.date
         return Chart {
             MemoryChartStyle.bandMarks(bands, from: start, to: end, yMin: yMin, plotHeight: Self.chartHeight - 24)
@@ -274,7 +291,7 @@ struct ForgettingCurveSheet: View {
         let r = review
         let interval = r?.intervalDays ?? 0
         let ease = r?.ease ?? 2.5
-        let last = r?.lastReviewedAt ?? sticker.takenAt
+        let last = r?.lastReviewedAt ?? origin
         // Day when retention falls under 70% (うろ覚え).
         let stability = max(0.5, Double(max(1, interval)) * max(1, ease) / (2.5 * log(1 / 0.9)))
         let dropDate = last.addingTimeInterval(stability * log(100.0 / 70.0) * 86_400)
