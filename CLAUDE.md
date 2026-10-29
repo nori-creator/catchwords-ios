@@ -108,7 +108,7 @@
   訳さない（R25）。案内中はチャンクの黒い吹き出し（`SwapCoachMark`）を出さない。
   **見本の珍珠奶茶**（10-28 夜「1枚目の写真を撮る前から、一つの画像を実際にホーム画面、図鑑、復習に情報を入れておく…バブルティーの
   画像入れて」）: アプリに同梱（`SampleSticker`、`Resources/Onboarding/sample_word.json`・`sample_sticker_bubbletea.png`
-  — オーナーの白背景の写真を切り抜いた）。**サーバーに保存しない・AI を呼ばない**。id は `sample-` で始まる `Sticker`
+  — 2026-10-29 にオーナーの黒背景の写真（透明に抜いた PNG）に替えた。縁の暗い色は内側の色で置き換えた）。**サーバーに保存しない・AI を呼ばない**。id は `sample-` で始まる `Sticker`
   （`wordId` は空、仮保存と同じ扱い。snapshot・署名・アップロード・褒め・ウィジェット・統計の数（`DexStore.wordCount`）から外す）。
   オンボードが終わった時に入り（`SampleSticker.markAdded` → `DexStore.installSample`）、今日のアルバム・図鑑の 飲み物 No.001・
   復習（10分後に期限。採点は端末内 `SampleSticker.grade`）に出る。**チュートリアル後も残し**、「見本」の印（`SampleMark`）を付け、
@@ -131,6 +131,9 @@
   公式サイトはこの環境から開けなかったので、検索で読めた範囲）。行は答えるまで「選択してください」。
   **登録画面**: 「新規登録」を既定の形にし、Google・Apple のボタンを上に出す（前は登録の画面にメールの欄しか無かった）。
   アカウントのある人は下の「アカウントをお持ちの方は ログイン」で切り替える。ウェルカム画面の「メールでログイン」はログインの形で開く。
+- **時計（ステータスバー）の色**（2026-10-29「時計の色最適化して」）: 画面ごとの白・黒の切り替え（`statusBarTone`）は、アプリの
+  窓の SwiftUI の controller に答えさせる（`StatusBarHook`）。前の「上に重ねた透明な窓の controller」は iOS に読まれず、開く演出の青・
+  夜空・カメラでも時計が黒かった（CI の写真で確認）。
 - **エラーの記録は Sentry**（2026-10-27「Sentry を導入」）: iOS は `ErrorReporting`（プロジェクト `catchwords-ios`）、サーバは
   `server/src/lib/error-report.ts`（`catchwords-server`、500 番台だけ、SDK を使わず envelope を1回 POST）。送るのは落ちた記録・
   ハング・500 番台・`DevLog` の失敗（save / decode / auth / encounter）だけ。**画面の撮影・リプレイ・アカウント・IP・写真・
