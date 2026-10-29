@@ -762,7 +762,7 @@ private struct CurveTourPreview: View {
         ZStack(alignment: .top) {
             AppBackground()
             Color.black.opacity(0.32).ignoresSafeArea()
-            ForgettingCurveSheet(sticker: sticker, store: store, onReviewNow: {}, onClose: {})
+            ForgettingCurveSheet(sticker: sticker, store: store, onReviewNow: {}, onClose: {}, guided: true)
                 .frame(maxHeight: 470)
                 .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))
                 .tourAnchor(.memoryCurve)

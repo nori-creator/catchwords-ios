@@ -11,6 +11,9 @@ struct ForgettingCurveSheet: View {
     let onReviewNow: () -> Void
     /// Set when shown as the centred card on the review screen (instead of a system sheet).
     var onClose: (() -> Void)? = nil
+    /// Shown in the first tour with its card under it: a lower chart and no hints, so 「今が復習どき」 and the day the word
+    /// fades stay in view (owner 2026-10-29: 「最適な復習なタイミングがわかることをユーザーに見せたい」).
+    var guided: Bool = false
 
     /// This word's reviews, oldest first; nil until known. Seeded from the rows the review screen has already read,
     /// so the real curve is drawn at once — never a stand-in line first (owner 2026-10-11: 「グラフを開くときに関係のない
@@ -32,11 +35,13 @@ struct ForgettingCurveSheet: View {
         var id: String { "\(series)-\(date.timeIntervalSince1970)" }
     }
 
-    init(sticker: Sticker, store: ReviewStore, onReviewNow: @escaping () -> Void, onClose: (() -> Void)? = nil) {
+    init(sticker: Sticker, store: ReviewStore, onReviewNow: @escaping () -> Void, onClose: (() -> Void)? = nil,
+         guided: Bool = false) {
         self.sticker = sticker
         self.store = store
         self.onReviewNow = onReviewNow
         self.onClose = onClose
+        self.guided = guided
         if sticker.isSample {
             // The sample word's reviews are its story and the learner's own answers, kept on this phone.
             _history = State(initialValue: SampleSticker.history(userId: SupabaseClient.shared.userId))
@@ -100,7 +105,9 @@ struct ForgettingCurveSheet: View {
                     .background(Theme.memoryLevels[lv].opacity(0.14), in: Capsule())
                     Text(LocalizedStringKey(L("復習 **\(history?.count ?? 0)** 回"))).scaledFont(size: 15).foregroundStyle(Theme.muted)
                 }
-                Text(L("縦軸＝いま思い出せる確率（写真の右上の%と同じ）")).scaledFont(size: 13).foregroundStyle(Theme.muted)
+                if !guided {
+                    Text(L("縦軸＝いま思い出せる確率（写真の右上の%と同じ）")).scaledFont(size: 13).foregroundStyle(Theme.muted)
+                }
                 MemoryChartLegend(reviews: true)
 
                 Group {
@@ -114,16 +121,18 @@ struct ForgettingCurveSheet: View {
                         Color.clear
                     }
                 }
-                .frame(height: Self.chartHeight)
-                Text(L("グラフを指でなぞると、その日の記憶率が見られます"))
-                    .scaledFont(size: 12).foregroundStyle(Theme.muted)
+                .frame(height: chartHeight)
+                if !guided {
+                    Text(L("グラフを指でなぞると、その日の記憶率が見られます"))
+                        .scaledFont(size: 12).foregroundStyle(Theme.muted)
+                }
 
                 callout(pct: pct)
             }
             .padding(22)
     }
 
-    private static let chartHeight: CGFloat = 240
+    private var chartHeight: CGFloat { guided ? 170 : 240 }
 
     private typealias CurveData = (past: [Pt], future: [Pt], reviews: [Pt], jumps: [Pt], today: Pt)
 
@@ -159,7 +168,9 @@ struct ForgettingCurveSheet: View {
         if let r = review { ease = r.ease; interval = r.intervalDays; segStart = r.lastReviewedAt ?? segStart }
         sample(from: segStart, to: now, seg: segIndex)
         let todayVal = Double(MemoryMath.percent(intervalDays: interval, ease: ease, last: segStart, now: now))
-        let horizon = max(7.0, now.timeIntervalSince(origin) / 86_400)
+        // As far ahead as the word has been learned (a week at least); the sample's story would push its reviews into a
+        // thin strip at the left, so its "if not reviewed" line looks a week ahead only.
+        let horizon = sticker.isSample ? 7.0 : max(7.0, now.timeIntervalSince(origin) / 86_400)
         var future: [Pt] = []
         for i in 0...120 {
             let t = now.addingTimeInterval(horizon * 86_400 * Double(i) / 120)
@@ -192,7 +203,7 @@ struct ForgettingCurveSheet: View {
         let start = d.past.first?.date ?? origin
         let end = d.future.last?.date ?? d.today.date
         return Chart {
-            MemoryChartStyle.bandMarks(bands, from: start, to: end, yMin: yMin, plotHeight: Self.chartHeight - 24)
+            MemoryChartStyle.bandMarks(bands, from: start, to: end, yMin: yMin, plotHeight: chartHeight - 24)
             ForEach(d.future) { p in
                 LineMark(x: .value("date", p.date), y: .value("%", max(yMin, p.value)), series: .value("s", "future"))
                     .foregroundStyle(Theme.primary)
@@ -303,7 +314,7 @@ struct ForgettingCurveSheet: View {
                 Text(L("復習しないと \(JPDate.slash(dropDate))（\(daysLeft)日後）に「うろ覚え」になります"))
                     .scaledFont(size: 16, weight: .medium).foregroundStyle(Theme.foreground)
             }
-            if isTime {
+            if isTime && !guided {
                 Button {
                     close()
                     onReviewNow()

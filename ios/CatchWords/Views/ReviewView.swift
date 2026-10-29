@@ -147,7 +147,7 @@ struct ReviewView: View {
                         if answered { goNext() }
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { legendOpen = false }
                         showQuizRequest += 1
-                    }, onClose: { if router.tour == .memoryCurve { router.tourFinish() } else { closeCurve() } })
+                    }, onClose: { if router.tour == .memoryCurve { router.tourFinish() } else { closeCurve() } }, guided: guided)
                     .frame(maxHeight: guided ? 470 : 640)
                     .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))
                     .tourAnchor(.memoryCurve)
