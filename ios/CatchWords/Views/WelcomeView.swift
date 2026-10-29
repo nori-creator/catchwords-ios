@@ -231,16 +231,17 @@ struct WelcomeView: View {
             apple
                 .staggerIn(appeared, delay: 0.57)
 
-            orLine
-                .staggerIn(appeared, delay: 0.64)
-
             if showMail {
+                orLine
                 mailForm
                     .offset(x: shake)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             } else {
+                // Mail is the small way in, under the two one-tap buttons (owner 2026-10-29: 「メールで登録、ログインを
+                // 小さくして、その分切り抜きの画像を大きくして」): no 「または」 line and no full-width button, so the stickers
+                // take that height and Google and Apple sit lower.
                 mailButton
-                    .staggerIn(appeared, delay: 0.68)
+                    .staggerIn(appeared, delay: 0.64)
             }
 
             messages
@@ -322,18 +323,18 @@ struct WelcomeView: View {
             // would also stand on the screen in the device's language, not the app's).
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { showMail = true }
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 7) {
                 Image(systemName: "envelope.fill")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .accessibilityHidden(true)
                 Text(isSignUp ? L("メールで登録") : L("メールでログイン"))
-                    .scaledFont(size: 17, weight: .semibold)
+                    .scaledFont(size: 15, weight: .semibold)
                     .contentTransition(.opacity)
             }
             .foregroundStyle(Theme.foreground)
-            .frame(maxWidth: .infinity, minHeight: 54)
-            .background(Theme.card, in: .capsule)
-            .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)  // HIG: a 44 pt target, though the words are small
+            .contentShape(.rect)
         }
         .buttonStyle(PressableStyle())
         .accessibilityIdentifier("welcome.mail")
