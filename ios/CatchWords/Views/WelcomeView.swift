@@ -340,8 +340,9 @@ struct WelcomeView: View {
     private var mailButton: some View {
         Button {
             Haptics.selection()
+            // No keyboard yet: the fields are read first, the address is one tap away (the system keyboard's own words
+            // would also stand on the screen in the device's language, not the app's).
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { showMail = true }
-            Task { try? await Task.sleep(for: .milliseconds(350)); focused = .email }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "envelope.fill")
