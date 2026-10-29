@@ -122,22 +122,27 @@ struct LaunchIntro: View {
         let grow = Ease.inOutCubic(Ease.seg(t, 0.28, 0.82))
         let drop: CGFloat = 22 * Ease.outBack(Ease.seg(t, 0, 0.3))
         let d = drop + (diagonal * 1.05 - drop) * grow
-        // The circle is a clip path drawn round the drop, not a view in `.mask`: a mask whose circle outgrew the screen
-        // was drawn from the middle of the screen towards the lower right (with a frame or with `position` alike, seen in
-        // the CI films), so the blue came in from the side and the drop never showed (owner 2026-10-29:
-        // 「右下から青い画面が広がるんで、ちょっと違和感」).
-        return LinearGradient(colors: [Self.top, Self.bottom], startPoint: .top, endPoint: .bottom)
-            .frame(width: size.width, height: size.height)
-            .clipShape(FloodCircle(center: CGPoint(x: size.width / 2, y: size.height / 2 + (1 - fall) * -120),
-                                   diameter: d))
-            // The ripple ring the drop leaves as it lands.
-            .overlay {
-                let r = Ease.outCubic(Ease.seg(t, 0.26, 0.9))
-                Circle()
-                    .stroke(Self.top.opacity(0.5 * (1 - r)), lineWidth: 2 + 6 * (1 - r))
-                    .frame(width: 30 + diagonal * 0.6 * r, height: 30 + diagonal * 0.6 * r)
-                    .opacity(t < 0.26 ? 0 : 1)
-            }
+        let center = CGPoint(x: size.width / 2, y: size.height / 2 + (1 - fall) * -120)
+        // The circle is painted, not cut out of a gradient view: with `.mask` (a frame or `position` alike) and with
+        // `.clipShape`, the first second of the CI films (over the sign-in page and over the home alike) showed the blue as
+        // a block from the drop to the lower right, a rounded corner on the drop and no far edges, before the circle took
+        // over, so the blue came in from the side (owner 2026-10-29: 「右下から青い画面が広がるんで、ちょっと違和感」).
+        // A Canvas paints the round drop and its growth in its own rect.
+        return Canvas { ctx, area in
+            let circle = CGRect(x: center.x - d / 2, y: center.y - d / 2, width: d, height: d)
+            ctx.fill(Path(ellipseIn: circle),
+                     with: .linearGradient(Gradient(colors: [Self.top, Self.bottom]),
+                                           startPoint: .zero, endPoint: CGPoint(x: 0, y: area.height)))
+        }
+        .frame(width: size.width, height: size.height)
+        // The ripple ring the drop leaves as it lands.
+        .overlay {
+            let r = Ease.outCubic(Ease.seg(t, 0.26, 0.9))
+            Circle()
+                .stroke(Self.top.opacity(0.5 * (1 - r)), lineWidth: 2 + 6 * (1 - r))
+                .frame(width: 30 + diagonal * 0.6 * r, height: 30 + diagonal * 0.6 * r)
+                .opacity(t < 0.26 ? 0 : 1)
+        }
     }
 
     /// The icon's white mark: drawn round from the top (a sweep mask), a little big, settling; then it lets go of its
@@ -285,13 +290,3 @@ private enum Ease {
     }
 }
 
-/// The opening's flood: a circle of the given diameter round a point of the view's own rect.
-private struct FloodCircle: Shape {
-    var center: CGPoint
-    var diameter: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        Path(ellipseIn: CGRect(x: rect.minX + center.x - diameter / 2, y: rect.minY + center.y - diameter / 2,
-                               width: diameter, height: diameter))
-    }
-}
