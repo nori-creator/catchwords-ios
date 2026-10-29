@@ -216,13 +216,6 @@
   "ko": "Google로 로그인하지 못했어요.",
   "vi": "Đăng nhập bằng Google thất bại."
  },
- "Googleで続ける": {
-  "en": "Continue with Google",
-  "zh-TW": "使用 Google 繼續",
-  "es": "Continuar con Google",
-  "ko": "Google로 계속하기",
-  "vi": "Tiếp tục với Google"
- },
  "Google画像検索で見る": {
   "en": "See on Google Images",
   "zh-TW": "用 Google 圖片搜尋看看",
@@ -1776,13 +1769,6 @@
   "es": "El correo o la contraseña no son correctos.",
   "ko": "이메일 또는 비밀번호가 올바르지 않아요.",
   "vi": "Email hoặc mật khẩu không đúng."
- },
- "メールアドレスで続ける": {
-  "en": "Continue with email",
-  "zh-TW": "使用電子郵件繼續",
-  "es": "Continuar con correo electrónico",
-  "ko": "이메일로 계속하기",
-  "vi": "Tiếp tục bằng email"
  },
  "ライト": {
   "en": "Light",
@@ -9420,5 +9406,40 @@
   "es": "Te muestra el mejor momento para repasar.",
   "ko": "가장 좋은 복습 타이밍을 알 수 있어요.",
   "vi": "Biết được thời điểm ôn tập tốt nhất."
+ },
+ "Googleで登録": {
+  "en": "Sign up with Google",
+  "zh-TW": "使用 Google 註冊",
+  "es": "Registrarse con Google",
+  "ko": "Google로 가입하기",
+  "vi": "Đăng ký bằng Google"
+ },
+ "Googleでログイン": {
+  "en": "Sign in with Google",
+  "zh-TW": "使用 Google 登入",
+  "es": "Iniciar sesión con Google",
+  "ko": "Google로 로그인",
+  "vi": "Đăng nhập bằng Google"
+ },
+ "メールで登録": {
+  "en": "Sign up with email",
+  "zh-TW": "使用電子郵件註冊",
+  "es": "Registrarse con correo",
+  "ko": "이메일로 가입하기",
+  "vi": "Đăng ký bằng email"
+ },
+ "おかえりなさい": {
+  "en": "Welcome back",
+  "zh-TW": "歡迎回來",
+  "es": "Hola de nuevo",
+  "ko": "다시 오셨네요",
+  "vi": "Chào mừng trở lại"
+ },
+ "ログインして、集めた単語の続きから。": {
+  "en": "Sign in and pick up where you left off.",
+  "zh-TW": "登入後，接著學習收集的單字。",
+  "es": "Inicia sesión y sigue donde lo dejaste.",
+  "ko": "로그인하고 모은 단어를 이어서 공부해요.",
+  "vi": "Đăng nhập để học tiếp những từ đã thu thập."
  }
 }

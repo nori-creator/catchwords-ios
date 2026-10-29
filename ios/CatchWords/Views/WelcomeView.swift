@@ -1,26 +1,24 @@
 import SwiftUI
 import AuthenticationServices
 
-/// The first screen before signing in (the owner's design of 2026-10-11).
+/// The first screen before signing in (the owner's design of 2026-10-11), and the only one: sign-up and sign-in are
+/// the same page (owner 2026-10-29: 「ログインの画面も新規登録の画面と同じデザインにして」「デフォルトで新規登録の画面にし」).
 ///
 /// The app icon and 「CatchWords」 at the top left; three word stickers cut out of that design (a latte 「咖啡」,
-/// a plant 「植物」 and a croissant 「麵包」: the words are Taiwanese Mandarin, on the album's own tags) with a sparkle; the tagline
-/// 「日常のすべてが学びになる」 and one line under it; then the ways in: Google and Apple right here (the same web
-/// sign-in as the sign-in screen), 「メールでログイン」 and 「初めての方は 新規登録」 (both open the sign-in screen
-/// with the mail form already open), and the agreement to the terms.
+/// a plant 「植物」 and a croissant 「麵包」: the words are Taiwanese Mandarin, on the album's own tags) with a sparkle; a badge
+/// that says which page this is (「新規登録」 blue, 「ログイン」 green) over its headline (「日常のすべてが学びになる」 /
+/// 「おかえりなさい」), then the ways in, each saying what it does (「Googleで登録」 / 「Googleでログイン」, Apple's own
+/// 「Appleで登録」 / 「Appleでサインイン」, 「メールで登録」 / 「メールでログイン」 — Google's and Apple's guidelines name the
+/// action on the button). The mail fields open under the mail button when it is tapped. The other page is one tap at the
+/// bottom (「アカウントをお持ちの方は ログイン」 / 「初めての方は 新規登録」), then the agreement to the terms.
 ///
 /// Motion (the app's opening, owner 2026-10-27: 「アプリを開いたときのアニメーション、モーションデザインにこだわって」): the
 /// first time in a launch the icon pops up in the middle of the screen (where the blank launch screen left off) and
 /// flies to its place at the top left while 「CatchWords」 slides out of it; the stickers pop in one after another and
-/// float gently, the sparkle twinkles; the tagline rises out of a blur line by line (`HeadlineReveal`; 「学び」 stays
-/// black, owner 2026-10-28); the ways in rise one after another. A tap on a sticker says its word.
-/// Back from the mail screen only the quick part plays. With reduced motion only the still picture.
+/// float gently, the sparkle twinkles; the headline rises out of a blur line by line (`HeadlineReveal`; 「学び」 stays
+/// black, owner 2026-10-28), again when the page changes; the ways in rise one after another. A tap on a sticker says its
+/// word. With reduced motion only the still picture.
 struct WelcomeView: View {
-    /// 「メールでログイン」.
-    let onMail: () -> Void
-    /// 「初めての方は 新規登録」.
-    let onSignUp: () -> Void
-
     @Environment(AuthStore.self) private var auth
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -31,28 +29,75 @@ struct WelcomeView: View {
     /// Where the header's icon is and the middle of the screen (global), to fly the icon from one to the other.
     @State private var logoFrame: CGRect = .zero
     @State private var screen: CGRect = .zero
+    /// Which page: sign-up unless asked otherwise.
+    @State private var isSignUp: Bool
+    /// The mail fields, opened by the mail button.
+    @State private var showMail: Bool
+    @State private var email: String = ""
+    @State private var password: String = ""
+    /// Nudges the form sideways when signing in fails, like a head shake.
+    @State private var shake: CGFloat = 0
+    @FocusState private var focused: Field?
 
-    /// The icon's opening plays once per launch; coming back from the mail screen shows the page at once.
+    private enum Field { case email, password }
+
+    /// The icon's opening plays once per launch.
     @MainActor private static var hasOpened = false
     /// The stickers' least height.
     private static let minStage: CGFloat = 150
 
+    init(startSignIn: Bool = false, startMail: Bool = false) {
+        _isSignUp = State(initialValue: !startSignIn)
+        _showMail = State(initialValue: startMail)
+    }
+
     var body: some View {
-        // One screen, the stickers taking the height the rest leaves. When even the smallest stickers leave too little
-        // room (a large text size on a small phone, an error under the buttons), the page scrolls instead, so
-        // 「新規登録」 and the agreement can always be reached.
-        ViewThatFits(in: .vertical) {
-            page(scrolls: false)
-            ScrollView {
-                page(scrolls: true)
+        Group {
+            if showMail {
+                // With the fields open the page always scrolls: swapping layouts while the keyboard comes up would make new
+                // fields and drop the focus.
+                ScrollView {
+                    page(scrolls: true)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollDismissesKeyboard(.interactively)
+            } else {
+                // One screen, the stickers taking the height the rest leaves. When even the smallest stickers leave too
+                // little room (a large text size on a small phone, an error under the buttons), the page scrolls instead,
+                // so the other page's link and the agreement can always be reached.
+                ViewThatFits(in: .vertical) {
+                    page(scrolls: false)
+                    ScrollView {
+                        page(scrolls: true)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                }
             }
-            .scrollBounceBehavior(.basedOnSize)
         }
         .background {
             WelcomeBackdrop(lit: appeared)
                 .ignoresSafeArea()
         }
         .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { screen = $0 }
+        .onAppear {
+            // Back here with a reason (the session expired): the sign-in page, its fields open. A pending confirmation
+            // of a new account: its message under the open fields.
+            if auth.errorMessage != nil {
+                isSignUp = false
+                showMail = true
+            } else if auth.infoMessage != nil {
+                showMail = true
+            }
+        }
+        .onChange(of: auth.errorMessage) { _, msg in
+            guard msg != nil, showMail, !reduceMotion else { return }
+            Task {
+                for x in [12.0, -10, 7, -4, 0] {
+                    withAnimation(.spring(response: 0.08, dampingFraction: 0.4)) { shake = x }
+                    try? await Task.sleep(for: .milliseconds(60))
+                }
+            }
+        }
         .task { await open() }
     }
 
@@ -139,30 +184,60 @@ struct WelcomeView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// The page's badge (which page this is, at a glance), its headline and one line.
     private var copy: some View {
         VStack(spacing: 10) {
-            RevealHeadline(marked: L("日常のすべてが\n学びになる"), size: 32, active: appeared, delay: 0.12, duration: 1.0)
+            modeBadge
+                .staggerIn(appeared, delay: 0.05, distance: 6)
+            RevealHeadline(marked: isSignUp ? L("日常のすべてが\n学びになる") : L("おかえりなさい"),
+                           size: 32, active: appeared, delay: 0.12, duration: 1.0)
                 .lineLimit(2)
-            Text(L("街で出会う言葉を、ステッカーに。"))
+                .id(isSignUp)  // the headline rises again on the other page
+            Text(isSignUp ? L("街で出会う言葉を、ステッカーに。") : L("ログインして、集めた単語の続きから。"))
                 .scaledFont(size: 15, weight: .medium)
                 .foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
+                .contentTransition(.opacity)
                 .staggerIn(appeared, delay: 0.45, distance: 8)
         }
         .frame(maxWidth: .infinity)
     }
 
+    /// 「新規登録」 (blue, a person with a plus) or 「ログイン」 (green, a person with a check).
+    private var modeBadge: some View {
+        let tint = isSignUp ? Theme.primaryInk : Theme.ok
+        return HStack(spacing: 6) {
+            Image(systemName: isSignUp ? "person.badge.plus" : "person.crop.circle.badge.checkmark")
+                .font(.system(size: 14, weight: .bold))
+                .accessibilityHidden(true)
+            Text(isSignUp ? L("新規登録") : L("ログイン"))
+                .scaledFont(size: 15, weight: .heavy)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(tint.opacity(0.12), in: .capsule)
+        .overlay(Capsule().stroke(tint.opacity(0.3), lineWidth: 1))
+        .contentTransition(.opacity)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("welcome.mode")
+    }
+
     private var ways: some View {
         VStack(spacing: 12) {
-            // Google and Apple go through the web app's sign-in (same account as the web).
+            // Google and Apple go through the web app's sign-in (same account as the web); the account is made the first
+            // time either way, so the two pages differ only in what the buttons say.
             Button {
                 Task { await auth.signInWithWeb(provider: "google") }
             } label: {
                 HStack(spacing: 10) {
                     GoogleMark(size: 20)
-                    Text(L("Googleで続ける")).scaledFont(size: 17, weight: .semibold)
+                    Text(isSignUp ? L("Googleで登録") : L("Googleでログイン"))
+                        .scaledFont(size: 17, weight: .semibold)
+                        .contentTransition(.opacity)
                 }
                 .foregroundStyle(Color(hex: 0x1F1F1F))
                 .frame(maxWidth: .infinity, minHeight: 54)
@@ -178,63 +253,34 @@ struct WelcomeView: View {
             apple
                 .staggerIn(appeared, delay: 0.57)
 
-            if let msg = auth.errorMessage {
-                Label(msg, systemImage: "exclamationmark.circle.fill")
-                    .scaledFont(size: 13)
-                    .foregroundStyle(Theme.destructive)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            orLine
+                .staggerIn(appeared, delay: 0.64)
+
+            if showMail {
+                mailForm
+                    .offset(x: shake)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            } else {
+                mailButton
+                    .staggerIn(appeared, delay: 0.68)
             }
 
-            HStack(spacing: 12) {
-                Rectangle().fill(Theme.border).frame(height: 1)
-                Text(L("または"))
-                    .scaledFont(size: 13)
-                    .foregroundStyle(Theme.muted)
-                    .fixedSize()
-                Rectangle().fill(Theme.border).frame(height: 1)
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 2)
-            .staggerIn(appeared, delay: 0.64)
+            messages
 
-            Button(action: onMail) {
-                HStack(spacing: 4) {
-                    Text(L("メールでログイン"))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .bold))
-                        .accessibilityHidden(true)
-                }
-                .scaledFont(size: 16, weight: .bold)
-                .foregroundStyle(Theme.primaryInk)
-                .frame(maxWidth: .infinity, minHeight: 40)
-                .contentShape(.rect)
-            }
-            .buttonStyle(PressableStyle(scale: 0.97))
-            .accessibilityIdentifier("welcome.signin")
-            .staggerIn(appeared, delay: 0.68)
+            otherPage
+                .staggerIn(appeared, delay: 0.72)
 
-            Button(action: onSignUp) {
-                HStack(spacing: 6) {
-                    Text(L("初めての方は"))
+            if AuthStore.devSkipLogin {
+                Button {
+                    Task { await auth.enterAsGuest() }
+                } label: {
+                    Label(L("ログインせずに入る（開発用）"), systemImage: "arrow.right.circle")
+                        .scaledFont(size: 14, weight: .semibold)
                         .foregroundStyle(Theme.muted)
-                    HStack(spacing: 3) {
-                        Text(L("新規登録"))
-                            .fontWeight(.bold)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .bold))
-                            .accessibilityHidden(true)
-                    }
-                    .foregroundStyle(Theme.primaryInk)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .scaledFont(size: 14)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .frame(maxWidth: .infinity, minHeight: 40)
-                .contentShape(.rect)
+                .buttonStyle(PressableStyle())
             }
-            .buttonStyle(PressableStyle(scale: 0.97))
-            .accessibilityIdentifier("welcome.start")
-            .staggerIn(appeared, delay: 0.72)
 
             // Consent to the terms and the privacy policy is given by continuing (both pages are links).
             Text(LegalLinks.signInAgreement())
@@ -245,13 +291,16 @@ struct WelcomeView: View {
                 .accessibilityIdentifier("welcome.agreement")
                 .staggerIn(appeared, delay: 0.76, distance: 6)
         }
+        .animation(.spring(response: 0.38, dampingFraction: 0.86), value: auth.errorMessage)
+        .animation(.spring(response: 0.38, dampingFraction: 0.86), value: auth.infoMessage)
     }
 
-    /// Apple's own button (HIG: the system draws the logo, title and proportions), 「Appleで続ける」.
+    /// Apple's own button (HIG: the system draws the logo, title and proportions): 「Appleで登録」 on the sign-up page,
+    /// 「Appleでサインイン」 on the sign-in page (the system's words for each).
     @ViewBuilder
     private var apple: some View {
         if AppConfig.nativeAppleSignIn {
-            SignInWithAppleButton(.continue) { req in
+            SignInWithAppleButton(isSignUp ? .signUp : .signIn) { req in
                 auth.prepareApple(req)
             } onCompletion: { result in
                 Task { await auth.completeApple(result) }
@@ -259,16 +308,164 @@ struct WelcomeView: View {
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)  // HIG: white on a dark screen
             .frame(height: 54)
             .clipShape(.capsule)
+            .id(isSignUp)  // the title is fixed at creation
             .accessibilityIdentifier("welcome.apple")
         } else {
             // The tap runs the web sign-in so the account is the same as on the web.
-            AppleIDWebButton(type: .continue, style: colorScheme == .dark ? .white : .black, cornerRadius: 27,
-                             identifier: "welcome.apple", isEnabled: !auth.isBusy) {
+            AppleIDWebButton(type: isSignUp ? .signUp : .signIn, style: colorScheme == .dark ? .white : .black,
+                             cornerRadius: 27, identifier: "welcome.apple", isEnabled: !auth.isBusy) {
                 Task { await auth.signInWithWeb(provider: "apple") }
             }
-            .id(colorScheme)  // the button's style is fixed at creation; rebuild it when the scheme flips
+            .id("\(colorScheme)-\(isSignUp)")  // the button's type and style are fixed at creation; rebuild it when they change
             .frame(maxWidth: .infinity)
             .frame(height: 54)
+        }
+    }
+
+    /// 「または」 between the one-tap ways in and mail.
+    private var orLine: some View {
+        HStack(spacing: 12) {
+            Rectangle().fill(Theme.border).frame(height: 1)
+            Text(L("または"))
+                .scaledFont(size: 13)
+                .foregroundStyle(Theme.muted)
+                .fixedSize()
+            Rectangle().fill(Theme.border).frame(height: 1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 2)
+    }
+
+    /// 「メールで登録」 / 「メールでログイン」: opens the fields (owner 2026-10-29: 「タップしたら、入力する欄を出して」).
+    private var mailButton: some View {
+        Button {
+            Haptics.selection()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { showMail = true }
+            Task { try? await Task.sleep(for: .milliseconds(350)); focused = .email }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "envelope.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .accessibilityHidden(true)
+                Text(isSignUp ? L("メールで登録") : L("メールでログイン"))
+                    .scaledFont(size: 17, weight: .semibold)
+                    .contentTransition(.opacity)
+            }
+            .foregroundStyle(Theme.foreground)
+            .frame(maxWidth: .infinity, minHeight: 54)
+            .background(Theme.card, in: .capsule)
+            .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityIdentifier("welcome.mail")
+    }
+
+    private var mailForm: some View {
+        VStack(spacing: 10) {
+            TextField("", text: $email, prompt: Text(L("メールアドレス")).foregroundStyle(Theme.muted))
+                .textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($focused, equals: .email)
+                .submitLabel(.next)
+                .onSubmit { focused = .password }
+                .authFieldStyle()
+                .accessibilityIdentifier("auth.email")
+            SecureField("", text: $password, prompt: Text(L("パスワード")).foregroundStyle(Theme.muted))
+                .textContentType(isSignUp ? .newPassword : .password)
+                .focused($focused, equals: .password)
+                .submitLabel(.go)
+                .onSubmit(submit)
+                .authFieldStyle()
+                .accessibilityIdentifier("auth.password")
+            PrimaryButton(title: isSignUp ? L("新規登録") : L("ログイン"), isLoading: auth.isBusy, action: submit)
+                .disabled(trimmedEmail.isEmpty || password.isEmpty)
+                .accessibilityIdentifier("auth.submit")
+            if !isSignUp {
+                Button(L("パスワードを忘れた")) {
+                    Task { await auth.resetPassword(email: trimmedEmail) }
+                }
+                .buttonStyle(PressableStyle(scale: 0.97))
+                .disabled(trimmedEmail.isEmpty)
+                .scaledFont(size: 13, weight: .medium)
+                .foregroundStyle(Theme.primary)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .trailing)
+                .transition(.opacity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var messages: some View {
+        if let msg = auth.errorMessage {
+            Label(msg, systemImage: "exclamationmark.circle.fill")
+                .scaledFont(size: 13)
+                .foregroundStyle(Theme.destructive)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+        if let msg = auth.infoMessage {
+            Label(msg, systemImage: "checkmark.circle.fill")
+                .scaledFont(size: 13)
+                .foregroundStyle(Theme.ok)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            if auth.awaitingConfirmation {
+                PrimaryButton(title: L("確認が終わったので、ログインする"), icon: "arrow.right") {
+                    withAnimation(.snappy) {
+                        isSignUp = false
+                        showMail = true
+                        auth.awaitingConfirmation = false
+                        auth.infoMessage = nil
+                    }
+                    focused = .password
+                }
+            }
+        }
+    }
+
+    /// The other page, one tap at the bottom (owner 2026-10-29: 「アカウントをお持ちの人はログインをしたに配置し」).
+    private var otherPage: some View {
+        Button {
+            Haptics.selection()
+            auth.errorMessage = nil
+            withAnimation(.snappy) { isSignUp.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Text(isSignUp ? L("アカウントをお持ちの方は") : L("初めての方は"))
+                    .foregroundStyle(Theme.muted)
+                HStack(spacing: 3) {
+                    Text(isSignUp ? L("ログイン") : L("新規登録")).fontWeight(.bold)
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold)).accessibilityHidden(true)
+                }
+                .foregroundStyle(Theme.primaryInk)
+            }
+            .scaledFont(size: 15)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(.rect)
+        }
+        .buttonStyle(PressableStyle(scale: 0.97))
+        .contentTransition(.opacity)
+        .accessibilityIdentifier("welcome.switch")
+    }
+
+    /// AutoFill and the keyboard's suggestion bar can leave a space at either end of the address.
+    private var trimmedEmail: String { email.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private func submit() {
+        // The keyboard's Go key works even while the button is greyed out.
+        guard !trimmedEmail.isEmpty, !password.isEmpty, !auth.isBusy else { return }
+        focused = nil
+        let mail = trimmedEmail
+        Task {
+            if isSignUp {
+                await auth.signUp(email: mail, password: password)
+            } else {
+                await auth.signIn(email: mail, password: password)
+            }
         }
     }
 }

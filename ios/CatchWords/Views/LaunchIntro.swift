@@ -122,11 +122,15 @@ struct LaunchIntro: View {
         let grow = Ease.inOutCubic(Ease.seg(t, 0.28, 0.82))
         let drop: CGFloat = 22 * Ease.outBack(Ease.seg(t, 0, 0.3))
         let d = drop + (diagonal * 1.05 - drop) * grow
+        // The circle is placed on the drop (`position` on a full-screen mask): with only a frame bigger than the screen it
+        // was laid out from the middle towards the lower right, so the blue came in from the side (owner 2026-10-29:
+        // 「右下から青い画面が広がるんで、ちょっと違和感」) instead of spreading out of the drop.
         return LinearGradient(colors: [Self.top, Self.bottom], startPoint: .top, endPoint: .bottom)
+            .frame(width: size.width, height: size.height)
             .mask {
                 Circle()
                     .frame(width: d, height: d)
-                    .offset(y: (1 - fall) * -120)
+                    .position(x: size.width / 2, y: size.height / 2 + (1 - fall) * -120)
             }
             // The ripple ring the drop leaves as it lands.
             .overlay {

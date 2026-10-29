@@ -158,7 +158,10 @@ struct UIPreviewRoot: View {
             case "aistats": AdminAiStatsPreview()
             case "aicosts": AdminAiCostsPreview()
             case "auth": AuthView()
-            case "signin": AuthView(startOnOptions: true)
+            // The same page (owner 2026-10-29): the sign-in side, and each side with its mail fields open.
+            case "signin": AuthView(startSignIn: true)
+            case "signin-mail": AuthView(startSignIn: true, startMail: true)
+            case "signup-mail": AuthView(startMail: true)
             case "onboarding": OnboardingView {}
             // The first screens (owner 2026-10-27): the goals, the ready screen; the first guide's card over the tab bar,
             // after the catch, and its end; the welcome screen's opening, frame by frame.
