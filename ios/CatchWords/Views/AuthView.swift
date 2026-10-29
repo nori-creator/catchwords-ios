@@ -6,11 +6,10 @@ struct AuthView: View {
 
     @State private var email: String = ""
     @State private var password: String = ""
-    @State private var isSignUp: Bool = false
-    @State private var showMail: Bool = false
-    /// Opened from the welcome screen's 「メールでログイン」 / 「新規登録」: only the mail form (Google and Apple are on
-    /// the welcome screen itself).
-    @State private var mailOnly: Bool = false
+    /// Sign-up is the form shown first (owner 2026-10-29: 「デフォルトで新規登録を表示して、アカウントがある人は下のログインって
+    /// ボタンを押すように切り替えて」); 「メールでログイン」 on the welcome screen opens it as the sign-in form.
+    @State private var isSignUp: Bool = true
+    @State private var showMail: Bool = true
     @State private var appeared: Bool = false
     /// Nudges the form sideways when sign-in fails, like a head shake.
     @State private var shake: CGFloat = 0
@@ -21,7 +20,8 @@ struct AuthView: View {
     private enum Field { case email, password }
 
     /// The welcome screen comes first (`WelcomeView`, with Google and Apple); its 「メールでログイン」 and 「新規登録」 open
-    /// this screen with the mail form.
+    /// this screen: Google and Apple again at the top (owner 2026-10-29: 「新規登録でも選べるようにして」, before, the
+    /// sign-up screen had only the mail form), then the mail form.
     @State private var showOptions: Bool
 
     init(startOnOptions: Bool = false) {
@@ -50,7 +50,6 @@ struct AuthView: View {
     private func openMail(signUp: Bool) {
         Haptics.selection()
         isSignUp = signUp
-        mailOnly = true
         showMail = true
         auth.errorMessage = nil
         // No keyboard yet: the screen is read first (the address field is one tap away, as before).
@@ -64,8 +63,6 @@ struct AuthView: View {
                     Button {
                         focused = nil
                         showOptions = false
-                        mailOnly = false
-                        showMail = false
                     } label: {
                         Image(systemName: "chevron.left")
                             .scaledFont(size: 17, weight: .semibold)
@@ -85,9 +82,12 @@ struct AuthView: View {
                     .offset(y: appeared ? 0 : 18)
 
                 VStack(spacing: 12) {
-                    if !mailOnly { providers }
+                    providers
 
-                    if showMail { mailForm.offset(x: shake).transition(.opacity.combined(with: .move(edge: .top))) }
+                    if showMail {
+                        orLine
+                        mailForm.offset(x: shake).transition(.opacity.combined(with: .move(edge: .top)))
+                    }
 
                     if let msg = auth.errorMessage {
                         Label(msg, systemImage: "exclamationmark.circle.fill")
@@ -175,7 +175,8 @@ struct AuthView: View {
         .accessibilityIdentifier("auth.google")
 
         if AppConfig.nativeAppleSignIn {
-            SignInWithAppleButton(.signIn) { req in
+            // The button says what the form does (HIG: 「Appleで登録」 on a sign-up screen).
+            SignInWithAppleButton(isSignUp ? .signUp : .signIn) { req in
                 auth.prepareApple(req)
             } onCompletion: { result in
                 Task { await auth.completeApple(result) }
@@ -183,34 +184,46 @@ struct AuthView: View {
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)  // HIG: white on a dark screen
             .frame(height: 54)
             .clipShape(.rect(cornerRadius: 16))
+            .id(isSignUp)
         } else {
             // Apple's own button (HIG: the system draws the logo, title and proportions), but the tap
             // runs the web sign-in so the account is the same as on the web.
-            AppleIDWebButton(style: colorScheme == .dark ? .white : .black, isEnabled: !auth.isBusy) {
+            AppleIDWebButton(type: isSignUp ? .signUp : .signIn, style: colorScheme == .dark ? .white : .black, isEnabled: !auth.isBusy) {
                 Task { await auth.signInWithWeb(provider: "apple") }
             }
-            .id(colorScheme)  // the button's style is fixed at creation; rebuild it when the scheme flips
+            .id("\(colorScheme)-\(isSignUp)")  // the button's type and style are fixed at creation; rebuild it when they change
             .frame(maxWidth: .infinity)
             .frame(height: 54)
             .accessibilityIdentifier("auth.apple")
         }
 
-        Button {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { showMail.toggle() }
-            if showMail {
+        if !showMail {
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { showMail = true }
                 Task { try? await Task.sleep(for: .milliseconds(350)); focused = .email }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "envelope.fill")
+                    Text(L("メールアドレスで続ける")).scaledFont(size: 17, weight: .semibold)
+                }
+                .foregroundStyle(Theme.foreground)
+                .frame(maxWidth: .infinity, minHeight: 54)
+                .glassCard(16)
             }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "envelope.fill")
-                Text(L("メールアドレスで続ける")).scaledFont(size: 17, weight: .semibold)
-            }
-            .foregroundStyle(Theme.foreground)
-            .frame(maxWidth: .infinity, minHeight: 54)
-            .glassCard(16)
+            .buttonStyle(PressableStyle())
+            .accessibilityIdentifier("auth.mail")
         }
-        .buttonStyle(PressableStyle())
-        .accessibilityIdentifier("auth.mail")
+    }
+
+    /// 「または」 between the two ways in with one tap and the mail form (as on the welcome screen).
+    private var orLine: some View {
+        HStack(spacing: 12) {
+            Rectangle().fill(Theme.border).frame(height: 1)
+            Text(L("または")).scaledFont(size: 13).foregroundStyle(Theme.muted).fixedSize()
+            Rectangle().fill(Theme.border).frame(height: 1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
     }
 
     private var hero: some View {
@@ -249,26 +262,40 @@ struct AuthView: View {
             PrimaryButton(title: isSignUp ? L("新規登録") : L("ログイン"), isLoading: auth.isBusy, action: submit)
                 .disabled(trimmedEmail.isEmpty || password.isEmpty)
                 .accessibilityIdentifier("auth.submit")
-            HStack {
-                Button(isSignUp ? L("ログインに切り替え") : L("新規登録はこちら")) {
-                    Haptics.selection()
-                    withAnimation(.snappy) { isSignUp.toggle() }
+            if !isSignUp {
+                Button(L("パスワードを忘れた")) {
+                    Task { await auth.resetPassword(email: trimmedEmail) }
                 }
                 .buttonStyle(PressableStyle(scale: 0.97))
-                .contentTransition(.opacity)
-                Spacer()
-                if !isSignUp {
-                    Button(L("パスワードを忘れた")) {
-                        Task { await auth.resetPassword(email: trimmedEmail) }
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.97))
-                    .disabled(trimmedEmail.isEmpty)
-                    .transition(.opacity)
-                }
+                .disabled(trimmedEmail.isEmpty)
+                .scaledFont(size: 13, weight: .medium)
+                .foregroundStyle(Theme.primary)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .trailing)
+                .transition(.opacity)
             }
-            .scaledFont(size: 13, weight: .medium)
-            .foregroundStyle(Theme.primary)
-            .frame(minHeight: 44)
+            // The other form, one tap below (owner 2026-10-29: sign-up first, 「ログイン」 for those with an account).
+            Button {
+                Haptics.selection()
+                withAnimation(.snappy) { isSignUp.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(isSignUp ? L("アカウントをお持ちの方は") : L("初めての方は"))
+                        .foregroundStyle(Theme.muted)
+                    HStack(spacing: 3) {
+                        Text(isSignUp ? L("ログイン") : L("新規登録")).fontWeight(.bold)
+                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold)).accessibilityHidden(true)
+                    }
+                    .foregroundStyle(Theme.primaryInk)
+                }
+                .scaledFont(size: 14)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(.rect)
+            }
+            .buttonStyle(PressableStyle(scale: 0.97))
+            .contentTransition(.opacity)
+            .accessibilityIdentifier("auth.switch")
             if AuthStore.devSkipLogin {
                 Button {
                     Task { await auth.enterAsGuest() }

@@ -29,6 +29,9 @@ struct OnboardingView: View {
     /// The TOCFL level now and the goal (1…6), nil = 「わからない」 (`OnboardingLevels.resolve`).
     @State private var levelNow: Int?
     @State private var levelGoal: Int?
+    /// Whether each was answered (an answer of 「わからない」 is nil too): the row says 「選択してください」 until then.
+    @State private var answeredNow: Bool = false
+    @State private var answeredGoal: Bool = false
     /// The level wheel open over the question (like 設定's `WheelCard`), nil when none.
     @State private var levelWheel: LevelWheelField?
     @State private var reminderMode: String = "ai"
@@ -115,17 +118,20 @@ struct OnboardingView: View {
         .overlay {
             if let field = levelWheel {
                 // Fades itself in and out and leaves the tree only once invisible, like 設定's card.
-                LevelWheelCard(field: field, value: field == .now ? levelNow : levelGoal,
-                               lowest: field == .goal ? (levelNow ?? 1) : 1) { picked in
+                LevelSheet(field: field, value: field == .now ? levelNow : levelGoal,
+                           lowest: field == .goal ? (levelNow ?? 1) : 1) { picked in
                     var quiet = Transaction()
                     quiet.disablesAnimations = true
                     withTransaction(quiet) { levelWheel = nil }
+                    guard let picked else { return }   // closed with ×: nothing changes
                     if field == .now {
-                        levelNow = picked
+                        levelNow = picked.level
+                        answeredNow = true
                         // The goal is never below the level now.
-                        if let picked, let goal = levelGoal, goal < picked { levelGoal = picked }
+                        if let n = picked.level, let goal = levelGoal, goal < n { levelGoal = n }
                     } else {
-                        levelGoal = picked
+                        levelGoal = picked.level
+                        answeredGoal = true
                     }
                 }
                 .transition(.identity)
@@ -177,13 +183,13 @@ struct OnboardingView: View {
 
     private var questionTitle: String {
         [L("表示言語を\n選んでください"), L("学びたい言語は？"), L("1日、どれくらい\n学びたい？"), L("学ぶ目的を\n教えてください"),
-         L("TOCFLのレベルは？")][step]
+         L("TOCFLのレベルを\n教えてください")][step]
     }
 
     private var questionHint: String {
         [L("メニューや説明に使う言語です。"), L("街で出会ったことばを、この言語で学びます。"), L("あなたのペースで。あとから変更できます。"),
          L("いくつでも選べます。例文の場面をあなたに合わせます。"),
-         L("例文やチャンクの難しさを合わせます。あとから設定で変更できます。")][step]
+         L("いまのレベルと目標に、例文やチャンクの難しさを合わせます。あとから設定で変更できます。")][step]
     }
 
     /// The rows of the question, coming in one after another once `shown`.
@@ -247,8 +253,24 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity)
         case 4:
             VStack(alignment: .leading, spacing: 22) {
-                levelRow(.now, value: levelNow, shown: shown, delay: 0.12)
-                levelRow(.goal, value: levelGoal, shown: shown, delay: 0.24)
+                // Why it is asked, in the learner's terms (the reference picture's blue strip).
+                HStack(spacing: 12) {
+                    Image(systemName: "chart.bar.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Theme.primary)
+                        .frame(width: 40, height: 40)
+                        .background(.white.opacity(0.7), in: .rect(cornerRadius: 12, style: .continuous))
+                    Text(L("あなたに合った難しさで出すので、ムダなく覚えられます。"))
+                        .scaledFont(size: 14, weight: .semibold)
+                        .foregroundStyle(Theme.primaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.accent, in: .rect(cornerRadius: 18, style: .continuous))
+                .staggerIn(shown, delay: 0.1)
+                levelRow(.now, value: levelNow, answered: answeredNow, shown: shown, delay: 0.18)
+                levelRow(.goal, value: levelGoal, answered: answeredGoal, shown: shown, delay: 0.28)
             }
         default:
             VStack(spacing: 10) {
@@ -262,9 +284,9 @@ struct OnboardingView: View {
         }
     }
 
-    /// One level answer as 設定 shows it (owner 2026-10-28: 「スクロールして選ぶようにして、すべてのレベルを出さなくていい。
-    /// 設定のスクロールと同じようにして」): the choice in a row, the wheel opening over the page when it is tapped.
-    private func levelRow(_ field: LevelWheelField, value: Int?, shown: Bool, delay: Double) -> some View {
+    /// One level answer: a row that opens the sheet of levels (owner 2026-10-29, the reference picture: a row with
+    /// 「選択してください」 and a helper line, the levels with a line each on a sheet, 「決定する」).
+    private func levelRow(_ field: LevelWheelField, value: Int?, answered: Bool, shown: Bool, delay: Double) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(field.title)
                 .scaledFont(size: 15, weight: .bold)
@@ -273,8 +295,11 @@ struct OnboardingView: View {
                 Haptics.selection()
                 levelWheel = field
             } label: {
-                HStack {
-                    Text(LevelWheelField.label(value)).scaledFont(size: 18).foregroundStyle(Theme.foreground)
+                HStack(spacing: 10) {
+                    if answered, let value { LevelBadge(level: value) }
+                    Text(answered ? LevelWheelField.label(value) : L("選択してください"))
+                        .scaledFont(size: 18, weight: answered ? .semibold : .regular)
+                        .foregroundStyle(answered ? Theme.foreground : Theme.muted)
                     Spacer()
                     Image(systemName: "chevron.down").scaledFont(size: 14, weight: .semibold).foregroundStyle(Theme.muted)
                 }
@@ -286,6 +311,9 @@ struct OnboardingView: View {
             }
             .buttonStyle(PressableStyle(scale: 0.98))
             .accessibilityIdentifier(field == .now ? "onboarding.levelNow" : "onboarding.levelGoal")
+            Text(field.hint)
+                .scaledFont(size: 13)
+                .foregroundStyle(Theme.muted)
         }
         .staggerIn(shown, delay: delay)
     }
@@ -344,39 +372,36 @@ struct OnboardingView: View {
             progressHeader(index: Self.totalSteps) { go(.notifications, step: 0, back: true) }
             Spacer(minLength: 4)
             Appearing { shown in
-                VStack(spacing: 8) {
-                    HStack(spacing: 12) {
-                        burst(shown: shown, delay: 0.5)
-                        LogoMark(size: 60)
-                            .scaleEffect(shown ? 1 : 0.6)
-                            .opacity(shown ? 1 : 0)
-                            .animation(.spring(response: 0.6, dampingFraction: 0.62).delay(0.1), value: shown)
-                        burst(shown: shown, delay: 0.6).scaleEffect(x: -1)
-                    }
+                // The icon and the name small at the top; the picture is the screen (owner 2026-10-29: 「もっと画像を
+                // 大きく中心にして」, the blue strokes gone).
+                HStack(spacing: 10) {
+                    LogoMark(size: 40)
+                        .scaleEffect(shown ? 1 : 0.6)
+                        .opacity(shown ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.62).delay(0.1), value: shown)
                     Text(verbatim: "CatchWords")  // l10n-ignore (the app's name)
-                        .scaledFont(size: 24, weight: .heavy)
+                        .scaledFont(size: 20, weight: .heavy)
                         .foregroundStyle(Theme.foreground)
-                        .staggerIn(shown, delay: 0.3, distance: 6)
-                    StepPill(text: L("はじめに"))
-                        .staggerIn(shown, delay: 0.42, distance: 6)
+                        .staggerIn(shown, delay: 0.25, distance: 6)
                 }
             }
-            OnboardingHero()
-                .frame(height: 232)
-                .padding(.top, 8)
-            RevealHeadline(marked: L("身のまわりが、\nあなたの単語帳に。"), size: 27, delay: 0.5)
+            RevealHeadline(marked: L("身のまわりが、\nあなたの単語帳に。"), size: 28, delay: 0.35)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 24)
-                .padding(.top, 10)
+                .padding(.top, 14)
             Appearing { shown in
-                Text(L("見つけたものを撮るだけ。\nことばを集めて、楽しく学ぼう。"))
+                Text(L("撮るだけで、ことばが集まる。\nまずは1分、試してみよう。"))
                     .scaledFont(size: 15).foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .staggerIn(shown, delay: 0.85, distance: 8)
+                    .staggerIn(shown, delay: 0.7, distance: 8)
             }
             .padding(.horizontal, 24)
-            .padding(.top, 10)
+            .padding(.top, 8)
+            OnboardingHero()
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 260, maxHeight: 340)
+                .padding(.top, 10)
             Spacer(minLength: 8)
             if let saveError {
                 Text(saveError).font(.footnote).foregroundStyle(Theme.destructive)
@@ -400,15 +425,6 @@ struct OnboardingView: View {
             .accessibilityIdentifier("onboarding.later")
             .padding(.horizontal, 24).padding(.bottom, 12)
         }
-    }
-
-    private func burst(shown: Bool, delay: Double) -> some View {
-        WelcomeBurst()
-            .trim(from: 0, to: shown ? 1 : 0)
-            .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
-            .frame(width: 30, height: 30)
-            .animation(.easeOut(duration: 0.4).delay(delay), value: shown)
-            .accessibilityHidden(true)
     }
 
     // MARK: - Shared chrome
@@ -652,79 +668,191 @@ enum LevelWheelField: Identifiable {
         }
     }
 
+    /// Under the row: what to pick.
+    var hint: String {
+        switch self {
+        case .now: L("今の実力に近いレベルを選んでください。")
+        case .goal: L("目指したいレベルを選んでください。")
+        }
+    }
+
     /// 「わからない」 for none, else the shared notation 「TOCFL Level n」 (never translated, CLAUDE.md).
     static func label(_ level: Int?) -> String {
         level.map { "TOCFL Level \($0)" } ?? L("わからない")  // l10n-ignore (TOCFL Level n is shared)
     }
 }
 
-/// 設定's wheel card (`WheelCard`) for the onboarding's TOCFL answers: the dimmed page, a white card with the title, ×,
-/// the app's ticking wheel (`TickWheel`) with 「わからない」 at its top, and 「閉じる」. A goal below the level now is not
-/// offered. The choice is handed back once, when the card has faded out.
-private struct LevelWheelCard: View {
+/// What the onboarding's level sheet hands back: a level, or 「わからない」 (nil level).
+struct LevelPick {
+    let level: Int?
+}
+
+/// The TOCFL levels as the sheet shows them (owner 2026-10-29: 「それぞれのレベルはどんな状態か TOCFL の公式から調べて」): the
+/// test's three bands and six levels (國家華語測驗推動工作委員會), each level's CEFR equivalent and one line of what a
+/// learner there can do, after the test's guidelines (Level 1, 2 and 6 from the guidelines' own descriptions; 3–5
+/// from their CEFR level). 「TOCFL Level n」, 「Lv.n」 and the CEFR names are shared notation (CLAUDE.md, R25).
+enum TOCFLLevel {
+    static let cefr = ["A1", "A2", "B1", "B2", "C1", "C2"]
+
+    static func describe(_ level: Int) -> String {
+        switch level {
+        case 1: L("数字や基本の単語、短く簡単な文がわかる")
+        case 2: L("日常や仕事でよく使う語の、短い文章が読める")
+        case 3: L("身近な話題なら、文脈から内容がつかめる")
+        case 4: L("幅広い話題で、要点をつかんで話せる")
+        case 5: L("専門的な内容も、流ちょうにやりとりできる")
+        default: L("専門用語の混じった講演や放送も聞き取れる")
+        }
+    }
+
+    /// One colour a level, warming up the ladder (the reference picture).
+    static func tint(_ level: Int) -> (ink: Color, fill: Color) {
+        switch level {
+        case 1: (Color(hex: 0x1A6FE0), Color(hex: 0xE4EFFF))
+        case 2: (Color(hex: 0x0E9A8A), Color(hex: 0xDDF6F1))
+        case 3: (Color(hex: 0xB58A00), Color(hex: 0xFFF4D1))
+        case 4: (Color(hex: 0xD96A14), Color(hex: 0xFFEADB))
+        case 5: (Color(hex: 0xD93A6E), Color(hex: 0xFFE2EB))
+        default: (Color(hex: 0x7A4DD6), Color(hex: 0xEDE5FF))
+        }
+    }
+}
+
+/// 「Lv.n」 in the level's colour (「?」 for 「わからない」).
+struct LevelBadge: View {
+    let level: Int?
+
+    var body: some View {
+        let tint = level.map(TOCFLLevel.tint) ?? (ink: Theme.muted, fill: Theme.secondary)
+        Text(verbatim: level.map { "Lv.\($0)" } ?? "?")  // l10n-ignore (shared notation)
+            .font(.system(size: 15, weight: .heavy, design: .rounded))
+            .foregroundStyle(tint.ink)
+            .frame(width: 64, height: 44)
+            .background(tint.fill, in: .rect(cornerRadius: 12, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// The sheet of levels for one onboarding answer (owner 2026-10-29, the reference picture): the page dims, a white
+/// sheet rises from the bottom with the title, ×, one line of help, 「わからない」 and the levels as rows (badge, name,
+/// what you can do there, a check), and 「決定する」. A goal below the level now is not offered. Closing with × keeps
+/// the answer as it was (nil is handed back); 「決定する」 hands back the pick.
+private struct LevelSheet: View {
     let field: LevelWheelField
     let value: Int?
     let lowest: Int
-    let onClose: (Int?) -> Void
-    @State private var selection: String = ""
+    let onClose: (LevelPick?) -> Void
+    @Environment(\.appReduceMotion) private var reduceMotion
+    /// nil: 「わからない」.
+    @State private var selection: Int?
     @State private var appeared: Bool = false
     @State private var closing: Bool = false
 
-    private static let unknown = "unknown"
-
-    private var options: [(value: String, label: String)] {
-        let unknown: [(value: String, label: String)] = [(Self.unknown, LevelWheelField.label(nil))]
-        let levels: [(value: String, label: String)] = (lowest...6).map { ("\($0)", LevelWheelField.label($0)) }
-        return unknown + levels
-    }
-
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.4).ignoresSafeArea()
-                .onTapGesture(perform: close)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(field.title).scaledFont(size: 18, weight: .bold).foregroundStyle(Theme.foreground)
+        ZStack(alignment: .bottom) {
+            Color.black.opacity(0.45).ignoresSafeArea()
+                .onTapGesture { close(nil) }
+            VStack(alignment: .leading, spacing: 0) {
+                Capsule().fill(Theme.border).frame(width: 40, height: 5)
+                    .frame(maxWidth: .infinity).padding(.top, 10)
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(field.title).scaledFont(size: 22, weight: .heavy).foregroundStyle(Theme.foreground)
+                        Text(field.hint).scaledFont(size: 14).foregroundStyle(Theme.muted)
+                    }
                     Spacer()
-                    Button(action: close) {
-                        Image(systemName: "xmark").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.foreground)
+                    Button { close(nil) } label: {
+                        Image(systemName: "xmark").font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.foreground)
                             .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel(L("閉じる"))
+                    .accessibilityIdentifier("onboarding.levelClose")
                 }
-                TickWheel(title: field.title, options: options, selection: $selection)
-                Button(action: close) {
-                    Text(L("閉じる")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                        .background(Theme.primary, in: Capsule())
+                .padding(.horizontal, 20).padding(.top, 10)
+                ScrollView {
+                    VStack(spacing: 10) {
+                        row(level: nil)
+                        ForEach(lowest...6, id: \.self) { row(level: $0) }
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 14)
                 }
-                .buttonStyle(FadePressStyle())
-                .opacity(closing ? 0 : 1)
-                .animation(nil, value: closing)
+                .scrollBounceBehavior(.basedOnSize)
+                Button {
+                    Haptics.impact(.light)
+                    close(LevelPick(level: selection))
+                } label: {
+                    Text(L("決定する")).scaledFont(size: 17, weight: .bold).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 54)
+                        .background(Theme.brandGradient, in: Capsule())
+                        .shadow(color: Theme.primary.opacity(0.35), radius: 10, y: 4)
+                }
+                .buttonStyle(PressableStyle(scale: 0.97))
+                .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 14)
                 .accessibilityIdentifier("wheel.close")
             }
-            .padding(.horizontal, 20).padding(.vertical, 16)
-            .background(Theme.card, in: .rect(cornerRadius: 28, style: .continuous))
-            .shadow(color: .black.opacity(0.2), radius: 30, y: 12)
-            .padding(.horizontal, 20)
-            .scaleEffect(appeared ? 1 : 0.94)
+            .frame(maxHeight: 560)
+            .background(Theme.card, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous))
+            .shadow(color: .black.opacity(0.2), radius: 30, y: -6)
+            .offset(y: appeared ? 0 : 500)
         }
+        .ignoresSafeArea(edges: .bottom)
         .opacity(appeared ? 1 : 0)
         .allowsHitTesting(!closing)
         .onAppear {
-            selection = value.map { "\(max($0, lowest))" } ?? Self.unknown
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { appeared = true }
+            selection = value.map { max($0, lowest) }
+            withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.86)) { appeared = true }
         }
     }
 
-    private func close() {
+    private func row(level: Int?) -> some View {
+        let on = selection == level
+        return Button {
+            guard selection != level else { return }
+            OnboardingPick.choose(reduceMotion: reduceMotion) { selection = level }
+        } label: {
+            HStack(spacing: 14) {
+                LevelBadge(level: level)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(LevelWheelField.label(level)).scaledFont(size: 16, weight: .bold).foregroundStyle(Theme.foreground)
+                        if let level {
+                            Text(verbatim: TOCFLLevel.cefr[level - 1])  // l10n-ignore (CEFR, shared)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(Theme.muted)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Theme.secondary, in: Capsule())
+                        }
+                    }
+                    Text(level.map(TOCFLLevel.describe) ?? L("TOCFLを受けたことがない、よく知らない"))
+                        .scaledFont(size: 13).foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                ZStack {
+                    Circle().stroke(on ? Theme.primary : Theme.border, lineWidth: 2).frame(width: 26, height: 26)
+                    if on {
+                        Circle().fill(Theme.primary).frame(width: 26, height: 26)
+                        Image(systemName: "checkmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(.white)
+                    }
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(on ? Theme.accent : Color.white, in: .rect(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(on ? Theme.primary : Theme.border, lineWidth: on ? 2 : 1))
+        }
+        .buttonStyle(PressableStyle(scale: 0.985))
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .accessibilityIdentifier(level.map { "onboarding.level.\($0)" } ?? "onboarding.level.unknown")
+    }
+
+    private func close(_ pick: LevelPick?) {
         guard !closing else { return }
         closing = true
-        let picked = Int(selection)
-        withAnimation(.easeOut(duration: 0.18)) { appeared = false }
+        withAnimation(reduceMotion ? nil : .easeIn(duration: 0.2)) { appeared = false }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(200))
-            onClose(picked)
+            try? await Task.sleep(for: .milliseconds(220))
+            onClose(pick)
         }
     }
 }
@@ -793,8 +921,9 @@ struct Appearing<Content: View>: View {
 }
 
 /// The page colour with two soft lights drifting slowly behind (still with reduced motion).
-/// The sample 珍珠奶茶's cut-out on a soft blue blob, its album tag (`WordTag`) tilted beside it, blue bursts, and the
-/// blue camera disc of the tab bar at its corner: what the app does, in one picture (owner 2026-10-28, picture 1).
+/// The sample 珍珠奶茶's cut-out on a soft blue blob, its album tag (`WordTag`) tilted beside it, and the blue camera disc
+/// of the tab bar at its corner: what the app does, in one picture (owner 2026-10-28, picture 1; 2026-10-29: bigger,
+/// no blue strokes).
 struct OnboardingHero: View {
     @Environment(\.appReduceMotion) private var reduceMotion
     @State private var shown = false
@@ -815,26 +944,20 @@ struct OnboardingHero: View {
                         .resizable()
                         .interpolation(.high)
                         .scaledToFit()
-                        .frame(height: h * 0.92)
+                        .frame(height: h * 0.98)
                         .shadow(color: .black.opacity(0.18), radius: 14, y: 8)
                         .rotationEffect(.degrees(shown ? 0 : -12))
                         .scaleEffect(shown ? 1 : 0.6)
                         .opacity(shown ? 1 : 0)
                         .accessibilityLabel(SampleSticker.headword)
-                    WordTag(text: SampleSticker.headword, zhuyin: SampleSticker.zhuyin, pinyin: SampleSticker.pinyin, tilt: -8, size: 19)
-                        .position(x: w / 2 - min(w, 330) * 0.3, y: h * 0.78)
+                    WordTag(text: SampleSticker.headword, zhuyin: SampleSticker.zhuyin, pinyin: SampleSticker.pinyin, tilt: -8, size: 21)
+                        .position(x: w / 2 - min(w, 330) * 0.28, y: h * 0.82)
                         .scaleEffect(shown ? 1 : 0.5)
                         .opacity(shown ? 1 : 0)
                         .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.6).delay(0.45), value: shown)
                 } else {
                     LogoMark(size: 96)
                 }
-                WelcomeBurst()
-                    .trim(from: 0, to: shown ? 1 : 0)
-                    .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .frame(width: 44, height: 44)
-                    .position(x: w / 2 - min(w, 330) * 0.36, y: h * 0.16)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.4).delay(0.55), value: shown)
                 ZStack {
                     Circle().fill(Theme.brandGradient)
                     Image(systemName: "camera.fill")

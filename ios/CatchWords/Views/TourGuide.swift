@@ -53,59 +53,63 @@ enum TourStep: String, Equatable {
     /// What to do, or what this is, in a few words. Owner 2026-10-28 (「チュートリアルのすべての文字文章が変だから一から
     /// 考え直して」「操作が明らかなところは…ここをタップって書かなくていい。そこだけ光らしたらユーザーもそこわかる」): the lit
     /// place shows where to tap, so no card says 「〜をタップ」.
+    /// Rewritten 2026-10-29 (owner: 「全ての見出しや解説をプロのマーケター、心理学、セールス、行動経済学の研究から最適化して」).
+    /// Each title is one action or one fact in the learner's own terms; the first one stays the owner's own words.
     var title: String? {
         switch self {
         case .tapCamera: L("目の前にある物を1枚撮ってみよう")
-        case .shoot: L("撮りたい物を画面に入れよう")
-        case .pick: L("覚えたいことばを選ぼう")
-        case .detail: L("発音を聞いてみよう")
-        case .peel: L("図鑑に入れよう")
-        case .homeAdded: L("ホームに貼られました")
-        case .dexTab: L("次は、図鑑を見てみよう")
-        case .dexCover: L("集めたことばのカード")
-        case .dexMap: L("地図でも見られます")
-        case .dexGrid: L("分類ごとにも見られます")
-        case .dexShadow: L("影は、まだ集めていない物")
-        case .dexOpen: L("撮ったことばを開いてみよう")
+        case .shoot: L("撮りたい物を、画面の真ん中に")
+        case .pick: L("覚えたいことばを1つ選ぼう")
+        case .detail: L("聞いて、声に出してみよう")
+        case .peel: L("あなたの単語帳に入れよう")
+        case .homeAdded: L("今日のアルバムに貼られました")
+        case .dexTab: L("集めたことばは、図鑑へ")
+        case .dexCover: L("1語1枚のカードになります")
+        case .dexMap: L("出会った場所も、残ります")
+        case .dexGrid: L("分類ごとに、集まり具合が見えます")
+        case .dexShadow: L("影は、まだ出会っていない物")
+        case .dexOpen: L("あなたの1語目を開いてみよう")
         case .wordSection: L("単語の頁")
-        case .wordSettings: L("項目は自由に並べ替えられます")
-        case .reviewPick: L("写真に合うことばを選ぼう")
+        case .wordSettings: L("見せ方は、あなた好みに")
+        case .reviewPick: L("この写真のことばは、どれ？")
         case .reviewNext: L("答え合わせ")
-        case .memoryCurve: L("このことばの記憶の状態")
+        case .memoryCurve: L("このことばは、いつ忘れそう？")
         default: nil
         }
     }
 
-    /// One line, only where it tells something the screen does not already show (the first step has none: owner
-    /// 2026-10-28 「撮るだけで単語帳ができますって文字消して。いらない」).
+    /// One line, only where it adds what the screen does not already show (the first step has none: owner
+    /// 2026-10-28 「撮るだけで単語帳ができますって文字消して。いらない」). Each line names the gain or removes a worry.
     var benefit: String? {
         switch self {
-        case .shoot: L("名前を知らない物でも大丈夫。")
-        case .pick: L("写っている物に、台湾華語の名前が付きました。")
-        case .detail: L("ネイティブの発音です。まねして言ってみましょう。")
-        case .homeAdded: L("撮った物は切り抜かれ、日付ごとのアルバムに残ります。")
-        case .dexCover: L("左右にめくって見返せます。")
-        case .dexMap: L("どこで出会ったことばか、場所から思い出せます。")
-        case .dexGrid: L("飲み物や料理など、分類ごとに集まり具合が分かります。")
-        case .dexShadow: L("影にない物も、何でも撮って集められます。")
-        case .wordSettings: L("表示する項目と順番、文字の大きさ、発音の速さをここで変えられます。")
+        case .shoot: L("名前を知らなくて大丈夫。アプリが見つけます。")
+        case .pick: L("写っている物に、台湾での呼び方が付きました。")
+        case .detail: L("ネイティブの発音です。声に出すと、記憶に残ります。")
+        case .peel: L("ここから、あなたのことばが増えていきます。")
+        case .homeAdded: L("切り抜きが、日付ごとに残ります。あとで見返せます。")
+        case .dexCover: L("左右にめくるだけで、思い出す練習になります。")
+        case .dexMap: L("場所と一緒に覚えると、思い出しやすくなります。")
+        case .dexGrid: L("飲み物、料理…。集めるほど、得意な分野が分かります。")
+        case .dexShadow: L("影を埋めていこう。影にない物も、何でもキャッチできます。")
+        case .wordSettings: L("見たい項目と順番、文字の大きさ、発音の速さをここで。")
         case .reviewPick: L("自分で撮った写真だから、思い出しやすい。")
-        case .reviewNext: L("間違えても、解説を読めば覚え直せます。")
-        case .memoryCurve: L("色で記憶の段階が分かります。忘れかける頃に、復習をお知らせします。")
+        case .reviewNext: L("間違えても大丈夫。解説を読めば、次は思い出せます。")
+        case .memoryCurve: L("忘れかける頃にお知らせ。復習は、必要な分だけ。")
         default: nil
         }
     }
 
-    /// The word page's sections, one line each (the section's own name is the card's title).
+    /// The word page's sections, one line each (the section's own name is the card's title): what the learner gets
+    /// from it, not what it is called.
     static func sectionPoint(_ section: CardSection) -> String {
         switch section {
-        case .meaning: L("このことばの意味を、短く説明します。")
-        case .usageChunks: L("ネイティブがよく一緒に使う組み合わせ。この形のまま覚えると、すぐ話せます。")
-        case .example: L("チャンクを使った例文。音声でも聞けます。")
-        case .measureWords: L("この物を数えるときのことば（量詞）。")
-        case .relatedWords: L("一緒に覚えると便利なことば。")
-        case .taiwanNote: L("台湾での言い方や習慣のメモ。")
-        case .realUsage: L("動画や検索で、実際の使われ方を確かめられます。")
+        case .meaning: L("まずはここだけ。意味を短く。")
+        case .usageChunks: L("ネイティブがよく使う組み合わせ。この形のまま覚えると、すぐ使えます。")
+        case .example: L("チャンクを使った例文。音声でそのまま聞けます。")
+        case .measureWords: L("数えるときの言い方。注文のときに役立ちます。")
+        case .relatedWords: L("一緒に覚えると、使える場面が広がります。")
+        case .taiwanNote: L("台湾ならではの言い方や習慣。")
+        case .realUsage: L("動画や検索で、本当に使われているか確かめられます。")
         default: L("このことばを深く知るための項目。")
         }
     }
@@ -603,8 +607,9 @@ struct TourCoachCard: View {
     }
 }
 
-/// 「チュートリアル完了！」— 撮った写真と紙吹雪、案内でやってみたこと。Owner 2026-10-28: back on the home screen, the
-/// end is said and celebrated there (the home shows through, frosted).
+/// The end of the guide, over the home (frosted). Owner 2026-10-29: confetti over the whole screen, the catch's cut-out
+/// itself, big and in the middle (no white card, no blue strokes), no list of what was done; a headline that sends
+/// the learner off to collect, and 「はじめる」.
 struct TourCompleteView: View {
     let sticker: Sticker?
     let onDone: () -> Void
@@ -613,92 +618,47 @@ struct TourCompleteView: View {
     @Environment(\.appReduceMotion) private var reduceMotion
     @State private var burst: Bool = false
 
-    private static let confetti: [Color] = [Theme.primary, Color(hex: 0xF5B83D), Color(hex: 0xFF7A8A), Color(hex: 0x4FC3A1)]
-
     var body: some View {
         ZStack {
             Rectangle().fill(.ultraThinMaterial).ignoresSafeArea()
-            Theme.background.opacity(burst ? 0.55 : 0).ignoresSafeArea()
+            Theme.background.opacity(burst ? 0.6 : 0).ignoresSafeArea()
             OnboardingBackdrop().opacity(0.6)
+            ConfettiRain(running: burst)
             VStack(spacing: 0) {
-                Spacer(minLength: 8)
-                // The icon in a burst of paper (the reference picture's top).
-                ZStack {
-                    ForEach(0..<18, id: \.self) { i in
-                        let angle = Double(i) / 18 * 2 * .pi
-                        let reach = 70 + Double(i % 3) * 14
-                        // Wider than tall and short below, inside the 150pt row: never over the headline (CI preview
-                        // 2026-10-28: pieces fell on 「チュートリアル完了！」).
-                        let dx = cos(angle) * reach * 1.45
-                        let dy = sin(angle) * reach * (sin(angle) > 0 ? 0.5 : 0.7)
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Self.confetti[i % Self.confetti.count])
-                            .frame(width: 7, height: 12)
-                            .rotationEffect(.degrees(Double(i) * 37 + (burst ? 200 : 0)))
-                            .offset(x: burst ? dx : 0, y: burst ? dy : 0)
-                            .opacity(burst ? 0.9 : 0)
-                    }
-                    LogoMark(size: 68)
-                        .rotationEffect(.degrees(burst ? 0 : -12))
-                        .scaleEffect(burst ? 1 : 0.6)
-                }
-                .frame(height: 150)
-                RevealHeadline(marked: L("チュートリアル完了！"), size: 27, delay: 0.3)
+                Spacer(minLength: 12)
+                RevealHeadline(marked: L("さあ、ことばを集めよう"), size: 28, delay: 0.25)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(L("身のまわりから、ことばを増やしていこう。"))
-                    .scaledFont(size: 14)
+                Text(L("撮るたびに、あなたの単語帳が育ちます。"))
+                    .scaledFont(size: 15)
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
-                    .padding(.top, 6)
-                    .staggerIn(burst, delay: 0.5, distance: 6)
-                // The catch on a tilted white card, its album tag beside it.
-                HStack(alignment: .bottom, spacing: 12) {
-                    ZStack {
-                        Color.white
-                            .frame(width: 150, height: 150)
-                            .overlay {
-                                if let path = sticker?.heroPath {
-                                    StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
-                                        .padding(10)
-                                        .allowsHitTesting(false)
-                                } else {
-                                    // No picture of the catch (not found): the app's mark, never an empty white card.
-                                    LogoMark(size: 96)
-                                }
-                            }
-                            .clipShape(.rect(cornerRadius: 22, style: .continuous))
-                            .shadow(color: .black.opacity(0.15), radius: 16, y: 8)
-                            .rotationEffect(.degrees(burst ? -6 : -14))
-                        WelcomeBurst()
-                            .trim(from: 0, to: burst ? 1 : 0)
-                            .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
-                            .frame(width: 34, height: 34)
-                            .offset(x: -86, y: -72)
-                            .animation(reduceMotion ? nil : .easeOut(duration: 0.4).delay(0.6), value: burst)
+                    .padding(.top, 8)
+                    .staggerIn(burst, delay: 0.45, distance: 6)
+                Spacer(minLength: 12)
+                // The catch itself, its album tag across its foot.
+                ZStack(alignment: .bottom) {
+                    if let path = sticker?.heroPath {
+                        StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
+                            .frame(maxWidth: 280, maxHeight: 300)
+                            .shadow(color: .black.opacity(0.22), radius: 18, y: 10)
+                            .allowsHitTesting(false)
+                    } else {
+                        // No picture of the catch (not found): the app's mark, never an empty space.
+                        LogoMark(size: 120)
                     }
-                    .scaleEffect(burst ? 1 : 0.6)
-                    .opacity(burst ? 1 : 0)
                     if let w = sticker?.word {
-                        WordTag(text: w.headword, zhuyin: w.readingZhuyin, pinyin: w.pinyin, tilt: 6, size: 20)
-                            .padding(.bottom, 18)
+                        WordTag(text: w.headword, zhuyin: w.readingZhuyin, pinyin: w.pinyin, tilt: -5, size: 22)
+                            .offset(y: 14)
                             .staggerIn(burst, delay: 0.55, distance: 8)
                     }
                 }
-                .padding(.top, 18)
+                .rotationEffect(.degrees(burst ? 0 : -10))
+                .scaleEffect(burst ? 1 : 0.6)
+                .opacity(burst ? 1 : 0)
+                .padding(.bottom, 20)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(sticker?.word?.headword ?? "")
-                VStack(alignment: .leading, spacing: 12) {
-                    recap(L("撮って、ホームに貼った"), icon: TourPhase.shoot.icon, delay: 0.85)
-                    recap(L("図鑑の見方を知った"), icon: TourPhase.dex.icon, delay: 1.0)
-                    recap(L("単語の頁で学んだ"), icon: TourPhase.word.icon, delay: 1.15)
-                    recap(L("復習して、記憶の状態を見た"), icon: TourPhase.review.icon, delay: 1.3)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.card, in: .rect(cornerRadius: 22, style: .continuous))
-                .shadow(color: Color(hex: 0x1C4A80).opacity(0.1), radius: 16, y: 6)
-                .padding(.top, 20)
-                Spacer(minLength: 10)
+                Spacer(minLength: 16)
                 PrimaryButton(title: L("はじめる"), icon: "arrow.right", sheen: true, action: onDone)
                     .padding(.bottom, 24)
             }
@@ -712,28 +672,66 @@ struct TourCompleteView: View {
             }
         }
     }
+}
 
-    private func recap(_ text: String, icon: String, delay: Double) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(Theme.ok)
-                Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
-            }
-            .frame(width: 26, height: 26)
-            .scaleEffect(burst ? 1 : 0.2)
-            .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.55).delay(delay + 0.1), value: burst)
-            Text(text)
-                .scaledFont(size: 16, weight: .semibold)
-                .foregroundStyle(Theme.foreground)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.primary)
-                .frame(width: 28, height: 28)
-                .background(Theme.accent, in: .rect(cornerRadius: 8, style: .continuous))
+/// Paper falling over the whole screen (the complete screen's celebration): pieces of the app's colours drift down
+/// from above the top edge, turning, each at its own pace. Still (scattered once) with reduced motion.
+struct ConfettiRain: View {
+    let running: Bool
+    @Environment(\.appReduceMotion) private var reduceMotion
+    /// When the paper started falling (the clock the pieces are timed from).
+    @State private var start = Date()
+
+    private struct Piece {
+        let x: Double        // 0…1 of the width
+        let delay: Double    // seconds before it enters
+        let speed: Double    // points per second
+        let sway: Double     // sideways drift amplitude, points
+        let spin: Double     // turns per second
+        let color: Color
+        let size: CGSize
+    }
+
+    private static let colors: [Color] = [Theme.primary, Color(hex: 0xF5B83D), Color(hex: 0xFF7A8A), Color(hex: 0x4FC3A1), Color(hex: 0x8B7CF6)]
+
+    private static let pieces: [Piece] = {
+        var g = SystemRandomNumberGenerator()
+        return (0..<42).map { i in
+            Piece(x: Double(i % 14) / 13 + Double.random(in: -0.03...0.03, using: &g),
+                  delay: Double.random(in: 0...1.6, using: &g),
+                  speed: Double.random(in: 90...160, using: &g),
+                  sway: Double.random(in: 8...26, using: &g),
+                  spin: Double.random(in: 0.4...1.2, using: &g) * (Bool.random(using: &g) ? 1 : -1),
+                  color: colors[i % colors.count],
+                  size: CGSize(width: Double.random(in: 6...9, using: &g), height: Double.random(in: 10...15, using: &g)))
         }
-        .staggerIn(burst, delay: delay, distance: 10)
+    }()
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            TimelineView(.animation(paused: !running || reduceMotion)) { ctx in
+                let t = ctx.date.timeIntervalSince(start)
+                Canvas { context, _ in
+                    for p in Self.pieces {
+                        let life = reduceMotion ? 1.0 : max(0, t - p.delay)
+                        // Each piece falls through the screen again and again; still: scattered over the screen.
+                        let y = reduceMotion ? p.x * 0.7 * h + p.delay * 120 : ((life * p.speed).truncatingRemainder(dividingBy: h + 60)) - 30
+                        guard life > 0 || reduceMotion else { continue }
+                        let x = p.x * w + sin(life * 1.7 + p.x * 10) * p.sway
+                        let rect = CGRect(x: -p.size.width / 2, y: -p.size.height / 2, width: p.size.width, height: p.size.height)
+                        var piece = context
+                        piece.translateBy(x: x, y: y)
+                        piece.rotate(by: .radians(life * p.spin * 2 * .pi + p.x * 6))
+                        piece.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(p.color.opacity(0.9)))
+                    }
+                }
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
