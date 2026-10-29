@@ -8,6 +8,9 @@ import UIKit
 enum ScreenOrientation {
     /// The shorter side of a window that may turn: the Duo's inner screen is 669 pt; the outer one 466, iPhones ≤ 440.
     static let turningSide: CGFloat = 600
+    /// The widest a column of reading and forms is drawn (`readableColumn()`): wider than the Duo's inner screen held
+    /// upright (669 pt), so only the screen held sideways (951 pt) narrows it.
+    static let readableWidth: CGFloat = 680
 
     static func mask(for window: UIWindow?) -> UIInterfaceOrientationMask {
         guard let size = window?.bounds.size, min(size.width, size.height) >= turningSide else { return .portrait }
@@ -23,6 +26,15 @@ enum ScreenOrientation {
                 window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
             }
         }
+    }
+}
+
+extension View {
+    /// A column of reading and forms at most `ScreenOrientation.readableWidth` wide, in the middle: across iPhone Duo's
+    /// inner screen held sideways the lines and buttons ran the whole 951 pt. Nothing changes on the iPhone or the Duo
+    /// held upright.
+    func readableColumn() -> some View {
+        frame(maxWidth: ScreenOrientation.readableWidth).frame(maxWidth: .infinity)
     }
 }
 

@@ -146,6 +146,7 @@ struct AuthView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
+            .readableColumn()
         }
         .scrollDismissesKeyboard(.interactively)
         .statusBarScrim()

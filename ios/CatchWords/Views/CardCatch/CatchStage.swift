@@ -10,6 +10,13 @@ import UIKit
 /// The film's easings, timeline and geometry.
 nonisolated enum Film6 {
     static let canvasW: Double = 1080
+
+    /// The width a portrait layout of the film is drawn in: the screen's, or on a screen wider than tall (iPhone Duo
+    /// open and held sideways, owner 2026-10-29) a column ¾ of its height wide in the middle — drawn across 951 pt the
+    /// choice card's words outgrew its 669 pt of height.
+    static func columnWidth(_ size: CGSize) -> CGFloat {
+        size.width > size.height ? min(size.width, size.height * 0.75) : size.width
+    }
     static let canvasH: Double = 2340
 
     static func clamp(_ x: Double, _ a: Double = 0, _ b: Double = 1) -> Double { min(b, max(a, x)) }

@@ -64,6 +64,7 @@ struct SettingsView: View {
             .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 130)
+            .readableColumn()
         }
         .scrollDismissesKeyboard(.interactively)
         .statusBarScrim()

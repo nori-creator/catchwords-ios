@@ -2030,10 +2030,11 @@ private struct PageColumnWidth: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
+        // The cards at most a reading column wide, in the middle (iPhone Duo held sideways, `readableColumn()`).
         if let width {
-            content.frame(width: width)
+            content.frame(maxWidth: ScreenOrientation.readableWidth).frame(width: width)
         } else {
-            content.containerRelativeFrame(.horizontal)
+            content.frame(maxWidth: ScreenOrientation.readableWidth).containerRelativeFrame(.horizontal)
         }
     }
 }
