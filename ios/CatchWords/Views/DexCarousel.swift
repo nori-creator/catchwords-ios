@@ -25,6 +25,7 @@ struct DexCoverFlow: View {
     @State private var muteSlideSound = false
     /// The stage is wide enough for the cards to stand in a row (`CarouselPose.isRow`).
     @State private var wideStage = false
+    @State private var stageSize: CGSize = .zero
 
     private var center: Int {
         guard !stickers.isEmpty else { return 0 }
@@ -99,17 +100,23 @@ struct DexCoverFlow: View {
             spring.set(Double(max(0, min(stickers.count - 1, initialIndex))))
         }
         .onDisappear { spring.stop() }
-        // On a wide stage the row opens a few cards in, so cards stand on both sides of the middle one.
+        // On a wide stage the row opens a few cards in, so cards stand on both sides of the middle one — once the cards
+        // are there (the stage is measured before the dex has loaded).
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-            let w = Double(Self.cardWidth(in: size, cards: stickers.count))
-            guard CarouselPose.isRow(stageWidth: Double(size.width), cardWidth: w), !wideStage else { return }
-            wideStage = true
-            if initialIndex == 0, center == 0, stickers.count >= 3 {
-                let side = Int(CarouselPose.rowReach(stageWidth: Double(size.width), cardWidth: w)) - 1
-                muteSlideSound = true
-                spring.set(Double(max(1, min(side, stickers.count / 2))))
-            }
+            stageSize = size
+            startWideRow()
         }
+        .onChange(of: stickers.count) { _, _ in startWideRow() }
+    }
+
+    private func startWideRow() {
+        let w = Double(Self.cardWidth(in: stageSize, cards: stickers.count))
+        guard !wideStage, stickers.count >= 3, CarouselPose.isRow(stageWidth: Double(stageSize.width), cardWidth: w) else { return }
+        wideStage = true
+        guard initialIndex == 0, center == 0 else { return }
+        let side = Int(CarouselPose.rowReach(stageWidth: Double(stageSize.width), cardWidth: w)) - 1
+        muteSlideSound = true
+        spring.set(Double(max(1, min(side, stickers.count / 2))))
     }
 
     private func bring(_ i: Int) {

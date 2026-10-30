@@ -153,6 +153,8 @@ struct MainTabView: View {
     @Environment(\.appReduceMotion) private var reduceMotion
     @Namespace private var detailZoom
     @State private var flightToken = 0
+    /// iPhone Duo open and held sideways: the word's page covers the whole screen (`wordPage`).
+    @State private var wideScreen = false
     @Environment(ProfileStore.self) private var profile
     /// The system's App Store rating sheet (App Review Guideline 5.6.1: no custom review prompts).
     @Environment(\.requestReview) private var requestReview
@@ -168,6 +170,29 @@ struct MainTabView: View {
 
     init() {
         _tourPending = AppStorage(wrappedValue: false, TourStep.pendingStorageKey(for: SupabaseClient.shared.userId))
+    }
+
+    private func wordPage(_ sticker: Sticker) -> some View {
+        WordDetailView(sticker: sticker, previewFocus: storeFocus)
+            .environment(router)
+            .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Theme.background)
+            // The word's page is a sheet over the tabs: its guide steps light its own parts (the jump chips, the
+            // settings button), with a layer of their own.
+            .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                if router.tour.isWord {
+                    TourLayer(step: router.tour, anchors: anchors, onNext: wordTourNext, onSkip: endTour,
+                              bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
+                        .transition(.opacity)
+                }
+            }
+    }
+
+    private func wordPageDismissed() {
+        router.detailZoomed = false
+        // 単語の頁を見終えたら復習へ（Web: StickerSheet の onClose → review）。
+        if router.tour.isWord { startTourReview() }
     }
 
     var body: some View {
@@ -272,29 +297,16 @@ struct MainTabView: View {
             }
         }
         .environment(router)
-        .sheet(item: $router.detailSticker, onDismiss: {
-            router.detailZoomed = false
-            // 単語の頁を見終えたら復習へ（Web: StickerSheet の onClose → review）。
-            if router.tour.isWord { startTourReview() }
-        }) { sticker in
-            WordDetailView(sticker: sticker, previewFocus: storeFocus)
-                .environment(router)
-                .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Theme.background)
-                // On iPhone Duo's inner screen the page is as large as the screen (its two pages side by side when held
-                // sideways), not a card in the middle.
-                .presentationSizing(WordPageSizing())
-                // The word's page is a sheet over the tabs: its guide steps light its own parts (the jump chips, the
-                // settings button), with a layer of their own.
-                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-                    if router.tour.isWord {
-                        TourLayer(step: router.tour, anchors: anchors, onNext: wordTourNext, onSkip: endTour,
-                                  bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
-                            .transition(.opacity)
-                    }
-                }
+        // The word's page: a sheet on the iPhone; with iPhone Duo open and held sideways, the whole screen (its two pages
+        // side by side — owner 2026-10-30: 「単語の詳細を開いたときにページの中央部分しか使ってないのがもったいない」; a sheet
+        // stayed a narrow card in the middle there whatever its sizing).
+        .sheet(item: wideScreen ? Binding<Sticker?>.constant(nil) : $router.detailSticker, onDismiss: wordPageDismissed) { sticker in
+            wordPage(sticker)
         }
+        .fullScreenCover(item: wideScreen ? $router.detailSticker : Binding<Sticker?>.constant(nil), onDismiss: wordPageDismissed) { sticker in
+            wordPage(sticker)
+        }
+        .onGeometryChange(for: Bool.self) { $0.size.width >= 800 && $0.size.width > $0.size.height } action: { wideScreen = $0 }
         .onAppear {
             router.detailZoom = detailZoom
             beginTourIfPending()
@@ -688,11 +700,3 @@ extension MainTabView {
 }
 #endif
 
-/// The word's page as large as the screen allows: on the iPhone a sheet is the screen's width anyway; on iPhone Duo's
-/// inner screen (regular width) the default form sheet left the page a narrow column in the middle (owner 2026-10-30:
-/// 「単語の詳細を開いたときにページの中央部分しか使ってないのがもったいない」).
-struct WordPageSizing: PresentationSizing {
-    func proposedSize(for root: PresentationSizingRoot, context: PresentationSizingContext) -> ProposedViewSize {
-        .infinity
-    }
-}
