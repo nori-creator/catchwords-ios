@@ -13,33 +13,60 @@ struct MemoryOverviewPanel: View {
             .sorted { $0.1 == $1.1 ? ($0.0.word?.headword ?? "") < ($1.0.word?.headword ?? "") : $0.1 < $1.1 }
     }
 
+    /// iPhone Duo open and held sideways: the words on the left, the overall chart on the right (owner 2026-10-30:
+    /// 「記憶の状態…大きい画面を利用して右左に分けて見やすく表示して」).
+    @State private var wide = false
+
     var body: some View {
         let list = rows
-        VStack(alignment: .leading, spacing: 0) {
-            if !list.isEmpty {
+        Group {
+            if wide {
+                HStack(alignment: .top, spacing: 20) {
+                    wordList(list, height: 420).frame(maxWidth: .infinity)
+                    overall.frame(maxWidth: .infinity)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    wordList(list, height: 330)
+                    Divider().overlay(Theme.border).padding(.vertical, 12)
+                    overall
+                }
+            }
+        }
+        .onGeometryChange(for: Bool.self) { $0.size.width >= 760 } action: { wide = $0 }
+        .padding(14)
+        .background(Theme.card, in: .rect(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Theme.border, lineWidth: 1))
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
+    }
+
+    @ViewBuilder
+    private func wordList(_ list: [(Sticker, Int)], height: CGFloat) -> some View {
+        if !list.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
                 ScrollView {
                     LazyVStack(spacing: 2) {
                         ForEach(list, id: \.0.id) { s, pct in row(s, pct) }
                     }
                     .padding(.vertical, 6)
                 }
-                .frame(height: min(CGFloat(list.count) * 50 + 12, 330))
+                .frame(height: min(CGFloat(list.count) * 50 + 12, height))
                 .scrollIndicators(.visible)
 
                 Text(L("タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます"))
                     .scaledFont(size: 12).foregroundStyle(Theme.muted)
                     .padding(.top, 8)
             }
-            Divider().overlay(Theme.border).padding(.vertical, 12)
+        }
+    }
+
+    private var overall: some View {
+        VStack(alignment: .leading, spacing: 0) {
             Text(L("全体の記憶率（前後2週間）"))
                 .scaledFont(size: 12, weight: .semibold).foregroundStyle(Theme.muted)
             RetentionMiniChart(data: store.retentionSeries(dex: dex))
                 .padding(.top, 6)
         }
-        .padding(14)
-        .background(Theme.card, in: .rect(cornerRadius: 24, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Theme.border, lineWidth: 1))
-        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
     }
 
     private func row(_ s: Sticker, _ pct: Int) -> some View {

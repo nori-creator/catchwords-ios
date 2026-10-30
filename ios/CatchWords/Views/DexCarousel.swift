@@ -23,7 +23,7 @@ struct DexCoverFlow: View {
     @State private var spring = CarouselSpring()
     @State private var lastSlideSound: CFTimeInterval = 0
     @State private var muteSlideSound = false
-    /// The stage is wide enough for the ring to spread (`CarouselPose.spread`).
+    /// The stage is wide enough for the cards to stand in a row (`CarouselPose.isRow`).
     @State private var wideStage = false
 
     private var center: Int {
@@ -99,13 +99,15 @@ struct DexCoverFlow: View {
             spring.set(Double(max(0, min(stickers.count - 1, initialIndex))))
         }
         .onDisappear { spring.stop() }
-        // On a wide stage the ring opens a couple of cards in, so cards stand on both sides of the middle one.
-        .onGeometryChange(for: Bool.self) { $0.size.width >= 800 } action: { wide in
-            guard wide, !wideStage else { return }
+        // On a wide stage the row opens a few cards in, so cards stand on both sides of the middle one.
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            let w = Double(Self.cardWidth(in: size, cards: stickers.count))
+            guard CarouselPose.isRow(stageWidth: Double(size.width), cardWidth: w), !wideStage else { return }
             wideStage = true
             if initialIndex == 0, center == 0, stickers.count >= 3 {
+                let side = Int(CarouselPose.rowReach(stageWidth: Double(size.width), cardWidth: w)) - 1
                 muteSlideSound = true
-                spring.set(Double(min(2, stickers.count / 2)))
+                spring.set(Double(max(1, min(side, stickers.count / 2))))
             }
         }
     }
@@ -230,7 +232,8 @@ private struct CoverFlowStage: View {
         return max(0, min(stickers.count - 1, spring.index))
     }
 
-    private var spread: Double { CarouselPose.spread(stageWidth: stageWidth, cardWidth: cardWidth) }
+    private var row: Bool { CarouselPose.isRow(stageWidth: stageWidth, cardWidth: cardWidth) }
+    private var rowReach: Double { CarouselPose.rowReach(stageWidth: stageWidth, cardWidth: cardWidth) }
 
     var body: some View {
         let w = cardWidth
@@ -238,7 +241,7 @@ private struct CoverFlowStage: View {
         let ch = w * 1.48
         let top = DexCoverFlow.cardTop
         let stageH = DexCoverFlow.stageHeight(cardWidth: w)
-        let step = w * CarouselPose.step * spread
+        let step = w * CarouselPose.stepWidth(row: row)
         let pos = spring.value
         let range = visibleRange(around: pos)
         return ZStack(alignment: .topLeading) {
@@ -305,8 +308,9 @@ private struct CoverFlowStage: View {
 
     private func visibleRange(around pos: Double) -> [Int] {
         guard !stickers.isEmpty else { return [] }
-        let lo = max(0, Int((pos - CarouselPose.reach).rounded(.down)))
-        let hi = min(stickers.count - 1, Int((pos + CarouselPose.reach).rounded(.up)))
+        let reach = row ? rowReach : CarouselPose.reach
+        let lo = max(0, Int((pos - reach).rounded(.down)))
+        let hi = min(stickers.count - 1, Int((pos + reach).rounded(.up)))
         return lo <= hi ? Array(lo...hi) : []
     }
 
@@ -315,7 +319,7 @@ private struct CoverFlowStage: View {
         let w = cardWidth
         let s = stickers[i]
         let rel = Double(i) - pos
-        let p = CarouselPose.pose(rel, reduced: reduceMotion, spread: spread)
+        let p = CarouselPose.pose(rel, reduced: reduceMotion, row: row, rowReach: rowReach)
         let ch = w * 1.48
         let perspective: CGFloat = 1000
         let z = p.z * w
@@ -350,22 +354,37 @@ enum CarouselPose {
     /// Cards further round than this are behind the middle one and aren't drawn.
     static let reach = 3.4
 
-    /// How much wider than a card the ring is: 1 on the iPhone; on a screen much wider than the card (iPhone Duo's
-    /// inner screen held sideways) the ring spreads over the width, so two or three cards show on each side (owner
-    /// 2026-10-30: 「図鑑のスライド、表示されてるカードが少ない。せっかく画面横に広いから、カードも横に広く見えるように並べて」).
-    static func spread(stageWidth: Double, cardWidth: Double) -> Double {
-        guard cardWidth > 0, stageWidth >= 800 else { return 1 }
-        return max(1, min(2.4, stageWidth * 0.46 / cardWidth))
+    /// On a screen much wider than the card (iPhone Duo's inner screen held sideways) the cards stand in a row across
+    /// the whole width instead of on a ring, as many as fit (owner 2026-10-30: 「図鑑のスライドは表示できるだけ全て表示して」):
+    /// each `rowGap` card widths from the next, a little smaller further out.
+    static let rowGap = 0.58
+    static func isRow(stageWidth: Double, cardWidth: Double) -> Bool { cardWidth > 0 && stageWidth >= 800 }
+    /// The cards on each side of the middle one that fit in the row.
+    static func rowReach(stageWidth: Double, cardWidth: Double) -> Double {
+        guard cardWidth > 0 else { return reach }
+        return (stageWidth / 2 / (rowGap * 0.88 * cardWidth)).rounded(.up) + 1
     }
+    /// How far the middle card moves per card (card widths), so it sticks to the finger.
+    static func stepWidth(row: Bool) -> Double { row ? rowGap : step }
 
-    static func pose(_ offset: Double, reduced: Bool, spread: Double = 1) -> (x: Double, z: Double, rotateY: Double, zIndex: Double, opacity: Double) {
+    static func pose(_ offset: Double, reduced: Bool, row: Bool = false, rowReach: Double = reach) -> (x: Double, z: Double, rotateY: Double, zIndex: Double, opacity: Double) {
+        if row {
+            let o = max(-rowReach, min(rowReach, offset))
+            let a = abs(o)
+            return (
+                x: rowGap * o * (1 - min(a, 6) * 0.02),
+                z: -0.22 * min(a, 6),
+                rotateY: reduced ? 0 : -max(-1, min(1, o)) * 8,
+                zIndex: 100 - (min(9, a) * 10).rounded(),
+                opacity: 1
+            )
+        }
         let o = max(-reach, min(reach, offset))
         let a = abs(o)
         let phi = o * angle
         return (
-            x: radius * spread * sin(phi),
-            // A wide ring is shallower, so the cards beside the middle one stay large.
-            z: -depth / spread.squareRoot() * (1 - cos(phi)),
+            x: radius * sin(phi),
+            z: -depth * (1 - cos(phi)),
             // Turned slightly inward so the outer edge comes toward you; flat with reduced motion.
             rotateY: reduced ? 0 : -phi * 0.3 * 180 / .pi,
             // Nearer is on top; past 4 cards the order stops changing so it never flips.
