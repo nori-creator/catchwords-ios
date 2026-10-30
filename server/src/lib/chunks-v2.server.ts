@@ -43,12 +43,13 @@ import { normalizeTargetLanguage } from "./target-lang";
  * 書庫の表（`chunk_library` / `chunk_library_text` / `chunk_runs`）が無い環境でも落ちない（書庫なしで作って返す）。
  */
 
-// 締め切り。2026-10-30 の採点: 3 回目まで 1 社 27〜40 秒かかったのは、モデルが**既定で長く考えていた**ため（Gemini 3 Flash は
-// thinking_level が既定 high、Claude Haiku 5.5 は既定 medium）。`askJson` が考えを最小にし（`speedOptions`）、書く段の返事を
-// 軽くしたので、期待は 1 社 3〜8 秒。締め切りはその 2〜3 倍に置く（遅い回は捨てて、次に開いた時に出す）。
-const GEN_MS = Number(process.env.AI_CHUNKS_V2_GEN_MS ?? 20_000);
-const JUDGE_MS = Number(process.env.AI_CHUNKS_V2_JUDGE_MS ?? 12_000);
-const FINISH_MS = Number(process.env.AI_CHUNKS_V2_FINISH_MS ?? 15_000);
+// 締め切り。2026-10-30 の採点: 3 回目まで 1 社 27〜40 秒かかったのは、モデルが**既定で長く考えていた**ため。計測（mode=probe、
+// 同じ指示文）: Gemini 3.8 Flash は既定 22 秒 → reasoning_effort low で 4.4 秒、Claude Haiku 5.5 は既定 25 秒（考えた分 5,000
+// トークン）→ thinking disabled で 1.9 秒。5 回目の採点は書く段 p90 5.2 秒・審査 p90 2.9 秒・仕上げ p90 3.8 秒、1 語 p50 11 秒。
+// 締め切りはその 2〜3 倍（遅い回は捨てて、次に開いた時に出す）。
+const GEN_MS = Number(process.env.AI_CHUNKS_V2_GEN_MS ?? 15_000);
+const JUDGE_MS = Number(process.env.AI_CHUNKS_V2_JUDGE_MS ?? 10_000);
+const FINISH_MS = Number(process.env.AI_CHUNKS_V2_FINISH_MS ?? 12_000);
 /** Claude の書き手・審査のモデル（`ANTHROPIC_API_KEY` が要る）。 */
 const CLAUDE_MODEL = process.env.AI_CHUNKS_V2_CLAUDE_MODEL ?? "claude-haiku-5-5";
 /** Gemini の考える量（OpenAI 互換の口の `reasoning_effort`。Gemini 3 Flash は low が最小の確実な値 — minimal は版により 400）。 */

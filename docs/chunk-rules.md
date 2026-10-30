@@ -54,9 +54,14 @@ AI は語ごとに頻度の高い物を 3〜5 個返し、照合で 2〜4 個に
              書庫 chunk_library（中国語は表示言語をまたいで共有。不自然と落ちた物も rejected で残す） + chunk_library_text（訳は言語ごと）
 ```
 
-- **速さの要は「考えさせない」**: 3 回目までの採点で 1 社 27〜40 秒かかった原因は、モデルが既定で長く考えていた事（Gemini 3 Flash は
-  thinking_level 既定 high、Claude Haiku 5.5 は既定 medium）。`askJson` が `reasoning_effort: low`（Google）と `thinking: disabled`
-  （Anthropic）を足す（`speedOptions`）。書く段の返事も軽くした（block・品詞・訳は仕上げの段）。
+- **速さの要は「考えさせない」**: 3 回目までの採点で 1 社 27〜40 秒かかった原因は、モデルが既定で長く考えていた事。計測
+  （`chunks-v2.probe.test.ts`、Actions の mode=probe、2026-10-30）: Gemini 3.8 Flash は既定 22.3 秒 → `reasoningEffort: low` 4.4 秒
+  （minimal は 400 で断られる、none 4.8 秒、thinking_budget 0 4.4 秒）。Claude Haiku 5.5 は既定 24.9 秒（考えた分 5,340 トークン）→
+  `thinking: disabled` 1.9 秒。`askJson` が `speedOptions` でこれを足す。**SDK（openai-compatible）は生の `reasoning_effort` を自分の欄で
+  上書きして消す**ので、SDK の欄 `reasoningEffort` で渡す。書く段の返事も軽くした（block・品詞・訳は仕上げの段）。
+  5 回目の採点（8 語）: 1 語 p50 11.4 秒（書く段 p50 3.8 秒、審査 2.9 秒、仕上げ 3.8 秒）、時間切れ 0、塊 0 の語 0。
+- **審査は「自然か」だけ**（5 回目の採点で、審査に「どの物にも言える物は false」と書いたら 把馬克杯放進洗碗機裡・用馬克杯喝豆漿・
+  把螢光筆放進筆袋裡面 のような普通の言い方まで false にされた）。その物らしさ・よく言うかは rank で後ろに回す。
 - **一致は字ではなく中心の語**: 自由に書いた 2 社の文が字まで揃うことは稀（3 回目の採点で 7%）。「2 社が独立に同じ組み合わせ
   （帶＋雨傘、半糖去冰）を選んだ」事を頻度の証拠にする。字の違う 2 つは両方を審査に出し、順位で 1 つにする。
 - **自然さをプログラムで判定しない。** v1 の門にあった汎用・弱い相手・意味の衝突・禁止一覧・分割・echo は v2 に持ち込まない
