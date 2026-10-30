@@ -255,7 +255,54 @@ def paste_device(canvas, dev, x, y, navy):
 
 # ---------------------------------------------------------------- compose
 
+def out_size(kind, raw):
+    """The Duo's inner display may be shot landscape (2853x2007): App Store Connect takes that size too."""
+    w, h = SIZES[kind]
+    return (h, w) if raw.size[0] > raw.size[1] and kind == "inner" else (w, h)
+
+
+def compose_landscape(entry, lang, kind_size, raw):
+    W, H = out_size(kind_size, raw)
+    bg = entry.get("background", "light")
+    img = background(bg, (W, H))
+    col = int(0.40 * W)  # the headline's column on the left
+    T = layout_text(entry, lang, col, H, bg)
+    # the text block, centred vertically in the left column
+    probe = background(bg, (col, H))
+    text_h = draw_text(probe, T, col, H) - int(0.055 * H)
+    pad_top = (H - text_h) // 2
+    d = ImageDraw.Draw(img)
+    y = pad_top
+    lh = int(T["hs"] * (1.22 if lang == "ja" else 1.12))
+    x0 = int(0.06 * W)
+    for text, color in T["lines"]:
+        d.text((x0, y), text, font=T["hfont"], fill=T["pal"][color], anchor="lt")
+        y += lh
+    y += int(T["hs"] * 0.20)
+    slh = int(T["ss"] * 1.45)
+    for line in T["sub_lines"]:
+        d.text((x0, y), line, font=T["sfont"], fill=T["pal"]["sub"], anchor="lt")
+        y += slh
+    area_x = col + int(0.03 * W)
+    area_w = W - area_x - int(0.04 * W)
+    avail_h = H - int(0.12 * H)
+    sw0, sh0 = raw.size
+    dev_w = int(min(area_w, avail_h / ((sh0 / sw0) * (1 - 0.032) + 0.032)))
+    dev = device(raw, dev_w, fold=False, navy=(bg == "navy"))
+    while dev.size[1] > avail_h:
+        dev_w -= 4
+        dev = device(raw, dev_w, fold=False, navy=(bg == "navy"))
+    x = area_x + (area_w - dev.size[0]) // 2
+    yy = (H - dev.size[1]) // 2
+    out = paste_device(img, dev, x, yy, bg == "navy")
+    info = {"head_shrink": T["head_shrink"], "sub_shrink": T["sub_shrink"],
+            "sub_lines": len(T["sub_lines"]), "device_w_pct": dev.size[0] / W}
+    return out, info
+
+
 def compose(entry, lang, kind_size, raw):
+    if raw.size[0] > raw.size[1]:
+        return compose_landscape(entry, lang, kind_size, raw)
     W, H = SIZES[kind_size]
     bg = entry.get("background", "light")
     img = background(bg, (W, H))
@@ -300,11 +347,11 @@ def main():
                     missing.append(src)
                     continue
                 raw = Image.open(src)
-                if raw.size != SIZES[kind]:
+                if raw.size not in (SIZES[kind], SIZES[kind][::-1]):
                     print(f"warning: {src} is {raw.size}, expected {SIZES[kind]}",
                           file=sys.stderr)
                 out, info = compose(entry, lang, kind, raw)
-                assert out.size == SIZES[kind] and out.mode == "RGB"
+                assert out.size == out_size(kind, raw) and out.mode == "RGB"
                 dst_dir = os.path.join(args.out, kind)
                 os.makedirs(dst_dir, exist_ok=True)
                 dst = os.path.join(dst_dir, f"{lang}_{n:02d}.png")
