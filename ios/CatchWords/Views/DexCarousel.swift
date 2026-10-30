@@ -98,6 +98,9 @@ struct DexCoverFlow: View {
             SoundService.shared.warmTicks()
             muteSlideSound = initialIndex > 0
             spring.set(Double(max(0, min(stickers.count - 1, initialIndex))))
+            // The stage can be measured before this: the row's opening place is worked out again after the reset.
+            wideStage = false
+            startWideRow()
         }
         .onDisappear { spring.stop() }
         // On a wide stage the row opens a few cards in, so cards stand on both sides of the middle one — once the cards
