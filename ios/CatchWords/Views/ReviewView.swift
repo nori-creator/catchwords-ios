@@ -7,7 +7,13 @@ struct ReviewView: View {
     @Environment(AppRouter.self) private var router
     /// Kept by the app (not this screen): read and made ready before the tab opens (`ReviewStore.preload`).
     @Environment(ReviewStore.self) private var store
-    @State private var legendOpen: Bool = false
+    @State private var legendOpen: Bool = {
+        #if DEBUG
+        return StoreShot.memoryOpen
+        #else
+        return false
+        #endif
+    }()
     @State private var curveSticker: Sticker?
     /// Verdict for the current card (nil until a choice is picked).
     @State private var answer: Bool?
@@ -29,7 +35,14 @@ struct ReviewView: View {
     /// right page only. Open and upright (「縦にした場合は上に画像、したに選択肢」) and folded, the iPhone's layout.
     @Environment(\.horizontalSizeClass) private var widthClass
     @State private var viewportWidth: CGFloat = 0
+    /// The quiz card's top in this screen (side by side the answer sheet lies over the choices from there).
+    @State private var quizTop: CGFloat = 0
+    private static let space = "review.screen"
     private var spread: Bool { QuizCard.isSpread(widthClass: widthClass, width: viewportWidth, height: viewportHeight) }
+    /// Side by side on iPhone Duo held sideways: extra margin on the side away from the clock's strip, so the photo and
+    /// the choices meet on the fold (owner 2026-10-30: 「スマホの折り目で画面を半分にして」).
+    private var foldLead: CGFloat { spread ? max(0, -2 * router.foldShift) : 0 }
+    private var foldTrail: CGFloat { spread ? max(0, 2 * router.foldShift) : 0 }
 
     /// Room kept under the card for the floating tab bar (58 pt + its 4 pt + a little air).
     private static let tabBarClearance: CGFloat = 70
@@ -63,12 +76,13 @@ struct ReviewView: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                         content
+                            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).minY } action: { quizTop = $0 }
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.leading, 16 + foldLead).padding(.trailing, 16 + foldTrail)
                     .padding(.top, 8)
                     // Unanswered: only the tab bar's room (the card already fits). Answered: room under the last
                     // choice for the whole sheet, however tall its explanation is.
-                    .padding(.bottom, answer == nil ? Self.tabBarClearance : panelHeight + 16)
+                    .padding(.bottom, answer == nil || spread ? Self.tabBarClearance : panelHeight + 16)
                 }
                 // Nothing to scroll while it fits (a very large text size can still scroll).
                 .scrollBounceBehavior(.basedOnSize)
@@ -77,7 +91,7 @@ struct ReviewView: View {
                 // A long question (English meanings especially) sat under the sheet that slides up: once
                 // answered, bring the question to the top so all of it stays readable above the sheet.
                 .onChange(of: answer != nil) { _, answered in
-                    guard answered else { return }
+                    guard answered, !spread else { return }
                     withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.9)) {
                         proxy.scrollTo(QuizCard.questionID, anchor: .top)
                     }
@@ -92,7 +106,8 @@ struct ReviewView: View {
                 }
             }
         }
-        .overlay(alignment: .bottom) {
+        .coordinateSpace(.named(Self.space))
+        .overlay(alignment: spread ? .top : .bottom) {
             if let answer, let card = router.tour.isReview ? practiceCards[safe: practiceIndex] : store.current {
                 AnswerPanel(sticker: card.sticker, correct: answer, showsDex: !router.tour.isReview) {
                     if !router.tour.isReview { router.detailSticker = card.sticker }
@@ -124,12 +139,10 @@ struct ReviewView: View {
                 )
                 .accessibilityAction(named: L("次へ")) { goNext() }
                 .tourAnchor(.reviewNext, if: router.tour == .reviewNext)
-                .padding(.bottom, 66)
+                .modifier(AnswerSheetPlace(spread: spread, quizTop: quizTop, viewportHeight: viewportHeight))
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
-                .background(alignment: .bottom) { Theme.card.frame(height: 80) }
-                .answerSheetColumn(wide: spread, width: viewportWidth)
-                .ignoresSafeArea(edges: .bottom)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .answerSheetColumn(wide: spread, width: viewportWidth, lead: foldLead, trail: foldTrail)
+                .transition(spread ? .opacity.combined(with: .move(edge: .top)) : .move(edge: .bottom).combined(with: .opacity))
                 .id(card.id)
             }
         }
@@ -137,8 +150,10 @@ struct ReviewView: View {
             if let s = curveSticker {
                 // In the first tour its card sits under the curve: the curve goes up and a little shorter.
                 let guided = router.tour == .memoryCurve
-                ZStack(alignment: guided ? .top : .center) {
-                    Color.black.opacity(0.32).ignoresSafeArea()
+                // With the Duo open sideways the word's curve takes the right page, the word list stays readable on the
+                // left (owner 2026-10-30: 「記憶の状態とかをタップしても真ん中に出る…右左に分けて見やすく表示して」).
+                ZStack(alignment: guided ? .top : (spread ? .trailing : .center)) {
+                    Color.black.opacity(spread ? 0.12 : 0.32).ignoresSafeArea()
                         .onTapGesture { if router.tour != .memoryCurve { closeCurve() } }
                     ForgettingCurveSheet(sticker: s, store: store, onReviewNow: {
                         guard !router.tour.isReview else { return }
@@ -149,6 +164,7 @@ struct ReviewView: View {
                         showQuizRequest += 1
                     }, onClose: { if router.tour == .memoryCurve { router.tourFinish() } else { closeCurve() } }, guided: guided)
                     .frame(maxHeight: guided ? 470 : 640)
+                    .frame(width: spread && !guided ? QuizCard.rightColumnWidth(viewportWidth, lead: foldLead, trail: foldTrail) : nil)
                     .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))
                     .tourAnchor(.memoryCurve)
                     .shadow(color: .black.opacity(0.2), radius: 30, y: 12)
@@ -498,11 +514,37 @@ private struct PhotoBox: ViewModifier {
     }
 }
 
+/// Where the answer sheet stands: on the iPhone it comes up from the bottom, over the tab bar's room; with the Duo open
+/// side by side it lies over the choices on the right page, from their top down to the tab bar (owner 2026-10-30:
+/// 「回答し終わったら選択肢の上から解説、正解不正解が出るようにして」).
+private struct AnswerSheetPlace: ViewModifier {
+    let spread: Bool
+    let quizTop: CGFloat
+    let viewportHeight: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if spread {
+            content
+                // A card of its own on the page: rounded at the bottom too (on the iPhone it runs off the screen's edge).
+                .clipShape(.rect(cornerRadius: 28, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
+                .frame(maxHeight: max(240, viewportHeight - quizTop - 78), alignment: .top)
+                .padding(.top, max(0, quizTop))
+        } else {
+            content
+                .padding(.bottom, 66)
+                .background(alignment: .bottom) { Theme.card.frame(height: 80) }
+                .ignoresSafeArea(edges: .bottom)
+        }
+    }
+}
+
 extension View {
     /// The answer sheet's width: the whole screen on iPhone; with the Duo open (`wide`), the right page only — the quiz
     /// card's right column, past the gap over the fold — on a screen `width` wide.
-    func answerSheetColumn(wide: Bool, width: CGFloat) -> some View {
-        frame(width: wide && width > 0 ? QuizCard.rightColumnWidth(width) : nil)
+    func answerSheetColumn(wide: Bool, width: CGFloat, lead: CGFloat = 0, trail: CGFloat = 0) -> some View {
+        frame(width: wide && width > 0 ? QuizCard.rightColumnWidth(width, lead: lead, trail: trail) : nil)
             .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
@@ -554,8 +596,9 @@ struct QuizCard: View {
 
     /// The right column's width on a screen `width` wide (the review's 16 pt margins, the card's padding, the gap):
     /// the answer sheet takes it on the Duo.
-    static func rightColumnWidth(_ width: CGFloat) -> CGFloat {
-        max(0, (width - 32 - cardPadding * 2 - sideGap) / 2 + cardPadding + 16)
+    /// `lead` / `trail`: the review's extra margins that centre the card on iPhone Duo's fold.
+    static func rightColumnWidth(_ width: CGFloat, lead: CGFloat = 0, trail: CGFloat = 0) -> CGFloat {
+        max(0, (width - 32 - lead - trail - cardPadding * 2 - sideGap) / 2 + cardPadding + 16 + trail)
     }
 
     /// The photo's height: what is left of `fitHeight`, kept between a small but readable picture and 300 pt. Side by
@@ -627,12 +670,16 @@ struct QuizCard: View {
                     .fixedSize(horizontal: false, vertical: true)   // every line of a long meaning, never "…"
                     .id(Self.questionID)
 
-                VStack(spacing: compact ? 6 : 8) {
+                VStack(spacing: sideBySide ? 14 : (compact ? 6 : 8)) {
                     ForEach(choices) { c in choiceRow(c) }
                 }
                 .offset(x: shake)
             }
-            .frame(maxWidth: sideBySide ? .infinity : nil)
+            // Side by side: the question and the four choices fill the right page as tall as the picture, the choices
+            // sharing it evenly (owner 2026-10-30: 「選択肢を全て均等に大きくして右から全てに表示して」). The answer's
+            // explanation is laid over them once answered (`ReviewView`).
+            .frame(maxWidth: sideBySide ? .infinity : nil,
+                   minHeight: sideBySide ? photoHeight : nil, maxHeight: sideBySide ? photoHeight : nil)
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { h in
@@ -684,11 +731,11 @@ struct QuizCard: View {
                 // both sides, so a long one ("washing machine") wraps or shrinks instead of running under them.
                 // The pinyin is passed so ピンイン (設定 › 発音表記) is honoured here too (owner 2026-10-11
                 // 「設定でピン音にしても復習で注音が表示される。」); without it the view always fell back to zhuyin.
-                ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: compact ? 25 : 28, weight: .bold, pinyin: c.pinyin)
+                ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: sideBySide ? 32 : (compact ? 25 : 28), weight: .bold, pinyin: c.pinyin)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, Self.choiceSideInset)
                     .padding(.vertical, compact ? 3 : 5)
-                    .frame(maxWidth: .infinity, minHeight: compact ? 48 : 56)
+                    .frame(maxWidth: .infinity, minHeight: sideBySide ? 64 : (compact ? 48 : 56), maxHeight: sideBySide ? .infinity : nil)
                     .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle(scale: 0.97))
@@ -706,6 +753,7 @@ struct QuizCard: View {
                 PronounceCircle(text: c.headword, size: 40).padding(.trailing, 10)
             }
         }
+        .frame(maxHeight: sideBySide ? .infinity : nil)
         .background(fill, in: .rect(cornerRadius: 26, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(stroke, lineWidth: revealed && (isCorrect || isPicked) ? 2 : 1.2))
         .animation(.easeOut(duration: 0.2), value: picked)

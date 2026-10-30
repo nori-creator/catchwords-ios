@@ -20,6 +20,9 @@ struct RootView: View {
     /// done it), before the camera or any AI feature. Waits for the profile, so it never flashes in front of
     /// the onboarding that is about to open.
     private var needsAIConsent: Bool {
+        #if DEBUG
+        if StoreShot.isOn { return false }   // the App Store shots show the app as an account that agreed sees it
+        #endif
         let consent = AIConsent.shared
         return consent.isLoaded && consent.isUndecided && !needsOnboarding && (profile.isLoaded || profile.loadFailed)
     }
@@ -76,6 +79,10 @@ struct RootView: View {
                         onboardingDone = OnboardingState.isDone(userId: SupabaseClient.shared.userId)
                         TourStep.adoptDevicePending(userId: SupabaseClient.shared.userId)
                         AIConsent.shared.load(userId: SupabaseClient.shared.userId)
+                        #if DEBUG
+                        // The App Store shots: the camera as an account that agreed sees it.
+                        if StoreShot.isOn, !AIConsent.shared.isGranted { AIConsent.shared.grant() }
+                        #endif
                         let guessed = NativeAPI.targetLanguage
                         // The dex as it was last read on this phone, at once (its pictures are on disk too); the
                         // server's read below replaces it. Read off the main thread, while the server is asked.

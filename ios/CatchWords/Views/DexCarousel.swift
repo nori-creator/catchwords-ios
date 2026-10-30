@@ -23,6 +23,9 @@ struct DexCoverFlow: View {
     @State private var spring = CarouselSpring()
     @State private var lastSlideSound: CFTimeInterval = 0
     @State private var muteSlideSound = false
+    /// The stage is wide enough for the cards to stand in a row (`CarouselPose.isRow`).
+    @State private var wideStage = false
+    @State private var stageSize: CGSize = .zero
 
     private var center: Int {
         guard !stickers.isEmpty else { return 0 }
@@ -95,8 +98,28 @@ struct DexCoverFlow: View {
             SoundService.shared.warmTicks()
             muteSlideSound = initialIndex > 0
             spring.set(Double(max(0, min(stickers.count - 1, initialIndex))))
+            // The stage can be measured before this: the row's opening place is worked out again after the reset.
+            wideStage = false
+            startWideRow()
         }
         .onDisappear { spring.stop() }
+        // On a wide stage the row opens a few cards in, so cards stand on both sides of the middle one — once the cards
+        // are there (the stage is measured before the dex has loaded).
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            stageSize = size
+            startWideRow()
+        }
+        .onChange(of: stickers.count) { _, _ in startWideRow() }
+    }
+
+    private func startWideRow() {
+        let w = Double(Self.cardWidth(in: stageSize, cards: stickers.count))
+        guard !wideStage, stickers.count >= 3, CarouselPose.isRow(stageWidth: Double(stageSize.width), cardWidth: w) else { return }
+        wideStage = true
+        guard initialIndex == 0, center == 0 else { return }
+        let side = Int(CarouselPose.rowReach(stageWidth: Double(stageSize.width), cardWidth: w)) - 1
+        muteSlideSound = true
+        spring.set(Double(max(1, min(side, stickers.count / 2))))
     }
 
     private func bring(_ i: Int) {
@@ -219,13 +242,16 @@ private struct CoverFlowStage: View {
         return max(0, min(stickers.count - 1, spring.index))
     }
 
+    private var row: Bool { CarouselPose.isRow(stageWidth: stageWidth, cardWidth: cardWidth) }
+    private var rowReach: Double { CarouselPose.rowReach(stageWidth: stageWidth, cardWidth: cardWidth) }
+
     var body: some View {
         let w = cardWidth
         let width = stageWidth
         let ch = w * 1.48
         let top = DexCoverFlow.cardTop
         let stageH = DexCoverFlow.stageHeight(cardWidth: w)
-        let step = w * CarouselPose.step
+        let step = w * CarouselPose.stepWidth(row: row)
         let pos = spring.value
         let range = visibleRange(around: pos)
         return ZStack(alignment: .topLeading) {
@@ -292,8 +318,9 @@ private struct CoverFlowStage: View {
 
     private func visibleRange(around pos: Double) -> [Int] {
         guard !stickers.isEmpty else { return [] }
-        let lo = max(0, Int((pos - CarouselPose.reach).rounded(.down)))
-        let hi = min(stickers.count - 1, Int((pos + CarouselPose.reach).rounded(.up)))
+        let reach = row ? rowReach : CarouselPose.reach
+        let lo = max(0, Int((pos - reach).rounded(.down)))
+        let hi = min(stickers.count - 1, Int((pos + reach).rounded(.up)))
         return lo <= hi ? Array(lo...hi) : []
     }
 
@@ -302,7 +329,7 @@ private struct CoverFlowStage: View {
         let w = cardWidth
         let s = stickers[i]
         let rel = Double(i) - pos
-        let p = CarouselPose.pose(rel, reduced: reduceMotion)
+        let p = CarouselPose.pose(rel, reduced: reduceMotion, row: row, rowReach: rowReach)
         let ch = w * 1.48
         let perspective: CGFloat = 1000
         let z = p.z * w
@@ -337,7 +364,31 @@ enum CarouselPose {
     /// Cards further round than this are behind the middle one and aren't drawn.
     static let reach = 3.4
 
-    static func pose(_ offset: Double, reduced: Bool) -> (x: Double, z: Double, rotateY: Double, zIndex: Double, opacity: Double) {
+    /// On a screen much wider than the card (iPhone Duo's inner screen held sideways) the cards stand in a row across
+    /// the whole width instead of on a ring, as many as fit (owner 2026-10-30: 「図鑑のスライドは表示できるだけ全て表示して」):
+    /// each `rowGap` card widths from the next, a little smaller further out.
+    static let rowGap = 0.58
+    static func isRow(stageWidth: Double, cardWidth: Double) -> Bool { cardWidth > 0 && stageWidth >= 800 }
+    /// The cards on each side of the middle one that fit in the row.
+    static func rowReach(stageWidth: Double, cardWidth: Double) -> Double {
+        guard cardWidth > 0 else { return reach }
+        return (stageWidth / 2 / (rowGap * 0.88 * cardWidth)).rounded(.up) + 1
+    }
+    /// How far the middle card moves per card (card widths), so it sticks to the finger.
+    static func stepWidth(row: Bool) -> Double { row ? rowGap : step }
+
+    static func pose(_ offset: Double, reduced: Bool, row: Bool = false, rowReach: Double = reach) -> (x: Double, z: Double, rotateY: Double, zIndex: Double, opacity: Double) {
+        if row {
+            let o = max(-rowReach, min(rowReach, offset))
+            let a = abs(o)
+            return (
+                x: rowGap * o * (1 - min(a, 6) * 0.02),
+                z: -0.22 * min(a, 6),
+                rotateY: reduced ? 0 : -max(-1, min(1, o)) * 8,
+                zIndex: 100 - (min(9, a) * 10).rounded(),
+                opacity: 1
+            )
+        }
         let o = max(-reach, min(reach, offset))
         let a = abs(o)
         let phi = o * angle

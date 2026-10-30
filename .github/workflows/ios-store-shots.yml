@@ -1,0 +1,195 @@
+# App Store の iPhone Duo 用スクリーンショット（オーナー 2026-10-30「iphone duo用を作って。実際のiphone duoで表示されるように」）
+#
+# 何をするか:
+#   1. オーナーのスクショの物（ios/StoreShots/sources）を Vision で切り抜く（アプリと同じ切り抜き）。
+#   2. Xcode 27.1 の iPhone Duo のシミュレーターに、その写真と語（ios/StoreShots/store.json）を入れたアプリを入れる
+#      （`-uiDemo` の試験用のサーバ＋ `-uiStore`、StoreShot.swift）。
+#   3. Duo を開いて（ios/StoreShots/duo-hinge.m）内側の画面で、閉じて外側の画面で、本物のアプリの画面を1つずつ撮る。
+#      内側 2007×2853・外側 1398×2034（App Store Connect の Duo の寸法と同じ）。
+#   4. 撮った画面を ci-previews の runs/<ブランチ>-store/ に置く（原寸の JPEG。見出しと枠は ios/StoreShots/compose.py で付ける）。
+name: iOS store shots（App Store の Duo 用スクショ）
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main, ci-previews]
+    paths:
+      - ios/StoreShots/**
+      - .github/workflows/ios-store-shots.yml
+
+concurrency:
+  group: ios-store-shots-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  shoot:
+    runs-on: xcode-27
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 写真の物を切り抜く（Vision）と、アプリに入れる物をまとめる
+        run: |
+          set -euo pipefail
+          STORE="$RUNNER_TEMP/store"; mkdir -p "$STORE"
+          cp ios/StoreShots/sources/*.png ios/StoreShots/store.json "$STORE"/
+          swift ios/StoreShots/cutout.swift ios/StoreShots/sources "$STORE" \
+            latte=latte.png flowers=flowers.png dog=corgi_photo.png cake=cake.png bubbletea=bubbletea.png \
+            cat=cat.png fish=fish.png bird=bird.png
+          ls -la "$STORE"
+
+      - name: Duo を開く・閉じる道具を組み立てる
+        run: clang -fobjc-arc -framework Foundation -o "$RUNNER_TEMP/duo-hinge" ios/StoreShots/duo-hinge.m
+
+      - name: iPhone Duo のシミュレーターを起動する
+        run: |
+          set -uo pipefail
+          UDID=$(python3 - <<'PY'
+          import json, re, subprocess, sys
+          def sim(*a):
+              return json.loads(subprocess.check_output(["xcrun", "simctl", "list", *a, "-j"]))
+          for rt, ds in sim("devices", "available")["devices"].items():
+              for d in ds:
+                  if "Duo" in d.get("name", ""):
+                      print(d["udid"]); sys.exit(0)
+          types = [t for t in sim("devicetypes")["devicetypes"] if "Duo" in t.get("name", "")]
+          runtimes = [r for r in sim("runtimes")["runtimes"] if r.get("platform") == "iOS" and r.get("isAvailable")]
+          runtimes.sort(key=lambda r: [int(x) for x in re.findall(r"\d+", r.get("version", "0"))], reverse=True)
+          for t in types:
+              for r in runtimes:
+                  try:
+                      print(subprocess.check_output(["xcrun", "simctl", "create", "CW Duo", t["identifier"], r["identifier"]]).decode().strip())
+                      sys.exit(0)
+                  except subprocess.CalledProcessError:
+                      continue
+          PY
+          ) || UDID=""
+          [ -n "$UDID" ] || { echo "::error::iPhone Duo のシミュレーターが見つかりませんでした"; exit 1; }
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl boot "$UDID" || true
+
+      - name: 本物の iPhone Duo の枠（シミュレーターが描く端末の絵）を取り出す
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/shots/chrome"; mkdir -p "$OUT"
+          # 端末の種類の Info（chromeIdentifier）と、その名前の .devicechrome の中身（json・pdf・png）
+          DT=$(find /Library/Developer/CoreSimulator/Profiles/DeviceTypes "$(xcode-select -p)/Platforms" -maxdepth 6 -iname "*Duo*.simdevicetype" 2>/dev/null | head -1)
+          echo "devicetype: $DT" | tee "$OUT/find.txt"
+          [ -n "$DT" ] && { plutil -convert json -o "$OUT/devicetype-profile.json" "$DT/Contents/Resources/profile.plist" 2>/dev/null; ls -R "$DT" >> "$OUT/find.txt"; cp "$DT"/Contents/Resources/*.pdf "$OUT"/ 2>/dev/null; }
+          CHROME=$(python3 -c "import json,sys;d=json.load(open('$OUT/devicetype-profile.json'));print(d.get('chromeIdentifier',''))" 2>/dev/null)
+          echo "chrome: $CHROME" | tee -a "$OUT/find.txt"
+          find /Library/Developer/DeviceKit /Library/Developer/CoreSimulator /Applications/Xcode*.app/Contents/Developer -maxdepth 7 -iname "*.devicechrome" 2>/dev/null > "$OUT/all-chromes.txt"
+          cat "$OUT/all-chromes.txt" | head -50
+          PAT="duo"; [ -n "$CHROME" ] && PAT="duo|${CHROME##*.}"
+          for c in $(grep -iE "$PAT" "$OUT/all-chromes.txt" 2>/dev/null | sort -u); do
+            n=$(basename "$c" .devicechrome); mkdir -p "$OUT/$n"; ls -R "$c" > "$OUT/$n/list.txt"
+            find "$c" -name "*.json" -exec cp {} "$OUT/$n/" \;
+            find "$c" \( -name "*.pdf" -o -name "*.png" \) | while read -r f; do
+              b=$(basename "$f"); cp "$f" "$OUT/$n/$b"
+              case "$b" in *.pdf) sips -s format png -Z 4000 "$f" --out "$OUT/$n/${b%.pdf}.png" >/dev/null 2>&1 || true;; esac
+            done
+          done
+          ls -laR "$OUT" | head -80
+
+      - name: Xcode 27.1 でシミュレーター用に組み立てる
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build -project CatchWords.xcodeproj -target CatchWords -configuration Debug \
+            -sdk iphonesimulator -arch arm64 CODE_SIGNING_ALLOWED=NO SYMROOT="$RUNNER_TEMP/build" \
+            | tee "$RUNNER_TEMP/build.log" | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; exit 1; }
+
+      - name: 開いた Duo（内側）と閉じた Duo（外側）で撮る
+        run: |
+          set +e -uo pipefail
+          OUT="$RUNNER_TEMP/shots"; mkdir -p "$OUT/inner" "$OUT/outer"
+          UDID=$(cat "$RUNNER_TEMP/udid"); HINGE="$RUNNER_TEMP/duo-hinge"
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl install "$UDID" "$APP"
+          for s in camera microphone photos location; do xcrun simctl privacy "$UDID" grant "$s" "$BUNDLE_ID" || true; done
+          # App Store の慣例の時計と電波（9:41・満タン）
+          xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+          mkdir -p "$DATA/Library/Caches/store"; cp "$RUNNER_TEMP/store"/* "$DATA/Library/Caches/store/"
+          READY="$DATA/Library/Caches/ui-ready/store"
+          # 画面の番号と画素数（名指ししない時の simctl の断りの文から。ios-check.yml の duo と同じ）
+          xcrun simctl io "$UDID" screenshot "$OUT/probe.png" > "$OUT/display-list.txt" 2>&1; rm -f "$OUT/probe.png"
+          cat "$OUT/display-list.txt"
+          INNER=$(sed -n 's/.*--display=\([0-9][0-9]*\) .* 2007x2853$/\1/p' "$OUT/display-list.txt" | head -1)
+          OUTER=$(sed -n 's/.*--display=\([0-9][0-9]*\) .* 1398x2034$/\1/p' "$OUT/display-list.txt" | head -1)
+          echo "inner=${INNER:-?} outer=${OUTER:-?}"
+          [ -n "$INNER" ] && [ -n "$OUTER" ] || { echo "::error::Duo の画面の番号が読めませんでした"; exit 1; }
+          # 名前 / 言語 / アプリへの引数
+          SHOTS=(
+            "home|-uiStoreTab home"
+            "map|-uiStoreTab dex -uiStoreDex map -uiStoreMapDay 2026-09-13"
+            "cover|-uiStoreTab dex -uiStoreDex cover"
+            "word|-uiStoreTab dex -uiStoreDex cover -uiStoreWord store-flowers"
+            "chunks|-uiStoreTab dex -uiStoreDex cover -uiStoreWord store-dog -uiStoreSection usage_chunks"
+            "flowerchunks|-uiStoreTab dex -uiStoreDex cover -uiStoreWord store-flowers -uiStoreSection usage_chunks"
+            "camera|-uiStoreTab camera"
+            "memory|-uiStoreTab review -uiStoreMemory YES"
+            "quiz|-uiStoreTab review"
+            "grid|-uiStoreTab dex -uiStoreDex grid"
+          )
+          shoot_all() {  # <inner|innerp|outer> <画面の番号> [アプリへの追加の引数]
+            for lang in ja en; do
+              for spec in "${SHOTS[@]}"; do
+                name=${spec%%|*}; args=${spec#*|}
+                xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
+                rm -f "$READY"
+                # shellcheck disable=SC2086
+                xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiDemo zh-TW -uiDemoReset YES -uiStore YES \
+                  -ui.lang "$lang" -AppleLanguages "($lang)" $args ${3:-} >/dev/null || { echo "::warning::$lang $name を開けませんでした"; continue; }
+                n=0; while [ ! -f "$READY" ] && [ $n -lt 160 ]; do sleep 0.25; n=$((n + 1)); done
+                [ -f "$READY" ] || echo "::warning::$1 $lang $name の画面が出るのを待ちきれませんでした"
+                sleep 1.5
+                xcrun simctl io "$UDID" screenshot --display="$2" "$OUT/$1/${lang}_${name}.png" >/dev/null 2>&1 \
+                  || echo "::warning::$1 $lang $name を撮れませんでした"
+              done
+            done
+          }
+          "$HINGE" -d "$UDID" flat; sleep 6
+          shoot_all inner "$INNER"
+          "$HINGE" -d "$UDID" closed; sleep 6
+          shoot_all outer "$OUTER"
+          for f in "$OUT"/*/*.png; do echo "$f $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {print $2}' | tr '\n' ' ')"; done | tee "$OUT/sizes.txt"
+
+      - name: 撮った画面を ci-previews ブランチに置く（runs/<ブランチ>-store/、原寸の JPEG）
+        if: always()
+        timeout-minutes: 15
+        continue-on-error: true
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -uo pipefail
+          SRC="$RUNNER_TEMP/shots"; [ -d "$SRC" ] || exit 0
+          DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-store"
+          STAGE="$RUNNER_TEMP/store-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
+          for f in "$SRC"/inner/*.png "$SRC"/outer/*.png; do
+            [ -f "$f" ] || continue
+            side=$(basename "$(dirname "$f")"); base=$(basename "$f" .png)
+            sips -s format jpeg -s formatOptions 95 "$f" --out "$STAGE/${side}_${base}.jpg" >/dev/null 2>&1 || true
+          done
+          cp "$SRC"/*.txt "$STAGE"/ 2>/dev/null || true
+          if [ -d "$SRC/chrome" ]; then (cd "$SRC/chrome" && find . -type f \( -name "*.png" -o -name "*.json" -o -name "*.txt" \) | while read -r f; do cp "$f" "$STAGE/chrome_$(echo "${f#./}" | tr '/' '_')"; done); fi
+          echo "${{ github.sha }}" > "$STAGE/COMMIT"
+          GITHUB_TOKEN="${{ github.token }}" python3 scripts/push_ci_previews_api.py "${{ github.repository }}" \
+            "$DIR" "store shots for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
+
+      - name: 結果を保存する
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-store-shots
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: warn
+          retention-days: 14

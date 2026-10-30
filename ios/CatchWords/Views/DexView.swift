@@ -84,7 +84,11 @@ struct DexView: View {
     /// landing paid for the cover flow (and its sound engine starting) as the page rose (owner 2026-10-20: the add to
     /// 図鑑 stuttered).
     init(startInGallery: Bool = false) {
-        _mode = State(initialValue: startInGallery ? .grid : .cover)
+        var start: DexMode = startInGallery ? .grid : .cover
+        #if DEBUG
+        if let m = StoreShot.dexMode.flatMap(DexMode.init(rawValue:)) { start = m }
+        #endif
+        _mode = State(initialValue: start)
     }
 
     /// Opened on one view (the previews of each).
@@ -880,6 +884,8 @@ struct DexListRow: View {
 /// その日撮った写真すべてが地図上での反応があるようにして。わざわざ単語をタップしなくても。」).
 struct DexMapView: View {
     @Environment(DexStore.self) private var dex
+    /// For iPhone Duo's fold (nil in previews that have no router).
+    @Environment(AppRouter.self) private var router: AppRouter?
     @Environment(\.appReduceMotion) private var reduceMotion
     let stickers: [Sticker]
     /// How much of the map's top the dex header covers.
@@ -911,7 +917,23 @@ struct DexMapView: View {
     /// when pulled up.
     static let compactPanelHeight: CGFloat = 128
     static let expandedPanelHeight: CGFloat = 250
-    private var panelHeight: CGFloat { panelExpanded ? Self.expandedPanelHeight : Self.compactPanelHeight }
+    private var panelHeight: CGFloat {
+        if wide { return max(Self.expandedPanelHeight, mapFrame.height - topCover - Self.wideReserved) }
+        return panelExpanded ? Self.expandedPanelHeight : Self.compactPanelHeight
+    }
+
+    /// iPhone Duo's inner screen held sideways: the day and its timeline in a column on the left, the whole rest of
+    /// the screen the map (owner 2026-10-30: 「地図の日付とタイムラインが横に無駄に長すぎる…右か左に日付とタイムラインを
+    /// 表示し、その反対のページ全体をマップにして」).
+    private var wide: Bool { mapFrame.width >= 800 && mapFrame.width > mapFrame.height }
+    static let wideColumnWidth: CGFloat = 360
+    /// The column fills the left page, up to the fold less a margin (owner 2026-10-30: 「スマホの折り目で画面を半分にして」).
+    private var columnWidth: CGFloat {
+        guard let fold = router?.foldX, fold > mapFrame.minX + 300 else { return Self.wideColumnWidth }
+        return fold - mapFrame.minX - 32
+    }
+    /// Under the column's timeline: the day bar, the tab bar and the gaps.
+    private static let wideReserved: CGFloat = 84 + 64 + 30
     /// The reading line, from the list's top: the row on it is the current word (web `onListScroll`: 35%).
     private var readingLine: CGFloat { panelHeight * 0.35 }
     /// Room under the last row, so the last words too can be scrolled up to the reading line (web
@@ -949,7 +971,7 @@ struct DexMapView: View {
     var body: some View {
         let visits = groups
         let located = visits.filter { $0.coordinate != nil }
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: wide ? .bottomLeading : .bottom) {
             Map(position: $position) {
                 ForEach(located) { v in
                     Annotation("", coordinate: v.coordinate ?? CLLocationCoordinate2D()) {
@@ -975,6 +997,7 @@ struct DexMapView: View {
                 if panelOpen && !dayItems.isEmpty { timeline(visits).transition(.move(edge: .bottom).combined(with: .opacity)) }
                 dayBar
             }
+            .frame(width: wide ? columnWidth : nil)
             .padding(.horizontal, 16)
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { y in
                 if abs(y - coverTop) > 2 { coverTop = y }
@@ -992,6 +1015,9 @@ struct DexMapView: View {
             quietUntil = Date().addingTimeInterval(0.8)
             SoundService.shared.warmTicks()
             if day == nil { day = days.first }
+            #if DEBUG
+            if let d = StoreShot.mapDay, days.contains(d) { day = d }
+            #endif
             focus()
         }
         .onChange(of: day) { _, _ in
@@ -1032,9 +1058,16 @@ struct DexMapView: View {
     private var covered: (top: Double, bottom: Double) {
         guard mapFrame.height > 100, coverTop > 0 else { return (0.22, 0.45) }
         let h = Double(mapFrame.height)
+        if wide { return (min(0.45, Double(max(0, topCover)) / h), min(0.3, 92 / h)) }
         let top = Double(max(0, topCover)) / h
         let bottom = Double(max(0, mapFrame.maxY - coverTop + 8)) / h
         return (min(0.45, top), min(0.6, bottom))
+    }
+
+    /// The share of the map's width the side column covers (sideways only).
+    private var coverLeft: Double {
+        guard wide, mapFrame.width > 0 else { return 0 }
+        return min(0.55, Double(columnWidth + 32) / Double(mapFrame.width))
     }
 
     /// DexDayMap frame(): fit the stops within 3 km of the anchor — all of the day's when they are that close, else
@@ -1060,13 +1093,15 @@ struct DexMapView: View {
         let band = max(0.25, 1 - cover.top - cover.bottom)
         // The pins' own extent with room for the pin drawings (a risen pin is ~90 pt tall), at least a few streets.
         let latSpan = max(0.004, (maxLat - minLat) * 1.5) / band
-        let lngSpan = max(0.004, (maxLng - minLng) * 1.4)
+        // Sideways, the column covers the map's left: the pins sit in the middle of the part on its right.
+        let left = coverLeft
+        let lngSpan = max(0.004, (maxLng - minLng) * 1.4) / max(0.4, 1 - left)
         // The middle of the uncovered band sits `shift` of the map's height below the map's middle (above it when the
         // bottom is covered more; screen y grows down, latitude up), so the map's centre is that much further north of
         // the pins' middle: a negative shift puts the centre south of them and the pins above the panel.
         let shift = (cover.top - cover.bottom) / 2
         let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2 + shift * latSpan,
-                                            longitude: (minLng + maxLng) / 2)
+                                            longitude: (minLng + maxLng) / 2 - left / 2 * lngSpan)
         withAnimation(.easeInOut(duration: 0.6)) {
             position = .region(MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lngSpan)))
         }
@@ -1082,8 +1117,9 @@ struct DexMapView: View {
             // A pin stands on its point and rises above it: keep its point a little under the header's edge.
             let top = northEdge - r.span.latitudeDelta * (cover.top + 0.08)
             let bottom = northEdge - r.span.latitudeDelta * (1 - cover.bottom - 0.02)
-            let half = r.span.longitudeDelta * 0.42
-            if la <= top, la >= bottom, abs(lo - r.center.longitude) <= half { return }
+            let west = r.center.longitude - r.span.longitudeDelta / 2
+            let lw = west + r.span.longitudeDelta * (coverLeft + 0.08), le = west + r.span.longitudeDelta * 0.92
+            if la <= top, la >= bottom, lo >= lw, lo <= le { return }
         }
         focus(anchor: s)
     }

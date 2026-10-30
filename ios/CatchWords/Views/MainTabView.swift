@@ -31,6 +31,15 @@ enum AppTab: Int, CaseIterable, Identifiable {
 @Observable
 final class AppRouter {
     var tab: AppTab = .home
+    /// The screen's width, and the shift that puts a view centred in the safe area on the screen's middle — iPhone Duo's
+    /// fold when it is open and held sideways (the clock's strip on one side made the bar, the shutter and the two pages
+    /// sit off the fold: owner 2026-10-30 「下のカメラアイコンがおり目中心にくるようにして」「スマホの折り目で画面を半分にして」).
+    /// 0 elsewhere.
+    var screenWidth: CGFloat = 0
+    var foldShift: CGFloat = 0
+    /// The fold's x on the screen (sideways on the Duo), nil elsewhere.
+    var foldX: CGFloat? { isOpenSideways ? screenWidth / 2 : nil }
+    var isOpenSideways: Bool = false
     var landingStickerId: String?
     /// The catch's star waiting for the save: it leaves from the celebration's sticker (CaptureView → CatchLanding).
     var catchStar: CatchStar?
@@ -135,6 +144,7 @@ struct TabBarSlot: View {
                 CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
                               onSelect: onSelect)
                     .padding(.bottom, 4)
+                    .offset(x: router.foldShift)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .onAppear { UITestTrace.log("tabbar view in tab=\(router.tab)") }
                     .onDisappear { UITestTrace.log("tabbar view out tab=\(router.tab)") }
@@ -153,12 +163,57 @@ struct MainTabView: View {
     @Environment(\.appReduceMotion) private var reduceMotion
     @Namespace private var detailZoom
     @State private var flightToken = 0
+    /// iPhone Duo open and held sideways: the word's page covers the whole screen (`wordPage`).
+    @State private var wideScreen = false
     @Environment(ProfileStore.self) private var profile
     /// The system's App Store rating sheet (App Review Guideline 5.6.1: no custom review prompts).
     @Environment(\.requestReview) private var requestReview
 
+    /// `-uiStoreSection` (DEBUG, StoreShot): the word page opens scrolled to this section.
+    private var storeFocus: CardSection? {
+        #if DEBUG
+        return StoreShot.section.flatMap(CardSection.init(rawValue:))
+        #else
+        return nil
+        #endif
+    }
+
     init() {
         _tourPending = AppStorage(wrappedValue: false, TourStep.pendingStorageKey(for: SupabaseClient.shared.userId))
+    }
+
+    private func wordPage(_ sticker: Sticker) -> some View {
+        WordDetailView(sticker: sticker, previewFocus: storeFocus)
+            .environment(router)
+            .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Theme.background)
+            // The word's page is a sheet over the tabs: its guide steps light its own parts (the jump chips, the
+            // settings button), with a layer of their own.
+            .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                if router.tour.isWord {
+                    TourLayer(step: router.tour, anchors: anchors, onNext: wordTourNext, onSkip: endTour,
+                              bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
+                        .transition(.opacity)
+                }
+            }
+    }
+
+    /// The fold from the window itself (its full width and safe-area insets, whatever this view ignores).
+    private func measureFold() {
+        guard let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+            .flatMap(\.windows).first(where: \.isKeyWindow) else { return }
+        let size = window.bounds.size, insets = window.safeAreaInsets
+        let open = size.width >= 800 && size.width > size.height
+        router.screenWidth = size.width
+        router.isOpenSideways = open
+        router.foldShift = open ? (insets.left - insets.right) / 2 : 0
+    }
+
+    private func wordPageDismissed() {
+        router.detailZoomed = false
+        // 単語の頁を見終えたら復習へ（Web: StickerSheet の onClose → review）。
+        if router.tour.isWord { startTourReview() }
     }
 
     var body: some View {
@@ -263,31 +318,25 @@ struct MainTabView: View {
             }
         }
         .environment(router)
-        .sheet(item: $router.detailSticker, onDismiss: {
-            router.detailZoomed = false
-            // 単語の頁を見終えたら復習へ（Web: StickerSheet の onClose → review）。
-            if router.tour.isWord { startTourReview() }
-        }) { sticker in
-            WordDetailView(sticker: sticker)
-                .environment(router)
-                .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Theme.background)
-                // The word's page is a sheet over the tabs: its guide steps light its own parts (the jump chips, the
-                // settings button), with a layer of their own.
-                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-                    if router.tour.isWord {
-                        TourLayer(step: router.tour, anchors: anchors, onNext: wordTourNext, onSkip: endTour,
-                                  bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
-                            .transition(.opacity)
-                    }
-                }
+        // The word's page: a sheet on the iPhone; with iPhone Duo open and held sideways, the whole screen (its two pages
+        // side by side — owner 2026-10-30: 「単語の詳細を開いたときにページの中央部分しか使ってないのがもったいない」; a sheet
+        // stayed a narrow card in the middle there whatever its sizing).
+        .sheet(item: wideScreen ? Binding<Sticker?>.constant(nil) : $router.detailSticker, onDismiss: wordPageDismissed) { sticker in
+            wordPage(sticker)
         }
+        .fullScreenCover(item: wideScreen ? $router.detailSticker : Binding<Sticker?>.constant(nil), onDismiss: wordPageDismissed) { sticker in
+            wordPage(sticker)
+        }
+        .onGeometryChange(for: Bool.self) { $0.size.width >= 800 && $0.size.width > $0.size.height } action: { wideScreen = $0 }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in measureFold() }
         .onAppear {
             router.detailZoom = detailZoom
             beginTourIfPending()
             openNotification(NotificationRouter.shared.pending)
         }
+        #if DEBUG
+        .task { await openStoreShot() }
+        #endif
         .onChange(of: NotificationRouter.shared.pending) { _, route in openNotification(route) }
         // A word's reminder or widget tapped at launch waits for the dex to know that word.
         .onChange(of: dex.hasLoaded) { _, loaded in if loaded { openNotification(NotificationRouter.shared.pending) } }
@@ -646,3 +695,30 @@ private struct ShutterFlightPath: ViewModifier, Animatable {
             }
     }
 }
+
+#if DEBUG
+extension MainTabView {
+    /// `-uiStore` (StoreShot): open the tab, and the word page, the App Store screenshot shows; then tell CI it has settled.
+    func openStoreShot() async {
+        guard StoreShot.isOn else { return }
+        if StoreShot.portraitOnly {
+            ScreenOrientation.refresh()
+            for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
+            }
+        }
+        if let t = StoreShot.tab, let tab = ["home": AppTab.home, "dex": .dex, "camera": .camera, "review": .review][t] {
+            router.tab = tab
+        }
+        for _ in 0..<60 where !dex.hasLoaded { try? await Task.sleep(for: .milliseconds(250)) }
+        if let id = StoreShot.word, let s = dex.sticker(id: id) {
+            try? await Task.sleep(for: .milliseconds(600))
+            router.detailSticker = s
+        }
+        // Pictures, the map's tiles and the sheet's rise.
+        try? await Task.sleep(for: .seconds(4))
+        StoreShot.ready()
+    }
+}
+#endif
+

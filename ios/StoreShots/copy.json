@@ -1,0 +1,23 @@
+{
+  "ja": [
+    {"screen": "home",    "lines": [["世界が、", "dark"], ["あなたの単語帳になる。", "blue"]], "sub": "撮った瞬間、学びが始まる。"},
+    {"screen": "map",     "lines": [["どこで出会ったかも", "dark"], ["残せる。", "blue"]], "sub": "写真・時間・場所が、記憶をつなげる。"},
+    {"screen": "cover",   "lines": [["自分だけの", "dark"], ["図鑑が増えていく。", "blue"]], "sub": "撮った写真が、そのまま単語帳になる。"},
+    {"screen": "word",    "lines": [["写真・時間・場所と", "dark"], ["一緒に覚える。", "blue"]], "sub": "思い出ごと、単語が残っていく。"},
+    {"screen": "chunks",  "lines": [["よく使うチャンク", "dark"], ["まで学べる。", "blue"]], "sub": "使い方も量詞も、まとめて身につく。"},
+    {"screen": "camera",  "lines": [["見つけた瞬間、", "dark"], ["そのまま学べる。", "blue"]], "sub": "カメラで撮るだけで、意味・発音・例文へ。"},
+    {"screen": "memory",  "lines": [["苦手な単語が、", "dark"], ["ひと目でわかる。", "blue"]], "sub": "記憶状態を見える化して、復習しやすく。"},
+    {"screen": "grid",    "lines": [["自分だけの", "dark"], ["図鑑が増えていく。", "blue"]], "sub": "撮った写真が、そのまま単語帳になる。", "background": "meadow"}
+  ],
+  "en": [
+    {"screen": "quiz",    "lines": [["Review with", "dark"], ["your own photos.", "blue"]], "sub": "Make words easier to recall."},
+    {"screen": "home",    "lines": [["Your world", "dark"], ["becomes your", "dark"], ["vocabulary.", "blue"]], "sub": "Turn everyday discoveries into words."},
+    {"screen": "map",     "lines": [["Remember", "dark"], ["where you", "dark"], ["learned it.", "blue"]], "sub": "Photos, time and place become memory cues."},
+    {"screen": "chunks",  "lines": [["Go deeper", "blue"], ["than translations.", "dark"]], "sub": "Usage chunks, measure words, and related terms."},
+    {"screen": "cover",   "lines": [["Build your own", "dark"], ["collection.", "blue"]], "sub": "Save words with your own photos."},
+    {"screen": "word",    "lines": [["Learn words", "dark"], ["with real context.", "blue"]], "sub": "Meaning, audio, and examples in one place."},
+    {"screen": "memory",  "lines": [["See what", "blue"], ["you remember.", "blue"]], "sub": "Track every word at a glance."},
+    {"screen": "camera",  "lines": [["Just point and snap.", "dark"]], "sub": "Catch new words the moment you see them.", "background": "navy"},
+    {"screen": "grid",    "lines": [["Your own", "dark"], ["visual dictionary", "blue"], ["keeps growing.", "dark"]], "sub": "The photos you take become your vocabulary cards.", "background": "meadow"}
+  ]
+}
