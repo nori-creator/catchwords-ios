@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   awaitChunksV2,
   readChunkLibrary,
+  readerIsTargetLang,
   runChunksV2Pipeline,
   speedOptions,
   startChunksV2Job,
@@ -82,6 +83,19 @@ function asker(opts: {
 }
 
 const WRITERS = { a: writer("google"), b: writer("anthropic") };
+// 仕上げは、試験では書き手の速い方（finisher を渡さないと環境の鍵で速いモデルを探す）。
+const NO_FINISHER = { finisher: null } as const;
+
+describe("読む人の言語（readerIsTargetLang）", () => {
+  it("繁體中文で読む人だけ訳が要らない。知らない言語（es・ko・vi）を既定の zh-TW に落とさない", () => {
+    expect(readerIsTargetLang("zh-TW", "zh-TW")).toBe(true);
+    expect(readerIsTargetLang("ja", "zh-TW")).toBe(false);
+    expect(readerIsTargetLang("es", "zh-TW")).toBe(false);
+    expect(readerIsTargetLang("ko", "zh-TW")).toBe(false);
+    expect(readerIsTargetLang("vi", "zh-TW")).toBe(false);
+    expect(readerIsTargetLang("", "zh-TW")).toBe(false);
+  });
+});
 
 describe("考える量を最小にする（speedOptions）", () => {
   it("Claude Haiku は thinking を切り、Gemini は reasoning_effort を低く、ほかの会社には何も足さない", () => {
@@ -97,6 +111,7 @@ describe("2 社に書かせて照合する（runChunksV2Pipeline）", () => {
   it("両方が出した言い方は一致で合格、片方だけの物は逆の会社が自然と言えば加わる。並びは 2 社の順位の平均。訳と block は残った塊にだけ", async () => {
     const calls: string[] = [];
     const r = await runChunksV2Pipeline({
+      ...NO_FINISHER,
       headword: "筆袋",
       language: "zh-TW",
       explainLang: "ja",
@@ -127,6 +142,7 @@ describe("2 社に書かせて照合する（runChunksV2Pipeline）", () => {
 
   it("片方が落ちたら、もう片方の塊は自分の会社の審査で決まる（一致は無い）", async () => {
     const r = await runChunksV2Pipeline({
+      ...NO_FINISHER,
       headword: "筆袋",
       language: "zh-TW",
       explainLang: "ja",
@@ -141,6 +157,7 @@ describe("2 社に書かせて照合する（runChunksV2Pipeline）", () => {
 
   it("逆の会社の審査が時間切れなら、自分の会社の審査で決める（審査なしで通さない）", async () => {
     const r = await runChunksV2Pipeline({
+      ...NO_FINISHER,
       headword: "筆袋",
       language: "zh-TW",
       explainLang: "ja",
@@ -155,6 +172,7 @@ describe("2 社に書かせて照合する（runChunksV2Pipeline）", () => {
 
   it("Claude の鍵が無ければ 1 社で書き、仕上げが失敗すれば画面に出す物は空（中国語は block 1 つで残る）", async () => {
     const r = await runChunksV2Pipeline({
+      ...NO_FINISHER,
       headword: "筆袋",
       language: "zh-TW",
       explainLang: "ja",
@@ -168,7 +186,7 @@ describe("2 社に書かせて照合する（runChunksV2Pipeline）", () => {
   });
 
   it("繁體中文で読む人は訳なしで、block だけ付けて返す", async () => {
-    const r = await runChunksV2Pipeline({ headword: "筆袋", language: "zh-TW", explainLang: "zh-TW", writers: WRITERS, ask: asker({ google: reply([OPEN]), anthropic: reply([OPEN]) }) });
+    const r = await runChunksV2Pipeline({ ...NO_FINISHER, headword: "筆袋", language: "zh-TW", explainLang: "zh-TW", writers: WRITERS, ask: asker({ google: reply([OPEN]), anthropic: reply([OPEN]) }) });
     expect(r.chunks.map((c) => c.text)).toEqual(["打開筆袋"]);
     expect(r.chunks[0].ja).toBe("");
     expect(r.chunks[0].blocks.map((b) => b.pos)).toEqual(["V", "N"]);

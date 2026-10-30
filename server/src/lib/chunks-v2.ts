@@ -3,7 +3,7 @@ import { ChunkPartSchema, type ChunkPart } from "./chunk-part";
 import { allowsSimplePartners, isWeakPartnerChunk } from "./generic-chunks";
 import { looksWrongForReader } from "./note-language";
 import { headwordCore } from "./target-profile";
-import { normalizeTargetLanguage } from "./target-lang";
+import { normalizeTargetLanguage, TARGET_LANGUAGES } from "./target-lang";
 
 /**
  * **使い方チャンク v2 — 形だけを見る純粋な部分**（オーナー 2026-10-30「今までのチャンクのプロンプトや指示は
@@ -154,10 +154,15 @@ export function squash(text: string | null | undefined): string {
   return (text ?? "").replace(/\s+/gu, "");
 }
 
+/**
+ * 読む人の言語が学ぶ言語と同じ（繁體中文で台湾華語を読む → 訳は要らない）。
+ * **`normalizeTargetLanguage` に読む人の言語を渡さない**: 知らない言語（es・ko・vi）を既定の zh-TW に落とすので、
+ * スペイン語・韓国語・ベトナム語の読者が「訳は要らない」扱いになっていた（2026-10-30 の事前投入で発覚）。
+ */
 export function readerIsTarget(readerLang: string | null | undefined, language: string | null | undefined): boolean {
-  const r = normalizeTargetLanguage(readerLang ?? "");
-  const l = normalizeTargetLanguage(language ?? "");
-  return !!r && r === l;
+  const r = (readerLang ?? "").trim();
+  if (!(TARGET_LANGUAGES as readonly string[]).includes(r)) return false;
+  return r === normalizeTargetLanguage(language ?? "");
 }
 
 /** 句読点を除いた字数。 */

@@ -15,6 +15,7 @@ import {
   CHUNKS_V2_MAX,
   describeChunkV2Gate,
   finishCandidate,
+  readerIsTarget,
   frameKey,
   gateChunksV2,
   mergeByAgreement,
@@ -52,11 +53,19 @@ function envMs(name: string, def: number): number {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && n > 0 ? n : def;
 }
-const GEN_MS = envMs("AI_CHUNKS_V2_GEN_MS", 15_000);
-const JUDGE_MS = envMs("AI_CHUNKS_V2_JUDGE_MS", 10_000);
+const GEN_MS = envMs("AI_CHUNKS_V2_GEN_MS", 25_000);
+const JUDGE_MS = envMs("AI_CHUNKS_V2_JUDGE_MS", 15_000);
 const FINISH_MS = envMs("AI_CHUNKS_V2_FINISH_MS", 12_000);
-/** Claude の書き手・審査のモデル（`ANTHROPIC_API_KEY` が要る）。 */
-const CLAUDE_MODEL = process.env.AI_CHUNKS_V2_CLAUDE_MODEL ?? "claude-haiku-5-5";
+/**
+ * **書き手・審査は上位のモデル**（2026-10-30 の比べ: Gemini 2.5 Pro × Claude Sonnet 5.5 は、Flash × Haiku より基本的で頻度の高い
+ * 塊を出した — 滑手機・去剪頭髮・買便當・帶便當。Flash × Haiku は 盆栽的葉子怎麼都枯掉了 のように長く場面の狭い塊が混ざる。
+ * 速さは同じくらい（1 語 p50 8.6 秒 vs 11.5 秒。考える量は最小にする）。費用は語ごとに 1 回だけ（書庫で共有）なので上位を使う）。
+ * 仕上げ（区切り・品詞・訳）は速いモデル（`FINISH_MODEL`）。
+ */
+const GEMINI_WRITER_MODEL = process.env.AI_CHUNKS_V2_GEMINI_MODEL ?? "latest-pro";
+const CLAUDE_MODEL = process.env.AI_CHUNKS_V2_CLAUDE_MODEL ?? "claude-sonnet-5-5";
+/** 仕上げ（区切り・品詞・訳）のモデル。`会社:モデル`。鍵が無ければ書き手の速い方。 */
+const FINISH_MODEL = process.env.AI_CHUNKS_V2_FINISH_MODEL ?? "anthropic:claude-haiku-5-5";
 /** Gemini の考える量（OpenAI 互換の口の `reasoning_effort`。Gemini 3 Flash は low が最小の確実な値 — minimal は版により 400）。 */
 const GEMINI_EFFORT = process.env.AI_CHUNKS_V2_GEMINI_EFFORT ?? "low";
 /** 同じ語の作り中が、これより古ければ捨てて作り直す。 */
@@ -115,11 +124,11 @@ export type ChunksV2PipelineResult = {
 /** 既定の書き手: A = Gemini（カードと同じ会社・丁寧な方のモデル）、B = Claude（鍵が無ければ null）。 */
 export function defaultWriters(): { a: ChunkWriter | null; b: ChunkWriter | null } {
   const base = forFeature(getAi(), "card");
-  const a: ChunkWriter | null = {
-    company: base.name ?? base.provider,
-    cfg: measuredAi(base, "card", "chunks"),
-    model: base.modelRich,
-  };
+  // 既定の AI が Google なら、カードの Flash ではなく上位の Pro で書く（鍵は同じ）。
+  const google = (base.name ?? base.provider) === "google" ? providerConfig("google", GEMINI_WRITER_MODEL) : null;
+  const a: ChunkWriter | null = google
+    ? { company: "google", cfg: measuredAi(google, "card", "chunks"), model: google.modelRich }
+    : { company: base.name ?? base.provider, cfg: measuredAi(base, "card", "chunks"), model: base.modelRich };
   const claude = providerConfig("anthropic", CLAUDE_MODEL);
   const b: ChunkWriter | null = claude
     ? { company: "anthropic", cfg: measuredAi(claude, "card", "chunks"), model: claude.modelRich }
@@ -127,6 +136,14 @@ export function defaultWriters(): { a: ChunkWriter | null; b: ChunkWriter | null
   // 既定の AI が Anthropic の時は、2 社にならない（同じ会社の 2 回は一致の証拠にならない）: B を外す。
   if (b && a && a.company === "anthropic") return { a, b: null };
   return { a, b };
+}
+
+/** 仕上げの書き手（速いモデル）。鍵が無ければ null（呼ぶ側が書き手の速い方を使う）。 */
+export function finishWriter(): ChunkWriter | null {
+  const m = /^([a-z]+):(.+)$/i.exec(FINISH_MODEL.trim());
+  if (!m) return null;
+  const cfg = providerConfig(m[1], m[2]);
+  return cfg ? { company: m[1], cfg: measuredAi(cfg, "card", "chunks_translate"), model: m[2] } : null;
 }
 
 /**
@@ -163,11 +180,9 @@ export const askJson: AskFn = async (cfg, model, prompt, ms) => {
   return parseJsonFromAiText(result.text);
 };
 
-/** 読む人の言語が学ぶ言語と同じ（繁體中文で台湾華語を読む）。 */
+/** 読む人の言語が学ぶ言語と同じ（繁體中文で台湾華語を読む）。知らない言語は「同じ」にしない（`readerIsTarget`）。 */
 export function readerIsTargetLang(explainLang: string, language: string): boolean {
-  const r = normalizeTargetLanguage(explainLang);
-  const l = normalizeTargetLanguage(language);
-  return !!r && r === l;
+  return readerIsTarget(explainLang, language);
 }
 
 export type RunChunksV2Input = {
@@ -176,6 +191,8 @@ export type RunChunksV2Input = {
   explainLang: string;
   meaning?: string | null;
   writers?: { a: ChunkWriter | null; b: ChunkWriter | null };
+  /** 仕上げの書き手。省略 = 速いモデル（`finishWriter()`）、null = 書く段で速かった会社（試験は null）。 */
+  finisher?: ChunkWriter | null;
   genMs?: number;
   judgeMs?: number;
   ask?: AskFn;
@@ -236,9 +253,10 @@ export async function runChunksV2Pipeline(input: RunChunksV2Input): Promise<Chun
   // 仕上げ: 残った塊にだけ block・品詞と、読む人の言語の訳・解説（繁體中文で読む人は訳なし）。
   const t1 = Date.now();
   const readerName = readerIsTargetLang(input.explainLang, input.language) ? null : explanationLanguageName(input.explainLang);
-  // 仕上げは、書く段で速く答えた会社に（答えられなかった会社には頼まない）。
+  // 仕上げは速いモデルに。無ければ、書く段で速く答えた会社に（答えられなかった会社には頼まない）。
   const okWriters = [ra, rb].filter((r): r is NonNullable<typeof r> => !!r && !r.failed).sort((x, y) => x.ms - y.ms);
-  const finisher = okWriters[0]?.w ?? a ?? b;
+  const fallback = okWriters[0]?.w ?? a ?? b;
+  const finisher = input.finisher === undefined ? (finishWriter() ?? fallback) : (input.finisher ?? fallback);
   const finished = await finishChunks(input.headword, input.language, selected, readerName, input.explainLang, finisher, ask);
   const chunks = readerName ? finished.filter((c) => c.ja) : finished;
   const providers = [a?.company, b?.company].filter(Boolean).join("+") || "none";
@@ -577,7 +595,7 @@ export async function startChunksV2Job(
     const lib = await readChunkLibrary(admin, language, headword, input.explainLang);
     if (lib && lib.rows.length > 0) {
       if (lib.missingText.length > 0) {
-        const translated = await translateForReader(headword, language, lib.missingText, input.explainLang, writers.a ?? writers.b, input.ask);
+        const translated = await translateForReader(headword, language, lib.missingText, input.explainLang, (input.ask ? null : finishWriter()) ?? writers.a ?? writers.b, input.ask);
         if (translated.length > 0) {
           await writeChunkLibrary(admin, { language, headword, explainLang: input.explainLang, providers: "translate" }, translated);
         }
@@ -598,7 +616,8 @@ export async function startChunksV2Job(
   }
   await writeRun(admin, language, headword, { status: "pending" });
   try {
-    const result = await runChunksV2Pipeline({ headword, language, explainLang: input.explainLang, meaning: input.meaning, writers, ask: input.ask });
+    // 試験（ask の偽物）では仕上げも偽の書き手に（環境の鍵で速いモデルを探さない）。
+    const result = await runChunksV2Pipeline({ headword, language, explainLang: input.explainLang, meaning: input.meaning, writers, ask: input.ask, ...(input.ask ? { finisher: null } : {}) });
     // 書庫には中国語（selected）を入れ、訳が付いた物（chunks）だけ訳の行も。訳が付かなかった塊は次に開いた時に訳だけ付く。
     const byText = new Map(result.chunks.map((c) => [c.text, c]));
     const forLibrary = result.selected.map((c) => byText.get(c.text) ?? c);
