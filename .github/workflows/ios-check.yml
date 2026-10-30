@@ -31,9 +31,12 @@ permissions:
 jobs:
   build-and-shoot:
     runs-on: macos-26
-    # 撮影までで 45〜55 分（10/16 の実行）。版25 の見本を足して 55 分ほど（10/25）。ci-previews に置くのは自分の場所だけを
-    # 取り出して数秒で済ませるが、10/25 に一度 25 分止まったので、その手順にだけ 12 分の上限を付け、結果の保存まで届くようにする。
-    timeout-minutes: 95
+    # 撮影までで 45〜55 分（10/16 の実行）。版25 の見本を足して 55 分ほど（10/25）。日記と本の見本（PR #5）と褒める演出の見本を
+    # 合わせて 76 分（10/25、75 分の上限で一度止められた）。ci-previews に置くのは自分の場所だけを取り出して数秒で済ませるが、
+    # 10/25 に一度 25 分止まったので、その手順にだけ 12 分の上限を付け、結果の保存まで届くようにする。
+    # Duo の縦長・横長の見本とオンボードの見本を足して 110 分・140 分の上限で止められた（10/29）。Duo の見本は duo-previews へ
+    # 分け、日記の見本は外した。
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -113,6 +116,7 @@ jobs:
             -only-testing:CatchWordsTests/ChunkReadingTests \
             -only-testing:CatchWordsTests/ReviewHeadwordTests \
             -only-testing:CatchWordsTests/AlbumDayTests \
+            -only-testing:CatchWordsTests/DiaryTests \
             -only-testing:CatchWordsTests/WordCardPrefsTests \
             -only-testing:CatchWordsTests/ServerMessageTests \
             -only-testing:CatchWordsTests/SharingRuleTests \
@@ -173,7 +177,9 @@ jobs:
           UDID=$(cat "$RUNNER_TEMP/udid"); BUNDLE_ID=$(cat "$RUNNER_TEMP/bundle"); DATA=$(cat "$RUNNER_TEMP/datadir")
           READY="$DATA/Library/Caches/ui-ready/preview"
           # 名前 / 画面の決まった要素が出てから待つ秒 / コマ数（撮影の間隔はおよそ 0.4〜0.6 秒）
-          for spec in "tabbar 2 1" "picker 2 1" "cutout 0 12" "reward 0 14" "variants 0 10" "get 0 16" "get-again 0 16" "landing 0 16" "landing-again 0 16" "analyzing 0 16" "scanslow 0 24" "hero 2 1" "memorial 0 10" "hero-dark 2 1" "tabbar-dark 2 1" "carousel 2 1" "detail 3 1" "detail-dark 3 1" "settings 2 1" "settings-dark 2 1" "settings-en 2 1" "settings-zh 2 1" "aisettings 2 1" "aisettings-dark 2 1" "aisettings-en 2 1" "aisettings-zh 2 1" "aistats 2 1" "aistats-en 2 1" "aistats-zh 2 1" "aicosts 2 1" "aicosts-en 2 1" "aicosts-zh 2 1" "detail-en 3 1" "detail-zh 3 1" "hero-zh 2 1" "auth 3 1" "auth-dark 3 1" "auth-en 3 1" "auth-zh 3 1" "signin 2 1" "signin-en 2 1" "signin-mail 2 1" "signup-mail 2 1" "onboarding-en 3 1" "onboarding-zh 3 1" "onboarding 0 10" "obgoals 2 1" "oblevel 2 1" "oblevel-wheel 2 1" "oblevel-en 2 1" "obready 3 1" "obready-en 3 1" "obready-zh 3 1" "home-sample 4 1" "dex-sample 3 1" "dex-sample-cover 3 1" "dex-sample-map 4 1" "dex-sample-list 3 1" "tour 2 1" "tour-en 2 1" "tour-home 4 1" "tour-dextab 2 1" "tour-dexmap 3 1" "tour-shadow 3 1" "tour-word 4 1" "tour-sections 4 1" "tour-curve 3 1" "tour-curve-en 3 1" "tourdone 3 1" "tourdone-en 3 1" "launch 0 12" "launch-home 0 12" "authopen 0 10" "aiconsent 2 1" "aiconsent-en 2 1" "aiconsent-zh 2 1" "paywall-en 2 1" "paywall-zh 2 1" "dex-en 2 1" "dex-zh 2 1" "jadetail-en 3 1" "jadetail-zh 3 1" "endetail-ja 3 1" "endetail-zh 3 1" "quiz-en 2 1" "answer-en 2 1" "answer-zh 2 1" "jaquiz-en 2 1" "jaquiz-zh 2 1" "enanswer-ja 2 1" "enanswer-zh 2 1" "picker-en 2 1" "japicker-en 2 1" "japicker-zh 2 1" "enpicker-ja 2 1" "enpicker-zh 2 1" "done 3 1" "done-en 3 1" "done-zh 3 1" "homeload 1 1" "homeload-en 1 1" "chunks 2 1" "chunks-en 2 1" "answer 2 1" "tips 3 1" "tips-zh 3 1" "examples 3 1" "examples-en 3 1" "sunscreen 3 1" "sunscreen-en 3 1" "sunscreen-zh 3 1" "unsaved 3 1" "unsaved-en 3 1" "devlog 2 1" "selfie 3 1" "selfie-original 3 1" "selfie-zh 3 1" "slides 1 14" "choose 1 1" "choose-en 1 1" "choose-zh 1 1" "typed 1 1" "typed-en 1 1" "tips-en 3 1" "picker4 6 1" "picker4-en 6 1" "picker4-nopos 6 1" "tabbar-en 2 1" "praise 0 10" "praise-en 0 10" "praise-first 0 10" "praise-first-zh 0 10" "praise-retention 0 10" "review-ask 3 1" "home-again 4 1" "readings 2 1" "readings-en 2 1" "readings-pinyin 2 1" "reports 2 1" "reports-en 2 1" "map 3 1" "map-en 3 1" "regen 2 1" "chunks-narrow 2 1" "patterns 3 1" "patterns-en 3 1" "patterns-zh 3 1" "patterns-pinyin 3 1" "patterns-pos 3 1" "patterns-dark 3 1" "patterns-legacy 3 1" "word25 3 1" "word25-chunks 3 1" "word25-pinyin 3 1" "word25-examples 3 1" "word25-pinyinex 4 1" "word25-xl 3 1" "word25-small 3 1" "word25-related 3 1" "word25-memo 3 1" "word25-links 3 1" "word25-review 3 1" "word25-reviewzh 3 1" "word25-panel 4 1" "word25-dark 3 1" "word25-chunks-dark 3 1" "word25-examples-dark 3 1" "word25-panel-dark 4 1" "word25-chunks-en 3 1" "word25-examples-en 3 1" "word25-related-en 3 1" "word25-panel-en 4 1" "word25-chunks-zh 3 1" "word25-examples-zh 3 1" "word25-panel-zh 4 1" "word25-chunks-es 3 1" "word25-examples-es 3 1" "word25-panel-es 4 1" "word25-chunks-ko 3 1" "word25-examples-ko 3 1" "word25-panel-ko 4 1" "word25-chunks-vi 3 1" "word25-examples-vi 3 1" "word25-panel-vi 4 1" "word25-links-vi 3 1" "settings-es 2 1" "settings-ko 2 1" "settings-vi 2 1" "onboarding-es 3 1" "onboarding-ko 3 1" "onboarding-vi 3 1" "auth-es 3 1" "auth-ko 3 1" "auth-vi 3 1" "detail-es 3 1" "detail-ko 3 1" "detail-vi 3 1" "dex-es 2 1" "tabbar-ko 2 1" "paywall-vi 2 1" "choose-es 1 1" "picker-ko 2 1" "answer-vi 2 1"; do
+          # Duo の内側の大きさの見本（-duo・-duoland）は下の duo-previews の job で並べて撮る（10/29、ここに入れると 140 分を超えた）。
+          # 日記・本の見本は日記を出さない間（オーナー 2026-10-29、DiaryFeature.enabled = false）撮らない。
+          for spec in "tabbar 2 1" "picker 2 1" "cutout 0 12" "reward 0 14" "variants 0 10" "get 0 16" "get-again 0 16" "landing 0 16" "landing-again 0 16" "analyzing 0 16" "scanslow 0 24" "hero 2 1" "memorial 0 10" "hero-dark 2 1" "tabbar-dark 2 1" "carousel 2 1" "detail 3 1" "detail-dark 3 1" "settings 2 1" "settings-dark 2 1" "settings-en 2 1" "settings-zh 2 1" "aisettings 2 1" "aisettings-dark 2 1" "aisettings-en 2 1" "aisettings-zh 2 1" "aistats 2 1" "aistats-en 2 1" "aistats-zh 2 1" "aicosts 2 1" "aicosts-en 2 1" "aicosts-zh 2 1" "detail-en 3 1" "detail-zh 3 1" "hero-zh 2 1" "auth 3 1" "auth-dark 3 1" "auth-en 3 1" "auth-zh 3 1" "signin 2 1" "signin-en 2 1" "onboarding-en 3 1" "onboarding-zh 3 1" "aiconsent 2 1" "aiconsent-en 2 1" "aiconsent-zh 2 1" "paywall-en 2 1" "paywall-zh 2 1" "dex-en 2 1" "dex-zh 2 1" "jadetail-en 3 1" "jadetail-zh 3 1" "endetail-ja 3 1" "endetail-zh 3 1" "quiz-en 2 1" "answer-en 2 1" "answer-zh 2 1" "jaquiz-en 2 1" "jaquiz-zh 2 1" "enanswer-ja 2 1" "enanswer-zh 2 1" "picker-en 2 1" "japicker-en 2 1" "japicker-zh 2 1" "enpicker-ja 2 1" "enpicker-zh 2 1" "done 3 1" "done-en 3 1" "done-zh 3 1" "homeload 1 1" "homeload-en 1 1" "chunks 2 1" "chunks-en 2 1" "answer 2 1" "tips 3 1" "tips-zh 3 1" "examples 3 1" "examples-en 3 1" "sunscreen 3 1" "sunscreen-en 3 1" "sunscreen-zh 3 1" "unsaved 3 1" "unsaved-en 3 1" "devlog 2 1" "selfie 3 1" "selfie-original 3 1" "selfie-zh 3 1" "slides 1 14" "choose 1 1" "choose-en 1 1" "choose-zh 1 1" "typed 1 1" "typed-en 1 1" "tips-en 3 1" "picker4 6 1" "picker4-en 6 1" "picker4-nopos 6 1" "tabbar-en 2 1" "praise 0 10" "praise-en 0 10" "praise-first 0 10" "praise-first-zh 0 10" "praise-retention 0 10" "review-ask 3 1" "home-again 4 1" "readings 2 1" "readings-en 2 1" "readings-pinyin 2 1" "reports 2 1" "reports-en 2 1" "map 3 1" "map-en 3 1" "regen 2 1" "chunks-narrow 2 1" "patterns 3 1" "patterns-en 3 1" "patterns-zh 3 1" "patterns-pinyin 3 1" "patterns-pos 3 1" "patterns-dark 3 1" "patterns-legacy 3 1" "word25 3 1" "word25-chunks 3 1" "word25-pinyin 3 1" "word25-examples 3 1" "word25-pinyinex 4 1" "word25-xl 3 1" "word25-small 3 1" "word25-related 3 1" "word25-memo 3 1" "word25-links 3 1" "word25-review 3 1" "word25-reviewzh 3 1" "word25-panel 4 1" "word25-dark 3 1" "word25-chunks-dark 3 1" "word25-examples-dark 3 1" "word25-panel-dark 4 1" "word25-chunks-en 3 1" "word25-examples-en 3 1" "word25-related-en 3 1" "word25-panel-en 4 1" "word25-chunks-zh 3 1" "word25-examples-zh 3 1" "word25-panel-zh 4 1" "word25-chunks-es 3 1" "word25-examples-es 3 1" "word25-panel-es 4 1" "word25-chunks-ko 3 1" "word25-examples-ko 3 1" "word25-panel-ko 4 1" "word25-chunks-vi 3 1" "word25-examples-vi 3 1" "word25-panel-vi 4 1" "word25-links-vi 3 1" "settings-es 2 1" "settings-ko 2 1" "settings-vi 2 1" "onboarding-es 3 1" "onboarding-ko 3 1" "onboarding-vi 3 1" "auth-es 3 1" "auth-ko 3 1" "auth-vi 3 1" "detail-es 3 1" "detail-ko 3 1" "detail-vi 3 1" "dex-es 2 1" "tabbar-ko 2 1" "paywall-vi 2 1" "choose-es 1 1" "picker-ko 2 1" "answer-vi 2 1" "signin-mail 2 1" "signup-mail 2 1" "onboarding 0 10" "obgoals 2 1" "oblevel 2 1" "oblevel-wheel 2 1" "oblevel-en 2 1" "obready 3 1" "obready-en 3 1" "obready-zh 3 1" "home-sample 4 1" "dex-sample 3 1" "dex-sample-cover 3 1" "dex-sample-map 4 1" "dex-sample-list 3 1" "tour 2 1" "tour-en 2 1" "tour-home 4 1" "tour-dextab 2 1" "tour-dexmap 3 1" "tour-shadow 3 1" "tour-word 4 1" "tour-sections 4 1" "tour-curve 3 1" "tour-curve-en 3 1" "tourdone 3 1" "tourdone-en 3 1" "launch 0 12" "launch-home 0 12" "authopen 0 10"; do
             set -- $spec
             name=$1; wait_s=$2; frames=$3
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
@@ -398,13 +404,117 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # iPhone Duo を開いた内側の画面の大きさの見本（UIPreview.swift の DuoCanvas。-duo = 縦長 669×951 pt、-duoland = 横長
+  # 951×669 pt）。build-and-shoot と同じ iPhone のシミュレーターで、並べて撮る（10/29、1 つの job では 140 分を超えた）。
+  # 写真は ci-previews の runs/<ブランチ>-duoprev/ に置く。
+  duo-previews:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: シミュレーターを先に起動する
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          runtimes = sorted((k for k in d if "iOS" in k), reverse=True)
+          for rt in runtimes:
+              phones = [x for x in d[rt] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]]
+              phones = phones or [x for x in d[rt] if x["name"].startswith("iPhone")]
+              if phones:
+                  print(phones[-1]["udid"]); break
+          ')
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl boot "$UDID" || true
+
+      - name: シミュレーター用に組み立てる
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project CatchWords.xcodeproj \
+            -target CatchWords \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            SYMROOT="$RUNNER_TEMP/build" \
+            | tee "$RUNNER_TEMP/build.log" | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { echo "::error::組み立てに失敗しました"; exit 1; }
+
+      - name: Duo の内側の大きさの見本を撮る
+        run: |
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/duoprev"
+          mkdir -p "$OUT"
+          UDID=$(cat "$RUNNER_TEMP/udid")
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl install "$UDID" "$APP"
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data || echo "$RUNNER_TEMP/no-data-container")
+          READY="$DATA/Library/Caches/ui-ready/preview"
+          for s in camera microphone photos location; do xcrun simctl privacy "$UDID" grant "$s" "$BUNDLE_ID" || true; done
+          # 名前 / 画面の決まった要素が出てから待つ秒 / コマ数（build-and-shoot の見本と同じ）
+          for spec in "quiz-duo 3 1" "home-again-duo 4 1" "dex-duo 2 1" "detail-duo 3 1" "word25-duo 3 1" "answer-duo 3 1" "settings-duo 2 1" "paywall-duo 2 1" "aiconsent-duo 2 1" "camblocked-duo 2 1" "picker-duo 2 1" "onboarding-duo 3 1" "auth-duo 3 1" "tabbar-duo 2 1" "oblevel-duo 3 1" "oblevel-duoland 3 1" "obready-duo 3 1" "obready-duoland 3 1" "authopen-duo 3 1" "authopen-duoland 3 1" "tour-duo 3 1" "tour-duoland 3 1" "tour-home-duo 3 1" "tour-home-duoland 3 1" "tour-dexmap-duo 3 1" "tour-dexmap-duoland 3 1" "tour-word-duo 4 1" "tour-word-duoland 4 1" "tour-curve-duo 3 1" "tour-curve-duoland 3 1" "tourdone-duo 3 1" "tourdone-duoland 3 1" "home-again-duoland 4 1" "tabbar-duoland 2 1" "dex-duoland 2 1" "detail-duoland 3 1" "word25-duoland 3 1" "quiz-duoland 3 1" "answer-duoland 3 1" "settings-duoland 2 1" "paywall-duoland 2 1" "aiconsent-duoland 2 1" "camblocked-duoland 2 1" "picker-duoland 2 1" "onboarding-duoland 3 1" "auth-duoland 3 1" "praise-duoland 0 6" "get-duoland 2 4" "variants-duoland 1 4" "landing-duoland 2 4" "reward-duoland 2 3" "praise-duo 0 6" "get-duo 2 4" "variants-duo 1 4" "landing-duo 2 4" "reward-duo 2 3"; do
+            set -- $spec
+            name=$1; wait_s=$2; frames=$3
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+            rm -f "$READY"
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW -AppleLanguages "(ja)" || { echo "::warning::$name を開けませんでした"; continue; }
+            n=0
+            while [ ! -f "$READY" ] && [ $n -lt 80 ]; do sleep 0.25; n=$((n + 1)); done
+            [ -f "$READY" ] || echo "::warning::$name の画面が出るのを待ちきれませんでした"
+            sleep "$wait_s"
+            for i in $(seq -w 1 "$frames"); do
+              xcrun simctl io "$UDID" screenshot "$OUT/${name}-${i}.png" >/dev/null 2>&1 || true
+              sleep 0.4
+            done
+          done
+          ls -la "$OUT"
+
+      - name: 写真を ci-previews ブランチに置く（runs/<ブランチ>-duoprev/）
+        if: always()
+        timeout-minutes: 12
+        continue-on-error: true
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -uo pipefail
+          SRC="$RUNNER_TEMP/duoprev"
+          [ -d "$SRC" ] || exit 0
+          DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-duoprev"
+          STAGE="$RUNNER_TEMP/duoprev-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
+          cp "$SRC"/*.png "$STAGE"/ 2>/dev/null || true
+          for f in "$STAGE"/*.png; do [ -f "$f" ] && sips --resampleWidth 603 "$f" >/dev/null 2>&1 || true; done
+          echo "${{ github.sha }}" > "$STAGE/COMMIT"
+          GITHUB_TOKEN="${{ github.token }}" python3 scripts/push_ci_previews_api.py "${{ github.repository }}" \
+            "$DIR" "duo previews for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
+
+      - name: 結果を保存する
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-duo-previews
+          path: |
+            ${{ runner.temp }}/duoprev
+            ${{ runner.temp }}/build.log
+          if-no-files-found: warn
+          retention-days: 14
+
   # TestFlight は Release で組み立てる。Debug だけの名前（#if DEBUG の中のもの）を外で使うと Release だけ壊れる
   # （1.0.1 (1036) の前に一度起きた）。シミュレーター向けに Release で組み立てて、それを先に見つける。署名はしない。
+  # TestFlight と同じ Xcode 27.1（iOS 27.1 SDK、iPhone Duo のため。ios-release.yml）で組み立てる。
   release-build:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Xcode の版と、App Store Connect へ送る道具（altool）があるか
+        run: |
+          xcodebuild -version
+          xcrun --find altool && xcrun altool --version || echo "::warning::この Xcode に altool が見つかりません（ios-release.yml の送る手順が止まります）"
       - name: Release で組み立てる（TestFlight と同じ設定。署名なし）
         working-directory: ios
         run: |
@@ -419,6 +529,160 @@ jobs:
             SYMROOT="$RUNNER_TEMP/build" \
             | tee "$RUNNER_TEMP/release.log" | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/release.log" || { grep -E "error:" "$RUNNER_TEMP/release.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; echo "::error::Release で組み立てられませんでした（Debug だけの名前を #if DEBUG の外で使っていないか）"; exit 1; }
+
+  # iPhone Duo（オーナー 2026-10-28「iphone duo用に完全対応させて。このアプリを」）: 内側の画面を全面で使うには iOS 27.1 SDK
+  # （Xcode 27.1）で組み立てる必要がある（古い SDK では内側で「見慣れた大きさの枠」の中に出るだけ — Apple の Tech Talk
+  # 「Design for iPhone Duo」）。GitHub の xcode-27 の画像には Xcode 27.1 と iPhone Duo のシミュレーター（iOS 27.1）がある。
+  # ここでは (1) Xcode 27.1 で組み立てられるか、(2) Duo のシミュレーターの2つの画面（内側 2007×2853 と外側 1398×2034、
+  # どちらも 3 倍）のそれぞれで主な画面を撮る、(3) シミュレーターが知らせる画面と写真の大きさを記録する。シミュレーターは
+  # 閉じた Duo として起動し、アプリは外側の画面（466×678 pt、右の約 84 pt は時計などの帯で、中身は 382 pt の幅）に出る。
+  # 開くコマンドは無く（Apple Developer Forums 847883）、画面の電源の切り替えでは代わりにならない（下の手順）ので、
+  # 開いた内側の画面は build-and-shoot の「…-duo」の見本（DuoCanvas、669×951 pt）で撮る。写真は ci-previews の
+  # runs/<ブランチ>-duo/ に置く。
+  duo:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode の版と iPhone Duo のシミュレーターを表示
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i -E "ios|simulator" || true
+          xcrun simctl list devicetypes | grep -i -E "duo" || echo "no Duo device type"
+          xcrun simctl list runtimes || true
+
+      - name: iPhone Duo のシミュレーターを先に起動する
+        run: |
+          set -uo pipefail
+          UDID=$(python3 - <<'PY'
+          import json, re, subprocess, sys
+          def sim(*a):
+              return json.loads(subprocess.check_output(["xcrun", "simctl", "list", *a, "-j"]))
+          for rt, ds in sim("devices", "available")["devices"].items():
+              for d in ds:
+                  if "Duo" in d.get("name", ""):
+                      print(d["udid"]); sys.exit(0)
+          types = [t for t in sim("devicetypes")["devicetypes"] if "Duo" in t.get("name", "")]
+          runtimes = [r for r in sim("runtimes")["runtimes"] if r.get("platform") == "iOS" and r.get("isAvailable")]
+          runtimes.sort(key=lambda r: [int(x) for x in re.findall(r"\d+", r.get("version", "0"))], reverse=True)
+          for t in types:
+              for r in runtimes:
+                  try:
+                      print(subprocess.check_output(["xcrun", "simctl", "create", "CW Duo", t["identifier"], r["identifier"]]).decode().strip())
+                      sys.exit(0)
+                  except subprocess.CalledProcessError:
+                      continue
+          PY
+          ) || UDID=""
+          [ -n "$UDID" ] || { echo "::error::iPhone Duo のシミュレーターが見つかりませんでした"; exit 1; }
+          echo "duo simulator: $UDID"
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl boot "$UDID" || true
+
+      - name: Xcode 27.1（iOS 27.1 SDK）でシミュレーター用に組み立てる
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project CatchWords.xcodeproj \
+            -target CatchWords \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            SYMROOT="$RUNNER_TEMP/build" \
+            | tee "$RUNNER_TEMP/build.log" | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          mkdir -p "$RUNNER_TEMP/duo"
+          grep -E "warning:" "$RUNNER_TEMP/build.log" | sed "s#$GITHUB_WORKSPACE/##" | sort -u | head -300 > "$RUNNER_TEMP/duo/build-warnings.txt" || true
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; echo "::error::Xcode 27.1 で組み立てられませんでした（上の error: を見てください）"; exit 1; }
+
+      - name: Duo のシミュレーターで主な画面を撮る
+        run: |
+          set +e -uo pipefail
+          OUT="$RUNNER_TEMP/duo"; mkdir -p "$OUT"
+          UDID=$(cat "$RUNNER_TEMP/udid")
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl install "$UDID" "$APP"
+          for s in camera microphone photos location; do xcrun simctl privacy "$UDID" grant "$s" "$BUNDLE_ID" || true; done
+          # シミュレーターの画面（ディスプレイ）の一覧
+          xcrun simctl io "$UDID" enumerate > "$OUT/displays.txt" 2>&1
+          cat "$OUT/displays.txt"
+          # Duo のシミュレーターは画面が2つあり、撮る画面を番号で名指しする（`--display=<番号>`。"internal" / "external" は
+          # 通らない）。番号と画素数は、名指ししない時の simctl の断りの文（"--display=3  LCD-1 (primary-1) 2007x2853"）
+          # から読む。どの画面も撮る（duo-<画面>-<幅>x<高さ>.png）。
+          xcrun simctl io "$UDID" screenshot "$OUT/probe.png" > "$OUT/display-list.txt" 2>&1
+          rm -f "$OUT/probe.png"
+          DISPLAYS=$(sed -n 's/.*--display=\([0-9][0-9]*\) .* \([0-9][0-9]*x[0-9][0-9]*\)$/\1:\2/p' "$OUT/display-list.txt" | tr '\n' ' ')
+          echo "displays: ${DISPLAYS:-one}" | tee -a "$OUT/display-list.txt"
+          # この simctl に Duo を開く・閉じる命令があるかを読むため、使い方の一覧を残す。
+          { xcrun simctl help; echo; xcrun simctl io "$UDID" 2>&1; } > "$OUT/simctl-help.txt" 2>&1
+          # shoot <名前> <画面の一覧>: その時の画面を、一覧の画面それぞれで撮る（一覧が空なら名指ししないで1枚）。
+          shoot() {
+            if [ -n "$2" ]; then
+              for e in $2; do
+                xcrun simctl io "$UDID" screenshot --display="${e%%:*}" "$OUT/duo-$1-${e##*:}.png" >/dev/null 2>&1 \
+                  || echo "::warning::$1 を画面 ${e%%:*}（${e##*:}）で撮れませんでした"
+              done
+            else
+              xcrun simctl io "$UDID" screenshot "$OUT/duo-$1.png" >/dev/null 2>&1 || echo "::warning::$1 を撮れませんでした"
+            fi
+          }
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+          READY="$DATA/Library/Caches/ui-ready/preview"
+          # shoot_all <接頭辞> <画面の一覧>: 主な画面を1つずつ開いて撮る（duo-<接頭辞><画面>-<幅>x<高さ>.png）。
+          shoot_all() {
+            for spec in "home 3" "tabbar 2" "dex 2" "detail 3" "word25 3" "quiz 2" "answer 3" "settings 2" "camblocked 2" "picker 2" "aiconsent 2" "paywall 2" "onboarding 3" "praise 2" "get 3" "variants 2" "landing 3" "reward 3"; do
+              name=${spec%% *}; wait_s=${spec##* }
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
+              rm -f "$READY"
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW >/dev/null || { echo "::warning::$name を開けませんでした"; continue; }
+              n=0
+              while [ ! -f "$READY" ] && [ $n -lt 80 ]; do sleep 0.25; n=$((n + 1)); done
+              [ -f "$READY" ] || echo "::warning::$name の画面が出るのを待ちきれませんでした"
+              sleep "$wait_s"
+              shoot "$1$name" "$2"
+            done
+          }
+          # 起動したまま（閉じた Duo）撮る: アプリは外側の画面に出て、内側は黒い。外側を切り内側を入れる
+          # （simctl io screenConfig power off / on）と system shell が落ちてアプリを開けなくなる（2026-10-28 に試した）。
+          # 開いた Duo の内側は build-and-shoot の「…-duo」の見本（DuoCanvas）で確かめる。
+          shoot_all "" "$DISPLAYS"
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
+          # 写真の画素数（縮める前）: 画面の大きさを UIPreview の DuoScreen と照らす
+          for f in "$OUT"/*.png; do echo "$(basename "$f") $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {print $2}' | tr '\n' ' ')"; done | tee "$OUT/sizes.txt"
+          ls -la "$OUT"
+
+      - name: 写真を ci-previews ブランチに置く（runs/<ブランチ>-duo/）
+        if: always()
+        timeout-minutes: 12
+        continue-on-error: true
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -uo pipefail
+          SRC="$RUNNER_TEMP/duo"
+          [ -d "$SRC" ] || exit 0
+          DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-duo"
+          STAGE="$RUNNER_TEMP/duo-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
+          cp "$SRC"/*.png "$SRC"/*.txt "$STAGE"/ 2>/dev/null || true
+          for f in "$STAGE"/*.png; do [ -f "$f" ] && sips --resampleWidth 603 "$f" >/dev/null 2>&1 || true; done
+          echo "${{ github.sha }}" > "$STAGE/COMMIT"
+          GITHUB_TOKEN="${{ github.token }}" python3 scripts/push_ci_previews_api.py "${{ github.repository }}" \
+            "$DIR" "duo for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
+
+      - name: 結果を保存する
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-duo-report
+          path: |
+            ${{ runner.temp }}/duo
+            ${{ runner.temp }}/build.log
+          if-no-files-found: warn
+          retention-days: 14
 
   # 切り抜きの確認（docs/cutout-failure-modes.md）: アプリの切り抜きのコード（CatchPlan など）をそのまま Mac 用に
   # 組み立て、本物の Vision で本物の写真を切り抜く。わざと小さい・ずれた箱も含む。前（1.0.1 より前の計画）と今を

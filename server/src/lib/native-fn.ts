@@ -121,6 +121,7 @@ export const NATIVE_FNS: Record<string, Loader> = {
   // 日記（添削・書き出しの質問・過去の日記・本人の文の保存）
   listJournal: from(journal, "listJournal"),
   correctMyJournal: from(journal, "correctMyJournal"),
+  checkDiarySentence: from(journal, "checkDiarySentence"),
   getJournalPrompts: from(journal, "getJournalPrompts"),
   saveMyDiary: from(journal, "saveMyDiary"),
   listMyDiaryMonth: from(journal, "listMyDiaryMonth"),

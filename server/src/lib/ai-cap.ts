@@ -56,6 +56,9 @@ export const DAILY_CAPS: Readonly<Record<string, number>> = {
   scan_parts: 300,
   tts: 500,
   correction: 100,
+  // 日記の1文ずつの添削（`checkDiarySentence`。速いモデルの小さな呼び出し。文を書き終えるたびに1回、
+  // 同じ文は端末が覚えていて呼び直さない）。1日の日記で 30 文ほど、何度か書き直しても届かない数。
+  diary_sentence: 200,
   journal_prompt: 60,
   card: 200,
   wordbook: 60, // 1枚の写真で最大60語。取り込みは1日に何度もやる物ではない
@@ -95,6 +98,7 @@ export const ANONYMOUS_DAILY_CAPS: Readonly<Record<string, number>> = {
   scan_parts: 10,
   tts: 60, // チュートリアルの中でも発音を聞く
   correction: 3,
+  diary_sentence: 10,
   journal_prompt: 3,
   card: 10,
   wordbook: 1,

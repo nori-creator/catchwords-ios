@@ -311,7 +311,7 @@ struct CaptureView: View {
     }
 
     private var livePreview: some View {
-        CameraPreview(session: camera.session) { point, device in
+        CameraPreview(session: camera.session, camera: camera) { point, device in
             camera.focus(at: device)
             Haptics.impact(.light, intensity: 0.5)
             focusPoint = point

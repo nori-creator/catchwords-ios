@@ -25,6 +25,12 @@ final class CameraService: NSObject {
     private var photoContinuation: CheckedContinuation<UIImage?, Never>?
     /// The lens the camera opens on (the selfie camera opens on the front one).
     private let preferred: AVCaptureDevice.Position
+    /// Keeps the preview, and the photo, the right way up when the screen turns (iPhone Duo open and held sideways,
+    /// owner 2026-10-29). A photo takes the preview's angle, so it is what the screen showed: on an iPhone, upright only,
+    /// that is the portrait angle it always had.
+    private weak var previewLayer: AVCaptureVideoPreviewLayer?
+    private var rotation: AVCaptureDevice.RotationCoordinator?
+    private var rotationWatch: NSKeyValueObservation?
 
     init(preferred: AVCaptureDevice.Position = .back) {
         self.preferred = preferred
@@ -86,7 +92,28 @@ final class CameraService: NSObject {
         position = camera.position == .front ? .front : .back
         isConfigured = true
         setZoom(1)
+        watchRotation()
         return true
+    }
+
+    /// The preview's layer (`CameraPreview`), whose screen's turning the preview and the photos follow.
+    func attach(_ layer: AVCaptureVideoPreviewLayer) {
+        previewLayer = layer
+        watchRotation()
+    }
+
+    private func watchRotation() {
+        rotationWatch = nil
+        guard let device, let layer = previewLayer else { rotation = nil; return }
+        let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: layer)
+        rotation = coordinator
+        rotationWatch = coordinator.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.initial, .new]) { [weak layer] c, _ in
+            let angle = c.videoRotationAngleForHorizonLevelPreview
+            Task { @MainActor in
+                guard let connection = layer?.connection, connection.isVideoRotationAngleSupported(angle) else { return }
+                connection.videoRotationAngle = angle
+            }
+        }
     }
 
     /// Switches lens. When the device has no front camera (e.g. the simulator's external one) this is a no-op.
@@ -105,6 +132,7 @@ final class CameraService: NSObject {
         }
         session.commitConfiguration()
         setZoom(1)
+        watchRotation()
     }
 
     func toggle() {
@@ -156,6 +184,10 @@ final class CameraService: NSObject {
             // The app plays its own shutter where the system lets its click be turned off; where it may not (Japan,
             // Korea) only the system's is heard (`systemShutterSound`).
             if output.isShutterSoundSuppressionSupported { settings.isShutterSoundSuppressionEnabled = true }
+            if let angle = rotation?.videoRotationAngleForHorizonLevelPreview, let connection = output.connection(with: .video),
+               connection.isVideoRotationAngleSupported(angle) {
+                connection.videoRotationAngle = angle
+            }
             output.capturePhoto(with: settings, delegate: self)
         }
     }

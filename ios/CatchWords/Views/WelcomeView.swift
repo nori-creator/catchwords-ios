@@ -152,6 +152,8 @@ struct WelcomeView: View {
         .padding(.horizontal, 24)
         .padding(.top, 4)
         .padding(.bottom, 8)
+        // iPhone Duo held sideways: the page in a column in the middle (`readableColumn`).
+        .readableColumn()
     }
 
     private var header: some View {

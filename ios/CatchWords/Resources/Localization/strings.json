@@ -8532,6 +8532,321 @@
   "ko": "사용법",
   "vi": "Cách dùng"
  },
+ "日記": {
+  "en": "Diary",
+  "zh-TW": "日記",
+  "es": "Diario",
+  "ko": "일기",
+  "vi": "Nhật ký"
+ },
+ "この日のことば": {
+  "en": "Words from this day",
+  "zh-TW": "這一天的單字",
+  "es": "Palabras de este día",
+  "ko": "이날의 단어",
+  "vi": "Từ của ngày này"
+ },
+ "この日のことを{1}で書いてみよう": {
+  "en": "Write about this day in {1}",
+  "zh-TW": "用{1}寫寫這一天吧",
+  "es": "Escribe sobre este día en {1}",
+  "ko": "이날의 일을 {1}로 써 보세요",
+  "vi": "Hãy viết về ngày này bằng {1}"
+ },
+ "押すと日記に入ります": {
+  "en": "Tap to add it to the diary",
+  "zh-TW": "點一下就會加進日記",
+  "es": "Toca para añadirlo al diario",
+  "ko": "누르면 일기에 들어갑니다",
+  "vi": "Nhấn để thêm vào nhật ký"
+ },
+ "日記を保存できませんでした": {
+  "en": "Could not save the diary",
+  "zh-TW": "無法儲存日記",
+  "es": "No se pudo guardar el diario",
+  "ko": "일기를 저장하지 못했어요",
+  "vi": "Không thể lưu nhật ký"
+ },
+ "日記を読み込めませんでした": {
+  "en": "Could not load the diary",
+  "zh-TW": "無法載入日記",
+  "es": "No se pudo cargar el diario",
+  "ko": "일기를 불러오지 못했어요",
+  "vi": "Không thể tải nhật ký"
+ },
+ "クリーム": {
+  "en": "Cream",
+  "zh-TW": "奶油白",
+  "es": "Crema",
+  "ko": "크림",
+  "vi": "Kem"
+ },
+ "ホワイト": {
+  "en": "White",
+  "zh-TW": "白色",
+  "es": "Blanco",
+  "ko": "화이트",
+  "vi": "Trắng"
+ },
+ "ピンク": {
+  "en": "Pink",
+  "zh-TW": "粉紅",
+  "es": "Rosa",
+  "ko": "핑크",
+  "vi": "Hồng"
+ },
+ "セージ": {
+  "en": "Sage",
+  "zh-TW": "鼠尾草綠",
+  "es": "Salvia",
+  "ko": "세이지",
+  "vi": "Xanh xô thơm"
+ },
+ "罫線": {
+  "en": "Lined",
+  "zh-TW": "橫線",
+  "es": "Rayado",
+  "ko": "줄",
+  "vi": "Kẻ dòng"
+ },
+ "方眼": {
+  "en": "Grid",
+  "zh-TW": "方格",
+  "es": "Cuadrícula",
+  "ko": "모눈",
+  "vi": "Ô vuông"
+ },
+ "ドット": {
+  "en": "Dots",
+  "zh-TW": "點格",
+  "es": "Puntos",
+  "ko": "점",
+  "vi": "Chấm"
+ },
+ "無地": {
+  "en": "Plain",
+  "zh-TW": "空白",
+  "es": "Liso",
+  "ko": "무지",
+  "vi": "Trơn"
+ },
+ "ネイビー": {
+  "en": "Navy",
+  "zh-TW": "深藍",
+  "es": "Azul marino",
+  "ko": "네이비",
+  "vi": "Xanh navy"
+ },
+ "セピア": {
+  "en": "Sepia",
+  "zh-TW": "深褐",
+  "es": "Sepia",
+  "ko": "세피아",
+  "vi": "Nâu sepia"
+ },
+ "プラム": {
+  "en": "Plum",
+  "zh-TW": "梅紫",
+  "es": "Ciruela",
+  "ko": "플럼",
+  "vi": "Tím mận"
+ },
+ "ティール": {
+  "en": "Teal",
+  "zh-TW": "墨綠",
+  "es": "Verde azulado",
+  "ko": "틸",
+  "vi": "Xanh mòng két"
+ },
+ "グラファイト": {
+  "en": "Graphite",
+  "zh-TW": "石墨灰",
+  "es": "Grafito",
+  "ko": "그래파이트",
+  "vi": "Than chì"
+ },
+ "しおり": {
+  "en": "Bookmark",
+  "zh-TW": "書籤",
+  "es": "Marcapáginas",
+  "ko": "책갈피",
+  "vi": "Dấu trang"
+ },
+ "今日のページに戻る": {
+  "en": "Back to today's page",
+  "zh-TW": "回到今天這一頁",
+  "es": "Volver a la página de hoy",
+  "ko": "오늘 페이지로 돌아가기",
+  "vi": "Quay lại trang hôm nay"
+ },
+ "紙とインク": {
+  "en": "Paper & ink",
+  "zh-TW": "紙張與墨水",
+  "es": "Papel y tinta",
+  "ko": "종이와 잉크",
+  "vi": "Giấy và mực"
+ },
+ "紙": {
+  "en": "Paper",
+  "zh-TW": "紙張",
+  "es": "Papel",
+  "ko": "종이",
+  "vi": "Giấy"
+ },
+ "インク": {
+  "en": "Ink",
+  "zh-TW": "墨水",
+  "es": "Tinta",
+  "ko": "잉크",
+  "vi": "Mực"
+ },
+ "日記で使った": {
+  "en": "Used in the diary",
+  "zh-TW": "已在日記中使用",
+  "es": "Usada en el diario",
+  "ko": "일기에 썼어요",
+  "vi": "Đã dùng trong nhật ký"
+ },
+ "押すと書けます": {
+  "en": "Tap to write",
+  "zh-TW": "點一下就能寫",
+  "es": "Toca para escribir",
+  "ko": "누르면 쓸 수 있어요",
+  "vi": "Nhấn để viết"
+ },
+ "使ったことば": {
+  "en": "Words used",
+  "zh-TW": "用過的單字",
+  "es": "Palabras usadas",
+  "ko": "쓴 단어",
+  "vi": "Từ đã dùng"
+ },
+ "振り返る": {
+  "en": "Look back",
+  "zh-TW": "回顧",
+  "es": "Repasar el día",
+  "ko": "돌아보기",
+  "vi": "Nhìn lại"
+ },
+ "押すと使い方が開きます": {
+  "en": "Tap to see how it's used",
+  "zh-TW": "點一下就會打開用法",
+  "es": "Toca para ver cómo se usa",
+  "ko": "누르면 사용법이 열립니다",
+  "vi": "Nhấn để xem cách dùng"
+ },
+ "この語の使い方はまだありません": {
+  "en": "No usage for this word yet",
+  "zh-TW": "這個詞還沒有用法",
+  "es": "Aún no hay usos de esta palabra",
+  "ko": "이 단어의 사용법은 아직 없습니다",
+  "vi": "Từ này chưa có cách dùng"
+ },
+ "文法": {
+  "en": "Grammar",
+  "zh-TW": "文法",
+  "es": "Gramática",
+  "ko": "문법",
+  "vi": "Ngữ pháp"
+ },
+ "語順": {
+  "en": "Word order",
+  "zh-TW": "語序",
+  "es": "Orden",
+  "ko": "어순",
+  "vi": "Trật tự từ"
+ },
+ "助詞": {
+  "en": "Particle",
+  "zh-TW": "助詞",
+  "es": "Partícula",
+  "ko": "조사",
+  "vi": "Trợ từ"
+ },
+ "講評": {
+  "en": "Comments",
+  "zh-TW": "講評",
+  "es": "Comentario",
+  "ko": "총평",
+  "vi": "Nhận xét"
+ },
+ "添削する": {
+  "en": "Correct my diary",
+  "zh-TW": "批改",
+  "es": "Corregir",
+  "ko": "첨삭하기",
+  "vi": "Sửa bài"
+ },
+ "添削しています…": {
+  "en": "Correcting…",
+  "zh-TW": "批改中…",
+  "es": "Corrigiendo…",
+  "ko": "첨삭하는 중…",
+  "vi": "Đang sửa…"
+ },
+ "添削を見る": {
+  "en": "See correction",
+  "zh-TW": "查看批改",
+  "es": "Ver corrección",
+  "ko": "첨삭 보기",
+  "vi": "Xem bài sửa"
+ },
+ "添削できませんでした": {
+  "en": "Couldn't correct it",
+  "zh-TW": "無法批改",
+  "es": "No se pudo corregir",
+  "ko": "첨삭하지 못했습니다",
+  "vi": "Không thể sửa"
+ },
+ "一番自然な言い方": {
+  "en": "Most natural way to say it",
+  "zh-TW": "最自然的說法",
+  "es": "La forma más natural",
+  "ko": "가장 자연스러운 표현",
+  "vi": "Cách nói tự nhiên nhất"
+ },
+ "一番自然な全文": {
+  "en": "The most natural version",
+  "zh-TW": "最自然的全文",
+  "es": "La versión más natural",
+  "ko": "가장 자연스러운 전체 글",
+  "vi": "Bản tự nhiên nhất"
+ },
+ "今日の間違い": {
+  "en": "Today's mistakes",
+  "zh-TW": "今天的錯誤",
+  "es": "Errores de hoy",
+  "ko": "오늘의 실수",
+  "vi": "Lỗi hôm nay"
+ },
+ "間違えやすいところ": {
+  "en": "What you tend to get wrong",
+  "zh-TW": "容易出錯的地方",
+  "es": "Lo que sueles confundir",
+  "ko": "자주 틀리는 점",
+  "vi": "Những lỗi bạn hay mắc"
+ },
+ "使うと自然なフレーズ": {
+  "en": "Phrases to use",
+  "zh-TW": "可以用的自然說法",
+  "es": "Frases naturales para usar",
+  "ko": "쓰면 자연스러운 표현",
+  "vi": "Cụm từ nên dùng"
+ },
+ "1文ずつの添削": {
+  "en": "Sentence by sentence",
+  "zh-TW": "逐句批改",
+  "es": "Frase por frase",
+  "ko": "한 문장씩 첨삭",
+  "vi": "Sửa từng câu"
+ },
+ "{1}文は自然です": {
+  "en": "{1} sentences read naturally",
+  "zh-TW": "{1} 句很自然",
+  "es": "{1} frases suenan naturales",
+  "ko": "{1}문장은 자연스럽습니다",
+  "vi": "{1} câu đã tự nhiên"
+ },
  "復習モード": {
   "en": "Review mode",
   "zh-TW": "複習模式",

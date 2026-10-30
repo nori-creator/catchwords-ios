@@ -35,6 +35,7 @@ struct AIConsentView: View {
                     .padding(.horizontal, 22)
                     .padding(.top, 28)
                     .padding(.bottom, 16)
+                    .readableColumn()
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 buttons
@@ -103,6 +104,7 @@ struct AIConsentView: View {
         .padding(.horizontal, 22)
         .padding(.top, 10)
         .padding(.bottom, 12)
+        .readableColumn()
         .background(Theme.background.opacity(0.95).ignoresSafeArea(edges: .bottom))
     }
 

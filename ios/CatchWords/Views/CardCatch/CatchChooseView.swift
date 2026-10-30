@@ -156,7 +156,7 @@ struct CatchChooseOverlay: View {
     // MARK: The header and the card
 
     private func chooser(now: Double, tD: Double, size: CGSize) -> some View {
-        let W = size.width, H = size.height, k = W / 1080
+        let W = Film6.columnWidth(size), H = size.height, k = W / 1080
         let sinceP = chosenAt.map { now - $0 } ?? -1
         let headIn = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.45, 0.7))
         let headOut = chosenAt == nil ? 0 : Film6.inOutCubic(Film6.seg(sinceP, 0.02, 0.16))
@@ -213,6 +213,7 @@ struct CatchChooseOverlay: View {
         .padding(.horizontal, 40 * k)
         .padding(.top, Film6.y(900, H))
         .frame(width: W, alignment: .topLeading)
+        .frame(width: size.width)
         .opacity(1 - fold)
         .offset(y: CGFloat(fold) * 60 * k)
         .allowsHitTesting(chosenAt == nil && closingAt == nil)

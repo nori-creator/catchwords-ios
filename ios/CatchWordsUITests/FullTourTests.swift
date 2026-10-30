@@ -79,6 +79,13 @@ final class FullTourTests: XCTestCase {
         settle(1)
         snap("ai-consent")
         accept.tap()
+        // On a cold simulator the first tap can land just after a stall of the main thread (the sounds being read,
+        // the home's photos coming in) and UIKit cancels it (the trace's "touch cancelled", PR #5 2026-10-25): the
+        // screen stayed and every later step failed behind it. Tap once more if it is still there.
+        if !waitGone(accept, timeout: 5), accept.isHittable {
+            accept.tap()
+        }
+        XCTAssertTrue(waitGone(accept, timeout: 10), "[\(display)/\(learning)] the AI consent did not close after agreeing")
         settle(1)
     }
 

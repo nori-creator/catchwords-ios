@@ -14,27 +14,31 @@ enum UIPreview {
     }
 
     /// The requested scene, parsed once (it sets the display language, so never during a redraw).
-    static let parsed: (scene: String, dark: Bool)? = requested.map(parse)
+    static let parsed: (scene: String, dark: Bool, duo: Bool, land: Bool)? = requested.map(parse)
 
-    /// "settings-en-dark" → scene "settings", English, dark. Sets the display language as a side effect, and puts the
-    /// per-device choices a scene may set (発音表記, the developer's trials) back to their defaults first, so one scene's
-    /// choice never leaks into the next launch on the same simulator.
-    static func parse(_ raw: String) -> (scene: String, dark: Bool) {
+    /// "settings-en-dark" → scene "settings", English, dark; "…-duo" → on iPhone Duo's inner screen held upright, "…-duoland"
+    /// → held sideways (`DuoCanvas`). Sets
+    /// the display language as a side effect, and puts the per-device choices a scene may set (発音表記, the developer's
+    /// trials) back to their defaults first, so one scene's choice never leaks into the next launch on the same simulator.
+    static func parse(_ raw: String) -> (scene: String, dark: Bool, duo: Bool, land: Bool) {
         var parts = raw.split(separator: "-").map(String.init)
         var dark = false
+        var duo = false
+        var land = false
         var lang = "ja"
         // Any display language's code ("ko", "vi" …; "zh" for zh-TW) picks the language.
         let codes = Set(L10n.supported.filter { !$0.contains("-") } + ["zh"])
-        while let last = parts.last, parts.count > 1, last == "dark" || codes.contains(last) {
-            if last == "dark" { dark = true } else { lang = last == "zh" ? "zh-TW" : last }
+        while let last = parts.last, parts.count > 1, last == "dark" || last == "duo" || last == "duoland" || codes.contains(last) {
+            if last == "dark" { dark = true } else if last == "duo" { duo = true } else if last == "duoland" { duo = true; land = true }
+            else { lang = last == "zh" ? "zh-TW" : last }
             parts.removeLast()
         }
         L10n.lang = lang
         for key in ["reading.pref", "chunk.posColors", "detail.review", "detail.reviewHide", "detail.textScale", "detail.speechRate",
-                    "coach.chunkSwap"] + DevChoices.retiredKeys {
+                    "coach.chunkSwap", PaperTone.storageKey, PageRule.storageKey, InkTone.storageKey] + DevChoices.retiredKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
-        return (parts.joined(separator: "-"), dark)
+        return (parts.joined(separator: "-"), dark, duo, land)
     }
 }
 
@@ -75,9 +79,24 @@ extension View {
 #if DEBUG
 struct UIPreviewRoot: View {
     let name: String
+    /// "-duo": the scene on iPhone Duo's inner screen (the regular width class), scaled to the simulator (`DuoCanvas`);
+    /// "-duoland": the inner screen held sideways.
+    var duo: Bool = false
+    var land: Bool = false
     @State private var router = AppRouter()
 
     var body: some View {
+        Group {
+            if duo { DuoCanvas(landscape: land) { scene } } else { scene }
+        }
+        // Scenes that mark a known element of their own (the quiz card, the analysis view, the web-images
+        // section) are ready only when that element is up; every other scene when its root appears.
+        .uiReady(Self.marksOwnElement.contains(name) ? "root-\(name)" : "preview")
+        .environment(router)
+    }
+
+    @ViewBuilder
+    private var scene: some View {
         Group {
             switch name {
             case "cutout": CelebrationPreview(withCutout: false)
@@ -220,6 +239,23 @@ struct UIPreviewRoot: View {
             case "done": DonePreview()
             case "home": HomePreview()
             case "home-again": HomePreview(metAgain: true)
+            // The diary (2026-10-24): today's page as the iPhone's sheet shows it, and the album as a book on a wide screen.
+            case "diary": DiaryPreview()
+            // The same page on blush paper, grid rules and plum ink (「紙とインク」).
+            case "diary-style": DiaryPreview(paper: .blush, rule: .grid, ink: .plum)
+            case "spread": SpreadPreview()
+            // Yesterday's right page held mid-turn under a finger (the page curl), and the cover half open.
+            case "spread-curl": SpreadPreview(held: (direction: .forward, progress: 0.36, lift: 0.68))
+            case "spread-curl-late": SpreadPreview(held: (direction: .forward, progress: 0.72, lift: 0.8))
+            case "spread-cover": SpreadCoverPreview()
+            // 「振り返る」 (2026-10-25): on the book it takes the left page's place; on the iPhone it is a sheet.
+            case "spread-lookback": SpreadPreview(lookBack: true)
+            case "diary-lookback": DiaryLookBackPreview()
+            // The correction (2026-10-25): the sentence checks under the text, and the finished diary's correction.
+            case "diary-notes": DiaryPreview(notes: true)
+            case "diary-correction": DiaryCorrectionPreview()
+            // CI's video: yesterday's spread turning over to today by itself.
+            case "spread-turn": SpreadPreview(held: nil, demoTurn: true)
             case "camblocked": CameraBlockedPreview()
             case "homeload": VStack(spacing: 20) {
                 AlbumSkeleton().frame(height: 440)
@@ -228,10 +264,6 @@ struct UIPreviewRoot: View {
             default: Text("unknown preview: \(name)")
             }
         }
-        // Scenes that mark a known element of their own (the quiz card, the analysis view, the web-images
-        // section) are ready only when that element is up; every other scene when its root appears.
-        .uiReady(Self.marksOwnElement.contains(name) ? "root-\(name)" : "preview")
-        .environment(router)
     }
 
     private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer",
@@ -1197,6 +1229,8 @@ private struct LanguageCardPreview: View {
 private struct ReviewPreview: View {
     let learning: String
     let answered: Bool
+    @Environment(\.horizontalSizeClass) private var widthClass
+    @State private var size: CGSize = .zero
 
     private var card: ReviewCard {
         ImageCache.shared.set(PreviewFixtures.photo, for: "preview/review.jpg")
@@ -1238,15 +1272,22 @@ private struct ReviewPreview: View {
         ZStack(alignment: .bottom) {
             AppBackground()
             ScrollView {
-                QuizCard(card: c, choices: choices, percent: 62, isAnswered: answered, onAnswer: { _, _ in }, onBadge: {})
+                // The review's own margins (ReviewView), so the card stands as it does in the app.
+                QuizCard(card: c, choices: choices, percent: 62, isAnswered: answered, sideBySide: spread,
+                         onAnswer: { _, _ in }, onBadge: {})
+                    .padding(.horizontal, 16)
                     .padding(.top, 40)
                     .uiReady("preview")
             }
             if answered {
                 AnswerPanel(sticker: c.sticker, correct: true, onDex: {}, onNext: {})
+                    .answerSheetColumn(wide: spread, width: size.width)
             }
         }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
     }
+
+    private var spread: Bool { QuizCard.isSpread(widthClass: widthClass, width: size.width, height: size.height) }
 }
 
 /// The word page of a catch made in selfie mode (冰火菠蘿油 held up in the selfie), opened on the selfie side: its
@@ -1987,6 +2028,296 @@ private struct MapPreview: View {
 
     var body: some View {
         DexMapView(stickers: Self.stickers) { _ in }
+    }
+}
+
+// MARK: - Diary (2026-10-24)
+
+/// Today's two words — 鐵板麵 with the formulas natives use it in, 芒果 — and today's page with a few lines written. Shared by
+/// `-uiPreview diary` and `-uiPreview spread`.
+private enum DiaryFixtures {
+    static func seed(_ dex: DexStore) {
+        let now = Date()
+        // Times inside today and yesterday whatever the hour CI runs at (3 hours ago was yesterday before 3 a.m.).
+        let today = Calendar.current.startOfDay(for: now)
+        let noodles = sticker("diary-noodles", "鐵板麵", zhuyin: "ㄊㄧㄝˇ ㄅㄢˇ ㄇㄧㄢˋ", hue: 0.08, at: today.addingTimeInterval(8 * 3600),
+                              place: "早餐店",
+                              formulas: [[("點", "V"), ("一份", "M"), ("鐵板麵", "N")], [("鐵板麵", "N"), ("很", "Adv"), ("香", "Vs")]])
+        let mango = sticker("diary-mango", "芒果", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ", hue: 0.12, at: today.addingTimeInterval(15 * 3600),
+                            place: "水果攤", formulas: [[("芒果", "N"), ("很", "Adv"), ("甜", "Vs")]])
+        let yesterday = today.addingTimeInterval(-86_400)
+        let tea = sticker("diary-tea", "珍珠奶茶", zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", hue: 0.07, at: yesterday.addingTimeInterval(16 * 3600),
+                          place: "飲料店", formulas: [[("一杯", "M"), ("珍珠奶茶", "N")]])
+        let umbrella = sticker("diary-umbrella", "雨傘", zhuyin: "ㄩˇ ㄙㄢˇ", hue: 0.62, at: yesterday.addingTimeInterval(9 * 3600),
+                               place: "捷運站", formulas: [[("帶", "V"), ("雨傘", "N")]])
+        dex.stickers = [mango, noodles, umbrella, tea]
+        dex.hasLoaded = true
+
+        DiaryStore.shared.seedForPreview([
+            DiaryEntry(date: DiaryStore.key(now), text: "今天早餐我點一份鐵板麵，非常好吃。下午買的芒果很甜。"),  // l10n-ignore (learning-language sample)
+            DiaryEntry(date: DiaryStore.key(yesterday), text: "下雨了，我忘了帶雨傘。在捷運站買了一杯珍珠奶茶。"),  // l10n-ignore (learning-language sample)
+        ])
+    }
+
+    /// Today's text with two mistakes, its sentence checks and the finished correction (the correction previews).
+    static func seedChecks() {
+        let now = Date()
+        let s1 = "今天早餐我點一份鐵板麵，非常好吃。"  // l10n-ignore (learning-language sample)
+        let s2 = "下午我買了三個芒果。"  // l10n-ignore (learning-language sample)
+        let s3 = "然後我去公園了玩。"  // l10n-ignore (learning-language sample)
+        DiaryStore.shared.seedForPreview([DiaryEntry(date: DiaryStore.key(now), text: s1 + s2 + s3)])
+        let measure = SentenceCheck.Issue(wrong: "個", fix: "顆", kind: "measure", explain: "芒果など丸い果物は「顆」で数えます。")  // l10n-ignore (learning-language sample)
+        let order = SentenceCheck.Issue(wrong: "了玩", fix: "玩了", kind: "order", explain: "「了」は動作の後ろに付けます。")  // l10n-ignore (learning-language sample)
+        DiaryStore.shared.seedChecksForPreview(
+            [
+                s1: SentenceCheck(ok: true, issues: []),
+                s2: SentenceCheck(ok: false, issues: [measure], natural: "下午我買了三顆芒果。",  // l10n-ignore (learning-language sample)
+                                  naturalNote: "果物は「顆」で数えると自然です。"),
+                s3: SentenceCheck(ok: false, issues: [order], natural: "然後我去公園玩了。",  // l10n-ignore (learning-language sample)
+                                  naturalNote: "「去＋場所＋動作＋了」の順にします。"),
+            ],
+            correction: DiaryCorrection(
+                natural: "今天早餐我點了一份鐵板麵，非常好吃。下午我買了三顆芒果，然後去公園玩了。",  // l10n-ignore (learning-language sample)
+                feedback: "その日の流れがよく伝わります。量詞と「了」の位置を意識すると、もっと自然になります。",
+                mistakes: [
+                    .init(wrong: "三個芒果", fix: "三顆芒果", explain: "芒果など丸い果物は「顆」で数えます。"),  // l10n-ignore (learning-language sample)
+                    .init(wrong: "去公園了玩", fix: "去公園玩了", explain: "「了」は動作の後ろに付けます。"),  // l10n-ignore (learning-language sample)
+                ],
+                tendencies: ["量詞を「個」で済ませがち", "「了」を動詞の前に置きがち"],
+                phrases: [DiaryPhrase(zh: "好好吃喔", ja: "すごくおいしい", note: "食べてすぐの気持ちを言う時")]),  // l10n-ignore (learning-language sample)
+            on: now)
+    }
+
+    /// A word with a photo, a cut-out and its formulas (`usage_patterns`), kept in memory (no network in the preview).
+    private static func sticker(_ id: String, _ head: String, zhuyin: String, hue: CGFloat, at: Date, place: String,
+                                formulas: [[(String, String)]]) -> Sticker {
+        let photo = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 450)).image { ctx in
+            UIColor(hue: hue, saturation: 0.25, brightness: 0.95, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 450))
+            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 150, y: 90, width: 300, height: 270))
+        }
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        let cutout = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 270), format: format).image { ctx in
+            UIColor(hue: hue, saturation: 0.7, brightness: 0.6, alpha: 1).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: 300, height: 270))
+        }
+        ImageCache.shared.set(photo, for: "preview/\(id).jpg")
+        ImageCache.shared.set(cutout, for: "preview/\(id)-cutout.png")
+        let patterns: [[String: Any]] = formulas.map { parts in
+            ["scene": "", "chunk": ["parts": parts.map { ["text": $0.0, "pos": $0.1] }, "ja": ""], "example": ["zh": "", "ja": ""]]
+        }
+        let obj: [String: Any] = [
+            "id": "w-\(id)", "headword": head, "language": "zh-TW", "reading_zhuyin": zhuyin, "meaning_ja": "",
+            "extras": ["explain_lang": L10n.lang, "usage_patterns": patterns],
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        let word = (try? JSONDecoder().decode(Word.self, from: data))
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
+        return Sticker(id: id, wordId: "w-\(id)", objectImageUrl: "preview/\(id).jpg", cutoutImageUrl: "preview/\(id)-cutout.png",
+                       selfieImageUrl: nil, caption: nil, locationName: place, takenAt: at, captureType: "photo", word: word)
+    }
+}
+
+/// `-uiPreview diary`: today's diary page as the iPhone's home opens it (a sheet).
+private struct DiaryPreview: View {
+    @Environment(DexStore.self) private var dex
+    private let paper: PaperTone
+    /// The sentence checks under a text with two mistakes in it.
+    private let notes: Bool
+
+    init(paper: PaperTone = .cream, rule: PageRule = .lined, ink: InkTone = .navy, notes: Bool = false) {
+        self.paper = paper
+        self.notes = notes
+        UserDefaults.standard.set(paper.rawValue, forKey: PaperTone.storageKey)
+        UserDefaults.standard.set(rule.rawValue, forKey: PageRule.storageKey)
+        UserDefaults.standard.set(ink.rawValue, forKey: InkTone.storageKey)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                DiaryPageView(day: Date(), standalone: true)
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 40)
+            }
+            .background(PaperSurface(tone: paper, cornerRadius: 0).ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {} label: { Image(systemName: "xmark") }
+                        .accessibilityLabel(L("閉じる"))
+                }
+            }
+        }
+        .environment(\.colorScheme, .light)
+        .task {
+            DiaryFixtures.seed(dex)
+            if notes { DiaryFixtures.seedChecks() }
+        }
+    }
+}
+
+/// `-uiPreview diary-correction`: the finished diary's correction as the iPhone's sheet shows it.
+private struct DiaryCorrectionPreview: View {
+    @Environment(DexStore.self) private var dex
+    @State private var seeded = false
+
+    var body: some View {
+        Group {
+            if seeded, let c = DiaryStore.shared.correction(for: Date()) {
+                DiaryCorrectionView(day: Date(), correction: c) {}
+                    .padding(.horizontal, 20)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(hex: 0xFBF8F1).ignoresSafeArea())
+        .environment(\.colorScheme, .light)
+        .task {
+            DiaryFixtures.seed(dex)
+            DiaryFixtures.seedChecks()
+            seeded = true
+        }
+    }
+}
+
+/// `-uiPreview spread`: the home on a wide screen (the regular width class — iPhone Duo's inner display), drawn on a
+/// Duo-shaped canvas (1000 × 860 pt, wider than tall as the book is held) and scaled to the simulator's width: the day's
+/// paper on the left, its diary on the right, the gutter between. `held`: the book alone, yesterday's spread with its
+/// right page held mid-turn under a finger (the page curl).
+private struct SpreadPreview: View {
+    @Environment(DexStore.self) private var dex
+    var held: (direction: PageTurnDirection, progress: CGFloat, lift: CGFloat)? = nil
+    var demoTurn = false
+    /// 「振り返る」 open on today's left page.
+    var lookBack = false
+    private static var canvas: CGSize { DuoScreen.inner }
+    /// The book is built once the fixtures are in (its first spread is chosen as it appears).
+    @State private var seeded = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let scale = geo.size.width / Self.canvas.width
+            Group {
+                if !seeded {
+                    Color.clear
+                } else if lookBack {
+                    BookSpreadView(days: AlbumDay.days(from: dex.albumStickers, today: Calendar.current.startOfDay(for: Date())),
+                                   onOpen: { _ in }, onCamera: {}, showsCover: false, startsLookedBack: true)
+                        .padding(24)
+                        .background(HomeBackground())
+                } else if held != nil || demoTurn {
+                    BookSpreadView(days: AlbumDay.days(from: dex.albumStickers, today: Calendar.current.startOfDay(for: Date())),
+                                   onOpen: { _ in }, onCamera: {}, startIndex: 1, showsCover: false, heldTurn: held,
+                                   demoTurnAfter: demoTurn ? 2.0 : nil)
+                        .padding(24)
+                        .background(HomeBackground())
+                } else {
+                    HomeView()
+                }
+            }
+            .environment(\.horizontalSizeClass, .regular)
+            .environment(\.colorScheme, .light)
+            .frame(width: Self.canvas.width, height: Self.canvas.height)
+            .scaleEffect(scale, anchor: .topLeading)
+            // The canvas is wider than the screen: pinned to the leading edge (centred, its scaled copy would sit off
+            // the left of the screen and only its right quarter would show).
+            .frame(width: geo.size.width, height: Self.canvas.height * scale, alignment: .topLeading)
+            .frame(maxHeight: .infinity)
+        }
+        .background(Color.black)
+        .ignoresSafeArea()
+        .task {
+            DiaryFixtures.seed(dex)
+            seeded = true
+        }
+    }
+}
+
+/// `-uiPreview spread-cover`: the book as it lies before it opens — the cloth cover alone in the middle, no page beside
+/// it (owner 2026-10-25), shown just lifting off the block (it opens once a launch).
+private struct SpreadCoverPreview: View {
+    var body: some View {
+        GeometryReader { geo in
+            let page = CGSize(width: (geo.size.width - 48) / 2, height: min(geo.size.height * 0.5, 420))
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(PaperTone.cream.edge)
+                    .shadow(color: .black.opacity(0.16), radius: 18, y: 10)
+                PageEdges(count: 4, edge: .trailing, tone: .cream)
+                PaperSurface(tone: .cream, spine: .leading)
+                BookCoverFlip(angle: -24, month: Date().formatted(.dateTime.year().month(.wide).locale(L10n.locale)), tone: .cream)
+            }
+            .frame(width: page.width, height: page.height)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(HomeBackground())
+        .environment(\.colorScheme, .light)
+    }
+}
+
+/// `-uiPreview diary-lookback`: 「振り返る」 as the iPhone's sheet — today's timeline, the first word open on its 使い方
+/// in parts-of-speech colours.
+private struct DiaryLookBackPreview: View {
+    @Environment(DexStore.self) private var dex
+    @State private var seeded = false
+
+    var body: some View {
+        Group {
+            if seeded {
+                DiaryLookBack(day: Date(), words: DiaryPageView.words(on: Date(), in: dex), focus: "鐵板麵") {}  // l10n-ignore (learning-language sample)
+                    .padding(.horizontal, 20)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(hex: 0xFBF8F1).ignoresSafeArea())
+        .environment(\.colorScheme, .light)
+        .task {
+            DiaryFixtures.seed(dex)
+            seeded = true
+        }
+    }
+}
+
+/// iPhone Duo's inner screen, open like a book (the fold down the middle), in points: 669 × 951, from Xcode 27.1's
+/// iPhone Duo simulator (its inner display is 2007 × 2853 px at 3×, as CI's `duo` job reads it from simctl and a
+/// developer measured it on the Apple forums, thread 847883 — Apple's spec page gives 1878 × 2670 px for the panel).
+/// The simulator starts folded and cannot be unfolded from the command line (turning the outer screen off crashes its
+/// system shell), so the inner screen is drawn here instead.
+enum DuoScreen {
+    static let inner = CGSize(width: 669, height: 951)
+    /// The inner screen held sideways (owner 2026-10-29: 「見開き（横長）」).
+    static let innerLandscape = CGSize(width: inner.height, height: inner.width)
+}
+
+/// A screen as iPhone Duo's inner display shows it: drawn on its size (`DuoScreen.inner`) in the regular width class
+/// and scaled to the simulator's width (as `SpreadPreview` draws the book).
+private struct DuoCanvas<Content: View>: View {
+    /// The inner screen held sideways (`DuoScreen.innerLandscape`).
+    var landscape: Bool = false
+    @ViewBuilder let content: () -> Content
+    private var canvas: CGSize { landscape ? DuoScreen.innerLandscape : DuoScreen.inner }
+
+    var body: some View {
+        GeometryReader { geo in
+            let scale = geo.size.width / canvas.width
+            content()
+                .environment(\.horizontalSizeClass, .regular)
+                .environment(\.colorScheme, .light)
+                // The word page sizes its column to its window, which here is the simulator's (narrower) one.
+                .environment(\.pageWidthOverride, canvas.width)
+                .frame(width: canvas.width, height: canvas.height)
+                .clipped()
+                .scaleEffect(scale, anchor: .topLeading)
+                .frame(width: geo.size.width, height: canvas.height * scale, alignment: .topLeading)
+                .frame(maxHeight: .infinity)
+        }
+        .background(Color.black)
+        .ignoresSafeArea()
     }
 }
 

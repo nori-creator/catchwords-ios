@@ -121,6 +121,7 @@ struct PaywallView: View {
                 }
                 .padding(.horizontal, 22)
                 .padding(.bottom, 30)
+                .readableColumn()
             }
         }
         .task { await plan.loadProducts() }

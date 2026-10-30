@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct CatchWordsApp: App {
+    /// Upright only, except on iPhone Duo's open inner screen (`ScreenOrientation`).
+    @UIApplicationDelegateAdaptor(OrientationDelegate.self) private var orientation
     @State private var auth = AuthStore()
     @State private var dex = DexStore()
     @State private var plan = PlanStore()
@@ -49,8 +51,8 @@ struct CatchWordsApp: App {
             #if DEBUG
             if let p = UIPreview.parsed {
                 // "<scene>-dark" photographs the same scene in the dark appearance;
-                // "-en" / "-zh" in another display language.
-                UIPreviewRoot(name: p.scene)
+                // "-en" / "-zh" in another display language; "-duo" / "-duoland" on iPhone Duo's inner screen, upright / sideways.
+                UIPreviewRoot(name: p.scene, duo: p.duo, land: p.land)
                     .environment(\.locale, L10n.locale)
                     .environment(dex)
                     .environment(auth)
@@ -85,5 +87,7 @@ struct CatchWordsApp: App {
                 .appTypeSizeCap()  // Dynamic Type up to accessibility 2 (ScaledFont.swift)
                 .widgetBridge(dex: dex)  // home/lock-screen widgets: snapshot upkeep + catchwords:// links
                 .appMotionPreference()  // 設定 › アニメーション → \.appReduceMotion for every screen (MotionPreference.swift)
+                // The Duo folded or opened: the ways the screen may turn are asked again (ScreenOrientation).
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in ScreenOrientation.refresh() }
     }
 }

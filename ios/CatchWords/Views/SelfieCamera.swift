@@ -100,7 +100,7 @@ struct SelfieCamera: View {
     private var preview: some View {
         switch camera.state {
         case .running, .idle:
-            CameraPreview(session: camera.session) { _, device in camera.focus(at: device) }
+            CameraPreview(session: camera.session, camera: camera) { _, device in camera.focus(at: device) }
                 .scaleEffect(x: camera.position == .front ? -1 : 1, y: 1)
                 .background(Color.black)
                 .overlay {

@@ -158,3 +158,82 @@ static float3 hueRGB(float h) {
     if (r4 < flight * 0.3) { return half4(0.0); }
     return layer.sample(from);
 }
+
+// MARK: - The diary book on a wide screen (iPhone Duo, 2026-10-25)
+
+/// Paper grain: a faint, fixed speckle on a page (`PaperSurface`), so a flat colour reads as paper. Each point gets its
+/// own lighter or darker step (`strength` of 0.03 ≈ ±1.5 %), plus a slow, larger mottling; nothing moves.
+[[ stitchable ]] half4 paperGrain(float2 position, half4 color, float strength) {
+    float fine = hash21(floor(position * 1.0)) - 0.5;
+    float coarse = valueNoise(position / 38.0) - 0.5;
+    float g = fine * strength + coarse * strength * 0.9;
+    return half4(color.rgb + half3(g) * color.a, color.a);
+}
+
+static bool curlInLeaf(float2 s, float2 size, float spine) {
+    return s.x >= spine && s.x <= size.x && s.y >= 0.0 && s.y <= size.y;
+}
+
+/// A page turned like paper (`PageCurlLeaf`), in two layers so that every sample stays near the point it is drawn
+/// at: the leaf leaves the page along a fold line and rolls round a cylinder of `radius`, its back coming over on top
+/// and lying flat beyond. (One layer holding both sides had to sample the back up to a spread's width away, and SwiftUI
+/// drew it blank — CI `spread-curl-late`, 2026-10-25.)
+/// - size: the spread in points. - fold: a point of the fold line. - dir: unit vector across the fold, towards the
+///   lifted edge. - spine: the spine's x. The geometry is always a forward turn (the right page going over to the
+///   left); a backward turn is the same drawn in a mirror (`PageCurlLeaf`).
+
+/// The leaf's front, the page being turned (the layer's right half): flat up to the fold, shaded a little where the
+/// roll hangs over it; then the lower half of the roll, turning away from the light; past the roll nothing (the leaf's
+/// shadow is `pageCurlShadow`, its own layer). Used with `maxSampleOffset` of at least 0.6 × the largest radius.
+[[ stitchable ]] half4 pageCurlFront(float2 position, SwiftUI::Layer layer, float2 size, float2 fold, float2 dir,
+                                     float radius, float spine) {
+    float r = max(radius, 0.0001);
+    float x = dot(position - fold, dir);
+    float2 base = position - dir * x;
+    if (x > r) { return half4(0.0); }
+    if (x >= 0.0) {
+        float2 s = base + dir * (r * asin(clamp(x / r, -1.0, 1.0)));
+        if (!curlInLeaf(s, size, spine)) { return half4(0.0); }
+        half4 c = layer.sample(s);
+        float t = x / r;
+        c.rgb *= half(1.0 - 0.38 * t * t);
+        return c;
+    }
+    if (!curlInLeaf(position, size, spine)) { return half4(0.0); }
+    half4 c = layer.sample(position);
+    c.rgb *= half(1.0 - 0.16 * exp(x / (r * 0.9 + 6.0)));
+    return c;
+}
+
+/// The leaf's back, the page it will become. Its layer is already that page reflected over the fold
+/// (`PageCurlGeometry.backReflection`), so its flat part is drawn where it stands; only the upper half of the roll
+/// moves its sample, by less than 0.6 × `radius`. Lit from above: the roll's crest brightest, the flat back a touch
+/// darker than the page it will become, a thin bright line along the rolled edge.
+[[ stitchable ]] half4 pageCurlBack(float2 position, SwiftUI::Layer layer, float2 fold, float2 dir, float radius) {
+    float r = max(radius, 0.0001);
+    float x = dot(position - fold, dir);
+    if (x > r) { return half4(0.0); }
+    float2 base = position - dir * x;
+    float2 q = x >= 0.0 ? base + dir * (r * asin(clamp(x / r, -1.0, 1.0))) : position;
+    half4 c = layer.sample(q);
+    float shade = 0.94;
+    if (x >= 0.0) {
+        float t = x / r;
+        shade = 0.80 + 0.20 * sqrt(max(0.0, 1.0 - t * t));
+    }
+    c.rgb *= half(shade);
+    if (x >= 0.0 && x > r * 0.86) { c.rgb = min(half3(c.a), c.rgb + half3(0.05) * c.a); }
+    return c;
+}
+
+/// The shadow a leaf being turned casts on the page it uncovers: darkest by the roll, gone a few roll-widths away. A
+/// colour effect on a plain rectangle the size of that page (`PageCurlLeaf`), not part of the front's layer: drawn
+/// there, the see-through shadow came out as dark blocks wherever the page held text or pictures (CI `spread-curl`,
+/// 2026-10-25). `fold` is in the rectangle's own points.
+[[ stitchable ]] half4 pageCurlShadow(float2 position, half4 color, float2 fold, float2 dir, float radius) {
+    float r = max(radius, 0.0001);
+    float x = dot(position - fold, dir);
+    if (x <= r) { return half4(0.0); }
+    float a = 0.30 * exp(-(x - r) / (r * 1.4 + 10.0));
+    return half4(0.0, 0.0, 0.0, half(a));
+}

@@ -117,7 +117,6 @@ describe("用途の表", () => {
     }
     // iOS に無い機能は iOS の用途に入れない
     for (const id of [
-      "journal_correct",
       "journal_prompts",
       "phrase_card",
       "wordbook",

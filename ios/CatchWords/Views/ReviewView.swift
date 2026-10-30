@@ -24,6 +24,12 @@ struct ReviewView: View {
     /// Bumped by 「いま復習する」: the screen closes the word list and scrolls back up to the quiz card.
     @State private var showQuizRequest = 0
     @Environment(\.appReduceMotion) private var reduceMotion
+    /// iPhone Duo open and held sideways (owner 2026-10-29: 「見開き（横長）で開いたとき、復習は左側取った切り抜き画像、右側に
+    /// 選択肢」): the picture on the left page, the question and the choices on the right, the answer sheet coming up on the
+    /// right page only. Open and upright (「縦にした場合は上に画像、したに選択肢」) and folded, the iPhone's layout.
+    @Environment(\.horizontalSizeClass) private var widthClass
+    @State private var viewportWidth: CGFloat = 0
+    private var spread: Bool { QuizCard.isSpread(widthClass: widthClass, width: viewportWidth, height: viewportHeight) }
 
     /// Room kept under the card for the floating tab bar (58 pt + its 4 pt + a little air).
     private static let tabBarClearance: CGFloat = 70
@@ -33,8 +39,9 @@ struct ReviewView: View {
         ZStack {
             AppBackground()
             GeometryReader { geo in
-                Color.clear.onAppear { viewportHeight = geo.size.height }
+                Color.clear.onAppear { viewportHeight = geo.size.height; viewportWidth = geo.size.width }
                     .onChange(of: geo.size.height) { _, h in viewportHeight = h }
+                    .onChange(of: geo.size.width) { _, w in viewportWidth = w }
             }
             ScrollViewReader { proxy in
                 ScrollView {
@@ -120,6 +127,7 @@ struct ReviewView: View {
                 .padding(.bottom, 66)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
                 .background(alignment: .bottom) { Theme.card.frame(height: 80) }
+                .answerSheetColumn(wide: spread, width: viewportWidth)
                 .ignoresSafeArea(edges: .bottom)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .id(card.id)
@@ -279,7 +287,7 @@ struct ReviewView: View {
     private var content: some View {
         if router.tour.isReview, let card = practiceCards[safe: practiceIndex] {
             QuizCard(card: card, choices: store.choices(for: card, dex: dex), percent: nil, isAnswered: answer != nil,
-                     fitHeight: quizFitHeight) { correct, _ in
+                     fitHeight: quizFitHeight, sideBySide: spread) { correct, _ in
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { answer = correct }
                 router.advanceTour(from: .reviewPick, to: .reviewNext)
             } onBadge: {}
@@ -297,7 +305,7 @@ struct ReviewView: View {
             ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
         } else if let card = store.current {
             QuizCard(card: card, choices: store.choices(for: card, dex: dex), percent: dex.memoryPercent(for: card.sticker), isAnswered: answer != nil,
-                     fitHeight: quizFitHeight) { correct, ms in
+                     fitHeight: quizFitHeight, sideBySide: spread) { correct, ms in
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { answer = correct }
                 // Saved in the background: 次へ moves on at once while this is still on its way.
                 Task {
@@ -468,6 +476,37 @@ struct FlowRow: Layout {
     }
 }
 
+/// The quiz photo's box: the card's width at `height` on iPhone; on the Duo's left page, a 3 : 4 portrait of the page's
+/// width, no taller than `height` (centred on the page by the card, after the photo's overlays).
+private struct PhotoBox: ViewModifier {
+    let sideBySide: Bool
+    let height: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if sideBySide {
+            // Capped by width so the 3 : 4 box is never taller than `height` (the card sits in a scroll view, which
+            // leaves the height open).
+            content
+                .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                .frame(maxWidth: height * 3 / 4)
+        } else {
+            content
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+        }
+    }
+}
+
+extension View {
+    /// The answer sheet's width: the whole screen on iPhone; with the Duo open (`wide`), the right page only — the quiz
+    /// card's right column, past the gap over the fold — on a screen `width` wide.
+    func answerSheetColumn(wide: Bool, width: CGFloat) -> some View {
+        frame(width: wide && width > 0 ? QuizCard.rightColumnWidth(width) : nil)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}
+
 /// 4択クイズ: photo → 「meaning」はどれ？ → 4 headwords with zhuyin + pronounce buttons.
 struct QuizCard: View {
     @Environment(DexStore.self) private var dex
@@ -478,6 +517,8 @@ struct QuizCard: View {
     /// The height the whole card should fit in (ReviewView measures it): the photo takes what the question and
     /// the four choices leave, so nothing has to be scrolled to when the card opens. nil = the photo's usual height.
     var fitHeight: CGFloat? = nil
+    /// The picture on the left, the question and the choices on the right (`isSpread(widthClass:width:height:)`).
+    var sideBySide: Bool = false
     let onAnswer: (Bool, Int) -> Void
     let onBadge: () -> Void
 
@@ -500,8 +541,28 @@ struct QuizCard: View {
     /// which this changes).
     private var compact: Bool { (fitHeight ?? 1000) < 460 }
 
-    /// The photo's height: what is left of `fitHeight`, kept between a small but readable picture and 300 pt.
+    /// iPhone Duo open and held sideways — the regular width class on a screen wider than tall (owner 2026-10-29:
+    /// 「見開き（横長）で開いたとき…左側取った切り抜き画像、右側に選択肢」): the picture on the left page, the question and the
+    /// choices on the right, answered or not (the answer sheet then comes up on the right page, `ReviewView`). Open and
+    /// upright, the picture above the choices as on the iPhone (「縦にした場合は上に画像、したに選択肢」).
+    static func isSpread(widthClass: UserInterfaceSizeClass?, width: CGFloat, height: CGFloat) -> Bool {
+        widthClass == .regular && width > height && height > 0
+    }
+
+    /// The gap between the photo and the choices when side by side: it sits over the fold.
+    static let sideGap: CGFloat = 24
+
+    /// The right column's width on a screen `width` wide (the review's 16 pt margins, the card's padding, the gap):
+    /// the answer sheet takes it on the Duo.
+    static func rightColumnWidth(_ width: CGFloat) -> CGFloat {
+        max(0, (width - 32 - cardPadding * 2 - sideGap) / 2 + cardPadding + 16)
+    }
+
+    /// The photo's height: what is left of `fitHeight`, kept between a small but readable picture and 300 pt. Side by
+    /// side, at most the card's whole height (up to 520 pt), the picture's box a 3 : 4 portrait of the left page's width
+    /// (a photo is taken upright at 3 : 4; a box as tall as the card left grey bands above and under it).
     private var photoHeight: CGFloat {
+        if sideBySide { return min(520, max(240, (fitHeight ?? 420) - Self.cardPadding * 2)) }
         guard let fitHeight, lowerHeight > 0 else { return compact ? 120 : 200 }
         let left = fitHeight - lowerHeight - Self.gap - Self.cardPadding * 2
         return min(300, max(64, left))
@@ -513,8 +574,11 @@ struct QuizCard: View {
     private var liveMeaning: String { ReaderLanguage.gloss((dex.sticker(id: card.sticker.id) ?? card.sticker).word?.meaningJa ?? "") }
 
     var body: some View {
-        VStack(spacing: Self.gap) {
-            if isAnswered {
+        // Side by side, the right page starts at the top like a book's page: the question and the choices stay clear
+        // of the answer sheet that comes up under them on the same page (`ReviewView`).
+        let layout = sideBySide ? AnyLayout(HStackLayout(alignment: .top, spacing: Self.sideGap)) : AnyLayout(VStackLayout(spacing: Self.gap))
+        layout {
+            if isAnswered && !sideBySide {
                 // Answered: the photo makes way for the answer sheet; the quiz label and the memory badge stay.
                 HStack {
                     HStack(spacing: 6) {
@@ -538,7 +602,7 @@ struct QuizCard: View {
                 let path = pic?.path
                 let isCutout = pic?.isCutout == true
                 (isCutout ? Color.clear : Theme.secondary)
-                    .frame(height: photoHeight)
+                    .modifier(PhotoBox(sideBySide: sideBySide, height: photoHeight))
                     .overlay {
                         StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: .fit)
                             .padding(isCutout ? 2 : 6)
@@ -550,6 +614,8 @@ struct QuizCard: View {
                     .overlay(alignment: .topTrailing) {
                         if let percent { badge(percent).padding(.trailing, 4) }
                     }
+                    // Side by side: the left page's whole width, so both pages stay as wide as the answer sheet's.
+                    .frame(maxWidth: sideBySide ? .infinity : nil)
                     .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
             }
 
@@ -566,6 +632,7 @@ struct QuizCard: View {
                 }
                 .offset(x: shake)
             }
+            .frame(maxWidth: sideBySide ? .infinity : nil)
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { h in

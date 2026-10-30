@@ -41,6 +41,9 @@ enum SFX: String, CaseIterable {
     case c6Tick3 = "cc6-count-tick-3"
     case c6Refill = "cc6-refill"
     case c6GoalOneMore = "cc6-goal-one-more"
+    // The diary book's page turn (2026-10-25, scripts/render_page_turn.py): the sheet's swish as it goes over and its
+    // soft landing on the other page, at the kit's `motion` loudness.
+    case pageTurn = "cc6-page-turn"
     // The small UI ticks (owner 2026-10-15, scripts/render_ui_ticks.py, −26 LUFS like the kit's `ui` role). Only
     // cc6-pick-tick-3 is played now (the map's timeline, owner 2026-10-16); the others stay for a later choice.
     case c6ScrollTick1 = "cc6-scroll-tick-1"
@@ -73,7 +76,7 @@ enum SFX: String, CaseIterable {
         // The v6 kit is balanced within itself (ui −26, motion −24, earcon −21, reward −19 LUFS), the earcons as
         // loud as the pop and the land above (−22 LUFS at 0.9).
         case .c6Choose, .c6StagePad, .c6CatchJingle, .c6DexOpen, .c6Riser, .c6LandImpact, .c6NewBadge,
-             .c6Tick1, .c6Tick2, .c6Tick3, .c6Refill, .c6GoalOneMore: 1.0
+             .c6Tick1, .c6Tick2, .c6Tick3, .c6Refill, .c6GoalOneMore, .pageTurn: 1.0
         // Rendered at the kit's `ui` loudness already; kept low (they can come several times a second).
         case .c6ScrollTick1, .c6ScrollTick2, .c6ScrollTick3, .c6PickTick1, .c6PickTick2, .c6PickTick3: 0.9
         }
