@@ -91,6 +91,7 @@ async function levelForReader(
   wordId: string,
   key: { explainLang: string; l1: string },
   language: string | null,
+  headword: string,
 ): Promise<WordExplanationResult["level"]> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -107,6 +108,22 @@ async function levelForReader(
         extras = withChunkReadingsInExtras(extras as never, language) as Record<string, unknown>;
       } catch (e) {
         console.warn("getWordExplanation: 帯の型の読みを付けられなかった", (e as Error)?.message);
+      }
+      // 使い方チャンク v2: 書庫の中身は帯に依らないので、読む人の目標レベルで並べ替える（`orderForReader`）。
+      if (Array.isArray(extras.usage_chunks_v2) && extras.usage_chunks_v2.length > 0) {
+        try {
+          const [{ orderForReader }, { getUserLevelGoal }] = await Promise.all([
+            import("./chunks-v2"),
+            import("./ai-provider.server"),
+          ]);
+          const levelGoal = await getUserLevelGoal(userId);
+          extras = {
+            ...extras,
+            usage_chunks_v2: orderForReader(extras.usage_chunks_v2 as never, { levelGoal, headword, language }),
+          };
+        } catch (e) {
+          console.warn("getWordExplanation: v2 の並べ替えができなかった", (e as Error)?.message);
+        }
       }
     }
     return {
@@ -198,6 +215,7 @@ export const getWordExplanation = createServerFn({ method: "GET" })
         data.word_id,
         explanationKey(data.explain_lang, data.l1),
         word?.language ?? null,
+        word?.headword ?? "",
       );
       return { picked, unavailable: false, ...(labelPending ? { labelPending } : {}), level };
     }
@@ -236,6 +254,7 @@ export const getWordExplanation = createServerFn({ method: "GET" })
       data.word_id,
       explanationKey(data.explain_lang, data.l1),
       word?.language ?? null,
+      word?.headword ?? "",
     );
     return { picked, unavailable: false, ...(labelPending ? { labelPending } : {}), level };
   });

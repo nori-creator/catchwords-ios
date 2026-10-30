@@ -104,10 +104,16 @@ export function withChunkReadingsInExtras<T extends Partial<WordExtrasDTO> | nul
       ...e,
       chunks: (e.chunks ?? []).map(fill),
     }));
+    // v2（2026-10-30）: block と入れ替えの候補に辞書の読み。
+    const v2 = (extras.usage_chunks_v2 ?? []).map((c) => ({
+      ...c,
+      blocks: (c.blocks ?? []).map(fill),
+    }));
     // 入っていた欄だけを返す（無い欄を空の配列で足さない — 作り直しの差分に混ざる）。
     return {
       ...extras,
       ...("usage_chunks" in extras ? { usage_chunks: usage } : {}),
+      ...("usage_chunks_v2" in extras && extras.usage_chunks_v2 ? { usage_chunks_v2: v2 } : {}),
       ...("example_chunks" in extras ? { example_chunks: example } : {}),
       ...("examples_extra" in extras ? { examples_extra: extra } : {}),
     };

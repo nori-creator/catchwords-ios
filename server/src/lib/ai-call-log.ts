@@ -40,6 +40,9 @@ export const AI_TASKS = [
   { id: "section_regen", feature: "card" }, // 項目の作り直し
   { id: "reader_meaning", feature: "card" }, // 読む人の言語での意味
   { id: "chunk_verify", feature: "card" }, // 使い方の型の点検（`AI_CHUNK_VERIFY=inline` の時だけ）
+  { id: "chunks", feature: "card" }, // 使い方チャンク v2 を書く（Gemini と Claude に同じ指示。`chunks-v2.server.ts`）
+  { id: "chunks_judge", feature: "card" }, // v2: 片方だけが書いた塊を、もう片方の会社が審査
+  { id: "chunks_translate", feature: "card" }, // v2: 書庫の塊に別の表示言語の訳・解説
   // 復習・日記
   { id: "distractors", feature: "review" }, // 4択の誤答の作り置き
   { id: "journal_correct", feature: "journal" }, // 日記の添削（書き終えた時の全文）

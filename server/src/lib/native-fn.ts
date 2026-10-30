@@ -29,6 +29,7 @@ const ai = () => import("./ai.functions");
 const scan = () => import("./scan.functions");
 const stickers = () => import("./stickers.functions");
 const encounters = () => import("./encounters.functions");
+const chunksV2 = () => import("./chunks-v2.functions");
 const tts = () => import("./tts.functions");
 const reviews = () => import("./reviews.functions");
 const profile = () => import("./profile.functions");
@@ -68,6 +69,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   // 例文の字ごとの読み（AI は呼ばない。`sentence-readings.functions.ts`）
   readSentences: from(sentenceReadings, "readSentences"),
   regenerateCardSection: from(ai, "regenerateCardSection"),
+  // 使い方チャンク v2（書庫 → 無ければ 2 社に書かせて照合。`chunks-v2.functions.ts`）
+  getWordChunks: from(chunksV2, "getWordChunks"),
   reportAndFixSection: from(ai, "reportAndFixSection"),
   // スキャン
   detectScan: from(scan, "detectScan"),

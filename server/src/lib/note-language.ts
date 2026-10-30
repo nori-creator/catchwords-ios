@@ -330,6 +330,33 @@ export function scrubExtrasForReader<T>(extras: T, readerLang: string): T {
       if (wrong(o.note)) out[k] = { ...o, note: "" };
     }
   }
+  // 使い方チャンク v2: 塊の訳・文の訳・解説・入れ替えの所とその候補の意味（中国語の塊・文は触らない）。
+  if (Array.isArray(out.usage_chunks_v2)) {
+    out.usage_chunks_v2 = out.usage_chunks_v2.map((chunk) => {
+      if (!chunk || typeof chunk !== "object") return chunk;
+      const c = { ...(chunk as Record<string, unknown>) };
+      const zh = typeof c.text === "string" ? c.text : "";
+      if (wrong(c.ja, { source: zh })) c.ja = "";
+      if (wrong(c.note, { source: zh })) c.note = "";
+      if (wrong(c.sentence_ja, { source: typeof c.sentence === "string" ? c.sentence : zh })) c.sentence_ja = "";
+      if (Array.isArray(c.blocks)) {
+        c.blocks = c.blocks.map((block) => {
+          if (!block || typeof block !== "object") return block;
+          const b = { ...(block as Record<string, unknown>) };
+          if (wrong(b.ja, { short: true })) b.ja = "";
+          if (Array.isArray(b.alts)) {
+            b.alts = b.alts.map((alt) =>
+              alt && typeof alt === "object" && wrong((alt as { ja?: unknown }).ja, { short: true })
+                ? { ...(alt as Record<string, unknown>), ja: "" }
+                : alt,
+            );
+          }
+          return b;
+        });
+      }
+      return c;
+    });
+  }
   // 使い方の型: 型の訳、入れ替えられる部品の意味、その選択肢の意味（R6）。
   if (Array.isArray(out.usage_chunks)) {
     out.usage_chunks = out.usage_chunks.map((chunk) => {
