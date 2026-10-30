@@ -144,11 +144,12 @@ def wrap_sub(text, font, max_w, lang):
     return None
 
 
-def layout_text(entry, lang, W, H, kind):
+def layout_text(entry, lang, W, H, kind, type_w=None):
     head_path, sub_path = font_paths(lang)
     pal = PALETTES[kind]
     max_w = 0.90 * W
-    base = (0.098 if lang == "ja" else 0.096) * W
+    tw = type_w or W
+    base = (0.098 if lang == "ja" else 0.096) * tw
     hs = int(base)
     lines = entry["lines"]
     while hs > 10:
@@ -157,7 +158,7 @@ def layout_text(entry, lang, W, H, kind):
             break
         hs -= 2
     hfont = ImageFont.truetype(head_path, hs)
-    base_ss = int((0.046 if lang == "ja" else 0.043) * W)
+    base_ss = int((0.046 if lang == "ja" else 0.043) * tw)
     ss = base_ss
     while ss > 10:
         sfont = ImageFont.truetype(sub_path, ss)
@@ -301,19 +302,18 @@ def compose_landscape(entry, lang, kind_size, raw):
 
 
 def compose(entry, lang, kind_size, raw):
-    if raw.size[0] > raw.size[1]:
-        return compose_landscape(entry, lang, kind_size, raw)
-    W, H = SIZES[kind_size]
+    W, H = out_size(kind_size, raw)
     bg = entry.get("background", "light")
     img = background(bg, (W, H))
-    T = layout_text(entry, lang, W, H, bg)
+    # landscape: the headline over the device, its type sized as on a portrait canvas of the same height
+    T = layout_text(entry, lang, W, H, bg, type_w=min(W, int(0.62 * H)))
     text_bottom = draw_text(img, T, W, H)
     top = text_bottom + int(0.025 * H)
     bottom = H - int(0.035 * H)
     avail_h = bottom - top
     sw0, sh0 = raw.size
     # device height ~= width * (sh/sw) adjusted for bezel; solve then clamp
-    dev_w = int(min(0.86 * W, avail_h / ((sh0 / sw0) * (1 - 0.032) + 0.032)))
+    dev_w = int(min(0.92 * W, avail_h / ((sh0 / sw0) * (1 - 0.032) + 0.032)))
     dev = device(raw, dev_w, fold=(kind_size == "inner"), navy=(bg == "navy"))
     while dev.size[1] > avail_h:
         dev_w -= 4
