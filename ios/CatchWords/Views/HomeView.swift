@@ -238,6 +238,8 @@ struct HomeView: View {
 
                     Color.clear.frame(height: 120)
                 }
+                // iPhone Duo held sideways (951 pt): the stickers grow with the width and a day no longer fits the screen.
+                .readableColumn()
                 .background(ScrollViewFinder { [autoScroll] sv in autoScroll.scrollView = sv })
             }
             .environment(autoScroll)
