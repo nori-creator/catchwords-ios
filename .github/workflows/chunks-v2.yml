@@ -64,6 +64,11 @@ jobs:
           CHUNK_EVAL_LIMIT: ${{ inputs.limit }}
           CHUNK_EVAL_WORDS: ${{ inputs.words }}
           CHUNK_EVAL_LANG: ${{ inputs.lang }}
+          # 参照は上位のモデル（Gemini Pro・Claude Sonnet）で、考える量を最小にしても遅いので締め切りを長く。
+          AI_CHUNKS_V2_GEN_MS: ${{ inputs.mode == 'reference' && '60000' || '' }}
+          AI_CHUNKS_V2_JUDGE_MS: ${{ inputs.mode == 'reference' && '30000' || '' }}
+          AI_CHUNKS_V2_FINISH_MS: ${{ inputs.mode == 'reference' && '30000' || '' }}
+          CHUNK_EVAL_CONCURRENCY: ${{ inputs.mode == 'reference' && '2' || '3' }}
         run: npx vitest run chunks-v2.eval --reporter=basic
       - name: Probe (考える量の設定ごとの時間)
         if: inputs.mode == 'probe'
