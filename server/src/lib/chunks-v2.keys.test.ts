@@ -27,10 +27,10 @@ const V2 = [
 describe("usage_chunks_v2 の鍵", () => {
   it("ExtrasSchema が v2 と pending の印を捨てない", () => {
     const parsed = ExtrasSchema.parse({ usage_chunks_v2: V2, usage_chunks_v2_pending: true });
-    expect(parsed.usage_chunks_v2?.[0].text).toBe("把原子筆放進筆袋裡");
-    expect(parsed.usage_chunks_v2?.[0].blocks[1].alts?.length).toBe(2);
+    expect(parsed.usage_chunks_v2?.[0]?.text).toBe("把原子筆放進筆袋裡");
+    expect(parsed.usage_chunks_v2?.[0]?.blocks[1]?.alts?.length).toBe(2);
     expect(parsed.usage_chunks_v2_pending).toBe(true);
-    expect(normalizeExtras({ usage_chunks_v2: V2 }).usage_chunks_v2).toHaveLength(1);
+    expect(normalizeExtras({ usage_chunks_v2: V2 })?.usage_chunks_v2).toHaveLength(1);
   });
 
   it("レベルで分ける鍵（帯の行に入り、言語の置き場には残らない）", () => {

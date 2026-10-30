@@ -1,0 +1,87 @@
+# 使い方チャンク v2 の採点と、図鑑の影の語の書庫への投入（docs/chunk-rules.md の v2 の節）。
+#
+# 本物の AI（Gemini と Claude）を呼ぶので、手で走らせる（workflow_dispatch）。結果は成果物 chunks-v2-report に入る
+# （report.md: 語ごとの塊・文・落ちた物、数字の要約）。
+#
+# 要る秘密（Settings → Secrets and variables → Actions）:
+#   GEMINI_API_KEY, ANTHROPIC_API_KEY … eval / reference / seed
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY … seed だけ（本番の書庫に書く）
+name: Chunks v2（使い方チャンクの採点・投入）
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "eval = 既定のモデルで採点 / reference = 上位モデルで参照を作る / seed = 図鑑の影の語を書庫へ"
+        type: choice
+        default: eval
+        options: [eval, reference, seed]
+      limit:
+        description: "最初の n 語だけ（0 = 全部）"
+        type: string
+        default: "0"
+      words:
+        description: "この語だけ（コンマ区切り。空なら全部）"
+        type: string
+        default: ""
+      lang:
+        description: "読む人の言語（eval / reference）"
+        type: string
+        default: "ja"
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    defaults:
+      run:
+        working-directory: server
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - name: Keys are set
+        run: |
+          if [ -z "$GEMINI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::GEMINI_API_KEY / ANTHROPIC_API_KEY が無い（Settings → Secrets and variables → Actions）"; exit 1; fi
+          [ -n "$GEMINI_API_KEY" ] || echo "::warning::GEMINI_API_KEY が無い — Claude 1 社＋審査になる"
+          [ -n "$ANTHROPIC_API_KEY" ] || echo "::warning::ANTHROPIC_API_KEY が無い — Gemini 1 社＋審査になる"
+      - name: Eval
+        if: inputs.mode == 'eval' || inputs.mode == 'reference'
+        env:
+          CHUNK_EVAL: "1"
+          CHUNK_EVAL_REF: ${{ inputs.mode == 'reference' && '1' || '' }}
+          CHUNK_EVAL_LIMIT: ${{ inputs.limit }}
+          CHUNK_EVAL_WORDS: ${{ inputs.words }}
+          CHUNK_EVAL_LANG: ${{ inputs.lang }}
+        run: npx vitest run chunks-v2.eval --reporter=basic
+      - name: Seed the library
+        if: inputs.mode == 'seed'
+        env:
+          CHUNK_SEED: "1"
+          CHUNK_SEED_LIMIT: ${{ inputs.limit }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY が無い"; exit 1; fi
+          npx vitest run chunks-v2.seed --reporter=basic
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chunks-v2-report
+          path: |
+            server/eval-out/
+            server/src/lib/__fixtures__/chunks-v2-eval.reference.json
+          if-no-files-found: warn
+          retention-days: 30
