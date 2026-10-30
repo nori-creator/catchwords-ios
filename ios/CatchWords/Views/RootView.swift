@@ -20,6 +20,9 @@ struct RootView: View {
     /// done it), before the camera or any AI feature. Waits for the profile, so it never flashes in front of
     /// the onboarding that is about to open.
     private var needsAIConsent: Bool {
+        #if DEBUG
+        if StoreShot.isOn { return false }   // the App Store shots show the app as an account that agreed sees it
+        #endif
         let consent = AIConsent.shared
         return consent.isLoaded && consent.isUndecided && !needsOnboarding && (profile.isLoaded || profile.loadFailed)
     }
