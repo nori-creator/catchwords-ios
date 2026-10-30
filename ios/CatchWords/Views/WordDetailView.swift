@@ -81,6 +81,12 @@ struct WordDetailView: View {
     @GestureState private var swiping: Bool = false
     @State private var heroVisible: Bool = true
     @State private var slideForward: Bool = true
+    /// What decides the picture's height (`heroMaxHeight`): the scrolling page's height and the date card, the word's
+    /// card and the first section under the picture.
+    @State private var viewportHeight: CGFloat = 0
+    @State private var metaHeight: CGFloat = 0
+    @State private var headHeight: CGFloat = 0
+    @State private var firstSectionHeight: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var widthClass
@@ -136,13 +142,18 @@ struct WordDetailView: View {
                     if isUnsaved { unsavedBanner }
                     if !photos.isEmpty { photoHero }
                     metaCard
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { metaHeight = $0 }
                     heroCard
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headHeight = $0 }
                     if !isLocked { EncounterHistoryView(stickerId: current.id) }
                     // Web WordCard: no frequency/register meters and no separate "使う場面" card
                     // (owner: メーターいらない). Register is a chip word in the header only.
                     ForEach(visibleSections.filter { hasContent($0) || isFilling($0) }) { section in
                         if hasContent(section) {
                             sectionView(section)
+                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                                    if section == firstShownSection { firstSectionHeight = h }
+                                }
                                 // The first tour goes through the sections one by one (owner 2026-10-28).
                                 .tourAnchor(.wordSection, if: router.tour == .wordSection && router.tourSection == section)
                                 .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)), removal: .opacity))
@@ -166,6 +177,7 @@ struct WordDetailView: View {
             }
             // Up and down only: never a sideways bounce.
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
             .background(
                 LinearGradient(colors: [Theme.background, Theme.backgroundDeep], startPoint: .top, endPoint: .bottom)
                     .ignoresSafeArea()
@@ -554,10 +566,24 @@ struct WordDetailView: View {
     /// 対応」): across the whole 669 pt a 4 : 5 photo stood about 800 pt tall, nearly the screen; at 440 pt it takes about
     /// as much of the screen as on an iPhone, in the middle of the page.
     static let wideHeroWidth: CGFloat = 440
-    /// …and at most this tall, so the word, its reading and meaning show under the picture: on iPhone Duo's inner
-    /// screen held sideways (669 pt tall) a square cut-out 440 wide took the whole page (owner 2026-10-30:
-    /// 「花束しか見えてない…画像と単語の詳細が一度に見えるようにして」).
-    static let wideHeroHeight: CGFloat = 300
+    /// The picture is never smaller than this (a short screen, very large text).
+    static let minHeroHeight: CGFloat = 150
+
+    /// The picture is as tall as leaves the date, the word with its reading and the first section (its meaning) on
+    /// the screen when the page opens — on the iPhone and on iPhone Duo's screens alike (owner 2026-10-30: 「単語の詳細を
+    /// 開いてまず画像しか映ってない…切り抜きの画像と…台湾の中国語と意味くらいが映るように画像の大きさを調整して」).
+    /// Until the page is measured, no limit.
+    private var heroMaxHeight: CGFloat {
+        guard viewportHeight > 0, metaHeight > 0, headHeight > 0 else { return .infinity }
+        let below = metaHeight + headHeight + firstSectionHeight + 14 * 3  // the cards and the stack's spacing
+        let unsaved: CGFloat = isUnsaved ? 80 : 0
+        return max(Self.minHeroHeight, viewportHeight - 8 - below - unsaved - 14)
+    }
+
+    /// The first section shown under the word's card (its meaning, normally).
+    private var firstShownSection: CardSection? {
+        visibleSections.first { hasContent($0) }
+    }
 
     /// The slideshow waits while a finger is on the photo, while the selfie or an original photo is shown, while the
     /// photo sheet is open, while the photo is off screen and while the app is in the background.
@@ -573,8 +599,7 @@ struct WordDetailView: View {
                 .id(heroPage)
                 .transition(slideTransition)
         }
-        .frame(maxWidth: widthClass == .regular ? Self.wideHeroWidth : .infinity,
-               maxHeight: widthClass == .regular ? Self.wideHeroHeight : .infinity)
+        .frame(maxWidth: widthClass == .regular ? Self.wideHeroWidth : .infinity, maxHeight: heroMaxHeight)
         .simultaneousGesture(
             DragGesture(minimumDistance: 24)
                 .updating($swiping) { _, state, _ in state = true }
