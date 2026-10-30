@@ -37,6 +37,7 @@ final class AIConsent {
         "suggestWordCandidates",  // typed or spoken word → names
         "generateCard",           // word → card, notes, example sentences
         "regenerateCardSection",  // word → one section written again
+        "getWordChunks",          // word → its usage chunks (two AI vendors write, the agreed ones are shown)
         "reportAndFixSection",    // the learner's note on a wrong item
         "correctMyJournal",       // the finished diary → its correction (2026-10-25)
         "checkDiarySentence",     // each finished sentence of the diary → its check (2026-10-25)

@@ -245,6 +245,8 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
        * 数える側からも外す — 片方だけ直すと、今度は見出しだけの
        * 空の節が残る(この app が3度やった形)。
        */
+      // v2（2026-10-30）が有ればそれが中身（無いと `only_if_empty` の作り直しが v2 を上書きする）。
+      if ((ex.usage_chunks_v2?.length ?? 0) > 0) return true;
       return (
         refineUsageChunks(ex.usage_chunks, ex.measure_words, input.headword, input.language)
           .length > 0 || usableCollocations(ex.collocations, input.language).length > 0

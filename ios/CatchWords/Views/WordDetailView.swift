@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import MapKit
 
 /// Word detail (WordCard.tsx): a hero card, then one white card per section that has content.
 struct WordDetailView: View {
@@ -101,8 +102,19 @@ struct WordDetailView: View {
     private var extras: WordExtras? { word?.extras }
     private var headword: String { word?.headword ?? "" }
 
-    /// A selfie can be taken for this word (its own photo, a front camera, already saved).
-    private var canTakeSelfie: Bool { current.hasOwnPhoto && SelfieCamera.isAvailable && !isLocked }
+    /// The word's later photos (`encounter-<id>`), oldest first: each paged in the hero with the first photo's tools
+    /// (owner 2026-10-30: 「2回目3回目だと…無いから足して」).
+    private var laterCaptures: [Sticker] { dex.laterCaptures(of: current) }
+    /// The photo on screen: the first (page 0) or a later one. The hero's pictures, its tools and its sheet follow it.
+    private var shown: Sticker {
+        guard heroPage > 0, let s = laterCaptures[safe: heroPage - 1] else { return current }
+        return s
+    }
+    /// The photo on screen can be changed: the first once saved, a later one once its record is on the server.
+    private var shownEditable: Bool { shown.id == current.id ? !isLocked : dex.savedEncounterId(shown) != nil }
+
+    /// A selfie can be taken for this photo (its own photo, a front camera, already saved).
+    private var canTakeSelfie: Bool { shown.hasOwnPhoto && SelfieCamera.isAvailable && shownEditable }
 
     /// 自撮りを撮る in the long-press photo sheet, under 写真を替える (owner 2026-10-14); nil = not offered.
     private var selfieHandler: ((UIImage) async -> Void)? {
@@ -137,7 +149,9 @@ struct WordDetailView: View {
                     if !photos.isEmpty { photoHero }
                     metaCard
                     heroCard
-                    if !isLocked { EncounterHistoryView(stickerId: current.id) }
+                    // The list of every photo and place is in metaCard now; this is the server's list when no
+                    // re-encounter rows could be read.
+                    if !isLocked, laterCaptures.isEmpty { EncounterHistoryView(stickerId: current.id) }
                     // Web WordCard: no frequency/register meters and no separate "使う場面" card
                     // (owner: メーターいらない). Register is a chip word in the header only.
                     ForEach(visibleSections.filter { hasContent($0) || isFilling($0) }) { section in
@@ -263,6 +277,11 @@ struct WordDetailView: View {
         .task(id: current.id + "|cutout") {
             if CutoutBackfill.needsCutout(current) { await CutoutBackfill.shared.make(for: current, dex: dex) }
         }
+        // A later photo without its cut-out gets one too, when it is shown (owner 2026-10-30).
+        .task(id: shown.id + "|" + (shown.objectImageUrl ?? "") + "|cutout") {
+            guard shown.id != current.id, CutoutBackfill.needsCutout(shown) else { return }
+            await CutoutBackfill.shared.make(for: shown, dex: dex)
+        }
         .task(id: sticker.id + "|play") {
             // The word is read once when its page opens (web WordCard autoplay, 400 ms) — keyed on the page's own
             // sticker, so a catch saved while its page is open is not read a second time.
@@ -276,8 +295,12 @@ struct WordDetailView: View {
         .onAppear { pageAppeared() }
         .aiConsentSheet(isPresented: $askAIConsent)
         .sheet(isPresented: $pickingHero) {
-            HeroPhotoPickerSheet(sticker: current, onPick: { role in
-                try await dex.setHeroRole(current, role: role)
+            HeroPhotoPickerSheet(sticker: shown, onPick: { role in
+                if let eid = dex.savedEncounterId(shown) {
+                    try await dex.setEncounterHeroRole(eid, role: role)
+                } else {
+                    try await dex.setHeroRole(current, role: role)
+                }
                 applyHeroRole(animated: true)
             }, onReplace: { item in
                 // 写真を替える sits at the bottom of this sheet now (owner 2026-10-11).
@@ -516,10 +539,10 @@ struct WordDetailView: View {
     // MARK: - Photo hero (flips to the selfie like a card; slides through the word's photos)
 
     private var frontPath: String? {
-        showCutout ? (current.cutoutImageUrl ?? current.objectImageUrl ?? current.placeholderImageUrl)
-            : (current.objectImageUrl ?? current.cutoutImageUrl ?? current.placeholderImageUrl)
+        showCutout ? (shown.cutoutImageUrl ?? shown.objectImageUrl ?? shown.placeholderImageUrl)
+            : (shown.objectImageUrl ?? shown.cutoutImageUrl ?? shown.placeholderImageUrl)
     }
-    private var hasSelfie: Bool { current.selfieImageUrl != nil }
+    private var hasSelfie: Bool { shown.selfieImageUrl != nil }
 
     /// A later encounter's picture in the hero: the re-encounter's cut-out where it saved one, else its photo — shown
     /// like the first one (owner 2026-10-15: the second and later photos were not cut-outs). Read from the dex's
@@ -607,11 +630,20 @@ struct WordDetailView: View {
             }
         }
         .onScrollVisibilityChange(threshold: 0.3) { heroVisible = $0 }
+        // Each photo opens on its own picture (its cut-out, or its chosen side), at its own shape.
+        .onChange(of: heroPage) { _, _ in
+            cutoutRatio = nil
+            selfieRatio = nil
+            selfieCutRatio = nil
+            selfieOriginal = false
+            showCutout = true
+            applyHeroRole(animated: false)
+        }
         // Keyed on the page shown too: each photo gets its full time, also after a swipe.
         .task(id: "\(later.count)|\(heroPage)|\(slidePaused)") { await autoSlide(count: later.count) }
         // The selfie's cut-out (its people and what they hold) is made on this phone before the card is turned.
-        .task(id: current.selfieImageUrl ?? "") {
-            if let p = current.selfieImageUrl, !isLocked { SelfieCutouts.shared.request(p, dex: dex) }
+        .task(id: shown.selfieImageUrl ?? "") {
+            if let p = shown.selfieImageUrl, shownEditable { SelfieCutouts.shared.request(p, dex: dex) }
         }
         // Keyed on the photo too: a replaced photo reloads the list while the page is open. A catch still being
         // saved has no photos on the server yet (the list is read once it is saved).
@@ -645,10 +677,14 @@ struct WordDetailView: View {
 
     @ViewBuilder
     private func heroFace(_ later: [LaterPhoto]) -> some View {
-        if heroPage > 0, let p = later[safe: heroPage - 1] {
+        if heroPage > 0, laterCaptures[safe: heroPage - 1] == nil, let p = later[safe: heroPage - 1] {
+            // Only the server's photo list (no re-encounter rows read): the photo alone.
             laterFace(p, number: heroPage + 1)
         } else {
             mainFace
+                .overlay(alignment: .topLeading) {
+                    if heroPage > 0 { captureBadge(number: heroPage + 1, at: shown.takenAt, place: shown.locationName) }
+                }
         }
     }
 
@@ -687,27 +723,31 @@ struct WordDetailView: View {
                     .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
             }
         }
-        .overlay(alignment: .topLeading) {
-            HStack(spacing: 6) {
-                Text(L("\(number)回目"))
-                    .scaledFont(size: 12, weight: .bold)
-                if let d = p.takenAt {
-                    Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
-                }
-                if let place = LocationService.shownPlace(p.place) {
-                    Text(place).scaledFont(size: 12).lineLimit(1)
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(.black.opacity(0.55), in: Capsule())
-            .padding(12)
-        }
+        .overlay(alignment: .topLeading) { captureBadge(number: number, at: p.takenAt, place: p.place) }
         .contentShape(.rect(cornerRadius: 28))
         // A finger on the photo holds the slideshow (the long press itself does nothing here).
         .onLongPressGesture(minimumDuration: 60, perform: {}, onPressingChanged: { pressing in touching = pressing })
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L("\(number)回目に撮った写真"))
+    }
+
+    /// 「n回目 · 日付 · 場所」 on a later photo.
+    private func captureBadge(number: Int, at: Date?, place: String?) -> some View {
+        HStack(spacing: 6) {
+            Text(L("\(number)回目"))
+                .scaledFont(size: 12, weight: .bold)
+            if let d = at {
+                Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
+            }
+            if let place = LocationService.shownPlace(place) {
+                Text(place).scaledFont(size: 12).lineLimit(1)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(.black.opacity(0.55), in: Capsule())
+        .padding(12)
+        .allowsHitTesting(false)
     }
 
     /// The hero's shape: a cut-out's own width ÷ height (kept between a tall 0.8 and a wide 1.8, so neither a bottle
@@ -723,12 +763,12 @@ struct WordDetailView: View {
     /// 「タップしたら自撮りになり、自撮りもデフォルトでは切り抜きを表示し、右上に元の写真ボタンを表示し、元の自撮り画像を
     /// 見えるようにする」).
     private var selfieCutReady: Bool {
-        current.selfieImageUrl.map { SelfieCutouts.shared.state(for: $0) == .ready } ?? false
+        shown.selfieImageUrl.map { SelfieCutouts.shared.state(for: $0) == .ready } ?? false
     }
 
     @ViewBuilder
     private func faceBody(back: Bool) -> some View {
-        if back, let selfie = current.selfieImageUrl {
+        if back, let selfie = shown.selfieImageUrl {
             if selfieCutReady && !selfieOriginal {
                 Color.clear
                     .aspectRatio(min(1.8, max(0.6, selfieCutRatio ?? 0.8)), contentMode: .fit)
@@ -760,10 +800,10 @@ struct WordDetailView: View {
             }
         } else {
             let path = frontPath
-            let isCut = showCutout && path == current.cutoutImageUrl
+            let isCut = showCutout && path == shown.cutoutImageUrl
             // A cut-out stands on the page by itself — no grey box around it (owner 2026-10-11); a photo keeps its card.
             (isCut ? Color.clear : Theme.surface2)
-                .aspectRatio(heroRatio(isCut: isCut, path: current.cutoutImageUrl), contentMode: .fit)
+                .aspectRatio(heroRatio(isCut: isCut, path: shown.cutoutImageUrl), contentMode: .fit)
                 .overlay {
                     StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: isCut ? .fit : .fill,
                                  onLoad: isCut ? { size in
@@ -780,7 +820,7 @@ struct WordDetailView: View {
 
     private var mainFace: some View {
         let back = showSelfie
-        let path = back ? current.selfieImageUrl : frontPath
+        let path = back ? shown.selfieImageUrl : frontPath
         return faceBody(back: back)
             .overlay(alignment: .bottomTrailing) {
                 // With a selfie, a tap anywhere on the picture turns the card (photo ⇄ selfie), as the hint says
@@ -817,7 +857,7 @@ struct WordDetailView: View {
             }
             .overlay(alignment: .bottomLeading) {
                 // An internet picture says whose it is (Unsplash asks for the photographer's name).
-                if !back, path != nil, path == current.placeholderImageUrl, let name = current.placeholderCredit?.name, !name.isEmpty {
+                if !back, path != nil, path == shown.placeholderImageUrl, let name = shown.placeholderCredit?.name, !name.isEmpty {
                     Label(name, systemImage: "camera")
                         .scaledFont(size: 12, weight: .semibold)
                         .lineLimit(1)
@@ -851,11 +891,11 @@ struct WordDetailView: View {
             // 長押し: この単語をどの絵で見せるか選ぶ（Web HeroPhotoPicker）。 Not while the catch is still being saved.
             // A finger on the photo also holds the slideshow.
             .onLongPressGesture(minimumDuration: 0.45, perform: {
-                guard !isLocked else { return }
+                guard shownEditable else { return }
                 Haptics.impact(.medium)
                 pickingHero = true
             }, onPressingChanged: { pressing in touching = pressing })
-            .accessibilityAction(named: L("表示する写真を選ぶ")) { if !isLocked { pickingHero = true } }
+            .accessibilityAction(named: L("表示する写真を選ぶ")) { if shownEditable { pickingHero = true } }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(back ? L("自撮り写真") : L("写真"))
             .accessibilityAction(named: L("元の写真を見る")) {
@@ -890,17 +930,17 @@ struct WordDetailView: View {
 
     /// The photo as it was taken (not the cut-out); a word with no photo of its own shows its stand-in.
     private var originalPath: String? {
-        current.objectImageUrl ?? current.placeholderImageUrl ?? current.cutoutImageUrl
+        shown.objectImageUrl ?? shown.placeholderImageUrl ?? shown.cutoutImageUrl
     }
 
     /// Shows the side the learner chose (`hero_role`): the selfie is the card's back, the cut-out a toggle.
     private func applyHeroRole(animated: Bool) {
-        let role = current.heroRole
+        let role = shown.heroRole
         let wantSelfie = role == "selfie" && hasSelfie
         let change = {
             // Opening the page always starts on the cut-out (owner 2026-10-09: the dex shows cut-outs); a choice
             // just made in the picker (animated) is shown at once.
-            if animated, role == "cutout" || role == "object" { showCutout = role == "cutout" && current.cutoutImageUrl != nil }
+            if animated, role == "cutout" || role == "object" { showCutout = role == "cutout" && shown.cutoutImageUrl != nil }
             if wantSelfie != showSelfie {
                 showSelfie = wantSelfie
                 flipAngle = wantSelfie ? 180 : 0
@@ -939,19 +979,30 @@ struct WordDetailView: View {
     /// 時刻と場所だけ」). The one-liner shows only when one was written at the catch (still editable with its pencil);
     /// the memory curve is no longer on this page (the review screen has it).
     private var metaCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label {
-                Text(JPDate.full(current.takenAt))
-                    .scaledFont(size: 15, weight: .medium, monospacedDigit: true)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            } icon: {
-                Image(systemName: "clock").scaledFont(size: 14)
+        let later = laterCaptures
+        return VStack(alignment: .leading, spacing: 4) {
+            if later.isEmpty {
+                takenAtLabel(current)
+                if mapsURL(for: current) != nil { placeButton(current) }
+            } else {
+                // Taken more than once: every time, where — 1回目 here, 2回目 there — on one map and by name
+                // (owner 2026-10-30: 「1回目だけじゃなくて」). A row's tap opens Maps there.
+                capturesMap([current] + later)
+                ForEach(Array(([current] + later).enumerated()), id: \.element.id) { i, s in
+                    if i > 0 { Divider().overlay(Theme.border).padding(.vertical, 2) }
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(L("\(i + 1)回目"))
+                            .scaledFont(size: 12, weight: .bold, monospacedDigit: true)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Theme.primary, in: Capsule())
+                        VStack(alignment: .leading, spacing: 0) {
+                            takenAtLabel(s)
+                            if mapsURL(for: s) != nil { placeButton(s) }
+                        }
+                    }
+                }
             }
-            .foregroundStyle(Theme.foreground.opacity(0.8))
-            .frame(minHeight: 30, alignment: .leading)
-            .accessibilityIdentifier("detail.takenAt")
-            if mapsURL != nil { placeButton }
             if let cap = current.caption, !cap.isEmpty {
                 Divider().overlay(Theme.border).padding(.vertical, 4)
                 Button {
@@ -981,14 +1032,57 @@ struct WordDetailView: View {
         .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
     }
 
+    /// When it was taken, to the minute.
+    private func takenAtLabel(_ s: Sticker) -> some View {
+        Label {
+            Text(JPDate.full(s.takenAt))
+                .scaledFont(size: 15, weight: .medium, monospacedDigit: true)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        } icon: {
+            Image(systemName: "clock").scaledFont(size: 14)
+        }
+        .foregroundStyle(Theme.foreground.opacity(0.8))
+        .frame(minHeight: 30, alignment: .leading)
+        .accessibilityIdentifier(s.id == current.id ? "detail.takenAt" : "detail.takenAt.later")
+    }
+
+    /// Every photo of the word with a known place, as numbered pins on one small map (fitted to them).
+    @ViewBuilder
+    private func capturesMap(_ all: [Sticker]) -> some View {
+        let pins: [CapturePin] = all.enumerated().compactMap { i, s in
+            guard let lat = s.lat, let lng = s.lng else { return nil }
+            return CapturePin(number: i + 1, at: CLLocationCoordinate2D(latitude: lat, longitude: lng))
+        }
+        if !pins.isEmpty {
+            Map(initialPosition: .automatic, interactionModes: []) {
+                ForEach(pins) { pin in
+                    Annotation("", coordinate: pin.at) {
+                        Text(verbatim: "\(pin.number)")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .frame(width: 26, height: 26)
+                            .background(Theme.primary, in: Circle())
+                            .overlay(Circle().stroke(.white, lineWidth: 2))
+                            .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
+                    }
+                }
+            }
+            .frame(height: 150)
+            .clipShape(.rect(cornerRadius: 14, style: .continuous))
+            .padding(.vertical, 6)
+            .accessibilityHidden(true)
+        }
+    }
+
     /// Where it was taken, by name (never 「地図を開く」 in place of the name); a tap opens Maps there.
-    private var placeButton: some View {
+    private func placeButton(_ s: Sticker) -> some View {
         Button {
-            if let url = mapsURL { openURL(url) }
+            if let url = mapsURL(for: s) { openURL(url) }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "mappin.and.ellipse").scaledFont(size: 14)
-                LocalizedPlaceText(lat: current.lat, lng: current.lng, saved: current.locationName, fallback: L("撮影地"))
+                LocalizedPlaceText(lat: s.lat, lng: s.lng, saved: s.locationName, fallback: L("撮影地"))
                     .scaledFont(size: 15, weight: .semibold)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -1000,13 +1094,13 @@ struct WordDetailView: View {
             .contentShape(.rect)
         }
         .buttonStyle(PressableStyle(scale: 0.98))
-        .accessibilityIdentifier("detail.place")
+        .accessibilityIdentifier(s.id == current.id ? "detail.place" : "detail.place.later")
     }
 
-    private var mapsURL: URL? {
-        let q = (current.locationName ?? headword).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        if let lat = current.lat, let lng = current.lng { return URL(string: "https://maps.apple.com/?ll=\(lat),\(lng)&q=\(q)") }
-        if let name = current.locationName, !name.isEmpty { return URL(string: "https://maps.apple.com/?q=\(q)") }
+    private func mapsURL(for s: Sticker) -> URL? {
+        let q = (s.locationName ?? headword).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let lat = s.lat, let lng = s.lng { return URL(string: "https://maps.apple.com/?ll=\(lat),\(lng)&q=\(q)") }
+        if let name = s.locationName, !name.isEmpty { return URL(string: "https://maps.apple.com/?q=\(q)") }
         return nil
     }
 
@@ -1355,7 +1449,11 @@ struct WordDetailView: View {
         isAddingSelfie = true
         defer { isAddingSelfie = false }
         do {
-            try await dex.addSelfie(to: current, image: image)
+            if let eid = dex.savedEncounterId(shown) {
+                try await dex.addEncounterSelfie(eid, image: image)
+            } else {
+                try await dex.addSelfie(to: current, image: image)
+            }
             Haptics.success()
         } catch {
             Haptics.warning()
@@ -1940,12 +2038,22 @@ struct WordDetailView: View {
         }
         isReplacing = true
         defer { isReplacing = false }
+        // The photo on screen: the first one, or a later one (its own record).
+        let eid = dex.savedEncounterId(shown)
         do {
-            try await dex.replacePhoto(current, with: img)
+            if let eid {
+                try await dex.replaceEncounterPhoto(eid, with: img)
+            } else {
+                try await dex.replacePhoto(current, with: img)
+            }
             Haptics.success()
             showToast(L("写真を替えました"))
             if let lifted = await CutoutService.liftSubject(from: img) {
-                try? await dex.addCutout(to: current, image: lifted)
+                if let eid {
+                    try? await dex.addEncounterCutout(eid, image: lifted)
+                } else {
+                    try? await dex.addCutout(to: current, image: lifted)
+                }
             }
         } catch {
             Haptics.warning()
@@ -1953,6 +2061,13 @@ struct WordDetailView: View {
         }
     }
 
+}
+
+/// One photo of a word on the word page's map: its number (1回目, 2回目…) and where it was taken.
+private struct CapturePin: Identifiable {
+    let number: Int
+    let at: CLLocationCoordinate2D
+    var id: Int { number }
 }
 
 /// A selfie's cut-out — its people and the thing they hold — made on this phone (`SelfieCutouts`, kept in the image

@@ -72,6 +72,7 @@ export const LEVEL_EXTRAS_KEYS = [
   "example_pattern_count",
   "examples_extra",
   "usage_chunks",
+  "usage_chunks_v2",
   "usage_patterns",
   "usage_v",
 ] as const;

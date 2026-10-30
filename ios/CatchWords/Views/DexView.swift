@@ -135,18 +135,23 @@ struct DexView: View {
         return counts.map { ($0.key, $0.value) }.sorted { $0.day > $1.day }
     }
 
-    private var filtered: [Sticker] {
+    private var filtered: [Sticker] { dex.stickers.filter(matchesFilters) }
+
+    /// The map's pins: every word, and every time a word was photographed again — on the day and at the place it was
+    /// taken (owner 2026-10-30: 「もう一度撮るとその日の図鑑のマップ上に表示されてない」).
+    private var mapStickers: [Sticker] { filtered + dex.albumEncounters.filter(matchesFilters) }
+
+    /// The search, category and day narrowing the words.
+    private func matchesFilters(_ s: Sticker) -> Bool {
         let q = query.trimmingCharacters(in: .whitespaces)
-        return dex.stickers.filter { s in
-            if let categoryFilter, DexBook.category(of: s, lang: lang) != categoryFilter { return false }
-            if let dayFilter, !Calendar.current.isDate(s.takenAt, inSameDayAs: dayFilter) { return false }
-            if !q.isEmpty {
-                let w = s.word
-                let hay = [w?.headword, w?.readingZhuyin, w?.pinyin, w?.meaningJa].compactMap { $0 }.joined(separator: " ")
-                if !hay.localizedStandardContains(q) { return false }
-            }
-            return true
+        if let categoryFilter, DexBook.category(of: s, lang: lang) != categoryFilter { return false }
+        if let dayFilter, !Calendar.current.isDate(s.takenAt, inSameDayAs: dayFilter) { return false }
+        if !q.isEmpty {
+            let w = s.word
+            let hay = [w?.headword, w?.readingZhuyin, w?.pinyin, w?.meaningJa].compactMap { $0 }.joined(separator: " ")
+            if !hay.localizedStandardContains(q) { return false }
         }
+        return true
     }
 
     /// The header's count held back during a catch's landing (film v6: it rolls after the impact).
@@ -466,7 +471,8 @@ struct DexView: View {
             case .cover:
                 DexCoverFlow(stickers: filtered.map(\.forCards)) { router.detailSticker = dex.sticker(id: $0.id) ?? $0 }
                     .padding(.top, headerHeight)
-            case .map: DexMapView(stickers: filtered, topCover: headerHeight) { router.detailSticker = $0 }
+            // A photo taken again opens its word's page.
+            case .map: DexMapView(stickers: mapStickers, topCover: headerHeight) { router.detailSticker = dex.albumOwner($0) }
             case .grid: gallery
             case .list: list
             }

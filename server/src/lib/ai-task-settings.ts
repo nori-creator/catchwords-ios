@@ -61,6 +61,10 @@ export const IOS_AI_TASKS: readonly AiTask[] = [
   "card",
   "reader_meaning",
   "section_regen",
+  // 使い方チャンク v2（2026-10-30）: 書く・審査・訳
+  "chunks",
+  "chunks_judge",
+  "chunks_translate",
   "report_locate",
   "reading_check_1",
   "reading_check_2",
@@ -154,6 +158,30 @@ const TASK_TEXT: Record<string, { label: Label; description: Label }> = {
       "単語ページの項目の作り直し・空欄の補完・報告での直しの案",
       "Rewrites a section of the word page, fills blanks, drafts fixes for reports",
       "重新產生單字頁的項目、補上空白、回報時的修正案",
+    ),
+  },
+  chunks: {
+    label: L("使い方チャンクを書く", "Usage chunks (write)", "寫用法片語"),
+    description: L(
+      "2社の AI に同じ指示で独立に書かせ、一致した塊だけを出す（v2）",
+      "Two vendors write the chunks independently from the same prompt; only agreed chunks are shown (v2)",
+      "讓兩家 AI 以同一指示各自撰寫，只顯示一致的片語（v2）",
+    ),
+  },
+  chunks_judge: {
+    label: L("使い方チャンクの審査", "Usage chunks (judge)", "用法片語的審查"),
+    description: L(
+      "片方の会社だけが書いた塊を、もう片方の会社が自然か・頻度を判定する（v2）",
+      "A chunk only one vendor wrote is judged by the other vendor for naturalness and frequency (v2)",
+      "只有一家寫出的片語，由另一家判定是否自然、常用（v2）",
+    ),
+  },
+  chunks_translate: {
+    label: L("使い方チャンクの訳", "Usage chunks (translate)", "用法片語的翻譯"),
+    description: L(
+      "書庫に有る塊に、別の表示言語の訳と解説を付ける（v2）",
+      "Adds translations and notes in another display language to chunks already in the library (v2)",
+      "為字庫中已有的片語加上另一顯示語言的翻譯與說明（v2）",
     ),
   },
   chunk_verify: {

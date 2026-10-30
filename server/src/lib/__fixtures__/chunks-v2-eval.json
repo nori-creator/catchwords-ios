@@ -1,0 +1,305 @@
+{
+  "language": "zh-TW",
+  "words": [
+    {
+      "headword": "珍珠奶茶",
+      "category": 1,
+      "source": "catalog"
+    },
+    {
+      "headword": "紅茶",
+      "category": 1,
+      "source": "catalog"
+    },
+    {
+      "headword": "便當",
+      "category": 2,
+      "source": "catalog"
+    },
+    {
+      "headword": "蛋餅",
+      "category": 2,
+      "source": "catalog"
+    },
+    {
+      "headword": "芒果",
+      "category": 3,
+      "source": "catalog"
+    },
+    {
+      "headword": "芭樂",
+      "category": 3,
+      "source": "catalog"
+    },
+    {
+      "headword": "麵包",
+      "category": 4,
+      "source": "catalog"
+    },
+    {
+      "headword": "剉冰",
+      "category": 4,
+      "source": "catalog"
+    },
+    {
+      "headword": "筷子",
+      "category": 5,
+      "source": "catalog"
+    },
+    {
+      "headword": "吸管",
+      "category": 5,
+      "source": "catalog"
+    },
+    {
+      "headword": "椅子",
+      "category": 6,
+      "source": "catalog"
+    },
+    {
+      "headword": "窗簾",
+      "category": 6,
+      "source": "catalog"
+    },
+    {
+      "headword": "電風扇",
+      "category": 7,
+      "source": "catalog"
+    },
+    {
+      "headword": "電鍋",
+      "category": 7,
+      "source": "catalog"
+    },
+    {
+      "headword": "手機",
+      "category": 8,
+      "source": "catalog"
+    },
+    {
+      "headword": "充電線",
+      "category": 8,
+      "source": "catalog"
+    },
+    {
+      "headword": "剪刀",
+      "category": 9,
+      "source": "catalog"
+    },
+    {
+      "headword": "膠帶",
+      "category": 9,
+      "source": "catalog"
+    },
+    {
+      "headword": "毛巾",
+      "category": 10,
+      "source": "catalog"
+    },
+    {
+      "headword": "塑膠袋",
+      "category": 10,
+      "source": "catalog"
+    },
+    {
+      "headword": "外套",
+      "category": 11,
+      "source": "catalog"
+    },
+    {
+      "headword": "雨衣",
+      "category": 11,
+      "source": "catalog"
+    },
+    {
+      "headword": "雨傘",
+      "category": 12,
+      "source": "catalog"
+    },
+    {
+      "headword": "口罩",
+      "category": 12,
+      "source": "catalog"
+    },
+    {
+      "headword": "機車",
+      "category": 13,
+      "source": "catalog"
+    },
+    {
+      "headword": "捷運",
+      "category": 13,
+      "source": "catalog"
+    },
+    {
+      "headword": "便利商店",
+      "category": 14,
+      "source": "catalog"
+    },
+    {
+      "headword": "早餐店",
+      "category": 14,
+      "source": "catalog"
+    },
+    {
+      "headword": "垃圾桶",
+      "category": 15,
+      "source": "catalog"
+    },
+    {
+      "headword": "紅綠燈",
+      "category": 15,
+      "source": "catalog"
+    },
+    {
+      "headword": "貓",
+      "category": 16,
+      "source": "catalog"
+    },
+    {
+      "headword": "蚊子",
+      "category": 16,
+      "source": "catalog"
+    },
+    {
+      "headword": "盆栽",
+      "category": 17,
+      "source": "catalog"
+    },
+    {
+      "headword": "仙人掌",
+      "category": 17,
+      "source": "catalog"
+    },
+    {
+      "headword": "太陽",
+      "category": 18,
+      "source": "catalog"
+    },
+    {
+      "headword": "雨",
+      "category": 18,
+      "source": "catalog"
+    },
+    {
+      "headword": "籃球",
+      "category": 19,
+      "source": "catalog"
+    },
+    {
+      "headword": "夾娃娃機",
+      "category": 19,
+      "source": "catalog"
+    },
+    {
+      "headword": "手",
+      "category": 20,
+      "source": "catalog"
+    },
+    {
+      "headword": "頭髮",
+      "category": 20,
+      "source": "catalog"
+    },
+    {
+      "headword": "筆袋",
+      "meaning_ja": "ペンケース",
+      "source": "reported"
+    },
+    {
+      "headword": "紙箱",
+      "meaning_ja": "段ボール箱",
+      "source": "reported"
+    },
+    {
+      "headword": "馬克杯",
+      "meaning_ja": "マグカップ",
+      "source": "reported"
+    },
+    {
+      "headword": "刷子",
+      "meaning_ja": "ブラシ",
+      "source": "reported"
+    },
+    {
+      "headword": "手扶梯",
+      "meaning_ja": "エスカレーター",
+      "source": "reported"
+    },
+    {
+      "headword": "手帕",
+      "meaning_ja": "ハンカチ",
+      "source": "reported"
+    },
+    {
+      "headword": "嘴邊肉",
+      "meaning_ja": "豚のほほ肉",
+      "source": "reported"
+    },
+    {
+      "headword": "滷味",
+      "meaning_ja": "滷味（煮込みのおかず）",
+      "source": "reported"
+    },
+    {
+      "headword": "夾子",
+      "meaning_ja": "トング・クリップ",
+      "source": "reported"
+    },
+    {
+      "headword": "馬桶",
+      "meaning_ja": "便器",
+      "source": "reported"
+    },
+    {
+      "headword": "膝蓋",
+      "meaning_ja": "ひざ",
+      "source": "reported"
+    },
+    {
+      "headword": "椪柑",
+      "meaning_ja": "ポンカン",
+      "source": "reported"
+    },
+    {
+      "headword": "保溫瓶",
+      "meaning_ja": "保温ボトル",
+      "source": "reported"
+    },
+    {
+      "headword": "花束",
+      "meaning_ja": "花束",
+      "source": "reported"
+    },
+    {
+      "headword": "大拇指",
+      "meaning_ja": "親指",
+      "source": "reported"
+    },
+    {
+      "headword": "尺",
+      "meaning_ja": "定規",
+      "source": "reported"
+    },
+    {
+      "headword": "桃子",
+      "meaning_ja": "桃",
+      "source": "reported"
+    },
+    {
+      "headword": "麻辣燙",
+      "meaning_ja": "麻辣燙",
+      "source": "reported"
+    },
+    {
+      "headword": "籃子",
+      "meaning_ja": "かご",
+      "source": "reported"
+    },
+    {
+      "headword": "鑰匙",
+      "meaning_ja": "鍵",
+      "source": "reported"
+    }
+  ]
+}

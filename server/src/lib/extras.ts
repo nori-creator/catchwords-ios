@@ -3,6 +3,7 @@ import { withoutGenericChunks } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
 import { EtymologyDiagramSchema } from "./etymology-diagram";
 import { isBrokenUsageChunk, tidyUsageParts, withoutSeparatorParts } from "./chunk-grammar";
+import { UsageChunkV2Schema } from "./chunks-v2";
 
 /**
  * 単語カードの extras の唯一の定義(2026-07-25 詳細カード再構成)。
@@ -14,50 +15,8 @@ import { isBrokenUsageChunk, tidyUsageParts, withoutSeparatorParts } from "./chu
  * (AI出力・古いDB行のどちらにも耐える)。
  */
 
-export const ChunkPartSchema = z.object({
-  text: z.string(),
-  // 役割ラベル: S/V/V1/V2/O/M/C/Ptc など(復習の添削と同じ色体系で描画)
-  pos: z.string().catch(""),
-  /**
-   * 入れ替えて使う所（公式の「人」「事」「someone」）。オーナー指示 2026-09-25
-   * 「チャンクは公式、定理のように…跟＋人＋見面」。古いカードには無い。
-   */
-  slot: z.boolean().optional().catch(undefined),
-  /**
-   * 入れ替える所に、ネイティブがよく入れる**ほかの具体語**（頻度の高い順）。
-   * オーナー指示 2026-09-27「汎用部分（人・もの）はタップすると、ネイティブ頻出の
-   * 具体的単語が出る（跟+男朋友+吵架 → 女朋友・朋友…をスクロールで表示）。音声も全部」。
-   * `ja` はその語の意味（読み手の言語）。古いカードには無い。
-   */
-  /**
-   * 入れ替える所の**その語の意味**（読み手の言語）。語を入れ替えた時に、型の訳の中の
-   * この部分を入れ替えた語の意味に差し替えて出す（R20「点線のなかのほかの単語をタップしたら、
-   * もとの単語と同じように訳が表示され」）。古いカードには無い。
-   */
-  ja: z.string().optional().catch(undefined),
-  /**
-   * **札ごとの読み**（2026-10-15 オーナー「チャンクに拼音と注音を」）。台湾華語のカードだけ。
-   * 拼音は声調記号つき・音節は空白区切り（`shuā zi`）、注音は音節を空白で区切り軽声は前に ˙
-   * （`ㄕㄨㄚ ˙ㄗ`）。AI が書いた物をサーバが字ごとに検め、外れていれば辞書の読みに直す
-   * （`chunk-readings.server.ts`）。**古いカードは持っていない**（作り直した時に付く）。
-   */
-  pinyin: z.string().optional().catch(undefined),
-  zhuyin: z.string().optional().catch(undefined),
-  alts: z
-    .array(
-      z.object({
-        text: z.string(),
-        ja: z.string().catch(""),
-        // 入れ替える語の読み（台湾華語だけ。古いカードには無い）。
-        pinyin: z.string().optional().catch(undefined),
-        zhuyin: z.string().optional().catch(undefined),
-      }),
-    )
-    .max(8)
-    .optional()
-    .catch(undefined),
-});
-export type ChunkPart = z.infer<typeof ChunkPartSchema>;
+export { ChunkPartSchema, type ChunkPart } from "./chunk-part";
+import { ChunkPartSchema } from "./chunk-part";
 
 export const UsageChunkSchema = z.object({
   parts: z.array(ChunkPartSchema).catch([]),
@@ -362,6 +321,13 @@ export const ExtrasSchema = z.object({
    * zod が**門より先に黙って落とし**、門は何も見られない。保存する物は門が外す（`stripChunkSelfCheck`）。
    */
   usage_chunks: z.array(AiUsageChunkSchema).catch([]),
+  /**
+   * **使い方チャンク v2**（2026-10-30、`chunks-v2.ts`。設計は docs/chunk-rules.md の v2 の節）: 2 社の AI が一致した
+   * 「そのまま言える塊」と、それを切り出した文。有れば画面は v1 の `usage_chunks` の代わりにこれを出す。
+   */
+  usage_chunks_v2: z.array(UsageChunkV2Schema).optional().catch(undefined),
+  /** v2 がまだ作り中（カードは先に返した）。iOS が `getWordChunks` で取りに行く。保存はしない。 */
+  usage_chunks_v2_pending: z.boolean().optional().catch(undefined),
   /** メイン例文のパーツ分解。 */
   example_chunks: z.array(ChunkPartSchema).catch([]),
   /** 類義語・反義語・関連語(使い分けノート付き)。 */

@@ -9,6 +9,7 @@ describe("native-fn allowlist", () => {
       "suggestWordCandidates",
       "logCandidatePick",
       "generateCard",
+      "getWordChunks",
       "saveSticker",
       "checkOwnedWord",
       "recordEncounter",
