@@ -293,7 +293,9 @@ struct ReviewView: View {
             } onBadge: {}
             .tourAnchor(.quiz)
             .id("practice-\(card.id)")
-            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+            // No sideways slide between questions (owner 2026-10-30: 横に動くと目が疲れる): the answer sheet goes down and
+            // the next question is simply there.
+            .transition(.identity)
         } else if let err = store.loadError, store.queue.isEmpty {
             VStack(spacing: 12) {
                 Label(err, systemImage: "wifi.exclamationmark").foregroundStyle(Theme.foreground)
@@ -332,7 +334,9 @@ struct ReviewView: View {
                 withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { curveSticker = card.sticker }
             }
             .id(card.id)
-            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+            // No sideways slide between questions (owner 2026-10-30: 横に動くと目が疲れる): the answer sheet goes down and
+            // the next question is simply there.
+            .transition(.identity)
             .overlay(alignment: .bottom) {
                 if let err = store.gradeError {
                     Label(err, systemImage: "wifi.exclamationmark")

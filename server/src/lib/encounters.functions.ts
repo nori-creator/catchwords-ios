@@ -193,6 +193,72 @@ export const recordEncounter = createServerFn({ method: "POST" })
     return { encounter_count: newCount, next_due_at: nextDueAt, interval_days: intervalDays };
   });
 
+const EditEncounterInput = z.object({
+  encounter_id: z.string().uuid(),
+  /** 写真を替える。古い切り抜きは消す（新しい写真から作り直す）。 */
+  image_path: z.string().min(1).optional(),
+  /** 切り抜きだけを足す（写真はそのまま）。 */
+  cutout_path: z.string().min(1).optional(),
+  /** あとから自撮りを足す・撮り直す。 */
+  selfie_path: z.string().min(1).optional(),
+  /** その1枚をどの絵で見せるか。null = 設定に従う。 */
+  hero_role: z.enum(["object", "cutout", "selfie"]).nullable().optional(),
+});
+
+/**
+ * `editEncounter` が書く欄。**自分の場所（`<uid>/`）の絵だけ**。何も変えない入力は投げる。
+ * 写真を替えた時は、切り抜きを一緒に渡さない限り古い切り抜きを消す（`replaceStickerPhoto` と同じ）。
+ */
+export function encounterPatch(
+  data: z.infer<typeof EditEncounterInput>,
+  userId: string,
+): Record<string, string | null> {
+  for (const p of [data.image_path, data.cutout_path, data.selfie_path]) {
+    if (p !== undefined && !p.startsWith(`${userId}/`)) throw new Error("不正な画像パスです");
+  }
+  const patch: Record<string, string | null> = {};
+  if (data.image_path !== undefined) {
+    patch.image_path = data.image_path;
+    patch.cutout_path = null;
+  }
+  if (data.cutout_path !== undefined) patch.cutout_path = data.cutout_path;
+  if (data.selfie_path !== undefined) patch.selfie_path = data.selfie_path;
+  if (data.hero_role !== undefined) patch.hero_role = data.hero_role;
+  if (Object.keys(patch).length === 0) throw new Error("変える物がありません");
+  return patch;
+}
+
+/**
+ * **2回目以降に撮った写真を、1回目と同じように直す**（オーナー指示 2026-10-30「2回目3回目だと…無いから足して」）。
+ * 写真の差し替え・切り抜き・自撮り・表示する写真を、再会の1行（`encounters`）に書く。**自分の行だけ。**
+ *
+ * 自撮りと表示する写真の列（20261030120000_encounter_pictures.sql）がまだ無い環境では、投げずに
+ * `saved: false` を返す（`setStickerHeroRole` と同じ）。
+ */
+export const editEncounter = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => EditEncounterInput.parse(input))
+  .handler(async ({ context, data }): Promise<{ saved: boolean; reason?: string }> => {
+    const { supabase, userId } = context;
+    const patch = encounterPatch(data, userId);
+    const { data: rows, error } = await supabase
+      .from("encounters")
+      .update(patch as never)
+      .eq("id", data.encounter_id)
+      .eq("user_id", userId)
+      .select("id");
+    if (error) {
+      if (/selfie_path|hero_role|policy|permission/.test(error.message)) {
+        console.warn("editEncounter: 移行待ち", error.message);
+        return { saved: false, reason: "migration" };
+      }
+      throw new Error(error.message);
+    }
+    // 書き換えの決まり（RLS の UPDATE）がまだ無い時は、エラーにならず0行になる。
+    if (!rows || rows.length === 0) return { saved: false, reason: "migration" };
+    return { saved: true };
+  });
+
 /**
  * その単語をこれまでに撮った写真を、**古い順に**返す。
  *
