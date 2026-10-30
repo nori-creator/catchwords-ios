@@ -157,6 +157,15 @@ struct MainTabView: View {
     /// The system's App Store rating sheet (App Review Guideline 5.6.1: no custom review prompts).
     @Environment(\.requestReview) private var requestReview
 
+    /// `-uiStoreSection` (DEBUG, StoreShot): the word page opens scrolled to this section.
+    private var storeFocus: CardSection? {
+        #if DEBUG
+        return StoreShot.section.flatMap(CardSection.init(rawValue:))
+        #else
+        return nil
+        #endif
+    }
+
     init() {
         _tourPending = AppStorage(wrappedValue: false, TourStep.pendingStorageKey(for: SupabaseClient.shared.userId))
     }
@@ -268,7 +277,7 @@ struct MainTabView: View {
             // 単語の頁を見終えたら復習へ（Web: StickerSheet の onClose → review）。
             if router.tour.isWord { startTourReview() }
         }) { sticker in
-            WordDetailView(sticker: sticker)
+            WordDetailView(sticker: sticker, previewFocus: storeFocus)
                 .environment(router)
                 .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
                 .presentationDragIndicator(.visible)
@@ -288,6 +297,9 @@ struct MainTabView: View {
             beginTourIfPending()
             openNotification(NotificationRouter.shared.pending)
         }
+        #if DEBUG
+        .task { await openStoreShot() }
+        #endif
         .onChange(of: NotificationRouter.shared.pending) { _, route in openNotification(route) }
         // A word's reminder or widget tapped at launch waits for the dex to know that word.
         .onChange(of: dex.hasLoaded) { _, loaded in if loaded { openNotification(NotificationRouter.shared.pending) } }
@@ -646,3 +658,23 @@ private struct ShutterFlightPath: ViewModifier, Animatable {
             }
     }
 }
+
+#if DEBUG
+extension MainTabView {
+    /// `-uiStore` (StoreShot): open the tab, and the word page, the App Store screenshot shows; then tell CI it has settled.
+    func openStoreShot() async {
+        guard StoreShot.isOn else { return }
+        if let t = StoreShot.tab, let tab = ["home": AppTab.home, "dex": .dex, "camera": .camera, "review": .review][t] {
+            router.tab = tab
+        }
+        for _ in 0..<60 where !dex.hasLoaded { try? await Task.sleep(for: .milliseconds(250)) }
+        if let id = StoreShot.word, let s = dex.sticker(id: id) {
+            try? await Task.sleep(for: .milliseconds(600))
+            router.detailSticker = s
+        }
+        // Pictures, the map's tiles and the sheet's rise.
+        try? await Task.sleep(for: .seconds(4))
+        StoreShot.ready()
+    }
+}
+#endif

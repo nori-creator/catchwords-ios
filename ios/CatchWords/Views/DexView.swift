@@ -84,7 +84,11 @@ struct DexView: View {
     /// landing paid for the cover flow (and its sound engine starting) as the page rose (owner 2026-10-20: the add to
     /// 図鑑 stuttered).
     init(startInGallery: Bool = false) {
-        _mode = State(initialValue: startInGallery ? .grid : .cover)
+        var start: DexMode = startInGallery ? .grid : .cover
+        #if DEBUG
+        if let m = StoreShot.dexMode.flatMap(DexMode.init(rawValue:)) { start = m }
+        #endif
+        _mode = State(initialValue: start)
     }
 
     /// Opened on one view (the previews of each).
@@ -992,6 +996,9 @@ struct DexMapView: View {
             quietUntil = Date().addingTimeInterval(0.8)
             SoundService.shared.warmTicks()
             if day == nil { day = days.first }
+            #if DEBUG
+            if let d = StoreShot.mapDay, days.contains(d) { day = d }
+            #endif
             focus()
         }
         .onChange(of: day) { _, _ in

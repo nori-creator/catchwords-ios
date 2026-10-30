@@ -201,6 +201,10 @@ nonisolated final class DemoDatabase: @unchecked Sendable {
         insert("profiles", profileRow(onboarded: onboarded, plan: plan, displayName: text(common["display_name"], r),
                                       created: now.addingTimeInterval(-30 * 86_400)))
         if defaults.bool(forKey: "uiDemoEmpty") { return }
+        if let store = StoreShot.pack {
+            seedStore(store, reader: r, now: now)
+            return
+        }
 
         // Words and stickers: 0-5 with photos on three days, 6 without a photo (stand-in picture only).
         let places = DJ.list(pack["places"])
@@ -363,6 +367,77 @@ nonisolated final class DemoDatabase: @unchecked Sendable {
                     s["cutout_image_url"] = NSNull()
                 }
                 insert("stickers", s)
+            }
+        }
+    }
+
+    /// `-uiStore` (StoreShot): the App Store screenshots' words, stickers with their real pictures, reviews and review
+    /// history, all from `store.json`. Days are counted back from today; `taken_at` may also be a fixed ISO date.
+    private func seedStore(_ store: [String: Any], reader r: String, now: Date) {
+        let uid = Self.userId
+        let day = 86_400.0
+        func at(_ value: Any?) -> Date {
+            if let s = value as? String, let d = ISO8601DateFormatter().date(from: s) { return d }
+            return now.addingTimeInterval((DJ.num(value) ?? 0) * day)
+        }
+        func put(_ name: String?, as path: String) -> Any {
+            guard let name, let data = StoreShot.file(name) else { return NSNull() }
+            uploads[path] = data
+            uploadTypes[path] = name.hasSuffix(".png") ? "image/png" : "image/jpeg"
+            return path
+        }
+        for w in DJ.list(store["words"]) {
+            let key = DJ.str(w["key"]) ?? DJ.uuid()
+            let wordId = "store-word-\(key)"
+            insert("words", wordRow(w, id: wordId, reader: r))
+            registerExplanations(w, wordId: wordId)
+            let s = DJ.dict(w["sticker"])
+            let taken = at(s["taken_at"])
+            var row: [String: Any] = [:]
+            row["id"] = DJ.str(s["id"]) ?? "store-sticker-\(key)"
+            row["user_id"] = uid
+            row["word_id"] = wordId
+            row["caption"] = NSNull()
+            row["location_name"] = text(s["place"], r)
+            row["lat"] = DJ.orNull(DJ.num(s["lat"]))
+            row["lng"] = DJ.orNull(DJ.num(s["lng"]))
+            row["taken_at"] = DJ.iso(taken)
+            row["created_at"] = DJ.iso(taken)
+            row["shelf_key"] = NSNull()
+            row["hero_role"] = DJ.orNull(DJ.str(s["hero_role"]))
+            row["placeholder_credit"] = NSNull()
+            row["placeholder_image_url"] = NSNull()
+            row["selfie_image_url"] = NSNull()
+            row["object_image_url"] = put(DJ.str(s["photo"]), as: "\(uid)/store-\(key)-object.jpg")
+            row["cutout_image_url"] = put(DJ.str(s["cutout"]), as: "\(uid)/store-\(key)-cutout.png")
+            // No picture kept (a word reviewed for weeks): the dex shows it as a typed word.
+            row["capture_type"] = row["object_image_url"] is NSNull && row["cutout_image_url"] is NSNull ? "text" : "photo"
+            insert("stickers", row)
+        }
+        for (n, rv) in DJ.list(store["reviews"]).enumerated() {
+            let sid = DJ.str(rv["sticker"]) ?? ""
+            var row: [String: Any] = [:]
+            row["id"] = "store-review-\(n)"
+            row["user_id"] = uid
+            row["sticker_id"] = sid
+            row["ease"] = DJ.num(rv["ease"]) ?? 2.5
+            row["interval_days"] = Int(DJ.num(rv["interval"]) ?? 1)
+            row["repetitions"] = Int(DJ.num(rv["repetitions"]) ?? 1)
+            row["last_reviewed_at"] = rv["last"].map { DJ.iso(at($0)) as Any } ?? NSNull()
+            row["due_at"] = DJ.iso(at(rv["due"]))
+            row["created_at"] = DJ.iso(now.addingTimeInterval(-40 * day))
+            insert("reviews", row)
+            for (k, h) in DJ.list(rv["history"]).enumerated() {
+                var hr: [String: Any] = [:]
+                hr["id"] = "store-history-\(n)-\(k)"
+                hr["user_id"] = uid
+                hr["sticker_id"] = sid
+                hr["review_id"] = "store-review-\(n)"
+                hr["reviewed_at"] = DJ.iso(at(h["at"]))
+                hr["score"] = Int(DJ.num(h["score"]) ?? 5)
+                hr["interval_days_after"] = Int(DJ.num(h["interval"]) ?? 1)
+                hr["ease_after"] = DJ.num(h["ease"]) ?? 2.5
+                insert("review_history", hr)
             }
         }
     }

@@ -56,7 +56,8 @@ struct CaptureView: View {
 
     private var demoPhoto: UIImage? {
         #if DEBUG
-        return UIImage(data: DemoImages.png(seed: "camera-sample", emoji: "🛵", text: "", transparent: false, size: 1024))
+        return StoreShot.cameraPhoto
+            ?? UIImage(data: DemoImages.png(seed: "camera-sample", emoji: "🛵", text: "", transparent: false, size: 1024))
         #else
         return nil
         #endif

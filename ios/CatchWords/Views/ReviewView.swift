@@ -7,7 +7,13 @@ struct ReviewView: View {
     @Environment(AppRouter.self) private var router
     /// Kept by the app (not this screen): read and made ready before the tab opens (`ReviewStore.preload`).
     @Environment(ReviewStore.self) private var store
-    @State private var legendOpen: Bool = false
+    @State private var legendOpen: Bool = {
+        #if DEBUG
+        return StoreShot.memoryOpen
+        #else
+        return false
+        #endif
+    }()
     @State private var curveSticker: Sticker?
     /// Verdict for the current card (nil until a choice is picked).
     @State private var answer: Bool?
