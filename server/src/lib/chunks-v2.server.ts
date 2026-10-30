@@ -491,6 +491,16 @@ export async function writeChunkLibrary(
   }
 }
 
+/** その語の書庫の行を全部消す（↻ の置き換え用）。表が無くても落ちない。 */
+export async function clearChunkLibrary(admin: unknown, language: string, headword: string): Promise<void> {
+  try {
+    const r = (await (admin as Loose).from("chunk_library").delete().eq("language", language).eq("headword", headword)) as LooseResult;
+    if (r.error && !isMissing(r.error)) console.warn("[chunks-v2] library clear", r.error.message);
+  } catch (e) {
+    console.warn("[chunks-v2] library clear threw", (e as Error)?.message);
+  }
+}
+
 type RunRow = { status: string; started_at: string; finished_at: string | null; approved: number };
 
 async function readRun(admin: unknown, language: string, headword: string): Promise<RunRow | null> {
@@ -622,6 +632,9 @@ export async function startChunksV2Job(
     const byText = new Map(result.chunks.map((c) => [c.text, c]));
     const forLibrary = result.selected.map((c) => byText.get(c.text) ?? c);
     const rejectedRows = result.rejected.filter((r) => r.reason === "unnatural").map((r) => candidateToChunk(r, headword, language));
+    // ↻（force）は書庫を**置き換える**: 古い行を消してから書く（upsert だけだと、新しい組に無い古い塊が承認のまま残る。
+    // 訳の行は外部キーの ON DELETE CASCADE で一緒に消える）。
+    if (input.force) await clearChunkLibrary(admin, language, headword);
     await writeChunkLibrary(admin, { language, headword, explainLang: input.explainLang, providers: result.stats.providers }, forLibrary, rejectedRows);
     await writeRun(admin, language, headword, { status: "done", providers: result.stats.providers, approved: result.selected.length });
     return { status: result.chunks.length > 0 ? "ready" : "none", chunks: result.chunks, fromLibrary: false, stats: result.stats };

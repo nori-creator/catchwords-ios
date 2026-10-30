@@ -10,6 +10,7 @@ import { EXPLAIN_LANGS } from "./explain-languages";
  * 走らせ方（鍵と本番の Supabase の service role が要る。普段の `npm test` では飛ばす）:
  *   CHUNK_SEED=1 SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… GEMINI_API_KEY=… ANTHROPIC_API_KEY=… npx vitest run chunks-v2.seed
  * - `CHUNK_SEED_LIMIT=20` … 最初の 20 語だけ（費用を見てから全部）。`CHUNK_SEED_LANGS=ja,en` … その表示言語だけ。
+ * - `CHUNK_SEED_FORCE=1` … 書庫に有っても作り直して置き換える（モデルや指示文を変えた後。1 つ目の言語だけ force、残りは訳を付け直す）。
  * 1 語につき: 書き 2 回 ＋ 審査 0〜2 回 ＋ 表示言語ごとの訳 1 回（1 つ目の言語は書きと同時）。書庫に有る語は飛ばす。
  */
 const ON = process.env.CHUNK_SEED === "1";
@@ -19,6 +20,7 @@ describe.skipIf(!ON)("使い方チャンク v2 — 図鑑の影の語を書庫�
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { startChunksV2Job } = await import("./chunks-v2.server");
     const limit = Number(process.env.CHUNK_SEED_LIMIT ?? 0);
+    const force = process.env.CHUNK_SEED_FORCE === "1";
     const langs = (process.env.CHUNK_SEED_LANGS ?? EXPLAIN_LANGS.join(",")).split(",").map((s) => s.trim()).filter(Boolean);
     let words = [...new Set(DEX_ITEMS.map((i) => i.zh))];
     if (limit > 0) words = words.slice(0, limit);
@@ -34,8 +36,9 @@ describe.skipIf(!ON)("使い方チャンク v2 — 図鑑の影の語を書庫�
       Array.from({ length: Math.min(concurrency, groups.length) }, async () => {
         while (next < groups.length) {
           const group = groups[next++];
-          for (const { w, lang } of group) {
-            const r = await startChunksV2Job(supabaseAdmin, { language: "zh-TW", headword: w, explainLang: lang });
+          for (const [i, { w, lang }] of group.entries()) {
+            // force は 1 つ目の言語だけ（中国語を作り直して書庫を置き換える）。残りの言語は新しい塊に訳を付ける。
+            const r = await startChunksV2Job(supabaseAdmin, { language: "zh-TW", headword: w, explainLang: lang, ...(force && i === 0 ? { force: true } : {}) });
             rows.push({ headword: w, lang, status: r.status, n: r.chunks.length, fromLibrary: r.fromLibrary });
             console.info(`[seed] ${w} ${lang}: ${r.status} ${r.chunks.length}${r.fromLibrary ? " (library)" : ""}`);
           }

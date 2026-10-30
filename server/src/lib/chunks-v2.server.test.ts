@@ -227,6 +227,26 @@ function fakeAdmin(seed: { library?: Record<string, unknown>[]; text?: Record<st
         return q;
       };
       q.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(result()).then(res, rej);
+      q.delete = () => {
+        // 条件（eq）を集めてから消す: then で実行。
+        const d: Record<string, unknown> = {};
+        d.eq = (k: string, v: unknown) => {
+          filters.push((r) => r[k] === v);
+          return d;
+        };
+        d.then = (res: (v: unknown) => unknown) => {
+          const keep = rows.filter((r) => !filters.every((f) => f(r)));
+          const gone = rows.filter((r) => filters.every((f) => f(r)));
+          rows.splice(0, rows.length, ...keep);
+          if (table === "chunk_library") {
+            const ids = new Set(gone.map((g) => g.id));
+            const t = tables.chunk_library_text;
+            t.splice(0, t.length, ...t.filter((x) => !ids.has(x.library_id)));
+          }
+          return Promise.resolve({ data: null, error: null }).then(res);
+        };
+        return d;
+      };
       q.upsert = (value: Record<string, unknown> | Record<string, unknown>[]) => {
         const list = Array.isArray(value) ? value : [value];
         const written: Record<string, unknown>[] = [];
@@ -313,13 +333,14 @@ describe("書庫（chunk_library）", () => {
     expect((await startChunksV2Job(none.admin, { language: "zh-TW", headword: "筆袋", explainLang: "ja", writers: WRITERS, ask: asker({ google: null, anthropic: null }) })).status).toBe("none");
   });
 
-  it("↻（force）は書庫を無視して作り直し、書庫を置き換える", async () => {
+  it("↻（force）は書庫を無視して作り直し、書庫を置き換える（古い塊とその訳の行は消える）", async () => {
     const calls: string[] = [];
-    const { admin, tables } = fakeAdmin({ library: [LIB_ROW()] });
+    const { admin, tables } = fakeAdmin({ library: [LIB_ROW()], text: [{ library_id: "lib-1", explain_lang: "ja", ja: "ペンケースを開ける", sentence_ja: "", note: "", blocks_ja: [] }] });
     const r = await startChunksV2Job(admin, { language: "zh-TW", headword: "筆袋", explainLang: "ja", force: true, writers: WRITERS, ask: asker({ google: reply([BA]), anthropic: reply([BA_B]), calls }) });
     expect(calls.filter((c) => c.endsWith(":write"))).toHaveLength(2);
     expect(r.chunks.map((c) => c.text)).toEqual(["把原子筆放進筆袋裡"]);
-    expect(tables.chunk_library.map((x) => x.zh)).toContain("把原子筆放進筆袋裡");
+    expect(tables.chunk_library.map((x) => x.zh)).toEqual(["把原子筆放進筆袋裡"]);
+    expect(tables.chunk_library_text.map((t) => t.ja)).toEqual(["やく1"]);
   });
 
   it("awaitChunksV2 は pending の間だけ待つ（時間切れなら pending のまま）", async () => {

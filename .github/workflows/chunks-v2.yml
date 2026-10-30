@@ -28,6 +28,10 @@ on:
         description: "読む人の言語（eval / reference）"
         type: string
         default: "ja"
+      force:
+        description: "seed: 書庫に有る語も作り直して置き換える（モデル・指示文を変えた後）"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -80,6 +84,7 @@ jobs:
         env:
           CHUNK_SEED: "1"
           CHUNK_SEED_LIMIT: ${{ inputs.limit }}
+          CHUNK_SEED_FORCE: ${{ inputs.force && '1' || '' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
