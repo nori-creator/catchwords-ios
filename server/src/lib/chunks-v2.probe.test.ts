@@ -57,6 +57,21 @@ describe.skipIf(!ON)("AI の呼び方の計測（本物の AI）", () => {
         }
       }
     }
+    // Gemini の版ごとの可否（latest-pro = 2.5 Pro が時々断られて flash-lite に落ちた事の原因を見る）。短い指示で 1 回ずつ。
+    if ((google.name ?? google.provider) === "google") {
+      const raw = providerConfig("google", "x");
+      lines.push(`| | | | | | | |`);
+      for (const id of (process.env.CHUNK_PROBE_GEMINI_MODELS ?? "gemini-2.5-pro,gemini-3.1-pro,gemini-3.5-pro,gemini-3.8-pro,gemini-3.8-flash,gemini-3.1-flash-lite").split(",")) {
+        const t0 = Date.now();
+        try {
+          const r = await generateText({ model: raw!.gateway(id.trim()), prompt: "用台灣華語回答：1+1=？只回答數字。", abortSignal: AbortSignal.timeout(PROBE_MS), maxRetries: 0, providerOptions: { google: { reasoningEffort: "low" } } as never });
+          lines.push(`| google:${id.trim()} | 可否 | ${Date.now() - t0} | - | - | ${r.text.length} | ok |`);
+        } catch (e) {
+          const err = e as Error & { statusCode?: number; responseBody?: string };
+          lines.push(`| google:${id.trim()} | 可否 | ${Date.now() - t0} | - | - | - | ${err?.name ?? "error"}${err?.statusCode ? ` ${err.statusCode}` : ""}: ${String(err?.responseBody ?? err?.message ?? "").replace(/\s+/g, " ").slice(0, 200)} |`);
+        }
+      }
+    }
     console.info(["# AI の呼び方の計測", "", ...lines].join("\n"));
     expect(targets.length).toBeGreaterThan(0);
   });

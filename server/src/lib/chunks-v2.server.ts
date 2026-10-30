@@ -57,12 +57,12 @@ const GEN_MS = envMs("AI_CHUNKS_V2_GEN_MS", 25_000);
 const JUDGE_MS = envMs("AI_CHUNKS_V2_JUDGE_MS", 15_000);
 const FINISH_MS = envMs("AI_CHUNKS_V2_FINISH_MS", 12_000);
 /**
- * **書き手・審査は上位のモデル**（2026-10-30 の比べ: Gemini 2.5 Pro × Claude Sonnet 5.5 は、Flash × Haiku より基本的で頻度の高い
- * 塊を出した — 滑手機・去剪頭髮・買便當・帶便當。Flash × Haiku は 盆栽的葉子怎麼都枯掉了 のように長く場面の狭い塊が混ざる。
- * 速さは同じくらい（1 語 p50 8.6 秒 vs 11.5 秒。考える量は最小にする）。費用は語ごとに 1 回だけ（書庫で共有）なので上位を使う）。
+ * **書き手・審査のモデル**（2026-10-30 の比べ、60 語）: Claude は Sonnet 5.5（Haiku より基本的で頻度の高い塊 — 滑手機・去剪頭髮・
+ * 買便當。速さは同じくらい、考える量は最小にする）。Gemini は**最新の Flash**（`latest-pro` = gemini-2.5-pro はこの鍵で呼び出しが
+ * 時々断られ、黙って flash-lite に落ちていた — 参照の実行で 13 回。Flash 3.8 は 4 秒で安定）。費用は語ごとに 1 回だけ（書庫で共有）。
  * 仕上げ（区切り・品詞・訳）は速いモデル（`FINISH_MODEL`）。
  */
-const GEMINI_WRITER_MODEL = process.env.AI_CHUNKS_V2_GEMINI_MODEL ?? "latest-pro";
+const GEMINI_WRITER_MODEL = process.env.AI_CHUNKS_V2_GEMINI_MODEL ?? "latest-flash";
 const CLAUDE_MODEL = process.env.AI_CHUNKS_V2_CLAUDE_MODEL ?? "claude-sonnet-5-5";
 /** 仕上げ（区切り・品詞・訳）のモデル。`会社:モデル`。鍵が無ければ書き手の速い方。 */
 const FINISH_MODEL = process.env.AI_CHUNKS_V2_FINISH_MODEL ?? "anthropic:claude-haiku-5-5";
