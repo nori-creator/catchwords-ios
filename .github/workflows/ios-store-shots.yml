@@ -83,7 +83,7 @@ jobs:
       - name: 開いた Duo（内側）と閉じた Duo（外側）で撮る
         run: |
           set +e -uo pipefail
-          OUT="$RUNNER_TEMP/shots"; mkdir -p "$OUT/inner" "$OUT/innerp" "$OUT/outer"
+          OUT="$RUNNER_TEMP/shots"; mkdir -p "$OUT/inner" "$OUT/outer"
           UDID=$(cat "$RUNNER_TEMP/udid"); HINGE="$RUNNER_TEMP/duo-hinge"
           xcrun simctl bootstatus "$UDID" -b
           APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
@@ -135,8 +135,6 @@ jobs:
           }
           "$HINGE" -d "$UDID" flat; sleep 6
           shoot_all inner "$INNER"
-          # 内側を縦に持った形（オーナーの iPhone のスクショと同じ縦長）
-          shoot_all innerp "$INNER" "-uiStorePortrait YES"
           "$HINGE" -d "$UDID" closed; sleep 6
           shoot_all outer "$OUTER"
           for f in "$OUT"/*/*.png; do echo "$f $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {print $2}' | tr '\n' ' ')"; done | tee "$OUT/sizes.txt"
@@ -152,7 +150,7 @@ jobs:
           SRC="$RUNNER_TEMP/shots"; [ -d "$SRC" ] || exit 0
           DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-store"
           STAGE="$RUNNER_TEMP/store-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
-          for f in "$SRC"/inner/*.png "$SRC"/innerp/*.png "$SRC"/outer/*.png; do
+          for f in "$SRC"/inner/*.png "$SRC"/outer/*.png; do
             [ -f "$f" ] || continue
             side=$(basename "$(dirname "$f")"); base=$(basename "$f" .png)
             sips -s format jpeg -s formatOptions 95 "$f" --out "$STAGE/${side}_${base}.jpg" >/dev/null 2>&1 || true

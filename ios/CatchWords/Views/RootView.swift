@@ -79,6 +79,10 @@ struct RootView: View {
                         onboardingDone = OnboardingState.isDone(userId: SupabaseClient.shared.userId)
                         TourStep.adoptDevicePending(userId: SupabaseClient.shared.userId)
                         AIConsent.shared.load(userId: SupabaseClient.shared.userId)
+                        #if DEBUG
+                        // The App Store shots: the camera as an account that agreed sees it.
+                        if StoreShot.isOn, !AIConsent.shared.isGranted { AIConsent.shared.grant() }
+                        #endif
                         let guessed = NativeAPI.targetLanguage
                         // The dex as it was last read on this phone, at once (its pictures are on disk too); the
                         // server's read below replaces it. Read off the main thread, while the server is asked.
