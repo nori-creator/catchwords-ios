@@ -282,6 +282,9 @@ struct MainTabView: View {
                 .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Theme.background)
+                // On iPhone Duo's inner screen the page is as large as the screen (its two pages side by side when held
+                // sideways), not a card in the middle.
+                .presentationSizing(WordPageSizing())
                 // The word's page is a sheet over the tabs: its guide steps light its own parts (the jump chips, the
                 // settings button), with a layer of their own.
                 .overlayPreferenceValue(TourAnchorKey.self) { anchors in
@@ -684,3 +687,12 @@ extension MainTabView {
     }
 }
 #endif
+
+/// The word's page as large as the screen allows: on the iPhone a sheet is the screen's width anyway; on iPhone Duo's
+/// inner screen (regular width) the default form sheet left the page a narrow column in the middle (owner 2026-10-30:
+/// 「単語の詳細を開いたときにページの中央部分しか使ってないのがもったいない」).
+struct WordPageSizing: PresentationSizing {
+    func proposedSize(for root: PresentationSizingRoot, context: PresentationSizingContext) -> ProposedViewSize {
+        .infinity
+    }
+}

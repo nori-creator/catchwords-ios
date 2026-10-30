@@ -633,12 +633,16 @@ struct QuizCard: View {
                     .fixedSize(horizontal: false, vertical: true)   // every line of a long meaning, never "…"
                     .id(Self.questionID)
 
-                VStack(spacing: compact ? 6 : 8) {
+                VStack(spacing: sideBySide ? 14 : (compact ? 6 : 8)) {
                     ForEach(choices) { c in choiceRow(c) }
                 }
                 .offset(x: shake)
             }
-            .frame(maxWidth: sideBySide ? .infinity : nil)
+            // Side by side, before the answer: the question and the choices in the middle of the right page, level
+            // with the picture (owner 2026-10-30: 「復習の４択の選択肢がうえに寄ってる…バランスよく配置して」). Once
+            // answered they go to the page's top, clear of the answer sheet that comes up under them.
+            .frame(maxWidth: sideBySide ? .infinity : nil,
+                   minHeight: sideBySide && !isAnswered ? photoHeight : nil)
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { h in
@@ -694,7 +698,7 @@ struct QuizCard: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, Self.choiceSideInset)
                     .padding(.vertical, compact ? 3 : 5)
-                    .frame(maxWidth: .infinity, minHeight: compact ? 48 : 56)
+                    .frame(maxWidth: .infinity, minHeight: sideBySide ? 64 : (compact ? 48 : 56))
                     .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle(scale: 0.97))

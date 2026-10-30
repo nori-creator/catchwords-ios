@@ -23,6 +23,8 @@ struct DexCoverFlow: View {
     @State private var spring = CarouselSpring()
     @State private var lastSlideSound: CFTimeInterval = 0
     @State private var muteSlideSound = false
+    /// The stage is wide enough for the ring to spread (`CarouselPose.spread`).
+    @State private var wideStage = false
 
     private var center: Int {
         guard !stickers.isEmpty else { return 0 }
@@ -97,6 +99,15 @@ struct DexCoverFlow: View {
             spring.set(Double(max(0, min(stickers.count - 1, initialIndex))))
         }
         .onDisappear { spring.stop() }
+        // On a wide stage the ring opens a couple of cards in, so cards stand on both sides of the middle one.
+        .onGeometryChange(for: Bool.self) { $0.size.width >= 800 } action: { wide in
+            guard wide, !wideStage else { return }
+            wideStage = true
+            if initialIndex == 0, center == 0, stickers.count >= 3 {
+                muteSlideSound = true
+                spring.set(Double(min(2, stickers.count / 2)))
+            }
+        }
     }
 
     private func bring(_ i: Int) {
@@ -219,13 +230,15 @@ private struct CoverFlowStage: View {
         return max(0, min(stickers.count - 1, spring.index))
     }
 
+    private var spread: Double { CarouselPose.spread(stageWidth: stageWidth, cardWidth: cardWidth) }
+
     var body: some View {
         let w = cardWidth
         let width = stageWidth
         let ch = w * 1.48
         let top = DexCoverFlow.cardTop
         let stageH = DexCoverFlow.stageHeight(cardWidth: w)
-        let step = w * CarouselPose.step
+        let step = w * CarouselPose.step * spread
         let pos = spring.value
         let range = visibleRange(around: pos)
         return ZStack(alignment: .topLeading) {
@@ -302,7 +315,7 @@ private struct CoverFlowStage: View {
         let w = cardWidth
         let s = stickers[i]
         let rel = Double(i) - pos
-        let p = CarouselPose.pose(rel, reduced: reduceMotion)
+        let p = CarouselPose.pose(rel, reduced: reduceMotion, spread: spread)
         let ch = w * 1.48
         let perspective: CGFloat = 1000
         let z = p.z * w
@@ -337,13 +350,22 @@ enum CarouselPose {
     /// Cards further round than this are behind the middle one and aren't drawn.
     static let reach = 3.4
 
-    static func pose(_ offset: Double, reduced: Bool) -> (x: Double, z: Double, rotateY: Double, zIndex: Double, opacity: Double) {
+    /// How much wider than a card the ring is: 1 on the iPhone; on a screen much wider than the card (iPhone Duo's
+    /// inner screen held sideways) the ring spreads over the width, so two or three cards show on each side (owner
+    /// 2026-10-30: 「図鑑のスライド、表示されてるカードが少ない。せっかく画面横に広いから、カードも横に広く見えるように並べて」).
+    static func spread(stageWidth: Double, cardWidth: Double) -> Double {
+        guard cardWidth > 0, stageWidth >= 800 else { return 1 }
+        return max(1, min(2.4, stageWidth * 0.46 / cardWidth))
+    }
+
+    static func pose(_ offset: Double, reduced: Bool, spread: Double = 1) -> (x: Double, z: Double, rotateY: Double, zIndex: Double, opacity: Double) {
         let o = max(-reach, min(reach, offset))
         let a = abs(o)
         let phi = o * angle
         return (
-            x: radius * sin(phi),
-            z: -depth * (1 - cos(phi)),
+            x: radius * spread * sin(phi),
+            // A wide ring is shallower, so the cards beside the middle one stay large.
+            z: -depth / spread.squareRoot() * (1 - cos(phi)),
             // Turned slightly inward so the outer edge comes toward you; flat with reduced motion.
             rotateY: reduced ? 0 : -phi * 0.3 * 180 / .pi,
             // Nearer is on top; past 4 cards the order stops changing so it never flips.
