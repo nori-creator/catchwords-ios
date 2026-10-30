@@ -39,6 +39,10 @@ struct ReviewView: View {
     @State private var quizTop: CGFloat = 0
     private static let space = "review.screen"
     private var spread: Bool { QuizCard.isSpread(widthClass: widthClass, width: viewportWidth, height: viewportHeight) }
+    /// Side by side on iPhone Duo held sideways: extra margin on the side away from the clock's strip, so the photo and
+    /// the choices meet on the fold (owner 2026-10-30: 「スマホの折り目で画面を半分にして」).
+    private var foldLead: CGFloat { spread ? max(0, -2 * router.foldShift) : 0 }
+    private var foldTrail: CGFloat { spread ? max(0, 2 * router.foldShift) : 0 }
 
     /// Room kept under the card for the floating tab bar (58 pt + its 4 pt + a little air).
     private static let tabBarClearance: CGFloat = 70
@@ -74,7 +78,7 @@ struct ReviewView: View {
                         content
                             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).minY } action: { quizTop = $0 }
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.leading, 16 + foldLead).padding(.trailing, 16 + foldTrail)
                     .padding(.top, 8)
                     // Unanswered: only the tab bar's room (the card already fits). Answered: room under the last
                     // choice for the whole sheet, however tall its explanation is.
@@ -137,7 +141,7 @@ struct ReviewView: View {
                 .tourAnchor(.reviewNext, if: router.tour == .reviewNext)
                 .modifier(AnswerSheetPlace(spread: spread, quizTop: quizTop, viewportHeight: viewportHeight))
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
-                .answerSheetColumn(wide: spread, width: viewportWidth)
+                .answerSheetColumn(wide: spread, width: viewportWidth, lead: foldLead, trail: foldTrail)
                 .transition(spread ? .opacity.combined(with: .move(edge: .top)) : .move(edge: .bottom).combined(with: .opacity))
                 .id(card.id)
             }
@@ -160,7 +164,7 @@ struct ReviewView: View {
                         showQuizRequest += 1
                     }, onClose: { if router.tour == .memoryCurve { router.tourFinish() } else { closeCurve() } }, guided: guided)
                     .frame(maxHeight: guided ? 470 : 640)
-                    .frame(width: spread && !guided ? QuizCard.rightColumnWidth(viewportWidth) : nil)
+                    .frame(width: spread && !guided ? QuizCard.rightColumnWidth(viewportWidth, lead: foldLead, trail: foldTrail) : nil)
                     .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))
                     .tourAnchor(.memoryCurve)
                     .shadow(color: .black.opacity(0.2), radius: 30, y: 12)
@@ -539,8 +543,8 @@ private struct AnswerSheetPlace: ViewModifier {
 extension View {
     /// The answer sheet's width: the whole screen on iPhone; with the Duo open (`wide`), the right page only — the quiz
     /// card's right column, past the gap over the fold — on a screen `width` wide.
-    func answerSheetColumn(wide: Bool, width: CGFloat) -> some View {
-        frame(width: wide && width > 0 ? QuizCard.rightColumnWidth(width) : nil)
+    func answerSheetColumn(wide: Bool, width: CGFloat, lead: CGFloat = 0, trail: CGFloat = 0) -> some View {
+        frame(width: wide && width > 0 ? QuizCard.rightColumnWidth(width, lead: lead, trail: trail) : nil)
             .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
@@ -592,8 +596,9 @@ struct QuizCard: View {
 
     /// The right column's width on a screen `width` wide (the review's 16 pt margins, the card's padding, the gap):
     /// the answer sheet takes it on the Duo.
-    static func rightColumnWidth(_ width: CGFloat) -> CGFloat {
-        max(0, (width - 32 - cardPadding * 2 - sideGap) / 2 + cardPadding + 16)
+    /// `lead` / `trail`: the review's extra margins that centre the card on iPhone Duo's fold.
+    static func rightColumnWidth(_ width: CGFloat, lead: CGFloat = 0, trail: CGFloat = 0) -> CGFloat {
+        max(0, (width - 32 - lead - trail - cardPadding * 2 - sideGap) / 2 + cardPadding + 16 + trail)
     }
 
     /// The photo's height: what is left of `fitHeight`, kept between a small but readable picture and 300 pt. Side by

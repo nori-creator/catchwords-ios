@@ -884,6 +884,8 @@ struct DexListRow: View {
 /// その日撮った写真すべてが地図上での反応があるようにして。わざわざ単語をタップしなくても。」).
 struct DexMapView: View {
     @Environment(DexStore.self) private var dex
+    /// For iPhone Duo's fold (nil in previews that have no router).
+    @Environment(AppRouter.self) private var router: AppRouter?
     @Environment(\.appReduceMotion) private var reduceMotion
     let stickers: [Sticker]
     /// How much of the map's top the dex header covers.
@@ -925,6 +927,11 @@ struct DexMapView: View {
     /// 表示し、その反対のページ全体をマップにして」).
     private var wide: Bool { mapFrame.width >= 800 && mapFrame.width > mapFrame.height }
     static let wideColumnWidth: CGFloat = 360
+    /// The column fills the left page, up to the fold less a margin (owner 2026-10-30: 「スマホの折り目で画面を半分にして」).
+    private var columnWidth: CGFloat {
+        guard let fold = router?.foldX, fold > mapFrame.minX + 300 else { return Self.wideColumnWidth }
+        return fold - mapFrame.minX - 32
+    }
     /// Under the column's timeline: the day bar, the tab bar and the gaps.
     private static let wideReserved: CGFloat = 84 + 64 + 30
     /// The reading line, from the list's top: the row on it is the current word (web `onListScroll`: 35%).
@@ -990,7 +997,7 @@ struct DexMapView: View {
                 if panelOpen && !dayItems.isEmpty { timeline(visits).transition(.move(edge: .bottom).combined(with: .opacity)) }
                 dayBar
             }
-            .frame(width: wide ? Self.wideColumnWidth : nil)
+            .frame(width: wide ? columnWidth : nil)
             .padding(.horizontal, 16)
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { y in
                 if abs(y - coverTop) > 2 { coverTop = y }
@@ -1060,7 +1067,7 @@ struct DexMapView: View {
     /// The share of the map's width the side column covers (sideways only).
     private var coverLeft: Double {
         guard wide, mapFrame.width > 0 else { return 0 }
-        return min(0.5, Double(Self.wideColumnWidth + 32) / Double(mapFrame.width))
+        return min(0.55, Double(columnWidth + 32) / Double(mapFrame.width))
     }
 
     /// DexDayMap frame(): fit the stops within 3 km of the anchor — all of the day's when they are that close, else

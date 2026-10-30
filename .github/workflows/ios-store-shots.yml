@@ -71,6 +71,30 @@ jobs:
           echo "$UDID" > "$RUNNER_TEMP/udid"
           xcrun simctl boot "$UDID" || true
 
+      - name: 本物の iPhone Duo の枠（シミュレーターが描く端末の絵）を取り出す
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/shots/chrome"; mkdir -p "$OUT"
+          # 端末の種類の Info（chromeIdentifier）と、その名前の .devicechrome の中身（json・pdf・png）
+          DT=$(find /Library/Developer/CoreSimulator/Profiles/DeviceTypes "$(xcode-select -p)/Platforms" -maxdepth 6 -iname "*Duo*.simdevicetype" 2>/dev/null | head -1)
+          echo "devicetype: $DT" | tee "$OUT/find.txt"
+          [ -n "$DT" ] && { plutil -convert json -o "$OUT/devicetype-profile.json" "$DT/Contents/Resources/profile.plist" 2>/dev/null; ls -R "$DT" >> "$OUT/find.txt"; cp "$DT"/Contents/Resources/*.pdf "$OUT"/ 2>/dev/null; }
+          CHROME=$(python3 -c "import json,sys;d=json.load(open('$OUT/devicetype-profile.json'));print(d.get('chromeIdentifier',''))" 2>/dev/null)
+          echo "chrome: $CHROME" | tee -a "$OUT/find.txt"
+          find /Library/Developer/DeviceKit /Library/Developer/CoreSimulator /Applications/Xcode*.app/Contents/Developer -maxdepth 7 -iname "*.devicechrome" 2>/dev/null > "$OUT/all-chromes.txt"
+          cat "$OUT/all-chromes.txt" | head -50
+          PAT="duo"; [ -n "$CHROME" ] && PAT="duo|${CHROME##*.}"
+          for c in $(grep -iE "$PAT" "$OUT/all-chromes.txt" 2>/dev/null | sort -u); do
+            n=$(basename "$c" .devicechrome); mkdir -p "$OUT/$n"; ls -R "$c" > "$OUT/$n/list.txt"
+            find "$c" -name "*.json" -exec cp {} "$OUT/$n/" \;
+            find "$c" \( -name "*.pdf" -o -name "*.png" \) | while read -r f; do
+              b=$(basename "$f"); cp "$f" "$OUT/$n/$b"
+              case "$b" in *.pdf) sips -s format png -Z 4000 "$f" --out "$OUT/$n/${b%.pdf}.png" >/dev/null 2>&1 || true;; esac
+            done
+          done
+          ls -laR "$OUT" | head -80
+
       - name: Xcode 27.1 でシミュレーター用に組み立てる
         working-directory: ios
         run: |
@@ -156,6 +180,7 @@ jobs:
             sips -s format jpeg -s formatOptions 95 "$f" --out "$STAGE/${side}_${base}.jpg" >/dev/null 2>&1 || true
           done
           cp "$SRC"/*.txt "$STAGE"/ 2>/dev/null || true
+          if [ -d "$SRC/chrome" ]; then (cd "$SRC/chrome" && find . -type f \( -name "*.png" -o -name "*.json" -o -name "*.txt" \) | while read -r f; do cp "$f" "$STAGE/chrome_$(echo "${f#./}" | tr '/' '_')"; done); fi
           echo "${{ github.sha }}" > "$STAGE/COMMIT"
           GITHUB_TOKEN="${{ github.token }}" python3 scripts/push_ci_previews_api.py "${{ github.repository }}" \
             "$DIR" "store shots for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*

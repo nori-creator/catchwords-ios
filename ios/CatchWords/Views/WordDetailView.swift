@@ -84,6 +84,7 @@ struct WordDetailView: View {
     /// What decides the picture's height (`heroMaxHeight`): the scrolling page's height and the date card, the word's
     /// card and the first section under the picture.
     @State private var viewportSize: CGSize = .zero
+    @State private var viewportMinX: CGFloat = 0
     @State private var metaHeight: CGFloat = 0
     @State private var headHeight: CGFloat = 0
     @State private var firstSectionHeight: CGFloat = 0
@@ -142,7 +143,9 @@ struct WordDetailView: View {
                     // iPhone Duo held sideways: the picture, the place, the word and its meaning large on the left page,
                     // the other sections on the right (owner 2026-10-30: 「左側に切り抜きの写真と撮った場所、日本語訳は左の
                     // 画面を使って大きく表示して、右側にそれ以外の例文などのほかの項目を並べて」).
-                    let leftWidth = (viewportSize.width * 0.45).rounded()
+                    // The left page ends on the fold (owner 2026-10-30: 「スマホの折り目で画面を半分にして」).
+                    let leftWidth = (router.foldX.map { min(viewportSize.width - 320, max(320, $0 - viewportMinX)) }
+                        ?? viewportSize.width * 0.5).rounded()
                     HStack(alignment: .top, spacing: 0) {
                         ScrollView { pageColumn(width: leftWidth) { leadCards(withFirstSection: true) } }
                             .frame(width: leftWidth)
@@ -159,7 +162,10 @@ struct WordDetailView: View {
             }
             // Up and down only: never a sideways bounce.
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            .onGeometryChange(for: CGSize.self) { $0.size } action: { viewportSize = $0 }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { f in
+                viewportSize = f.size
+                viewportMinX = f.minX
+            }
             .background(
                 LinearGradient(colors: [Theme.background, Theme.backgroundDeep], startPoint: .top, endPoint: .bottom)
                     .ignoresSafeArea()

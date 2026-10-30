@@ -350,7 +350,13 @@ struct CaptureView: View {
         Color.black
             .overlay {
                 if let img = demoPhoto {
-                    Image(uiImage: img).resizable().scaledToFill().allowsHitTesting(false)
+                    // The whole photo, on a blur of itself: in a viewfinder of another shape (iPhone Duo held sideways)
+                    // filling cut the subject off (owner 2026-10-30: 「犬の画像がサイズがあってないから犬が見切れてる」).
+                    ZStack {
+                        Image(uiImage: img).resizable().scaledToFill().blur(radius: 30).opacity(0.85)
+                        Image(uiImage: img).resizable().scaledToFit()
+                    }
+                    .allowsHitTesting(false)
                 }
             }
             .clipped()
@@ -492,6 +498,8 @@ struct CaptureView: View {
             .opacity(cameraLive ? 1 : 0.4)
         }
         .padding(.horizontal, 44)
+        // The shutter on iPhone Duo's fold when it is open sideways.
+        .offset(x: router.foldShift)
     }
 
     private var usagePill: some View {

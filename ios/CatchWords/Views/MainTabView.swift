@@ -31,6 +31,15 @@ enum AppTab: Int, CaseIterable, Identifiable {
 @Observable
 final class AppRouter {
     var tab: AppTab = .home
+    /// The screen's width, and the shift that puts a view centred in the safe area on the screen's middle — iPhone Duo's
+    /// fold when it is open and held sideways (the clock's strip on one side made the bar, the shutter and the two pages
+    /// sit off the fold: owner 2026-10-30 「下のカメラアイコンがおり目中心にくるようにして」「スマホの折り目で画面を半分にして」).
+    /// 0 elsewhere.
+    var screenWidth: CGFloat = 0
+    var foldShift: CGFloat = 0
+    /// The fold's x on the screen (sideways on the Duo), nil elsewhere.
+    var foldX: CGFloat? { isOpenSideways ? screenWidth / 2 : nil }
+    var isOpenSideways: Bool = false
     var landingStickerId: String?
     /// The catch's star waiting for the save: it leaves from the celebration's sticker (CaptureView → CatchLanding).
     var catchStar: CatchStar?
@@ -135,6 +144,7 @@ struct TabBarSlot: View {
                 CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
                               onSelect: onSelect)
                     .padding(.bottom, 4)
+                    .offset(x: router.foldShift)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .onAppear { UITestTrace.log("tabbar view in tab=\(router.tab)") }
                     .onDisappear { UITestTrace.log("tabbar view out tab=\(router.tab)") }
@@ -187,6 +197,17 @@ struct MainTabView: View {
                         .transition(.opacity)
                 }
             }
+    }
+
+    /// The fold from the window itself (its full width and safe-area insets, whatever this view ignores).
+    private func measureFold() {
+        guard let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+            .flatMap(\.windows).first(where: \.isKeyWindow) else { return }
+        let size = window.bounds.size, insets = window.safeAreaInsets
+        let open = size.width >= 800 && size.width > size.height
+        router.screenWidth = size.width
+        router.isOpenSideways = open
+        router.foldShift = open ? (insets.left - insets.right) / 2 : 0
     }
 
     private func wordPageDismissed() {
@@ -307,6 +328,7 @@ struct MainTabView: View {
             wordPage(sticker)
         }
         .onGeometryChange(for: Bool.self) { $0.size.width >= 800 && $0.size.width > $0.size.height } action: { wideScreen = $0 }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in measureFold() }
         .onAppear {
             router.detailZoom = detailZoom
             beginTourIfPending()
