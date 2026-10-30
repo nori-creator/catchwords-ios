@@ -91,14 +91,12 @@ export const AiChunksReplySchema = z.object({
   chunks: z.array(z.unknown()).catch([]),
 });
 
-/** 審査の返事。`i` は 1 から。 */
+/** 審査と並べ替えの返事。`i` は 1 から、`rank` は自然な物の中での順位（1 = いちばんよく言う）。 */
 export const JudgeReplySchema = z.object({
   verdicts: z.array(z.unknown()).catch([]),
 });
-export type JudgeVerdict = { i: number; natural: boolean; frequency: number | null };
+export type JudgeRank = { i: number; natural: boolean; rank: number | null };
 
-/** 審査で合格とする頻度の下限（5 = 真っ先に出る、3 = よく言う、1 = まれ）。 */
-export const JUDGE_MIN_FREQUENCY = 3;
 /** 画面に出す数の上限。 */
 export const CHUNKS_V2_MAX = 4;
 /** 文の長さの上限（句読点を除いた字数。画面で注音付きでも 2 行に入る長さ、`EXAMPLE_MAX_HAN` と同じ）。 */
@@ -338,11 +336,11 @@ export function mergeByAgreement(a: ReadonlyArray<UsageChunkV2>, b: ReadonlyArra
   return { agreed: agreed.map((x) => x.chunk), onlyA, onlyB };
 }
 
-/** 審査の返事を読む（`i` は 1 から。文字列の true/false・数字も読む。読めない物は無視）。 */
-export function readJudgeVerdicts(raw: unknown, count: number): JudgeVerdict[] {
+/** 審査と並べ替えの返事を読む（文字列の true/false・数字も読む。読めない物は無視）。 */
+export function readJudgeRanks(raw: unknown, count: number): JudgeRank[] {
   const parsed = JudgeReplySchema.safeParse(raw);
   if (!parsed.success) return [];
-  const out: JudgeVerdict[] = [];
+  const out: JudgeRank[] = [];
   parsed.data.verdicts.forEach((v, at) => {
     if (!v || typeof v !== "object") return;
     const o = v as Record<string, unknown>;
@@ -351,48 +349,83 @@ export function readJudgeVerdicts(raw: unknown, count: number): JudgeVerdict[] {
     if (!Number.isInteger(i) || i < 1 || i > count) return;
     const n = o.natural;
     const natural = n === true || (typeof n === "string" && /^(true|yes|是|はい)$/iu.test(n.trim()));
-    const fRaw = o.frequency;
-    const f = typeof fRaw === "number" ? fRaw : Number.parseInt(String(fRaw ?? ""), 10);
-    const frequency = Number.isInteger(f) && f >= 1 && f <= 5 ? f : null;
-    out.push({ i, natural, frequency });
+    const rRaw = o.rank;
+    const r = typeof rRaw === "number" ? rRaw : Number.parseInt(String(rRaw ?? ""), 10);
+    out.push({ i, natural, rank: Number.isInteger(r) && r >= 1 ? r : null });
   });
   return out;
 }
 
-/** 片方だけの型に審査の答えを当て、合格した物だけ（頻度の高い順）。 */
-export function applyJudge(
-  pending: ReadonlyArray<UsageChunkV2>,
-  verdicts: ReadonlyArray<JudgeVerdict>,
-  minFrequency = JUDGE_MIN_FREQUENCY,
-): UsageChunkV2[] {
-  const byIndex = new Map(verdicts.map((v) => [v.i, v]));
-  const out: Array<{ chunk: UsageChunkV2; f: number }> = [];
-  pending.forEach((c, at) => {
-    const v = byIndex.get(at + 1);
-    if (!v || !v.natural || v.frequency == null || v.frequency < minFrequency) return;
-    out.push({ chunk: { ...c, frequency: v.frequency, by: "judge" }, f: v.frequency });
-  });
-  out.sort((x, y) => y.f - x.f);
-  return out.map((x) => x.chunk);
+/** 候補 1 つ: 塊と、どちらの会社が書いたか（both = 一致）。 */
+export type PooledChunk = { chunk: UsageChunkV2; author: "a" | "b" | "both" };
+
+/** 2 社の返事を 1 つの候補の列に（一致 → A だけ → B だけ）。 */
+export function poolCandidates(m: AgreementResult): PooledChunk[] {
+  return [
+    ...m.agreed.map((chunk) => ({ chunk, author: "both" as const })),
+    ...m.onlyA.map((chunk) => ({ chunk, author: "a" as const })),
+    ...m.onlyB.map((chunk) => ({ chunk, author: "b" as const })),
+  ];
 }
 
-/** 最後の並び: 一致した物 → 審査に通った物。型の重複を落とし、上限まで。 */
-export function finalChunks(
-  agreed: ReadonlyArray<UsageChunkV2>,
-  judged: ReadonlyArray<UsageChunkV2>,
+/**
+ * 同じ動詞で同じ名詞を使う塊は 1 つ（把電風扇打開 と 打開電風扇、搭手扶梯到三樓 と 搭手扶梯上二樓）。動詞の block が無い塊は
+ * 型の字で比べる。
+ */
+export function coreKey(chunk: UsageChunkV2): string {
+  const verbs = chunk.blocks
+    .filter((b) => (b.pos ?? "").trim().toUpperCase().startsWith("V"))
+    .map((b) => squash(b.text).replace(/[了過著]$/u, ""))
+    .filter(Boolean)
+    .sort();
+  return verbs.length > 0 ? `V:${verbs.join("|")}` : `F:${frameKey(chunk)}`;
+}
+
+/**
+ * **決める**: A が書いた塊は B が「自然」と言った物だけ、B の塊は A が言った物だけ、一致した塊はそのまま。並びは 2 社が付けた
+ * 順位の平均（片方しか無ければその順位、どちらも無ければ候補の並び）。同じ動詞の塊は 1 つにし、上限まで。審査が無い会社
+ * （鍵が無い）の分は通す。
+ */
+export function rankAndSelect(
+  pool: ReadonlyArray<PooledChunk>,
+  ranksA: ReadonlyArray<JudgeRank> | null,
+  ranksB: ReadonlyArray<JudgeRank> | null,
   max = CHUNKS_V2_MAX,
-): UsageChunkV2[] {
-  const out: UsageChunkV2[] = [];
+): { selected: UsageChunkV2[]; rejected: UsageChunkV2[] } {
+  const byA = new Map((ranksA ?? []).map((v) => [v.i, v]));
+  const byB = new Map((ranksB ?? []).map((v) => [v.i, v]));
+  const scored: Array<{ chunk: UsageChunkV2; score: number; at: number }> = [];
+  const rejected: UsageChunkV2[] = [];
+  pool.forEach((p, at) => {
+    const i = at + 1;
+    const va = byA.get(i);
+    const vb = byB.get(i);
+    // 書いた方でない会社の「自然」が要る（その会社の審査が無ければ通す）。
+    const judgedBy = p.author === "a" ? (ranksB ? vb : undefined) : p.author === "b" ? (ranksA ? va : undefined) : undefined;
+    const needs = p.author === "a" ? ranksB != null : p.author === "b" ? ranksA != null : false;
+    if (needs && !(judgedBy && judgedBy.natural)) {
+      rejected.push(p.chunk);
+      return;
+    }
+    const ranks = [va?.natural ? va.rank : null, vb?.natural ? vb.rank : null].filter((r): r is number => r != null);
+    const score = ranks.length > 0 ? ranks.reduce((x, y) => x + y, 0) / ranks.length : pool.length + at;
+    scored.push({ chunk: { ...p.chunk, by: p.author === "both" ? "agreement" : "judge", frequency: null }, score, at });
+  });
+  scored.sort((x, y) => x.score - y.score || x.at - y.at);
+  const selected: UsageChunkV2[] = [];
   const seen = new Set<string>();
-  for (const c of [...agreed, ...judged]) {
-    const k = frameKey(c);
-    if (seen.has(k) || seen.has(c.text)) continue;
+  for (const s of scored) {
+    const k = coreKey(s.chunk);
+    if (seen.has(k) || seen.has(frameKey(s.chunk))) {
+      rejected.push(s.chunk);
+      continue;
+    }
     seen.add(k);
-    seen.add(c.text);
-    out.push(c);
-    if (out.length >= max) break;
+    seen.add(frameKey(s.chunk));
+    if (selected.length < max) selected.push(s.chunk);
+    else rejected.push(s.chunk);
   }
-  return out;
+  return { selected, rejected };
 }
 
 /**

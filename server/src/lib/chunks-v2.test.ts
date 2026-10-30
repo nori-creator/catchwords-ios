@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyJudge,
-  finalChunks,
+  coreKey,
   fitsOneLine,
   frameKey,
   gateChunksV2,
   headPlace,
   mergeByAgreement,
   orderForReader,
-  readJudgeVerdicts,
+  poolCandidates,
+  rankAndSelect,
+  readJudgeRanks,
   sentenceLength,
   type UsageChunkV2,
 } from "./chunks-v2";
@@ -164,33 +165,59 @@ describe("2 社の照合（mergeByAgreement）", () => {
   });
 });
 
-describe("審査（readJudgeVerdicts / applyJudge）", () => {
+describe("審査と並べ替え（readJudgeRanks / rankAndSelect）", () => {
   it("文字列の true・数字も読み、範囲外の i は捨てる", () => {
-    const v = readJudgeVerdicts({ verdicts: [{ i: 1, natural: "true", frequency: "4" }, { i: 2, natural: false, frequency: 5 }, { i: 9, natural: true, frequency: 5 }, "x"] }, 2);
+    const v = readJudgeRanks({ verdicts: [{ i: 1, natural: "true", rank: "2" }, { i: 2, natural: false, rank: null }, { i: 9, natural: true, rank: 1 }, "x"] }, 2);
     expect(v).toEqual([
-      { i: 1, natural: true, frequency: 4 },
-      { i: 2, natural: false, frequency: 5 },
+      { i: 1, natural: true, rank: 2 },
+      { i: 2, natural: false, rank: null },
     ]);
-    expect(readJudgeVerdicts(null, 2)).toEqual([]);
+    expect(readJudgeRanks(null, 2)).toEqual([]);
   });
 
-  it("自然で頻度 3 以上の物だけ、頻度の高い順に", () => {
-    const pending = [chunk("甲筆袋", [{ text: "甲筆袋" }]), chunk("乙筆袋", [{ text: "乙筆袋" }]), chunk("丙筆袋", [{ text: "丙筆袋" }]), chunk("丁筆袋", [{ text: "丁筆袋" }])];
-    const out = applyJudge(pending, [
-      { i: 1, natural: true, frequency: 3 },
-      { i: 2, natural: true, frequency: 5 },
-      { i: 3, natural: false, frequency: 5 },
-      { i: 4, natural: true, frequency: 2 },
-    ]);
-    expect(out.map((c) => c.text)).toEqual(["乙筆袋", "甲筆袋"]);
-    expect(out[0].by).toBe("judge");
-    expect(out[0].frequency).toBe(5);
+  const v = (text: string, verb: string) => chunk(text, [{ text: verb }, { text: "筆袋" }], { blocks: [{ text: verb, pos: "V" }, { text: "筆袋", pos: "N" }] });
+
+  it("A の塊は B が自然と言った物だけ、B の塊は A が言った物だけ、一致はそのまま。並びは 2 社の順位の平均", () => {
+    const pool = poolCandidates({
+      agreed: [v("打開筆袋", "打開")],
+      onlyA: [v("裝進筆袋", "裝進"), v("收好筆袋", "收好")],
+      onlyB: [v("買新的筆袋", "買")],
+    });
+    // 候補の並び: 1 打開（一致）2 裝進（A）3 收好（A）4 買（B）
+    const ranksA = [
+      { i: 1, natural: true, rank: 2 },
+      { i: 2, natural: true, rank: 1 },
+      { i: 3, natural: true, rank: 3 },
+      { i: 4, natural: true, rank: 4 }, // A は B の塊を自然と言った
+    ];
+    const ranksB = [
+      { i: 1, natural: true, rank: 1 },
+      { i: 2, natural: false, rank: null }, // B は A の 裝進 を不自然と言った → 落ちる
+      { i: 3, natural: true, rank: 2 },
+      { i: 4, natural: true, rank: 3 },
+    ];
+    const r = rankAndSelect(pool, ranksA, ranksB);
+    // 打開 (2+1)/2=1.5, 收好 (3+2)/2=2.5, 買 (4+3)/2=3.5
+    expect(r.selected.map((c) => c.text)).toEqual(["打開筆袋", "收好筆袋", "買新的筆袋"]);
+    expect(r.selected.map((c) => c.by)).toEqual(["agreement", "judge", "judge"]);
+    expect(r.rejected.map((c) => c.text)).toEqual(["裝進筆袋"]);
   });
 
-  it("最後の並びは一致 → 審査、型の重複なし、上限 4", () => {
-    const agreed = [chunk("甲筆袋", [{ text: "甲筆袋" }]), chunk("乙筆袋", [{ text: "乙筆袋" }])];
-    const judged = [chunk("甲筆袋", [{ text: "甲筆袋" }]), chunk("丙筆袋", [{ text: "丙筆袋" }]), chunk("丁筆袋", [{ text: "丁筆袋" }]), chunk("戊筆袋", [{ text: "戊筆袋" }])];
-    expect(finalChunks(agreed, judged).map((c) => c.text)).toEqual(["甲筆袋", "乙筆袋", "丙筆袋", "丁筆袋"]);
+  it("審査の無い会社の分は通す（鍵が 1 つの時）。順位が無ければ候補の並び", () => {
+    const pool = poolCandidates({ agreed: [], onlyA: [v("打開筆袋", "打開"), v("裝進筆袋", "裝進")], onlyB: [] });
+    const r = rankAndSelect(pool, null, null);
+    expect(r.selected.map((c) => c.text)).toEqual(["打開筆袋", "裝進筆袋"]);
+  });
+
+  it("同じ動詞の塊は 1 つ（把電風扇打開 と 打開電風扇）、上限 4", () => {
+    const ba = chunk("把電風扇打開", [{ text: "把" }, { text: "電風扇" }, { text: "打開" }], { blocks: [{ text: "把", pos: "Ptc" }, { text: "電風扇", pos: "N" }, { text: "打開", pos: "V" }] });
+    const vo = chunk("打開電風扇", [{ text: "打開" }, { text: "電風扇" }], { blocks: [{ text: "打開", pos: "V" }, { text: "電風扇", pos: "N" }] });
+    expect(coreKey(ba)).toBe(coreKey(vo));
+    const pool = poolCandidates({ agreed: [ba, vo], onlyA: [], onlyB: [] });
+    const r = rankAndSelect(pool, null, null);
+    expect(r.selected.map((c) => c.text)).toEqual(["把電風扇打開"]);
+    const many = poolCandidates({ agreed: ["甲", "乙", "丙", "丁", "戊"].map((x) => v(`${x}筆袋`, x)), onlyA: [], onlyB: [] });
+    expect(rankAndSelect(many, null, null).selected).toHaveLength(4);
   });
 });
 

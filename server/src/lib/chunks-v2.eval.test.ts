@@ -91,9 +91,10 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
     const totalMs = rows.map((r) => r.stats.totalMs);
     const nChunks = rows.map((r) => r.chunks.length);
     const agreed = rows.reduce((n, r) => n + r.stats.agreed, 0);
-    const judgedIn = rows.reduce((n, r) => n + r.stats.judgedIn, 0);
-    const judgedOut = rows.reduce((n, r) => n + r.stats.judgedOut, 0);
-    const shown = agreed + judgedIn;
+    const judgedIn = rows.reduce((n, r) => n + r.stats.selectedJudged, 0);
+    const judgedOut = rows.reduce((n, r) => n + r.stats.rejected, 0);
+    const agreedShown = rows.reduce((n, r) => n + r.stats.selectedAgreed, 0);
+    const shown = agreedShown + judgedIn;
     const patterns = new Map<string, number>();
     for (const r of rows) for (const c of r.chunks) patterns.set(c.pattern || "?", (patterns.get(c.pattern || "?") ?? 0) + 1);
     let refWords = 0;
@@ -124,7 +125,8 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
       words: rows.length,
       chunksPerWord: Number((nChunks.reduce((a, b) => a + b, 0) / Math.max(1, rows.length)).toFixed(2)),
       wordsWithNone: nChunks.filter((n) => n === 0).length,
-      agreementShare: shown ? Number((agreed / shown).toFixed(3)) : 0,
+      agreementShare: shown ? Number((agreedShown / shown).toFixed(3)) : 0,
+      agreedCandidates: agreed,
       judgeRejectRate: judgedIn + judgedOut ? Number((judgedOut / (judgedIn + judgedOut)).toFixed(3)) : 0,
       p50Ms: percentile(totalMs, 0.5),
       p90Ms: percentile(totalMs, 0.9),
@@ -135,13 +137,16 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
     };
 
     mkdirSync(OUT_DIR, { recursive: true });
-    const line = (c: UsageChunkV2) => `${c.text}（${c.by === "agreement" ? "一致" : `審査 ${c.frequency ?? "-"}`} / ${c.pattern || "?"}）`;
+    const line = (c: UsageChunkV2) => {
+      const slot = c.blocks.find((b) => b.slot);
+      return `${c.text}（${c.by === "agreement" ? "一致" : "審査"} / ${c.pattern || "?"}${slot ? ` / 入替 ${slot.text}→${(slot.alts ?? []).map((a) => a.text).join("·")}` : ""}）`;
+    };
     const md = [
       `# 使い方チャンク v2 の採点 — ${summary.mode}（${new Date().toISOString()}）`,
       ``,
       `- 書き手: ${summary.providers}、読む人の言語: ${LANG}、語: ${summary.words}`,
       `- 1 語あたりの塊: ${summary.chunksPerWord}、塊が 0 の語: ${summary.wordsWithNone}`,
-      `- 2 社の一致の割合（出した塊のうち）: ${summary.agreementShare}、審査の不合格率: ${summary.judgeRejectRate}`,
+      `- 2 社の一致の割合（出した塊のうち）: ${summary.agreementShare}（候補の一致 ${summary.agreedCandidates}）、候補のうち落ちた割合: ${summary.judgeRejectRate}`,
       `- 1 語の時間: p50 ${summary.p50Ms} ms / p90 ${summary.p90Ms} ms`,
       `- 型の内訳: ${Object.entries(summary.patterns).map(([k, v]) => `${k} ${v}`).join("、")}`,
       summary.vsReference
