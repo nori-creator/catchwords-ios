@@ -26,7 +26,7 @@ function ai(over: Partial<Record<string, unknown>> = {}) {
       { text: "放進", pos: "V" },
       { text: "筆袋裡", pos: "N" },
     ],
-    pattern: "action_ba",
+    pattern: "coverb",
     ja: "ボールペンをペンケースに入れる",
     note: "物を入れ物に入れる時の、いちばん普通の言い方。",
     ...over,
@@ -58,7 +58,7 @@ describe("形だけの門（gateChunksV2）", () => {
     expect(c.blocks.map((b) => b.text)).toEqual(["把", "原子筆", "放進", "筆袋裡"]);
     expect(c.head).toEqual({ block: 3, start: 0, length: 2 });
     expect(c.blocks[1].slot).toBe(true);
-    expect(c.pattern).toBe("action_ba");
+    expect(c.pattern).toBe("coverb");
     expect(c.note).toBeTruthy();
   });
 

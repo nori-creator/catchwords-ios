@@ -15,13 +15,13 @@ function writer(company: string): ChunkWriter {
 }
 
 function reply(chunks: Array<{ text: string; blocks: Array<Record<string, unknown>>; sentence: string; ja?: string; sentence_ja?: string; pattern?: string }>) {
-  return { chunks: chunks.map((c) => ({ ja: "訳", sentence_ja: "文の訳", note: "解説です。", pattern: "action_vn", ...c })) };
+  return { chunks: chunks.map((c) => ({ ja: "訳", sentence_ja: "文の訳", note: "解説です。", pattern: "object", ...c })) };
 }
 
-const BA = { text: "把原子筆放進筆袋裡", sentence: "我把原子筆放進筆袋裡了。", pattern: "action_ba", blocks: [{ text: "把", pos: "Ptc" }, { text: "原子筆", pos: "N", slot: true, ja: "ボールペン", alts: [{ text: "鉛筆", ja: "鉛筆" }, { text: "橡皮擦", ja: "消しゴム" }] }, { text: "放進", pos: "V" }, { text: "筆袋裡", pos: "N" }] };
+const BA = { text: "把原子筆放進筆袋裡", sentence: "我把原子筆放進筆袋裡了。", pattern: "coverb", blocks: [{ text: "把", pos: "Ptc" }, { text: "原子筆", pos: "N", slot: true, ja: "ボールペン", alts: [{ text: "鉛筆", ja: "鉛筆" }, { text: "橡皮擦", ja: "消しゴム" }] }, { text: "放進", pos: "V" }, { text: "筆袋裡", pos: "N" }] };
 const BA_B = { ...BA, text: "把鉛筆放進筆袋裡", sentence: "把鉛筆放進筆袋裡吧。", blocks: [{ text: "把", pos: "Ptc" }, { text: "鉛筆", pos: "N", slot: true, ja: "鉛筆", alts: [{ text: "原子筆", ja: "ボールペン" }, { text: "尺", ja: "定規" }] }, { text: "放進", pos: "V" }, { text: "筆袋裡", pos: "N" }] };
 const OPEN = { text: "打開筆袋", sentence: "幫我打開筆袋。", blocks: [{ text: "打開", pos: "V" }, { text: "筆袋", pos: "N" }] };
-const ZIP = { text: "筆袋的拉鍊", sentence: "筆袋的拉鍊壞了。", pattern: "modifier_noun", blocks: [{ text: "筆袋", pos: "N" }, { text: "的", pos: "Ptc" }, { text: "拉鍊", pos: "N" }] };
+const ZIP = { text: "筆袋的拉鍊", sentence: "筆袋的拉鍊壞了。", pattern: "modifier", blocks: [{ text: "筆袋", pos: "N" }, { text: "的", pos: "Ptc" }, { text: "拉鍊", pos: "N" }] };
 const ODD = { text: "裝進筆袋", sentence: "我裝進筆袋了。", blocks: [{ text: "裝進", pos: "V" }, { text: "筆袋", pos: "N" }] };
 
 /** 指示文の中身で、どの呼び出しかを見分ける。 */
@@ -165,7 +165,7 @@ const LIB_ROW = (over: Record<string, unknown> = {}) => ({
   frame: "打開筆袋",
   blocks: [{ text: "打開", pos: "V" }, { text: "筆袋", pos: "N" }],
   head: { block: 1, start: 0, length: 2 },
-  pattern: "action_vn",
+  pattern: "object",
   sentence: "幫我打開筆袋。",
   rank: 0,
   frequency: null,
@@ -241,7 +241,7 @@ describe("書庫（chunk_library）", () => {
       text: "把原子筆放進筆袋裡",
       blocks: [{ text: "把", pos: "Ptc" }, { text: "原子筆", pos: "N", slot: true, ja: "ボールペン", alts: [{ text: "鉛筆", ja: "鉛筆" }, { text: "橡皮擦", ja: "消しゴム" }] }, { text: "放進", pos: "V" }, { text: "筆袋裡", pos: "N" }],
       head: { block: 3, start: 0, length: 2 },
-      pattern: "action_ba",
+      pattern: "coverb",
       ja: "ボールペンをペンケースに入れる",
       note: "いちばん普通の言い方。",
       sentence: "我把原子筆放進筆袋裡了。",

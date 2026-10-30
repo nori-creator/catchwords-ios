@@ -14,7 +14,7 @@ const V2 = [
     text: "把原子筆放進筆袋裡",
     blocks: [{ text: "把", pos: "Ptc" }, { text: "原子筆", pos: "N", slot: true, ja: "ボールペン", alts: [{ text: "鉛筆", ja: "鉛筆" }, { text: "橡皮擦", ja: "English gloss" }] }, { text: "放進", pos: "V" }, { text: "筆袋裡", pos: "N" }],
     head: { block: 3, start: 0, length: 2 },
-    pattern: "action_ba",
+    pattern: "coverb",
     ja: "ボールペンをペンケースに入れる",
     note: "This note is English.",
     sentence: "我把原子筆放進筆袋裡了。",
