@@ -1,11 +1,9 @@
 import {
   chunkMentionsHeadword,
-  chunkTooManyParts,
-  countedChunkChars,
-  LOCATIVE_PARTS,
   MAX_CHUNK_CHARS,
   MAX_CHUNK_CHARS_EN,
   MAX_CHUNK_CHARS_JA,
+  MAX_CHUNK_PARTS,
   MAX_CHUNK_WORDS_EN,
   MAX_CHUNKS,
   type AiUsageChunk,
@@ -14,7 +12,6 @@ import {
 } from "./extras";
 import { isBrokenUsageChunk, withoutSeparatorParts, DEGREE_CHOICES } from "./chunk-grammar";
 import { isGenericChunk, isWeakPartnerChunk } from "./generic-chunks";
-import { chunkCaseBadTexts } from "./chunk-cases";
 import { readerText } from "./note-language";
 import { posGroup } from "./pos";
 import { normalizeTargetLanguage } from "./target-lang";
@@ -244,34 +241,6 @@ export const KNOWN_BAD_CHUNKS: ReadonlyArray<readonly [headword: string, text: s
   ["尺", "量長度用尺"],
 ];
 
-/**
- * 「筆袋裡」のように見出し語と方位の語が1つの札になった物を、2つの札に分ける（筆袋 ＋ 裡）。
- * 分けないと見出し語が1つの札として無いことになり、自然な 放在＋筆袋裡 の方が門で落ちていた（2026-10-30）。
- * 読みは字の数で分ける（音節が字の数と合わない時は読みを付けない）。
- */
-export function splitHeadwordLocative(parts: ChunkPart[], head: string): ChunkPart[] {
-  if (!head) return parts;
-  const headLen = [...head].length;
-  const out: ChunkPart[] = [];
-  for (const p of parts) {
-    const rest = p.text.startsWith(head) ? p.text.slice(head.length) : "";
-    if (!rest || !LOCATIVE_PARTS.has(rest) || p.slot) {
-      out.push(p);
-      continue;
-    }
-    const cut = (reading: string | null | undefined): [string | undefined, string | undefined] => {
-      const syl = (reading ?? "").trim().split(/\s+/u).filter(Boolean);
-      if (syl.length !== headLen + [...rest].length) return [undefined, undefined];
-      return [syl.slice(0, headLen).join(" "), syl.slice(headLen).join(" ")];
-    };
-    const [py1, py2] = cut(p.pinyin);
-    const [zy1, zy2] = cut(p.zhuyin);
-    out.push({ ...p, text: head, pinyin: py1, zhuyin: zy1 });
-    out.push({ text: rest, pos: "Ncd", slot: false, pinyin: py2, zhuyin: zy2 } as ChunkPart);
-  }
-  return out;
-}
-
 const KANA = /[ぁ-ゟァ-ヺ]/u;
 const HAN = /\p{Script=Han}/u;
 
@@ -438,11 +407,8 @@ export function gateUsageChunks(
   const measureCores = new Set(
     (ctx.measureWords ?? []).map((m) => measureWordCore(m?.word ?? "")).filter((w) => w.length > 0),
   );
-  // 本番で出た崩れた型（`KNOWN_BAD_CHUNKS`）と、間違いの台帳（`chunk-cases.ts`）の ✗ の型。
   const bad = new Set(
-    [...KNOWN_BAD_CHUNKS.filter(([h]) => h === head).map(([, t]) => t), ...chunkCaseBadTexts(head)].map((t) =>
-      t.replace(/[\s+＋]+/g, ""),
-    ),
+    KNOWN_BAD_CHUNKS.filter(([h]) => h === head).map(([, t]) => t.replace(/\s+/g, "")),
   );
   const seenText = new Set<string>();
   const seenJa = new Set<string>();
@@ -460,19 +426,16 @@ export function gateUsageChunks(
       continue;
     }
     // 品詞の記号そのものが札の字になった物（練手臂＋O）は、その札だけ外す。
-    const parts = splitHeadwordLocative(
-      withoutSeparatorParts(
-        rawParts.filter((p) => !(POS_TAG_AS_TEXT.test(p.text.trim()) && !HAN.test(p.text))),
-      )
-        .map((p) => ({ ...p, text: p.text.trim(), pos: normalizeChunkPos(p.pos) }))
-        .filter((p) => p.text.length > 0),
-      zh ? head : "",
-    );
+    const parts = withoutSeparatorParts(
+      rawParts.filter((p) => !(POS_TAG_AS_TEXT.test(p.text.trim()) && !HAN.test(p.text))),
+    )
+      .map((p) => ({ ...p, text: p.text.trim(), pos: normalizeChunkPos(p.pos) }))
+      .filter((p) => p.text.length > 0);
     if (parts.length === 0) {
       drop("shape");
       continue;
     }
-    if (chunkTooManyParts(parts)) {
+    if (parts.length > MAX_CHUNK_PARTS) {
       drop("too_many_parts");
       continue;
     }
@@ -494,7 +457,7 @@ export function gateUsageChunks(
         drop("too_long");
         continue;
       }
-    } else if (countedChunkChars(parts) > maxChars) {
+    } else if ([...text].length > maxChars) {
       drop("too_long");
       continue;
     }
