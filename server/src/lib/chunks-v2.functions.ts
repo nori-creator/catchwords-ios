@@ -17,8 +17,8 @@ const Input = z.object({
   word_id: z.string().uuid().optional(),
   /** ↻: 書庫を無視して作り直す。 */
   force: z.boolean().optional(),
-  /** 待つ上限（ms）。既定 12 秒。 */
-  wait_ms: z.number().int().min(0).max(25_000).optional(),
+  /** 他の人が作っている最中を待つ上限（ms）。既定 20 秒（自分で作る時は作り終わるまで）。 */
+  wait_ms: z.number().int().min(0).max(60_000).optional(),
 });
 
 export type GetWordChunksResult = {
@@ -45,7 +45,7 @@ export const getWordChunks = createServerFn({ method: "POST" })
     ]);
     const job = data.force
       ? await chunksServer.startChunksV2Job(supabaseAdmin, { language, headword, explainLang, force: true })
-      : await chunksServer.awaitChunksV2(supabaseAdmin, { language, headword, explainLang }, data.wait_ms ?? 12_000);
+      : await chunksServer.awaitChunksV2(supabaseAdmin, { language, headword, explainLang }, data.wait_ms ?? 20_000);
 
     if (job.status === "ready" && data.word_id) {
       // その人の帯の行にも置く（次に開いた時は帯の行から）。帯の無い古い語（legacy）には書かない。

@@ -34,9 +34,12 @@ import { normalizeTargetLanguage } from "./target-lang";
  * 書庫の表（`chunk_library` / `chunk_library_text` / `chunk_runs`）が無い環境でも落ちない（書庫なしで作って返す）。
  */
 
-const GEN_MS = Number(process.env.AI_CHUNKS_V2_GEN_MS ?? 9000);
-const JUDGE_MS = Number(process.env.AI_CHUNKS_V2_JUDGE_MS ?? 5000);
-const TRANSLATE_MS = Number(process.env.AI_CHUNKS_V2_TRANSLATE_MS ?? 7000);
+// 最初の採点（2026-10-30、8 語）は 9 秒で 2 社とも全部が時間切れだった: 6 文と塊・候補・訳をまとめて書く返事は
+// 1,500〜2,500 トークンで、速いモデルでも 10〜25 秒かかる。書庫に無い 1 人目だけが待つ（画面は他の項目を先に出し、
+// 塊は後から入る）ので、締め切りは長めに置く。
+const GEN_MS = Number(process.env.AI_CHUNKS_V2_GEN_MS ?? 40_000);
+const JUDGE_MS = Number(process.env.AI_CHUNKS_V2_JUDGE_MS ?? 15_000);
+const TRANSLATE_MS = Number(process.env.AI_CHUNKS_V2_TRANSLATE_MS ?? 20_000);
 /** Claude の書き手・審査のモデル（`ANTHROPIC_API_KEY` が要る）。 */
 const CLAUDE_MODEL = process.env.AI_CHUNKS_V2_CLAUDE_MODEL ?? "claude-haiku-5-5";
 /** 同じ語の作り中が、これより古ければ捨てて作り直す。 */
@@ -136,7 +139,7 @@ export async function runChunksV2Pipeline(input: {
       console.info(`[chunks-v2] ${w.company} ${input.headword}: ${describeChunkV2Gate(gate)} ${Date.now() - t0}ms`);
       return { w, kept: gate.kept, raw: reply.chunks.length, dropped: gate.dropped.length, ms: Date.now() - t0 };
     } catch (e) {
-      console.warn(`[chunks-v2] ${w.company} ${input.headword}: failed`, (e as Error)?.name ?? e);
+      console.warn(`[chunks-v2] ${w.company} ${input.headword}: failed ${Date.now() - t0}ms`, (e as Error)?.name ?? e, (e as Error)?.message ?? "");
       return { w, kept: [] as UsageChunkV2[], raw: 0, dropped: 0, ms: Date.now() - t0, failed: true };
     }
   };
