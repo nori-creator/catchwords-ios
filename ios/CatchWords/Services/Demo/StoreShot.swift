@@ -41,6 +41,8 @@ nonisolated enum StoreShot {
     static var word: String? { arg("uiStoreWord") }
     static var section: String? { arg("uiStoreSection") }
     static var memoryOpen: Bool { isOn && UserDefaults.standard.bool(forKey: "uiStoreMemory") }
+    /// `-uiStorePortrait YES`: the Duo's inner screen is shot held upright (it lies sideways when opened flat).
+    static var portraitOnly: Bool { isOn && UserDefaults.standard.bool(forKey: "uiStorePortrait") }
 
     /// The map's day (`-uiStoreMapDay`), local midnight.
     static var mapDay: Date? {

@@ -554,6 +554,10 @@ struct WordDetailView: View {
     /// 対応」): across the whole 669 pt a 4 : 5 photo stood about 800 pt tall, nearly the screen; at 440 pt it takes about
     /// as much of the screen as on an iPhone, in the middle of the page.
     static let wideHeroWidth: CGFloat = 440
+    /// …and at most this tall, so the word, its reading and meaning show under the picture: on iPhone Duo's inner
+    /// screen held sideways (669 pt tall) a square cut-out 440 wide took the whole page (owner 2026-10-30:
+    /// 「花束しか見えてない…画像と単語の詳細が一度に見えるようにして」).
+    static let wideHeroHeight: CGFloat = 300
 
     /// The slideshow waits while a finger is on the photo, while the selfie or an original photo is shown, while the
     /// photo sheet is open, while the photo is off screen and while the app is in the background.
@@ -569,7 +573,8 @@ struct WordDetailView: View {
                 .id(heroPage)
                 .transition(slideTransition)
         }
-        .frame(maxWidth: widthClass == .regular ? Self.wideHeroWidth : .infinity)
+        .frame(maxWidth: widthClass == .regular ? Self.wideHeroWidth : .infinity,
+               maxHeight: widthClass == .regular ? Self.wideHeroHeight : .infinity)
         .simultaneousGesture(
             DragGesture(minimumDistance: 24)
                 .updating($swiping) { _, state, _ in state = true }

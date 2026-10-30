@@ -664,6 +664,12 @@ extension MainTabView {
     /// `-uiStore` (StoreShot): open the tab, and the word page, the App Store screenshot shows; then tell CI it has settled.
     func openStoreShot() async {
         guard StoreShot.isOn else { return }
+        if StoreShot.portraitOnly {
+            ScreenOrientation.refresh()
+            for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
+            }
+        }
         if let t = StoreShot.tab, let tab = ["home": AppTab.home, "dex": .dex, "camera": .camera, "review": .review][t] {
             router.tab = tab
         }
