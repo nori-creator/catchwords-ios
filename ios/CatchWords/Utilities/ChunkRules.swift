@@ -337,7 +337,7 @@ nonisolated enum ChunkRules {
         for p in parts {
             // Noun tags (N…) only: the old role marks S / O are phrases, not words to join.
             if let last = out.last, last.pos.uppercased().hasPrefix("N"), p.pos.uppercased().hasPrefix("N"),
-               !isLocative(p), last.text.contains(core) || p.text.contains(core),
+               last.text.contains(core) || p.text.contains(core),
                (last.text + p.text).count <= 6 {
                 out[out.count - 1] = ChunkPart(text: last.text + p.text, pos: last.pos,
                                                pinyin: ChunkPart.joinedReading(last.pinyin, p.pinyin),
@@ -347,14 +347,6 @@ nonisolated enum ChunkRules {
             }
         }
         return out
-    }
-
-    /// 裡・上・下… after a place (放在＋筆袋＋裡): a locative (CKIP Ncd), not half of a compound. Joined to the noun it made
-    /// 「筆袋裡」 one blue block, as if 裡 were part of the word (owner 2026-10-30, the 筆袋 card).
-    private static let locatives: Set<String> = ["裡", "裏", "里", "上", "下", "中", "內", "外", "旁", "邊", "前", "後", "裡面", "上面", "下面", "外面", "旁邊", "前面", "後面"]  // l10n-ignore (Mandarin words)
-
-    static func isLocative(_ p: ChunkPart) -> Bool {
-        p.pos.trimmingCharacters(in: .whitespaces).uppercased() == "NCD" || locatives.contains(p.text.trimmingCharacters(in: .whitespaces))
     }
 
     /// C8 (chunk-grammar.ts withDegreeAdverb): 「滷味入味」 is not what natives say; they say 「滷味很入味」.
