@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import fixture from "./__fixtures__/chunks-v2-eval.json";
 import { frameKey, type UsageChunkV2 } from "./chunks-v2";
 import { defaultWriters, runChunksV2Pipeline, type ChunkWriter, type ChunksV2Stats } from "./chunks-v2.server";
-import { measuredAi, providerConfig } from "./ai-provider.server";
+import { concreteModelId, measuredAi, providerConfig } from "./ai-provider.server";
 
 /**
  * **使い方チャンク v2 の採点**（本物の AI を呼ぶ。普段の `npm test` では飛ばす）。
@@ -82,6 +82,9 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
       /* 参照がまだ無い */
     }
 
+    const modelNames = await Promise.all(
+      [writers.a, writers.b].map(async (w) => (w ? `${w.company}:${await concreteModelId({ name: w.company }, w.model)}` : null)),
+    );
     const rows = await mapLimit(words, Number(process.env.CHUNK_EVAL_CONCURRENCY ?? 3), async (w) => {
       const r = await runChunksV2Pipeline({ headword: w.headword, language: "zh-TW", explainLang: LANG, meaning: w.meaning_ja, writers });
       return { word: w, chunks: r.chunks, rejected: r.rejected, stats: r.stats };
@@ -152,7 +155,7 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
     const md = [
       `# 使い方チャンク v2 の採点 — ${summary.mode}（${new Date().toISOString()}）`,
       ``,
-      `- 書き手: ${summary.providers}、読む人の言語: ${LANG}、語: ${summary.words}`,
+      `- 書き手: ${summary.providers}（${modelNames.filter(Boolean).join(" / ")}）、読む人の言語: ${LANG}、語: ${summary.words}`,
       `- 1 語あたりの塊: ${summary.chunksPerWord}、塊が 0 の語: ${summary.wordsWithNone}`,
       `- 2 社の一致の割合（出した塊のうち）: ${summary.agreementShare}（候補の一致 ${summary.agreedCandidates}）、候補のうち落ちた割合: ${summary.judgeRejectRate}`,
       `- 1 語の時間: p50 ${summary.p50Ms} ms / p90 ${summary.p90Ms} ms（書く段 1 回: p50 ${percentile(writeMs, 0.5)} ms / p90 ${percentile(writeMs, 0.9)} ms、時間切れ ${failedWrites} 回、審査 p90 ${percentile(timings.map((s) => s.judgeMs), 0.9)} ms、仕上げ p90 ${percentile(timings.map((s) => s.finishMs), 0.9)} ms）`,
@@ -165,6 +168,16 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
       `|---|---|---|---|---|---|`,
       ...rows.map((r) =>
         `| ${r.word.headword} | ${r.chunks.map(line).join("<br>") || "—"} | ${r.chunks.map((c) => c.sentence).join("<br>")} | ${r.rejected.filter((c) => c.reason === "unnatural").map((c) => c.text).join("<br>")} | ${r.rejected.filter((c) => c.reason !== "unnatural").map((c) => c.text).join("<br>")} | ${ms(r)} |`,
+      ),
+      ``,
+      `## 書く段の返事（会社ごと: 通った塊 / 形で落ちた物）`,
+      ``,
+      `| 語 | 会社 | 通った | 形で落ちた（理由） |`,
+      `|---|---|---|---|`,
+      ...rows.flatMap((r) =>
+        [r.stats.a, r.stats.b]
+          .filter((w): w is NonNullable<typeof w> => !!w)
+          .map((w) => `| ${r.word.headword} | ${w.company}${w.failed ? "（時間切れ）" : ""} | ${(w.keptTexts ?? []).join("<br>")} | ${(w.droppedTexts ?? []).map((d) => `${d.text}（${d.reason}）`).join("<br>")} |`),
       ),
     ].join("\n");
     writeFileSync(resolve(OUT_DIR, "chunks-v2-report.md"), md);

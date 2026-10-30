@@ -12,10 +12,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "eval = 既定のモデルで採点 / reference = 上位モデルで参照を作る / seed = 図鑑の影の語を書庫へ"
+        description: "eval = 既定のモデルで採点 / reference = 上位モデルで参照を作る / seed = 図鑑の影の語を書庫へ / probe = 考える量の設定ごとの時間を計る"
         type: choice
         default: eval
-        options: [eval, reference, seed]
+        options: [eval, reference, seed, probe]
       limit:
         description: "最初の n 語だけ（0 = 全部）"
         type: string
@@ -65,6 +65,11 @@ jobs:
           CHUNK_EVAL_WORDS: ${{ inputs.words }}
           CHUNK_EVAL_LANG: ${{ inputs.lang }}
         run: npx vitest run chunks-v2.eval --reporter=basic
+      - name: Probe (考える量の設定ごとの時間)
+        if: inputs.mode == 'probe'
+        env:
+          CHUNK_PROBE: "1"
+        run: npx vitest run chunks-v2.probe --reporter=basic
       - name: Seed the library
         if: inputs.mode == 'seed'
         env:

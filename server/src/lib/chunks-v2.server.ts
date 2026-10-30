@@ -63,10 +63,23 @@ type Loose = any;
 /** 書き手 1 社。`company` は記録と、審査を逆の会社に回すための名前。 */
 export type ChunkWriter = { company: string; cfg: AiConfig; model: string };
 
+export type WriterStats = {
+  company: string;
+  ms: number;
+  kept: number;
+  dropped: number;
+  raw: number;
+  failed?: boolean;
+  /** 形で落ちた物（字と理由。報告で AI の返事の癖を見る）。 */
+  droppedTexts?: Array<{ text: string; reason: string }>;
+  /** 書けた塊の字（報告用）。 */
+  keptTexts?: string[];
+};
+
 export type ChunksV2Stats = {
   providers: string;
-  a: { company: string; ms: number; kept: number; dropped: number; raw: number; failed?: boolean } | null;
-  b: { company: string; ms: number; kept: number; dropped: number; raw: number; failed?: boolean } | null;
+  a: WriterStats | null;
+  b: WriterStats | null;
   /** 2 社が一致した塊の数（候補の中）。 */
   agreed: number;
   /** 候補の数（一致＋片方だけ）。 */
@@ -113,7 +126,8 @@ export function defaultWriters(): { a: ChunkWriter | null; b: ChunkWriter | null
 /**
  * **考える量を最小にする**（速さの要）。OpenAI 互換の口は `providerOptions[会社名]` の中身を本文にそのまま足す。
  * - Anthropic: Messages API の `thinking`（Haiku 5.5 は disabled、Sonnet 5.5 は between_tools、Opus は切れない — `claude5ThinkingOff`）。
- * - Google: `reasoning_effort`（Gemini 3 では thinking_level に写る）。
+ * - Google: `reasoningEffort`（SDK の標準の欄。本文の `reasoning_effort` になり、Gemini 3 では thinking_level に写る）。
+ *   **`reasoning_effort` と生で書くと SDK が自分の欄で上書きして消す**（4 回目の採点で Gemini だけ全部時間切れだった原因）。
  * ほかの会社には何も足さない。
  */
 export type SpeedOptions = Record<string, Record<string, string | Record<string, string>>>;
@@ -124,7 +138,7 @@ export function speedOptions(cfg: Pick<AiConfig, "name">, model: string): SpeedO
     const t = claude5ThinkingOff(`anthropic:${model}`);
     return t ? { anthropic: { thinking: t } } : undefined;
   }
-  if (name === "google" && GEMINI_EFFORT && GEMINI_EFFORT !== "default") return { google: { reasoning_effort: GEMINI_EFFORT } };
+  if (name === "google" && GEMINI_EFFORT && GEMINI_EFFORT !== "default") return { google: { reasoningEffort: GEMINI_EFFORT } };
   return undefined;
 }
 
@@ -181,10 +195,10 @@ export async function runChunksV2Pipeline(input: RunChunksV2Input): Promise<Chun
       const reply = AiChunksReplySchema.parse(raw);
       const gate = gateChunksV2(reply.chunks, gateCtx);
       console.info(`[chunks-v2] ${w.company} ${input.headword}: ${describeChunkV2Gate(gate)} ${Date.now() - t0}ms`);
-      return { w, kept: gate.kept, raw: reply.chunks.length, dropped: gate.dropped.length, ms: Date.now() - t0, failed: false };
+      return { w, kept: gate.kept, raw: reply.chunks.length, dropped: gate.dropped.length, droppedTexts: gate.dropped, ms: Date.now() - t0, failed: false };
     } catch (e) {
       console.warn(`[chunks-v2] ${w.company} ${input.headword}: failed ${Date.now() - t0}ms`, (e as Error)?.name ?? e, (e as Error)?.message ?? "");
-      return { w, kept: [] as ChunkCandidate[], raw: 0, dropped: 0, ms: Date.now() - t0, failed: true };
+      return { w, kept: [] as ChunkCandidate[], raw: 0, dropped: 0, droppedTexts: [], ms: Date.now() - t0, failed: true };
     }
   };
   const [ra, rb] = await Promise.all([write(a), write(b)]);
@@ -216,7 +230,10 @@ export async function runChunksV2Pipeline(input: RunChunksV2Input): Promise<Chun
   // 仕上げ: 残った塊にだけ block・品詞と、読む人の言語の訳・解説（繁體中文で読む人は訳なし）。
   const t1 = Date.now();
   const readerName = readerIsTargetLang(input.explainLang, input.language) ? null : explanationLanguageName(input.explainLang);
-  const finished = await finishChunks(input.headword, input.language, selected, readerName, input.explainLang, a ?? b, ask);
+  // 仕上げは、書く段で速く答えた会社に（答えられなかった会社には頼まない）。
+  const okWriters = [ra, rb].filter((r): r is NonNullable<typeof r> => !!r && !r.failed).sort((x, y) => x.ms - y.ms);
+  const finisher = okWriters[0]?.w ?? a ?? b;
+  const finished = await finishChunks(input.headword, input.language, selected, readerName, input.explainLang, finisher, ask);
   const chunks = readerName ? finished.filter((c) => c.ja) : finished;
   const providers = [a?.company, b?.company].filter(Boolean).join("+") || "none";
 
@@ -226,8 +243,8 @@ export async function runChunksV2Pipeline(input: RunChunksV2Input): Promise<Chun
     rejected,
     stats: {
       providers,
-      a: ra ? { company: ra.w.company, ms: ra.ms, kept: ra.kept.length, dropped: ra.dropped, raw: ra.raw, failed: ra.failed } : null,
-      b: rb ? { company: rb.w.company, ms: rb.ms, kept: rb.kept.length, dropped: rb.dropped, raw: rb.raw, failed: rb.failed } : null,
+      a: ra ? { company: ra.w.company, ms: ra.ms, kept: ra.kept.length, dropped: ra.dropped, raw: ra.raw, failed: ra.failed, droppedTexts: ra.droppedTexts, keptTexts: ra.kept.map((c) => c.text) } : null,
+      b: rb ? { company: rb.w.company, ms: rb.ms, kept: rb.kept.length, dropped: rb.dropped, raw: rb.raw, failed: rb.failed, droppedTexts: rb.droppedTexts, keptTexts: rb.kept.map((c) => c.text) } : null,
       agreed: merged.agreed.length,
       pool: pool.length,
       selectedAgreed: finished.filter((c) => c.by === "agreement").length,

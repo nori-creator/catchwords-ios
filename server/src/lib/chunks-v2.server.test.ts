@@ -88,7 +88,7 @@ describe("考える量を最小にする（speedOptions）", () => {
     expect(speedOptions({ name: "anthropic" }, "claude-haiku-5-5")).toEqual({ anthropic: { thinking: { type: "disabled" } } });
     expect(speedOptions({ name: "anthropic" }, "claude-sonnet-5-5")).toEqual({ anthropic: { thinking: { type: "between_tools" } } });
     expect(speedOptions({ name: "anthropic" }, "claude-opus-5-5")).toBeUndefined();
-    expect(speedOptions({ name: "google" }, "gemini-3.1-flash")).toEqual({ google: { reasoning_effort: "low" } });
+    expect(speedOptions({ name: "google" }, "gemini-3.1-flash")).toEqual({ google: { reasoningEffort: "low" } });
     expect(speedOptions({ name: "openrouter" }, "x")).toBeUndefined();
   });
 });
