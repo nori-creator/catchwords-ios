@@ -83,6 +83,14 @@ final class ChunkReadingTests: XCTestCase {
         XCTAssertEqual(ChunkLineView.sideZhuyin(for: merged[0], target: "zh-TW", pref: "zhuyin"), "ㄇㄤˊ ㄍㄨㄛˇ ㄅㄧㄥ")
     }
 
+    func testALocativeIsNotJoinedToItsPlace() {
+        // 放在＋筆袋＋裡: 裡 stays its own block (it was drawn as one blue 「筆袋裡」).
+        let parts = [ChunkPart(text: "放在", pos: "V"), ChunkPart(text: "筆袋", pos: "N"), ChunkPart(text: "裡", pos: "Ncd")]
+        XCTAssertEqual(ChunkRules.mergeCompounds(parts, headword: "筆袋").map(\.text), ["放在", "筆袋", "裡"])
+        let tagged = [ChunkPart(text: "放在", pos: "V"), ChunkPart(text: "筆袋", pos: "N"), ChunkPart(text: "裡", pos: "N")]
+        XCTAssertEqual(ChunkRules.mergeCompounds(tagged, headword: "筆袋").map(\.text), ["放在", "筆袋", "裡"])
+    }
+
     func testAMergedCompoundKeepsBothReadings() {
         let parts = [ChunkPart(text: "芒果", pos: "N", pinyin: "máng guǒ", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ"),
                      ChunkPart(text: "冰", pos: "N", pinyin: "bīng", zhuyin: "ㄅㄧㄥ")]
