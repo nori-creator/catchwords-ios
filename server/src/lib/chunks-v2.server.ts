@@ -11,8 +11,10 @@ import {
 import { withPartReadings } from "./chunk-readings.server";
 import {
   AiChunksReplySchema,
+  candidateToChunk,
   CHUNKS_V2_MAX,
   describeChunkV2Gate,
+  finishCandidate,
   frameKey,
   gateChunksV2,
   mergeByAgreement,
@@ -20,29 +22,37 @@ import {
   rankAndSelect,
   readJudgeRanks,
   UsageChunkV2Schema,
+  type ChunkCandidate,
+  type FinishItem,
+  type RejectedCandidate,
+  type SelectedCandidate,
   type UsageChunkV2,
 } from "./chunks-v2";
-import { chunksV2Prompt, judgeV2Prompt, translateV2Prompt } from "./chunks-v2.prompt";
+import { chunksV2Prompt, finishV2Prompt, judgeV2Prompt } from "./chunks-v2.prompt";
+import { claude5ThinkingOff } from "./claude-thinking";
 import { normalizeTargetLanguage } from "./target-lang";
 
 /**
  * **使い方チャンク v2 — AI と書庫に触る部分**（設計は `docs/chunk-rules.md` の v2 の節）。
  *
  * 流れ: 書庫に有る → そのまま（別の表示言語なら訳だけ小さく書かせる） / 無い → 2 社（Gemini・Claude）に同じ指示で
- * **独立に**書かせ、形だけの門 → 型の照合（一致 = 合格）→ 片方だけの型はもう片方の会社に審査 → 合格だけを書庫へ。
- * 2 人目からは AI を呼ばない。片方の鍵が無ければ 1 社＋審査に落ちて記録する（一致の証拠は弱くなる）。
+ * **独立に**書かせ（中国語だけ・軽い形）、形だけの門 → 照合（同じ型・含む関係・同じ中心の語 = 一致）→ 候補を全部
+ * 2 社に見せて審査（自然か・よく言う順）→ 残った塊にだけ仕上げ（block・品詞・訳）→ 書庫へ。2 人目からは AI を呼ばない。
+ * 片方の鍵が無ければ 1 社＋審査に落ちて記録する（一致の証拠は弱くなる）。
  *
  * 書庫の表（`chunk_library` / `chunk_library_text` / `chunk_runs`）が無い環境でも落ちない（書庫なしで作って返す）。
  */
 
-// 最初の採点（2026-10-30、8 語）は 9 秒で 2 社とも全部が時間切れだった: 6 文と塊・候補・訳をまとめて書く返事は
-// 1,500〜2,500 トークンで、速いモデルでも 10〜25 秒かかる。書庫に無い 1 人目だけが待つ（画面は他の項目を先に出し、
-// 塊は後から入る）ので、締め切りは長めに置く。
-const GEN_MS = Number(process.env.AI_CHUNKS_V2_GEN_MS ?? 40_000);
-const JUDGE_MS = Number(process.env.AI_CHUNKS_V2_JUDGE_MS ?? 15_000);
-const TRANSLATE_MS = Number(process.env.AI_CHUNKS_V2_TRANSLATE_MS ?? 20_000);
+// 締め切り。2026-10-30 の採点: 3 回目まで 1 社 27〜40 秒かかったのは、モデルが**既定で長く考えていた**ため（Gemini 3 Flash は
+// thinking_level が既定 high、Claude Haiku 5.5 は既定 medium）。`askJson` が考えを最小にし（`speedOptions`）、書く段の返事を
+// 軽くしたので、期待は 1 社 3〜8 秒。締め切りはその 2〜3 倍に置く（遅い回は捨てて、次に開いた時に出す）。
+const GEN_MS = Number(process.env.AI_CHUNKS_V2_GEN_MS ?? 20_000);
+const JUDGE_MS = Number(process.env.AI_CHUNKS_V2_JUDGE_MS ?? 12_000);
+const FINISH_MS = Number(process.env.AI_CHUNKS_V2_FINISH_MS ?? 15_000);
 /** Claude の書き手・審査のモデル（`ANTHROPIC_API_KEY` が要る）。 */
 const CLAUDE_MODEL = process.env.AI_CHUNKS_V2_CLAUDE_MODEL ?? "claude-haiku-5-5";
+/** Gemini の考える量（OpenAI 互換の口の `reasoning_effort`。Gemini 3 Flash は low が最小の確実な値 — minimal は版により 400）。 */
+const GEMINI_EFFORT = process.env.AI_CHUNKS_V2_GEMINI_EFFORT ?? "low";
 /** 同じ語の作り中が、これより古ければ捨てて作り直す。 */
 const RUN_STALE_MS = 45_000;
 
@@ -55,8 +65,8 @@ export type ChunkWriter = { company: string; cfg: AiConfig; model: string };
 
 export type ChunksV2Stats = {
   providers: string;
-  a: { company: string; ms: number; kept: number; dropped: number; raw: number } | null;
-  b: { company: string; ms: number; kept: number; dropped: number; raw: number } | null;
+  a: { company: string; ms: number; kept: number; dropped: number; raw: number; failed?: boolean } | null;
+  b: { company: string; ms: number; kept: number; dropped: number; raw: number; failed?: boolean } | null;
   /** 2 社が一致した塊の数（候補の中）。 */
   agreed: number;
   /** 候補の数（一致＋片方だけ）。 */
@@ -64,18 +74,22 @@ export type ChunksV2Stats = {
   /** 選ばれた数（一致 / 審査で通った）。 */
   selectedAgreed: number;
   selectedJudged: number;
+  /** 審査で「不自然」と落ちた数（重複・上限で省いた物は数えない）。 */
   rejected: number;
   judgeMs: number;
-  translateMs: number;
+  /** 審査が答えた会社（a / b / both / none）。 */
+  judgedBy: string;
+  finishMs: number;
   totalMs: number;
 };
 
 export type ChunksV2PipelineResult = {
   /** 画面に出す塊（読む人の言語の訳つき）。訳が付けられなかった時は空（中国語だけの `selected` は書庫へ）。 */
   chunks: UsageChunkV2[];
-  /** 2 社の照合で残った塊（中国語だけ）。 */
+  /** 2 社の照合と審査で残った塊（中国語だけ。仕上げが失敗しても block 1 つで残す）。 */
   selected: UsageChunkV2[];
-  rejected: UsageChunkV2[];
+  /** 落とした候補（理由つき: unnatural = 審査で不自然 / duplicate = 同じ言い方 / over_max = 上限）。 */
+  rejected: RejectedCandidate[];
   stats: ChunksV2Stats;
 };
 
@@ -96,30 +110,47 @@ export function defaultWriters(): { a: ChunkWriter | null; b: ChunkWriter | null
   return { a, b };
 }
 
+/**
+ * **考える量を最小にする**（速さの要）。OpenAI 互換の口は `providerOptions[会社名]` の中身を本文にそのまま足す。
+ * - Anthropic: Messages API の `thinking`（Haiku 5.5 は disabled、Sonnet 5.5 は between_tools、Opus は切れない — `claude5ThinkingOff`）。
+ * - Google: `reasoning_effort`（Gemini 3 では thinking_level に写る）。
+ * ほかの会社には何も足さない。
+ */
+export type SpeedOptions = Record<string, Record<string, string | Record<string, string>>>;
+
+export function speedOptions(cfg: Pick<AiConfig, "name">, model: string): SpeedOptions | undefined {
+  const name = cfg.name ?? "";
+  if (name === "anthropic") {
+    const t = claude5ThinkingOff(`anthropic:${model}`);
+    return t ? { anthropic: { thinking: t } } : undefined;
+  }
+  if (name === "google" && GEMINI_EFFORT && GEMINI_EFFORT !== "default") return { google: { reasoning_effort: GEMINI_EFFORT } };
+  return undefined;
+}
+
 /** AI に 1 回聞いて JSON を読む（試験では差し替える）。 */
 export type AskFn = (cfg: AiConfig, model: string, prompt: string, ms: number) => Promise<unknown>;
 
 export const askJson: AskFn = async (cfg, model, prompt, ms) => {
+  const providerOptions = speedOptions(cfg, model);
   const result = await generateText({
     model: cfg.gateway(model),
     prompt,
     abortSignal: AbortSignal.timeout(ms),
     maxRetries: 0,
+    ...(providerOptions ? { providerOptions } : {}),
   });
   return parseJsonFromAiText(result.text);
 };
 
 /** 読む人の言語が学ぶ言語と同じ（繁體中文で台湾華語を読む）。 */
 export function readerIsTargetLang(explainLang: string, language: string): boolean {
-  const r = explainLang.toLowerCase();
-  const t = normalizeTargetLanguage(language).toLowerCase();
-  return r.startsWith("zh") ? t.startsWith("zh") : r === t;
+  const r = normalizeTargetLanguage(explainLang);
+  const l = normalizeTargetLanguage(language);
+  return !!r && r === l;
 }
 
-/**
- * **作る（AI だけ。書庫に触らない）** — 採点もここを呼ぶ。
- */
-export async function runChunksV2Pipeline(input: {
+export type RunChunksV2Input = {
   headword: string;
   language: string;
   explainLang: string;
@@ -128,12 +159,16 @@ export async function runChunksV2Pipeline(input: {
   genMs?: number;
   judgeMs?: number;
   ask?: AskFn;
-}): Promise<ChunksV2PipelineResult> {
+};
+
+/**
+ * **2 社に書かせ、照合し、審査し、残った塊を仕上げる**（書庫には触らない。試験はここを `ask` の偽物で回す）。
+ */
+export async function runChunksV2Pipeline(input: RunChunksV2Input): Promise<ChunksV2PipelineResult> {
   const started = Date.now();
   const ask = input.ask ?? askJson;
   const { a, b } = input.writers ?? defaultWriters();
   const prompt = chunksV2Prompt({ headword: input.headword, meaning: input.meaning });
-  // 書く段は中国語だけ（訳の言語は見ない）。
   const gateCtx = { headword: input.headword, language: input.language };
   const genMs = input.genMs ?? GEN_MS;
   const judgeMs = input.judgeMs ?? JUDGE_MS;
@@ -146,10 +181,10 @@ export async function runChunksV2Pipeline(input: {
       const reply = AiChunksReplySchema.parse(raw);
       const gate = gateChunksV2(reply.chunks, gateCtx);
       console.info(`[chunks-v2] ${w.company} ${input.headword}: ${describeChunkV2Gate(gate)} ${Date.now() - t0}ms`);
-      return { w, kept: gate.kept, raw: reply.chunks.length, dropped: gate.dropped.length, ms: Date.now() - t0 };
+      return { w, kept: gate.kept, raw: reply.chunks.length, dropped: gate.dropped.length, ms: Date.now() - t0, failed: false };
     } catch (e) {
       console.warn(`[chunks-v2] ${w.company} ${input.headword}: failed ${Date.now() - t0}ms`, (e as Error)?.name ?? e, (e as Error)?.message ?? "");
-      return { w, kept: [] as UsageChunkV2[], raw: 0, dropped: 0, ms: Date.now() - t0, failed: true };
+      return { w, kept: [] as ChunkCandidate[], raw: 0, dropped: 0, ms: Date.now() - t0, failed: true };
     }
   };
   const [ra, rb] = await Promise.all([write(a), write(b)]);
@@ -158,7 +193,7 @@ export async function runChunksV2Pipeline(input: {
   const both = ra && rb && !ra.failed && !rb.failed;
   const merged = both
     ? mergeByAgreement(ra.kept, rb.kept)
-    : { agreed: [] as UsageChunkV2[], onlyA: ra?.kept ?? [], onlyB: rb?.kept ?? [] };
+    : { agreed: [] as ChunkCandidate[], onlyA: ra?.kept ?? [], onlyB: rb?.kept ?? [] };
   const pool = poolCandidates(merged);
 
   // 審査と並べ替え: 候補を全部まとめて 2 社に見せる。合否は書いた方でない会社の「自然」、順位は 2 社の平均。
@@ -168,40 +203,75 @@ export async function runChunksV2Pipeline(input: {
     try {
       const cfg = measuredAi(judge.cfg, "card", "chunks_judge");
       const raw = await ask(cfg, judge.model, judgeV2Prompt(input.headword, pool.map((p) => p.chunk)), judgeMs);
-      return { ranks: readJudgeRanks(raw, pool.length), ms: Date.now() - t0 };
+      const ranks = readJudgeRanks(raw, pool.length);
+      return { ranks: ranks.length > 0 ? ranks : null, ms: Date.now() - t0 };
     } catch (e) {
-      console.warn(`[chunks-v2] judge ${judge.company} ${input.headword}: failed`, (e as Error)?.name ?? e);
+      console.warn(`[chunks-v2] judge ${judge.company} ${input.headword}: failed ${Date.now() - t0}ms`, (e as Error)?.name ?? e);
       return { ranks: null, ms: Date.now() - t0 };
     }
   };
   const [ja, jb] = await Promise.all([judgeWith(a && !ra?.failed ? a : null), judgeWith(b && !rb?.failed ? b : null)]);
   const { selected, rejected } = rankAndSelect(pool, ja.ranks, jb.ranks, CHUNKS_V2_MAX);
 
-  // 残った塊にだけ、読む人の言語の訳・解説を付ける（繁體中文で読む人は要らない）。
+  // 仕上げ: 残った塊にだけ block・品詞と、読む人の言語の訳・解説（繁體中文で読む人は訳なし）。
   const t1 = Date.now();
-  const chunks = readerIsTargetLang(input.explainLang, input.language)
-    ? selected
-    : await translateForReader(input.headword, input.language, selected, input.explainLang, a ?? b, ask);
+  const readerName = readerIsTargetLang(input.explainLang, input.language) ? null : explanationLanguageName(input.explainLang);
+  const finished = await finishChunks(input.headword, input.language, selected, readerName, input.explainLang, a ?? b, ask);
+  const chunks = readerName ? finished.filter((c) => c.ja) : finished;
   const providers = [a?.company, b?.company].filter(Boolean).join("+") || "none";
 
   return {
     chunks,
-    selected,
+    selected: finished,
     rejected,
     stats: {
       providers,
-      a: ra ? { company: ra.w.company, ms: ra.ms, kept: ra.kept.length, dropped: ra.dropped, raw: ra.raw } : null,
-      b: rb ? { company: rb.w.company, ms: rb.ms, kept: rb.kept.length, dropped: rb.dropped, raw: rb.raw } : null,
+      a: ra ? { company: ra.w.company, ms: ra.ms, kept: ra.kept.length, dropped: ra.dropped, raw: ra.raw, failed: ra.failed } : null,
+      b: rb ? { company: rb.w.company, ms: rb.ms, kept: rb.kept.length, dropped: rb.dropped, raw: rb.raw, failed: rb.failed } : null,
       agreed: merged.agreed.length,
       pool: pool.length,
-      selectedAgreed: selected.filter((c) => c.by === "agreement").length,
-      selectedJudged: selected.filter((c) => c.by === "judge").length,
-      rejected: rejected.length,
+      selectedAgreed: finished.filter((c) => c.by === "agreement").length,
+      selectedJudged: finished.filter((c) => c.by === "judge").length,
+      rejected: rejected.filter((r) => r.reason === "unnatural").length,
       judgeMs: Math.max(ja.ms, jb.ms),
-      translateMs: Date.now() - t1,
+      judgedBy: ja.ranks && jb.ranks ? "both" : ja.ranks ? "a" : jb.ranks ? "b" : "none",
+      finishMs: Date.now() - t1,
       totalMs: Date.now() - started,
     },
   };
+}
+
+/** 仕上げの返事から、候補の番号 → 返事の 1 つ。 */
+function pickItems(raw: unknown, count: number): Array<FinishItem | null> {
+  const items = Array.isArray((raw as { items?: unknown } | null)?.items) ? ((raw as { items: unknown[] }).items as Array<Record<string, unknown>>) : [];
+  return Array.from({ length: count }, (_, at) => (items.find((x) => Number(x?.i) === at + 1) ?? items[at] ?? null) as FinishItem | null);
+}
+
+/**
+ * 残った候補に block・品詞と訳を付ける（1 回の小さな呼び出し）。呼び出しが失敗したら block 1 つ・訳なしで返す
+ * （中国語は書庫に残り、訳は次に開いた時に付く）。
+ */
+async function finishChunks(
+  headword: string,
+  language: string,
+  selected: ReadonlyArray<SelectedCandidate>,
+  readerName: string | null,
+  explainLang: string,
+  writer: ChunkWriter | null,
+  ask: AskFn,
+): Promise<UsageChunkV2[]> {
+  if (selected.length === 0) return [];
+  const ctx = { headword, language, readerLang: readerName ? explainLang : null };
+  if (!writer) return selected.map((c) => candidateToChunk(c, headword, language));
+  try {
+    const cfg = measuredAi(writer.cfg, "card", "chunks_translate");
+    const raw = await ask(cfg, writer.model, finishV2Prompt(headword, selected, readerName), FINISH_MS);
+    const items = pickItems(raw, selected.length);
+    return selected.map((c, at) => finishCandidate(c, items[at], ctx));
+  } catch (e) {
+    console.warn(`[chunks-v2] finish ${headword}: failed`, (e as Error)?.name ?? e);
+    return selected.map((c) => candidateToChunk(c, headword, language));
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -422,7 +492,7 @@ async function writeRun(
   }
 }
 
-/** 書庫に有る塊に、別の表示言語の訳・解説を付ける（小さな呼び出し）。失敗すれば []。 */
+/** 書庫に有る塊に、別の表示言語の訳・解説を付ける（小さな呼び出し。block は書庫の物をそのまま使う）。失敗すれば []。 */
 async function translateForReader(
   headword: string,
   language: string,
@@ -434,29 +504,17 @@ async function translateForReader(
   if (!writer || chunks.length === 0) return [];
   try {
     const cfg = measuredAi(writer.cfg, "card", "chunks_translate");
-    const raw = (await ask(cfg, writer.model, translateV2Prompt(headword, chunks, explanationLanguageName(explainLang)), TRANSLATE_MS)) as {
-      items?: unknown;
-    };
-    const items = Array.isArray(raw?.items) ? (raw.items as Array<Record<string, unknown>>) : [];
-    const gateCtx = { headword, language, readerLang: explainLang };
+    const raw = await ask(cfg, writer.model, finishV2Prompt(headword, chunks, explanationLanguageName(explainLang), { blocks: false }), FINISH_MS);
+    const items = pickItems(raw, chunks.length);
     const out: UsageChunkV2[] = [];
     chunks.forEach((c, at) => {
-      const it = items.find((x) => Number(x?.i) === at + 1) ?? items[at];
+      const it = items[at];
       if (!it) return;
-      const slotAt = c.blocks.findIndex((b) => b.slot);
-      const altsJa = Array.isArray(it.alts_ja) ? (it.alts_ja as unknown[]).map((v) => (typeof v === "string" ? v : "")) : [];
-      const blocks = c.blocks.map((b, i) =>
-        i === slotAt
-          ? { ...b, ja: typeof it.slot_ja === "string" ? it.slot_ja : "", alts: (b.alts ?? []).map((a, j) => ({ ...a, ja: altsJa[j] ?? "" })) }
-          : b,
-      );
-      const candidate = { ...c, blocks, ja: String(it.ja ?? ""), sentence_ja: String(it.sentence_ja ?? ""), note: String(it.note ?? "") };
-      // 言語の混ざりは門で落とす（形だけ）。
-      const gate = gateChunksV2(
-        [{ sentence: candidate.sentence, sentence_ja: candidate.sentence_ja, text: candidate.text, blocks: candidate.blocks, pattern: candidate.pattern, ja: candidate.ja, note: candidate.note }],
-        gateCtx,
-      );
-      if (gate.kept[0]) out.push({ ...gate.kept[0], frequency: c.frequency, by: c.by });
+      const slot = c.blocks.find((b) => b.slot);
+      const cand = { text: c.text, sentence: c.sentence, key: "", pattern: c.pattern, slot: slot?.text ?? null, alts: (slot?.alts ?? []).map((a) => a.text), by: c.by };
+      // block は書庫の物（区切りは聞いていない）。訳だけを重ねる。
+      const done = finishCandidate(cand, { ...it, blocks: c.blocks.map((b) => ({ text: b.text, pos: b.pos })) }, { headword, language, readerLang: explainLang });
+      if (done.ja) out.push({ ...done, frequency: c.frequency, head: c.head ?? done.head });
     });
     return out;
   } catch (e) {
@@ -521,7 +579,8 @@ export async function startChunksV2Job(
     // 書庫には中国語（selected）を入れ、訳が付いた物（chunks）だけ訳の行も。訳が付かなかった塊は次に開いた時に訳だけ付く。
     const byText = new Map(result.chunks.map((c) => [c.text, c]));
     const forLibrary = result.selected.map((c) => byText.get(c.text) ?? c);
-    await writeChunkLibrary(admin, { language, headword, explainLang: input.explainLang, providers: result.stats.providers }, forLibrary, result.rejected);
+    const rejectedRows = result.rejected.filter((r) => r.reason === "unnatural").map((r) => candidateToChunk(r, headword, language));
+    await writeChunkLibrary(admin, { language, headword, explainLang: input.explainLang, providers: result.stats.providers }, forLibrary, rejectedRows);
     await writeRun(admin, language, headword, { status: "done", providers: result.stats.providers, approved: result.selected.length });
     return { status: result.chunks.length > 0 ? "ready" : "none", chunks: result.chunks, fromLibrary: false, stats: result.stats };
   } catch (e) {

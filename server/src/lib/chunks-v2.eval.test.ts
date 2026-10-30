@@ -141,28 +141,36 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
       const slot = c.blocks.find((b) => b.slot);
       return `${c.text}（${c.by === "agreement" ? "一致" : "審査"} / ${c.pattern || "?"}${slot ? ` / 入替 ${slot.text}→${(slot.alts ?? []).map((a) => a.text).join("·")}` : ""}）`;
     };
+    const ms = (r: (typeof rows)[number]) => {
+      const st = r.stats;
+      const w = (x: ChunksV2Stats["a"]) => (x ? `${x.company[0]}${x.failed ? "✗" : ""}${Math.round(x.ms / 100) / 10}` : "-");
+      return `${Math.round(st.totalMs / 100) / 10}s（書 ${w(st.a)}/${w(st.b)} 審 ${Math.round(st.judgeMs / 100) / 10}(${st.judgedBy}) 仕 ${Math.round(st.finishMs / 100) / 10}）`;
+    };
+    const timings = rows.map((r) => r.stats);
+    const writeMs = timings.flatMap((s) => [s.a, s.b]).filter((x): x is NonNullable<typeof x> => !!x && !x.failed).map((x) => x.ms);
+    const failedWrites = timings.flatMap((s) => [s.a, s.b]).filter((x) => x?.failed).length;
     const md = [
       `# 使い方チャンク v2 の採点 — ${summary.mode}（${new Date().toISOString()}）`,
       ``,
       `- 書き手: ${summary.providers}、読む人の言語: ${LANG}、語: ${summary.words}`,
       `- 1 語あたりの塊: ${summary.chunksPerWord}、塊が 0 の語: ${summary.wordsWithNone}`,
       `- 2 社の一致の割合（出した塊のうち）: ${summary.agreementShare}（候補の一致 ${summary.agreedCandidates}）、候補のうち落ちた割合: ${summary.judgeRejectRate}`,
-      `- 1 語の時間: p50 ${summary.p50Ms} ms / p90 ${summary.p90Ms} ms`,
+      `- 1 語の時間: p50 ${summary.p50Ms} ms / p90 ${summary.p90Ms} ms（書く段 1 回: p50 ${percentile(writeMs, 0.5)} ms / p90 ${percentile(writeMs, 0.9)} ms、時間切れ ${failedWrites} 回、審査 p90 ${percentile(timings.map((s) => s.judgeMs), 0.9)} ms、仕上げ p90 ${percentile(timings.map((s) => s.finishMs), 0.9)} ms）`,
       `- 型の内訳: ${Object.entries(summary.patterns).map(([k, v]) => `${k} ${v}`).join("、")}`,
       summary.vsReference
         ? `- 参照（上位モデル）との比べ: precision ${summary.vsReference.precision}、① の一致 ${summary.vsReference.top1}、参照の上位 3 の再現 ${summary.vsReference.recallTop3}（${summary.vsReference.words} 語）`
         : `- 参照なし（CHUNK_EVAL_REF=1 で作る）`,
       ``,
-      `| 語 | 塊（決まり方 / 型） | 文 | 落ちた物 | ms |`,
-      `|---|---|---|---|---|`,
+      `| 語 | 塊（決まり方 / 型） | 文 | 不自然と落ちた | 省いた（重複・上限） | 時間 |`,
+      `|---|---|---|---|---|---|`,
       ...rows.map((r) =>
-        `| ${r.word.headword} | ${r.chunks.map(line).join("<br>") || "—"} | ${r.chunks.map((c) => c.sentence).join("<br>")} | ${r.rejected.map((c) => c.text).join("<br>")} | ${r.stats.totalMs} |`,
+        `| ${r.word.headword} | ${r.chunks.map(line).join("<br>") || "—"} | ${r.chunks.map((c) => c.sentence).join("<br>")} | ${r.rejected.filter((c) => c.reason === "unnatural").map((c) => c.text).join("<br>")} | ${r.rejected.filter((c) => c.reason !== "unnatural").map((c) => c.text).join("<br>")} | ${ms(r)} |`,
       ),
     ].join("\n");
     writeFileSync(resolve(OUT_DIR, "chunks-v2-report.md"), md);
     writeFileSync(
       resolve(OUT_DIR, "chunks-v2-report.json"),
-      JSON.stringify({ summary, rows: rows.map((r) => ({ headword: r.word.headword, chunks: r.chunks, rejected: r.rejected.map((c) => c.text), stats: r.stats as ChunksV2Stats })) }, null, 2),
+      JSON.stringify({ summary, rows: rows.map((r) => ({ headword: r.word.headword, chunks: r.chunks, rejected: r.rejected.map((c) => ({ text: c.text, reason: c.reason })), stats: r.stats as ChunksV2Stats })) }, null, 2),
     );
     if (REF_MODE) {
       const ref: Reference = {};

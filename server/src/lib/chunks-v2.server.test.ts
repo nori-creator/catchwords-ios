@@ -3,6 +3,7 @@ import {
   awaitChunksV2,
   readChunkLibrary,
   runChunksV2Pipeline,
+  speedOptions,
   startChunksV2Job,
   writeChunkLibrary,
   type AskFn,
@@ -14,45 +15,60 @@ function writer(company: string): ChunkWriter {
   return { company, model: `${company}-model`, cfg: { provider: "openai-compatible", name: company, gateway: (() => ({})) as never, modelFast: "m", modelRich: "m", modelRichPremium: "m" } };
 }
 
-function reply(chunks: Array<{ text: string; blocks: Array<Record<string, unknown>>; sentence: string; pattern?: string }>) {
-  return { chunks: chunks.map((c) => ({ pattern: "object", ...c })) };
+type Raw = { text: string; sentence: string; key: string; pattern?: string; slot?: string | null; alts?: string[] };
+function reply(chunks: Raw[]) {
+  return { chunks: chunks.map((c) => ({ pattern: "object", slot: null, alts: [], ...c })) };
 }
 
-const BA = { text: "把原子筆放進筆袋裡", sentence: "我把原子筆放進筆袋裡了。", pattern: "coverb", blocks: [{ text: "把", pos: "Ptc" }, { text: "原子筆", pos: "N", slot: true, ja: "ボールペン", alts: [{ text: "鉛筆", ja: "鉛筆" }, { text: "橡皮擦", ja: "消しゴム" }] }, { text: "放進", pos: "V" }, { text: "筆袋裡", pos: "N" }] };
-const BA_B = { ...BA, text: "把鉛筆放進筆袋裡", sentence: "把鉛筆放進筆袋裡吧。", blocks: [{ text: "把", pos: "Ptc" }, { text: "鉛筆", pos: "N", slot: true, ja: "鉛筆", alts: [{ text: "原子筆", ja: "ボールペン" }, { text: "尺", ja: "定規" }] }, { text: "放進", pos: "V" }, { text: "筆袋裡", pos: "N" }] };
-const OPEN = { text: "打開筆袋", sentence: "幫我打開筆袋。", blocks: [{ text: "打開", pos: "V" }, { text: "筆袋", pos: "N" }] };
-const ZIP = { text: "筆袋的拉鍊", sentence: "筆袋的拉鍊壞了。", pattern: "modifier", blocks: [{ text: "筆袋", pos: "N" }, { text: "的", pos: "Ptc" }, { text: "拉鍊", pos: "N" }] };
-const ODD = { text: "裝進筆袋", sentence: "我裝進筆袋了。", blocks: [{ text: "裝進", pos: "V" }, { text: "筆袋", pos: "N" }] };
+/** 書く段の返事（中国語だけ・軽い形）。 */
+const BA: Raw = { text: "把原子筆放進筆袋裡", sentence: "我把原子筆放進筆袋裡了。", key: "放進", pattern: "coverb", slot: "原子筆", alts: ["鉛筆", "橡皮擦"] };
+const BA_B: Raw = { ...BA, text: "把鉛筆放進筆袋裡", sentence: "把鉛筆放進筆袋裡吧。", slot: "鉛筆", alts: ["原子筆", "尺"] };
+const OPEN: Raw = { text: "打開筆袋", sentence: "幫我打開筆袋。", key: "打開" };
+const ZIP: Raw = { text: "筆袋的拉鍊", sentence: "筆袋的拉鍊壞了。", key: "拉鍊", pattern: "modifier" };
+const ODD: Raw = { text: "裝進筆袋", sentence: "我裝進筆袋了。", key: "裝進" };
 
-/** 指示文の中身で、どの呼び出しかを見分ける。審査は候補の数だけ答えを返す（`judge` に無い i は全部 natural・順位は並び順）。 */
+/** 仕上げの返事に使う block（塊ごと）。 */
+const BLOCKS: Record<string, Array<{ text: string; pos: string }>> = {
+  把原子筆放進筆袋裡: [{ text: "把", pos: "Prep" }, { text: "原子筆", pos: "N" }, { text: "放進", pos: "V" }, { text: "筆袋裡", pos: "N" }],
+  把鉛筆放進筆袋裡: [{ text: "把", pos: "Prep" }, { text: "鉛筆", pos: "N" }, { text: "放進", pos: "V" }, { text: "筆袋裡", pos: "N" }],
+  打開筆袋: [{ text: "打開", pos: "V" }, { text: "筆袋", pos: "N" }],
+  筆袋的拉鍊: [{ text: "筆袋", pos: "N" }, { text: "的", pos: "Ptc" }, { text: "拉鍊", pos: "N" }],
+};
+
+/**
+ * 指示文の中身で、どの呼び出しかを見分ける。審査は候補の数だけ答えを返す（`judge` に無い i は全部 natural・順位は並び順）。
+ * 仕上げは塊ごとに block と訳（英語の読者には英語）。
+ */
 function asker(opts: {
   google: unknown;
   anthropic: unknown;
   judgeByGoogle?: Array<{ i: number; natural: boolean; rank: number | null }>;
   judgeByAnthropic?: Array<{ i: number; natural: boolean; rank: number | null }>;
   fail?: "google" | "anthropic";
+  judgeFail?: "google" | "anthropic";
   calls?: string[];
-  translateFails?: boolean;
+  finishFails?: boolean;
 }): AskFn {
   return async (cfg, _model, prompt) => {
     const company = cfg.name ?? "?";
-    // 訳の指示文にも「（候補: …）」が出るので、訳を先に見分ける。
-    const kind = prompt.includes("訳を付けてください") ? "translate" : prompt.includes("候補:") ? "judge" : "write";
+    const kind = prompt.includes("各候補に次を付けてください") ? "finish" : prompt.includes("1 つずつ判定する") ? "judge" : "write";
     opts.calls?.push(`${company}:${kind}`);
     if (kind === "write" && opts.fail === company) throw new Error("boom");
+    const lines = [...prompt.matchAll(/^\d+\. 塊: (\S+)　文:/gmu)].map((m) => m[1]);
     if (kind === "judge") {
-      const n = (prompt.match(/^\d+\. 塊:/gmu) ?? []).length;
+      if (opts.judgeFail === company) throw new Error("slow");
       const given = company === "google" ? opts.judgeByGoogle : opts.judgeByAnthropic;
-      const verdicts = Array.from({ length: n }, (_, k) => given?.find((g) => g.i === k + 1) ?? { i: k + 1, natural: true, rank: k + 1 });
+      const verdicts = lines.map((_, k) => given?.find((g) => g.i === k + 1) ?? { i: k + 1, natural: true, rank: k + 1 });
       return { verdicts };
     }
-    if (kind === "translate") {
-      if (opts.translateFails) throw new Error("boom");
-      const n = (prompt.match(/^\d+\. 塊:/gmu) ?? []).length;
+    if (kind === "finish") {
+      if (opts.finishFails) throw new Error("boom");
       const en = prompt.includes("英語");
+      const wantBlocks = prompt.includes("blocks:");
       return {
-        items: Array.from({ length: n }, (_, k) => ({
+        items: lines.map((text, k) => ({
           i: k + 1,
+          ...(wantBlocks ? { blocks: BLOCKS[text] ?? [{ text, pos: "" }] } : {}),
           ja: en ? `Translation ${k + 1}` : `やく${k + 1}`,
           sentence_ja: en ? `Sentence ${k + 1}.` : `ぶんのやく${k + 1}。`,
           note: en ? "A plain note." : "かいせつです。",
@@ -67,8 +83,18 @@ function asker(opts: {
 
 const WRITERS = { a: writer("google"), b: writer("anthropic") };
 
+describe("考える量を最小にする（speedOptions）", () => {
+  it("Claude Haiku は thinking を切り、Gemini は reasoning_effort を低く、ほかの会社には何も足さない", () => {
+    expect(speedOptions({ name: "anthropic" }, "claude-haiku-5-5")).toEqual({ anthropic: { thinking: { type: "disabled" } } });
+    expect(speedOptions({ name: "anthropic" }, "claude-sonnet-5-5")).toEqual({ anthropic: { thinking: { type: "between_tools" } } });
+    expect(speedOptions({ name: "anthropic" }, "claude-opus-5-5")).toBeUndefined();
+    expect(speedOptions({ name: "google" }, "gemini-3.1-flash")).toEqual({ google: { reasoning_effort: "low" } });
+    expect(speedOptions({ name: "openrouter" }, "x")).toBeUndefined();
+  });
+});
+
 describe("2 社に書かせて照合する（runChunksV2Pipeline）", () => {
-  it("両方が出した型は一致で合格、片方だけの型は逆の会社が自然と言えば加わる。並びは 2 社の順位の平均", async () => {
+  it("両方が出した言い方は一致で合格、片方だけの物は逆の会社が自然と言えば加わる。並びは 2 社の順位の平均。訳と block は残った塊にだけ", async () => {
     const calls: string[] = [];
     const r = await runChunksV2Pipeline({
       headword: "筆袋",
@@ -86,40 +112,66 @@ describe("2 社に書かせて照合する（runChunksV2Pipeline）", () => {
     });
     expect(r.selected.map((c) => c.text)).toEqual(["把原子筆放進筆袋裡", "打開筆袋", "筆袋的拉鍊"]);
     expect(r.selected.map((c) => c.by)).toEqual(["agreement", "agreement", "judge"]);
-    expect(r.rejected.map((c) => c.text)).toEqual(["裝進筆袋"]);
-    // 訳は残った塊にだけ付く。
+    expect(r.rejected.map((c) => [c.text, c.reason])).toEqual([["裝進筆袋", "unnatural"]]);
+    // 訳と block は残った塊にだけ付く。
     expect(r.chunks.map((c) => c.ja)).toEqual(["やく1", "やく2", "やく3"]);
-    expect(r.chunks[0].blocks[1].alts?.map((a) => a.ja)).toEqual(["鉛筆", "消しゴム"]);
+    expect(r.chunks[0].blocks.map((b) => `${b.text}/${b.pos}`)).toEqual(["把/Prep", "原子筆/N", "放進/V", "筆袋裡/N"]);
+    expect(r.chunks[0].blocks[1].alts?.map((a) => `${a.text}=${a.ja}`)).toEqual(["鉛筆=鉛筆", "橡皮擦=消しゴム"]);
+    expect(r.chunks[0].head).toEqual({ block: 3, start: 0, length: 2 });
     expect(r.stats.agreed).toBe(2);
     expect(r.stats.pool).toBe(4);
+    expect(r.stats.judgedBy).toBe("both");
     expect(r.stats.providers).toBe("google+anthropic");
-    expect(calls.sort()).toEqual(["anthropic:judge", "anthropic:write", "google:judge", "google:translate", "google:write"]);
+    expect(calls.sort()).toEqual(["anthropic:judge", "anthropic:write", "google:finish", "google:judge", "google:write"]);
   });
 
-  it("片方が落ちたら、もう片方の塊は審査なしで通る（一致は無い）", async () => {
+  it("片方が落ちたら、もう片方の塊は自分の会社の審査で決まる（一致は無い）", async () => {
     const r = await runChunksV2Pipeline({
       headword: "筆袋",
       language: "zh-TW",
       explainLang: "ja",
       writers: WRITERS,
-      ask: asker({ google: reply([BA, OPEN]), anthropic: null, fail: "anthropic" }),
+      ask: asker({ google: reply([BA, OPEN, ODD]), anthropic: null, fail: "anthropic", judgeByGoogle: [{ i: 3, natural: false, rank: null }] }),
     });
     expect(r.selected.map((c) => c.text)).toEqual(["把原子筆放進筆袋裡", "打開筆袋"]);
     expect(r.selected.every((c) => c.by === "judge")).toBe(true);
     expect(r.stats.agreed).toBe(0);
+    expect(r.stats.judgedBy).toBe("a");
   });
 
-  it("Claude の鍵が無ければ 1 社で書き、訳が付かなければ画面に出す物は空（中国語は残る）", async () => {
+  it("逆の会社の審査が時間切れなら、自分の会社の審査で決める（審査なしで通さない）", async () => {
+    const r = await runChunksV2Pipeline({
+      headword: "筆袋",
+      language: "zh-TW",
+      explainLang: "ja",
+      writers: WRITERS,
+      ask: asker({ google: reply([BA, ODD]), anthropic: reply([ZIP]), judgeFail: "anthropic", judgeByGoogle: [{ i: 1, natural: true, rank: 2 }, { i: 2, natural: false, rank: null }, { i: 3, natural: true, rank: 1 }] }),
+    });
+    // 候補: 1 把…（A）2 裝進（A）3 拉鍊（B）。Claude の審査が無いので A の塊も Google の審査で決まる。
+    expect(r.selected.map((c) => c.text)).toEqual(["筆袋的拉鍊", "把原子筆放進筆袋裡"]);
+    expect(r.rejected.map((c) => c.text)).toEqual(["裝進筆袋"]);
+    expect(r.stats.judgedBy).toBe("a");
+  });
+
+  it("Claude の鍵が無ければ 1 社で書き、仕上げが失敗すれば画面に出す物は空（中国語は block 1 つで残る）", async () => {
     const r = await runChunksV2Pipeline({
       headword: "筆袋",
       language: "zh-TW",
       explainLang: "ja",
       writers: { a: writer("google"), b: null },
-      ask: asker({ google: reply([OPEN]), anthropic: null, translateFails: true }),
+      ask: asker({ google: reply([BA]), anthropic: null, finishFails: true }),
     });
-    expect(r.selected.map((c) => c.text)).toEqual(["打開筆袋"]);
+    expect(r.selected.map((c) => c.text)).toEqual(["把原子筆放進筆袋裡"]);
+    expect(r.selected[0].blocks.map((b) => b.text)).toEqual(["把", "原子筆", "放進筆袋裡"]);
     expect(r.chunks).toEqual([]);
     expect(r.stats.providers).toBe("google");
+  });
+
+  it("繁體中文で読む人は訳なしで、block だけ付けて返す", async () => {
+    const r = await runChunksV2Pipeline({ headword: "筆袋", language: "zh-TW", explainLang: "zh-TW", writers: WRITERS, ask: asker({ google: reply([OPEN]), anthropic: reply([OPEN]) }) });
+    expect(r.chunks.map((c) => c.text)).toEqual(["打開筆袋"]);
+    expect(r.chunks[0].ja).toBe("");
+    expect(r.chunks[0].blocks.map((b) => b.pos)).toEqual(["V", "N"]);
   });
 });
 
@@ -196,16 +248,16 @@ const LIB_ROW = (over: Record<string, unknown> = {}) => ({
 });
 
 describe("書庫（chunk_library）", () => {
-  it("作った物を書庫に入れ、次は AI を呼ばずに書庫から返す", async () => {
+  it("作った物を書庫に入れ（不自然と落ちた物は rejected で）、次は AI を呼ばずに書庫から返す", async () => {
     const calls: string[] = [];
     const { admin, tables } = fakeAdmin();
-    const ask = asker({ google: reply([OPEN, BA]), anthropic: reply([BA_B, OPEN]), calls });
+    const ask = asker({ google: reply([OPEN, BA, ODD]), anthropic: reply([BA_B, OPEN]), judgeByAnthropic: [{ i: 3, natural: false, rank: null }], calls });
     const first = await startChunksV2Job(admin, { language: "zh-TW", headword: "筆袋", explainLang: "ja", writers: WRITERS, ask });
     expect(first.status).toBe("ready");
     expect(first.fromLibrary).toBe(false);
     // 一致した 2 つ。順位は 2 社の平均（審査の偽物は候補の並び順なので、候補の並び = 一致の順 = A の順）。
     expect(first.chunks.map((c) => c.text)).toEqual(["打開筆袋", "把原子筆放進筆袋裡"]);
-    expect(tables.chunk_library.map((r) => [r.zh, r.status, r.rank])).toEqual([["打開筆袋", "approved", 0], ["把原子筆放進筆袋裡", "approved", 1]]);
+    expect(tables.chunk_library.map((r) => [r.zh, r.status, r.rank])).toEqual([["打開筆袋", "approved", 0], ["把原子筆放進筆袋裡", "approved", 1], ["裝進筆袋", "rejected", 100]]);
     expect(tables.chunk_library_text).toHaveLength(2);
     expect(tables.chunk_runs[0]).toMatchObject({ status: "done", approved: 2, providers: "google+anthropic" });
     const before = calls.length;
@@ -218,13 +270,14 @@ describe("書庫（chunk_library）", () => {
     expect(calls.length).toBe(before);
   });
 
-  it("別の表示言語の 2 人目は、訳だけの小さな呼び出し（中国語は使い回す）", async () => {
+  it("別の表示言語の 2 人目は、訳だけの小さな呼び出し（中国語と block は使い回す）", async () => {
     const calls: string[] = [];
     const { admin, tables } = fakeAdmin({ library: [LIB_ROW()], text: [{ library_id: "lib-1", explain_lang: "ja", ja: "ペンケースを開ける", sentence_ja: "", note: "", blocks_ja: [] }] });
     const r = await startChunksV2Job(admin, { language: "zh-TW", headword: "筆袋", explainLang: "en", writers: WRITERS, ask: asker({ google: null, anthropic: null, calls }) });
-    expect(calls).toEqual(["google:translate"]);
+    expect(calls).toEqual(["google:finish"]);
     expect(r.status).toBe("ready");
     expect(r.chunks[0].ja).toBe("Translation 1");
+    expect(r.chunks[0].blocks.map((b) => b.pos)).toEqual(["V", "N"]);
     expect(tables.chunk_library_text.find((t) => t.explain_lang === "en")?.ja).toBe("Translation 1");
   });
 
