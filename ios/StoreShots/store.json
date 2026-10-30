@@ -880,129 +880,6 @@
    }
   },
   {
-   "key": "chicken",
-   "headword": "鹹水雞",
-   "reading_zhuyin": "ㄒㄧㄢˊ ㄕㄨㄟˇ ㄐㄧ",
-   "pinyin": "xián shuǐ jī",
-   "part_of_speech": "N",
-   "category_key": "food",
-   "example_sentence": "晚餐買了一份鹹水雞。",
-   "language": "zh-TW",
-   "explain": {
-    "ja": {
-     "meaning": "台湾風の塩ゆで鶏",
-     "example_translation": "夕飯に塩ゆで鶏を買った。",
-     "extras": {
-      "explain_lang": "ja",
-      "frequency_level": 1,
-      "register_scale": 0
-     }
-    },
-    "en": {
-     "meaning": "Taiwanese salted chicken",
-     "example_translation": "I bought salted chicken for dinner.",
-     "extras": {
-      "explain_lang": "en",
-      "frequency_level": 1,
-      "register_scale": 0
-     }
-    }
-   },
-   "sticker": {
-    "id": "store-chicken",
-    "taken_at": "2026-10-15T18:45:00+08:00",
-    "place": {
-     "ja": "大安区",
-     "en": "Daan District"
-    },
-    "lat": 25.0246,
-    "lng": 121.5402,
-    "photo": "chicken.png"
-   }
-  },
-  {
-   "key": "glasses",
-   "headword": "眼鏡",
-   "reading_zhuyin": "ㄧㄢˇ ㄐㄧㄥˋ",
-   "pinyin": "yǎn jìng",
-   "part_of_speech": "N",
-   "category_key": "accessory",
-   "example_sentence": "我的眼鏡放在哪裡？",
-   "language": "zh-TW",
-   "explain": {
-    "ja": {
-     "meaning": "めがね",
-     "example_translation": "私のめがね、どこに置いたっけ？",
-     "extras": {
-      "explain_lang": "ja",
-      "frequency_level": 1,
-      "register_scale": 0
-     }
-    },
-    "en": {
-     "meaning": "glasses",
-     "example_translation": "Where did I put my glasses?",
-     "extras": {
-      "explain_lang": "en",
-      "frequency_level": 1,
-      "register_scale": 0
-     }
-    }
-   },
-   "sticker": {
-    "id": "store-glasses",
-    "taken_at": "2026-10-15T11:30:00+08:00",
-    "place": {
-     "ja": "大安区",
-     "en": "Daan District"
-    },
-    "lat": 25.0268,
-    "lng": 121.5431,
-    "photo": "glasses.png"
-   }
-  },
-  {
-   "key": "bowl",
-   "headword": "木碗",
-   "reading_zhuyin": "ㄇㄨˋ ㄨㄢˇ",
-   "pinyin": "mù wǎn",
-   "part_of_speech": "N",
-   "category_key": "kitchenware",
-   "example_sentence": "這個木碗是在市集買的。",
-   "language": "zh-TW",
-   "explain": {
-    "ja": {
-     "meaning": "木のお椀",
-     "example_translation": "この木のお椀は市場で買った。",
-     "extras": {
-      "explain_lang": "ja",
-      "frequency_level": 1,
-      "register_scale": 0
-     }
-    },
-    "en": {
-     "meaning": "wooden bowl",
-     "example_translation": "I bought this wooden bowl at a market.",
-     "extras": {
-      "explain_lang": "en",
-      "frequency_level": 1,
-      "register_scale": 0
-     }
-    }
-   },
-   "sticker": {
-    "id": "store-bowl",
-    "taken_at": "2026-10-15T12:10:00+08:00",
-    "place": {
-     "ja": "大安区",
-     "en": "Daan District"
-    },
-    "lat": 25.0259,
-    "lng": 121.544,
-    "photo": "bowl.png"
-   }
-  },
-  {
    "key": "cat",
    "headword": "貓",
    "reading_zhuyin": "ㄇㄠ",
@@ -1826,51 +1703,6 @@
    ]
   },
   {
-   "sticker": "store-chicken",
-   "ease": 2.5,
-   "interval": 1,
-   "repetitions": 1,
-   "last": -1,
-   "due": 2,
-   "history": [
-    {
-     "at": -1,
-     "score": 5,
-     "interval": 1
-    }
-   ]
-  },
-  {
-   "sticker": "store-glasses",
-   "ease": 2.5,
-   "interval": 1,
-   "repetitions": 1,
-   "last": -1,
-   "due": 2,
-   "history": [
-    {
-     "at": -1,
-     "score": 5,
-     "interval": 1
-    }
-   ]
-  },
-  {
-   "sticker": "store-bowl",
-   "ease": 2.5,
-   "interval": 1,
-   "repetitions": 1,
-   "last": -1,
-   "due": 2,
-   "history": [
-    {
-     "at": -1,
-     "score": 5,
-     "interval": 1
-    }
-   ]
-  },
-  {
    "sticker": "store-cat",
    "ease": 2.5,
    "interval": 1,
@@ -1947,6 +1779,51 @@
   },
   {
    "sticker": "store-sunset",
+   "ease": 2.5,
+   "interval": 1,
+   "repetitions": 1,
+   "last": -1,
+   "due": 2,
+   "history": [
+    {
+     "at": -1,
+     "score": 5,
+     "interval": 1
+    }
+   ]
+  },
+  {
+   "sticker": "store-bracelet",
+   "ease": 2.5,
+   "interval": 1,
+   "repetitions": 1,
+   "last": -1,
+   "due": 2,
+   "history": [
+    {
+     "at": -1,
+     "score": 5,
+     "interval": 1
+    }
+   ]
+  },
+  {
+   "sticker": "store-blacktea",
+   "ease": 2.5,
+   "interval": 1,
+   "repetitions": 1,
+   "last": -1,
+   "due": 2,
+   "history": [
+    {
+     "at": -1,
+     "score": 5,
+     "interval": 1
+    }
+   ]
+  },
+  {
+   "sticker": "store-lipbalm",
    "ease": 2.5,
    "interval": 1,
    "repetitions": 1,
