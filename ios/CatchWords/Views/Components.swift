@@ -326,3 +326,60 @@ struct LocalizedPlaceText: View {
             }
     }
 }
+
+/// 「見本」 on the bundled sample word (`SampleSticker`): a small pale-blue pill on its album photo and its dex square, so
+/// the learner knows it is not something they caught (owner 2026-10-28: 「残す。長押しで消せる」, with a mark).
+struct SampleMark: View {
+    var body: some View {
+        Text(L("見本"))
+            .font(.system(size: 9.5, weight: .heavy))
+            .tracking(0.3)
+            .foregroundStyle(Theme.primaryInk)
+            .padding(.horizontal, 7)
+            .frame(height: 18)
+            .background(Theme.accent, in: Capsule())
+            .overlay(Capsule().stroke(Color.white.opacity(0.9), lineWidth: 1))
+            .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
+            .allowsHitTesting(false)
+            .accessibilityElement()
+            .accessibilityLabel(L("見本"))
+            .accessibilityIdentifier("sample.mark")
+    }
+}
+
+/// Three short blue strokes, as if something had just popped up: by the welcome latte, beside the place the first tour
+/// lights and on its cards (owner 2026-10-28: the reference pictures' mark, in place of the hand). Design pixels, box
+/// 50…135 × 215…300; stroke it in 0x5AA4F8 with round caps.
+struct WelcomeBurst: Shape {
+    private static let lines: [(CGPoint, CGPoint)] = [
+        (CGPoint(x: 126, y: 223), CGPoint(x: 125, y: 253)),
+        (CGPoint(x: 80, y: 243), CGPoint(x: 102, y: 270)),
+        (CGPoint(x: 57, y: 285), CGPoint(x: 87, y: 292)),
+    ]
+
+    func path(in rect: CGRect) -> Path {
+        let sx = rect.width / 85
+        let sy = rect.height / 85
+        var p = Path()
+        for (a, b) in Self.lines {
+            p.move(to: CGPoint(x: rect.minX + (a.x - 50) * sx, y: rect.minY + (a.y - 215) * sy))
+            p.addLine(to: CGPoint(x: rect.minX + (b.x - 50) * sx, y: rect.minY + (b.y - 215) * sy))
+        }
+        return p
+    }
+}
+
+/// A small blue pill for a short label (「STEP 1」 on the first tour's cards, 「はじめに」 on the onboarding's last screen).
+struct StepPill: View {
+    let text: String
+
+    var body: some View {
+        Text(verbatim: text)
+            .scaledFont(size: 12, weight: .bold)
+            .tracking(0.8)
+            .foregroundStyle(Theme.primaryInk)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Theme.primary.opacity(0.1), in: Capsule())
+    }
+}

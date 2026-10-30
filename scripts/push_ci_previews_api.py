@@ -38,6 +38,12 @@ def call(method, path, body=None, token=None):
             if e.code == 404 or e.code == 422 or attempt == 4:
                 detail = e.read().decode(errors="replace")[:300]
                 raise RuntimeError(f"{method} {path.split('?')[0]} → HTTP {e.code}: {detail}") from e
+            # GitHub's secondary rate limit (403/429, 2026-10-28 with ~900 blobs): wait as told, at least a minute.
+            if e.code in (403, 429):
+                wait = int(e.headers.get("Retry-After") or 0) or 60 * (attempt + 1)
+                print(f"ci-previews: rate limited, waiting {wait}s")
+                time.sleep(wait)
+                continue
         except (urllib.error.URLError, TimeoutError):
             if attempt == 4:
                 raise
@@ -75,7 +81,7 @@ def main():
         return {"path": os.path.basename(path), "mode": "100644", "type": "blob", "sha": sha}
 
     started = time.time()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         entries = list(pool.map(blob, files))
     print(f"ci-previews: {len(entries)} blobs in {time.time() - started:.0f}s")
     # Built 50 entries at a time on top of the last part: one call with all ~350 timed out on GitHub's side

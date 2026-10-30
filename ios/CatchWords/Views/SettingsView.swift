@@ -356,7 +356,7 @@ struct SettingsView: View {
             var image: UIImage?
             if let path = latest?.cutoutImageUrl ?? latest?.heroPath { image = await ImageCache.shared.cached(for: path) }
             let options = PraiseMoment.options(standing: standing, headword: latest?.word?.headword ?? "",
-                                               totalWords: dex.stickers.count, start: profile.createdAt, image: image)
+                                               totalWords: dex.wordCount, start: profile.createdAt, image: image)
             praiseTrial = PraiseMoment.pick(options, recent: [])
         }
     }

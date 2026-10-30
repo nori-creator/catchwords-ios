@@ -205,7 +205,10 @@ final class FullTourTests: XCTestCase {
         let landed = app.descendants(matching: .any)["dex.new"]
         let landedAgain = app.descendants(matching: .any)["dex.again"]
         let outcomes = [catchButton, again, landed, landedAgain]
-        var seen = waitForCatch(outcomes, timeout: 20)
+        // 40 s, not 20: a Japanese screen's first line breaking loads the system's MeCab dictionary on the main thread,
+        // which held the app ~10 s on a cold simulator right after the choice (CI 2026-10-29, ja/zh-TW, twice); the GET
+        // moment passed unseen during it and the word landed in the dex a moment after a 20 s wait gave up.
+        var seen = waitForCatch(outcomes, timeout: 40)
         if seen == nil {
             // The buttons the screen holds now and where (identifier @ centre), so the failure explains itself.
             let buttons = app.buttons.allElementsBoundByIndex.prefix(12).map { b in
@@ -417,17 +420,25 @@ final class FullTourTests: XCTestCase {
         // The dialog's button is reported twice (button inside button): take the first.
         let confirm = app.buttons["settings.signOut.confirm"].firstMatch
         if confirm.waitForExistence(timeout: 3) { confirm.tap() }
-        // Signed out: the welcome screen first, then 「メールでログイン」 opens the sign-in screen with the mail form.
-        let signIn = app.buttons["welcome.signin"]
-        guard signIn.waitForExistence(timeout: 10) else {
+        // Signed out: the welcome screen on its sign-up side; 「ログイン」 at the bottom turns it to the sign-in side, and
+        // 「メールでログイン」 opens the mail fields there (owner 2026-10-29).
+        let toSignIn = app.buttons["welcome.switch"]
+        guard toSignIn.waitForExistence(timeout: 10) else {
             XCTFail("[\(display)/\(learning)] the welcome screen did not appear after signing out")
             return
         }
         settle(2)
         snap("welcome")
-        signIn.tap()
+        toSignIn.tap()
+        settle(1)
+        let mail = app.buttons["welcome.mail"]
+        guard mail.waitForExistence(timeout: 5) else {
+            XCTFail("[\(display)/\(learning)] the sign-in side has no mail button")
+            return
+        }
+        mail.tap()
         guard app.textFields["auth.email"].waitForExistence(timeout: 10) else {
-            XCTFail("[\(display)/\(learning)] the mail form did not open from the welcome screen")
+            XCTFail("[\(display)/\(learning)] the mail fields did not open on the sign-in side")
             return
         }
         settle(1)

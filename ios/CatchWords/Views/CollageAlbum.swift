@@ -157,6 +157,11 @@ struct CollageBoard: View {
     /// The red ✕ while rearranging: the photo leaves the album (it stays in the dex; 「アルバムから外した写真」 has it).
     private func remove(_ id: String) {
         Haptics.impact(.light)
+        // The sample word is not kept anywhere else: taking it off the album deletes it (no undo, it never comes back).
+        if let sample = dex.sticker(id: id), sample.isSample {
+            Task { try? await dex.delete(sample) }
+            return
+        }
         withAnimation(.snappy) { dex.albumUndo = id }
         Task {
             let ok = await dex.setAlbumHidden(id, hidden: true)
@@ -202,6 +207,11 @@ struct CollageBoard: View {
     }
 }
 
+extension EnvironmentValues {
+    /// The sticker the first tour has just pasted onto the home's album (its arrival is animated once).
+    @Entry var albumPasteID: String? = nil
+}
+
 /// One photo on the album page. While a finger moves it, the change lives here (`press` from the long press,
 /// `pinch` from the fingers while rearranging) and only this view is redrawn; the board takes the final place when
 /// the finger lets go.
@@ -229,6 +239,14 @@ private struct CollagePiece: View {
     @State private var snapped = false
     /// Scrolls the home page while this photo is carried to the screen's edge (absent on the memorial album).
     @Environment(AlbumAutoScroll.self) private var autoScroll: AlbumAutoScroll?
+    /// The first tour's catch is pasted onto the page as it comes in (`albumPasteID`).
+    @Environment(\.albumPasteID) private var pasteID
+    @State private var pastedDone: Bool = false
+    /// Held off the page until it is pasted (from the first frame, so it never shows before it comes down).
+    private var pasted: Bool { pasteID != sticker.id || pastedDone || reduceMotion || Self.justPasted }
+    /// The paste has been played: the same catch drawn again once its save gives it its real id is not pasted twice.
+    private static var pastedAt: Date?
+    private static var justPasted: Bool { pastedAt.map { Date().timeIntervalSince($0) < 30 } ?? false }
 
     /// The finger's movement plus how far the page scrolled under it since the photo was taken: the photo stays
     /// under the finger while the page runs (owner 2026-10-14).
@@ -268,11 +286,17 @@ private struct CollagePiece: View {
                 .scaleEffect(lifted ? 1.06 : 1)
                 .rotationEffect(.degrees(p.rot + w.rot))
                 .offset(y: w.lift)
+                // Pasted: it comes down from above the page, a little big and tilted, and presses flat.
+                .scaleEffect(pasted ? 1 : 1.45)
+                .rotationEffect(.degrees(pasted ? 0 : -10))
+                .offset(y: pasted ? 0 : -60)
+                .opacity(pasted ? 1 : 0)
         }
         // The photo's own area takes the touches — set before it is positioned, so a tap on 地瓜 can never open the
         // photo drawn above it (`.position` makes a view as big as the whole page; 2026-10-11).
         .contentShape(.rect)
         .onTapGesture { if !editing { onOpen() } }
+        .onAppear { paste() }
         // Stays on while rearranging (turning it off would cancel the very press that started it); presses then
         // are left to the fingers' own gestures (`began`).
         .gesture(LongPressGrab(enabled: canEdit, onBegan: began, onMoved: moved, onEnded: ended))
@@ -283,6 +307,21 @@ private struct CollagePiece: View {
         .accessibilityHint(editing ? L("ドラッグで移動、2本指で大きさと傾き") : L("単語をひらく"))
         .accessibilityAction(named: L("配置を変える")) { if canEdit && !editing { onGrab() } }
         .accessibilityAction(named: L("アルバムから外す")) { if canEdit && editing { onRemove() } }
+    }
+
+    /// The first tour's catch arriving on the home screen: held off the page, then pressed on with a bounce, a soft
+    /// tap and the landing sound (owner 2026-10-28: the cut-out added to the home screen as part of the guide).
+    private func paste() {
+        guard pasteID == sticker.id, !pastedDone, !reduceMotion, !Self.justPasted else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.58)) { pastedDone = true }
+            try? await Task.sleep(for: .milliseconds(160))
+            Haptics.impact(.soft, intensity: 0.8)
+            SoundService.shared.play(.landBounce)
+            try? await Task.sleep(for: .milliseconds(700))
+            Self.pastedAt = Date()
+        }
     }
 
     // MARK: The long press (starts rearranging, then carries the photo)
@@ -365,6 +404,11 @@ private struct CollagePiece: View {
                         if !word.isEmpty {
                             WordTag(text: word, zhuyin: sticker.word?.readingZhuyin, pinyin: sticker.word?.pinyin,
                                     tilt: Self.tagTilt(sticker.id))
+                                // 「見本」 on the tag itself: the photo's frame is wider than a tall cut-out, so a mark
+                                // on its corner floated away from the drink (CI preview 2026-10-28).
+                                .overlay(alignment: .topTrailing) {
+                                    if sticker.isSample { SampleMark().offset(x: 12, y: -14) }
+                                }
                                 .offset(x: Self.tagShift(sticker.id) * size.w, y: WordTag.height / 2)
                         }
                     }
@@ -446,6 +490,8 @@ struct WordTag: View {
     /// (owner 2026-10-20: 「単語の詳細の見出しの大きさのバランスにして」 — at 15 pt the reading's 9 pt minimum made it as
     /// big as the characters). 20 pt keeps the reading legible; an English word, with no reading, stays at 15 pt.
     var size: CGFloat? = nil
+    /// The paper's least size (the welcome screen's tags cover the place of the label once printed on its pictures).
+    var minSize: CGSize? = nil
     private var textSize: CGFloat { size ?? (NativeAPI.targetLanguage == "en" ? 15 : 20) }
 
     /// The tag's height without a reading at 15 pt (the album keeps half of it under the photo).
@@ -458,7 +504,7 @@ struct WordTag: View {
                        readingColor: Self.ink.opacity(0.75), pinyin: pinyin, proportionalReading: true)
             .padding(.horizontal, 12)
             .padding(.vertical, 2)
-            .frame(minHeight: Self.height * min(textSize, 15) / 15)
+            .frame(minWidth: minSize?.width, minHeight: max(minSize?.height ?? 0, Self.height * min(textSize, 15) / 15))
             .background(Color(hex: 0xF6E4C8), in: .rect(cornerRadius: 3, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).stroke(Color(hex: 0xE6CFA8), lineWidth: 0.5))
             .shadow(color: Color(hex: 0x5A4630).opacity(0.22), radius: 2.5, y: 1.5)

@@ -67,6 +67,9 @@ final class AppRouter {
     var tour: TourStep = .off
     /// The word caught during the tour (used by the Dex / word / review steps).
     var tourStickerId: String?
+    /// `.wordSection`: the word page's section the guide is on, and the page's sections in order (the page tells).
+    var tourSection: CardSection?
+    var tourSections: [CardSection] = []
     /// The word sheet zooms out of the tile it was opened from (iOS 18 zoom transition). Set by MainTabView.
     var detailZoom: Namespace.ID?
     /// The open word came from a tile marked with `detailZoomSource` (Dex grid / list), so the sheet zooms.
@@ -103,6 +106,14 @@ final class AppRouter {
     func advanceTour(from step: TourStep, to next: TourStep) {
         guard tour == step else { return }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { tour = next }
+    }
+
+    /// The tour is over: back on the home screen, where its end is celebrated (`TourCompleteView`).
+    func tourFinish() {
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
+            tour = .complete
+            tab = .home
+        }
     }
 }
 
@@ -218,8 +229,9 @@ struct MainTabView: View {
             }
         }
         .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-            // The catch hides the tab bar for its whole flow; its capture steps still need the guide.
-            if router.tour != .off, router.tour != .word, router.tour != .complete,
+            // The catch hides the tab bar for its whole flow; its capture steps still need the guide. Never over a
+            // word landing in the dex: the card waits until the word has landed (it used to darken the landing).
+            if router.tour != .off, !router.tour.isWord, router.tour != .complete, router.landing == nil,
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: endTour)
                     .transition(.opacity)
@@ -232,7 +244,7 @@ struct MainTabView: View {
                    let tab = anchors[.cameraTab], let shutter = anchors[.shutter] {
                     let from = geo[tab]
                     let to = geo[shutter]
-                    ShutterFlight(from: CGPoint(x: from.midX, y: from.minY + 20),   // the icon, above the label
+                    ShutterFlight(from: CGPoint(x: from.midX, y: from.midY),   // the raised disc itself
                                   to: CGPoint(x: to.midX, y: to.midY)) {
                         Haptics.impact(.light, intensity: 0.8)
                         router.shutterFlying = false
@@ -244,7 +256,8 @@ struct MainTabView: View {
         }
         .overlay {
             if router.tour == .complete {
-                TourCompleteView(sticker: router.tourStickerId.flatMap { dex.sticker(id: $0) }) { endTour() }
+                // The catch's picture; the sample word's when the catch is gone (never the bare logo while a word exists).
+                TourCompleteView(sticker: router.tourStickerId.flatMap { dex.sticker(id: $0) } ?? dex.stickers.first { $0.isSample }) { endTour() }
                     .transition(.opacity.combined(with: .scale(scale: 1.02)))
                     .zIndex(3)
             }
@@ -252,19 +265,21 @@ struct MainTabView: View {
         .environment(router)
         .sheet(item: $router.detailSticker, onDismiss: {
             router.detailZoomed = false
-            // 「ことば」を見終えたら復習へ（Web: StickerSheet の onClose → review）。
-            if router.tour == .word { startTourReview() }
+            // 単語の頁を見終えたら復習へ（Web: StickerSheet の onClose → review）。
+            if router.tour.isWord { startTourReview() }
         }) { sticker in
             WordDetailView(sticker: sticker)
                 .environment(router)
                 .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Theme.background)
-                .overlay(alignment: .bottom) {
-                    if router.tour == .word {
-                        TourCoachCard(step: .word, onNext: { router.detailSticker = nil }, onSkip: endTour)
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 12)
+                // The word's page is a sheet over the tabs: its guide steps light its own parts (the jump chips, the
+                // settings button), with a layer of their own.
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    if router.tour.isWord {
+                        TourLayer(step: router.tour, anchors: anchors, onNext: wordTourNext, onSkip: endTour,
+                                  bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
+                            .transition(.opacity)
                     }
                 }
         }
@@ -279,12 +294,16 @@ struct MainTabView: View {
         .onChange(of: tourPending) { _, _ in beginTourIfPending() }
         .onChange(of: router.tab) { _, tab in
             if tab == .camera { router.advanceTour(from: .tapCamera, to: .shoot) }
+            if tab == .dex { router.advanceTour(from: .dexTab, to: .dexCover) }
             // The camera screen's full-screen catch is over once another tab shows: coming back to the camera starts
             // from its own setting (`CaptureView.syncChrome` on appear), never from one it left behind.
             if tab != .camera { router.tabBarHidden = false }
         }
         .onChange(of: router.detailSticker) { old, s in
-            if s != nil { router.advanceTour(from: .dexOpen, to: .word) }
+            if s != nil, router.tour == .dexOpen {
+                router.tourSection = nil   // the page lights its first section once it knows them
+                router.advanceTour(from: .dexOpen, to: .wordSection)
+            }
             // Every way into a word (dex, home, review, a reminder) pons open; closing it pons back.
             if old == nil, s != nil { SoundService.shared.pon(open: true) }
             if old != nil, s == nil { SoundService.shared.pon(open: false) }
@@ -343,17 +362,34 @@ struct MainTabView: View {
     private func beginTourIfPending() {
         guard tourPending, router.tour == .off else { return }
         router.tab = .home
-        withAnimation(.easeOut(duration: 0.3)) { router.tour = .home }
+        // Straight to the first thing to do (the camera); the home's own explanation step is gone (2026-10-27).
+        withAnimation(.easeOut(duration: 0.3)) { router.tour = .tapCamera }
     }
 
     private func tourNext() {
         switch router.tour {
-        case .home: router.advanceTour(from: .home, to: .tapCamera)
         case .detail: router.advanceTour(from: .detail, to: .peel)
-        case .added: router.advanceTour(from: .added, to: .dexTypes)
-        case .dexOpen:
-            if let id = router.tourStickerId, let s = dex.sticker(id: id) { router.detailSticker = s } else { startTourReview() }
-        case .review: router.advanceTour(from: .review, to: .reviewPick)
+        case .homeAdded: router.advanceTour(from: .homeAdded, to: .dexTab)
+        case .dexCover: router.advanceTour(from: .dexCover, to: .dexMap)
+        case .dexShadow: router.advanceTour(from: .dexShadow, to: .dexOpen)
+        case .memoryCurve: router.tourFinish()
+        default: break
+        }
+    }
+
+    /// The steps over the word's page: its sections one by one, then the settings button, then (closing it) the review.
+    private func wordTourNext() {
+        switch router.tour {
+        case .wordSection:
+            let all = router.tourSections
+            if let at = router.tourSection.flatMap({ all.firstIndex(of: $0) }), at + 1 < all.count {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { router.tourSection = all[at + 1] }
+            } else if router.tourSection == nil, let first = all.first {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { router.tourSection = first }
+            } else {
+                router.advanceTour(from: .wordSection, to: .wordSettings)
+            }
+        case .wordSettings: router.detailSticker = nil   // its onDismiss starts the review
         default: break
         }
     }
@@ -361,11 +397,11 @@ struct MainTabView: View {
     private func startTourReview() {
         // Nothing to quiz on (no word in the dex): skip the practice instead of stopping on an empty review.
         guard dex.stickers.contains(where: { $0.word != nil }) else {
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) { router.tour = .complete }
+            router.tourFinish()
             return
         }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
-            router.tour = .review
+            router.tour = .reviewPick
             router.tab = .review
         }
     }
@@ -373,6 +409,7 @@ struct MainTabView: View {
     private func endTour() {
         tourPending = false
         router.detailSticker = nil
+        router.tourSection = nil
         withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
             router.tour = .off
             router.tab = .home
@@ -407,7 +444,7 @@ struct CapsuleTabBar: View {
             HStack(spacing: 0) {
                 ForEach(AppTab.allCases) { tab in
                     if tab == .camera {
-                        raisedCameraDisc.tourAnchor(.cameraTab)
+                        raisedCameraDisc
                     } else {
                         cell(tab)
                     }
@@ -451,6 +488,7 @@ struct CapsuleTabBar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle(scale: 0.92))
+        .tourAnchor(.dexTab, if: tab == .dex)
         .accessibilityLabel(tab.title)
         .accessibilityIdentifier("tab.\(String(describing: tab))")
     }
@@ -473,6 +511,9 @@ struct CapsuleTabBar: View {
                     .symbolEffect(.bounce, value: bounces[.camera, default: 0])
             }
             .frame(width: size, height: size)
+            // The guide lights the disc where it is drawn, raised above the bar (owner 2026-10-28: lit on the cell, the
+            // ring sat below the disc).
+            .tourAnchor(.cameraTab)
             .offset(y: -Self.raise)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // The whole cell takes the tap; the tap area moves up with the disc so its top is reachable.

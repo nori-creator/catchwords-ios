@@ -1,0 +1,439 @@
+{
+ "headword": "珍珠奶茶",
+ "reading_zhuyin": "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
+ "pinyin": "zhēn zhū nǎi chá",
+ "category_key": "drink",
+ "example_sentence": "我要一杯珍珠奶茶，半糖少冰。",
+ "example_extra_zh": "我每次都點珍珠奶茶，去冰少糖。",
+ "head_part": {
+  "text": "珍珠奶茶",
+  "pos": "N",
+  "pinyin": "zhēn zhū nǎi chá",
+  "zhuyin": "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ"
+ },
+ "chunks": [
+  {
+   "slot": {
+    "text": "半糖",
+    "pos": "N",
+    "pinyin": "bàn táng",
+    "zhuyin": "ㄅㄢˋ ㄊㄤˊ",
+    "ja_key": "p_bantang"
+   },
+   "alts": [
+    {
+     "text": "少糖",
+     "pinyin": "shǎo táng",
+     "zhuyin": "ㄕㄠˇ ㄊㄤˊ",
+     "ja_key": "a_shaotang"
+    },
+    {
+     "text": "無糖",
+     "pinyin": "wú táng",
+     "zhuyin": "ㄨˊ ㄊㄤˊ",
+     "ja_key": "a_wutang"
+    },
+    {
+     "text": "全糖",
+     "pinyin": "quán táng",
+     "zhuyin": "ㄑㄩㄢˊ ㄊㄤˊ",
+     "ja_key": "a_quantang"
+    }
+   ]
+  },
+  {
+   "slot": {
+    "text": "去冰",
+    "pos": "V",
+    "pinyin": "qù bīng",
+    "zhuyin": "ㄑㄩˋ ㄅㄧㄥ",
+    "ja_key": "p_qubing"
+   },
+   "alts": [
+    {
+     "text": "少冰",
+     "pinyin": "shǎo bīng",
+     "zhuyin": "ㄕㄠˇ ㄅㄧㄥ",
+     "ja_key": "a_shaobing"
+    },
+    {
+     "text": "微冰",
+     "pinyin": "wéi bīng",
+     "zhuyin": "ㄨㄟˊ ㄅㄧㄥ",
+     "ja_key": "a_weibing"
+    },
+    {
+     "text": "正常冰",
+     "pinyin": "zhèng cháng bīng",
+     "zhuyin": "ㄓㄥˋ ㄔㄤˊ ㄅㄧㄥ",
+     "ja_key": "a_zhengchangbing"
+    }
+   ]
+  }
+ ],
+ "example_chunks": [
+  [
+   "我要一杯"
+  ],
+  [
+   "珍珠奶茶"
+  ],
+  [
+   "，"
+  ],
+  [
+   "半糖"
+  ],
+  [
+   "少冰。"
+  ]
+ ],
+ "example_extra_chunks": [
+  [
+   "我每次都點"
+  ],
+  [
+   "珍珠奶茶"
+  ],
+  [
+   "，"
+  ],
+  [
+   "去冰"
+  ],
+  [
+   "少糖。"
+  ]
+ ],
+ "measure_word": {
+  "word": "杯",
+  "zhuyin": "ㄅㄟ",
+  "pinyin": "bēi"
+ },
+ "related": [
+  {
+   "word": "奶茶",
+   "reading": "ㄋㄞˇ ㄔㄚˊ",
+   "key": "r1"
+  },
+  {
+   "word": "珍珠",
+   "reading": "ㄓㄣ ㄓㄨ",
+   "key": "r2"
+  },
+  {
+   "word": "手搖飲",
+   "reading": "ㄕㄡˇ ㄧㄠˊ ㄧㄣˇ",
+   "key": "r3"
+  }
+ ],
+ "readings": [
+  {
+   "sentence": "我要一杯珍珠奶茶，半糖少冰。",
+   "units": [
+    {
+     "char": "我",
+     "pinyin": "wǒ",
+     "zhuyin": "ㄨㄛˇ"
+    },
+    {
+     "char": "要",
+     "pinyin": "yào",
+     "zhuyin": "ㄧㄠˋ"
+    },
+    {
+     "char": "一",
+     "pinyin": "yī",
+     "zhuyin": "ㄧ"
+    },
+    {
+     "char": "杯",
+     "pinyin": "bēi",
+     "zhuyin": "ㄅㄟ"
+    },
+    {
+     "char": "珍",
+     "pinyin": "zhēn",
+     "zhuyin": "ㄓㄣ"
+    },
+    {
+     "char": "珠",
+     "pinyin": "zhū",
+     "zhuyin": "ㄓㄨ"
+    },
+    {
+     "char": "奶",
+     "pinyin": "nǎi",
+     "zhuyin": "ㄋㄞˇ"
+    },
+    {
+     "char": "茶",
+     "pinyin": "chá",
+     "zhuyin": "ㄔㄚˊ"
+    },
+    {
+     "char": "，",
+     "pinyin": null,
+     "zhuyin": null
+    },
+    {
+     "char": "半",
+     "pinyin": "bàn",
+     "zhuyin": "ㄅㄢˋ"
+    },
+    {
+     "char": "糖",
+     "pinyin": "táng",
+     "zhuyin": "ㄊㄤˊ"
+    },
+    {
+     "char": "少",
+     "pinyin": "shǎo",
+     "zhuyin": "ㄕㄠˇ"
+    },
+    {
+     "char": "冰",
+     "pinyin": "bīng",
+     "zhuyin": "ㄅㄧㄥ"
+    },
+    {
+     "char": "。",
+     "pinyin": null,
+     "zhuyin": null
+    }
+   ]
+  },
+  {
+   "sentence": "我每次都點珍珠奶茶，去冰少糖。",
+   "units": [
+    {
+     "char": "我",
+     "pinyin": "wǒ",
+     "zhuyin": "ㄨㄛˇ"
+    },
+    {
+     "char": "每",
+     "pinyin": "měi",
+     "zhuyin": "ㄇㄟˇ"
+    },
+    {
+     "char": "次",
+     "pinyin": "cì",
+     "zhuyin": "ㄘˋ"
+    },
+    {
+     "char": "都",
+     "pinyin": "dōu",
+     "zhuyin": "ㄉㄡ"
+    },
+    {
+     "char": "點",
+     "pinyin": "diǎn",
+     "zhuyin": "ㄉㄧㄢˇ"
+    },
+    {
+     "char": "珍",
+     "pinyin": "zhēn",
+     "zhuyin": "ㄓㄣ"
+    },
+    {
+     "char": "珠",
+     "pinyin": "zhū",
+     "zhuyin": "ㄓㄨ"
+    },
+    {
+     "char": "奶",
+     "pinyin": "nǎi",
+     "zhuyin": "ㄋㄞˇ"
+    },
+    {
+     "char": "茶",
+     "pinyin": "chá",
+     "zhuyin": "ㄔㄚˊ"
+    },
+    {
+     "char": "，",
+     "pinyin": null,
+     "zhuyin": null
+    },
+    {
+     "char": "去",
+     "pinyin": "qù",
+     "zhuyin": "ㄑㄩˋ"
+    },
+    {
+     "char": "冰",
+     "pinyin": "bīng",
+     "zhuyin": "ㄅㄧㄥ"
+    },
+    {
+     "char": "少",
+     "pinyin": "shǎo",
+     "zhuyin": "ㄕㄠˇ"
+    },
+    {
+     "char": "糖",
+     "pinyin": "táng",
+     "zhuyin": "ㄊㄤˊ"
+    },
+    {
+     "char": "。",
+     "pinyin": null,
+     "zhuyin": null
+    }
+   ]
+  }
+ ],
+ "text": {
+  "ja": {
+   "meaning": "タピオカミルクティー。台湾生まれの、もちもちしたタピオカ（珍珠）入りのミルクティー。",
+   "ex1": "タピオカミルクティーを一杯、砂糖半分・氷少なめで。",
+   "ex2": "私はいつもタピオカミルクティーを、氷なし・砂糖少なめで頼みます。",
+   "chunk1": "タピオカミルクティーを砂糖半分で",
+   "chunk2": "タピオカミルクティーを氷なしで",
+   "note1": "甘さは注文のときに自分で言います。半糖が一番よく選ばれます。",
+   "note2": "氷の量も自分で選びます。去冰は氷なし、少冰は氷少なめです。",
+   "p_bantang": "砂糖半分",
+   "p_qubing": "氷なし",
+   "a_shaotang": "砂糖少なめ",
+   "a_wutang": "砂糖なし",
+   "a_quantang": "砂糖ふつう",
+   "a_shaobing": "氷少なめ",
+   "a_weibing": "氷ごく少なめ",
+   "a_zhengchangbing": "氷ふつう",
+   "measure": "飲み物は「杯」で数えます。一杯珍珠奶茶。",
+   "r1g": "ミルクティー",
+   "r1n": "タピオカの入っていないもの。",
+   "r2g": "タピオカ",
+   "r2n": "黒い粒のこと。「粉圓」とも言います。",
+   "r3g": "手作りドリンク",
+   "r3n": "店でその場で作る飲み物の総称。珍珠奶茶もその一つ。",
+   "taiwan": "台湾では注文のとき、甘さ（**半糖・少糖・無糖**）と氷の量（**去冰・少冰**）を自分で選びます。短く「珍奶」と言う人も多いです。"
+  },
+  "en": {
+   "meaning": "Bubble tea: milk tea with chewy tapioca pearls (珍珠), invented in Taiwan.",
+   "ex1": "One bubble tea, please, half sugar and less ice.",
+   "ex2": "I always order bubble tea with no ice and less sugar.",
+   "chunk1": "bubble tea, half sugar",
+   "chunk2": "bubble tea, no ice",
+   "note1": "You say the sweetness yourself when you order; half sugar is the most common choice.",
+   "note2": "You choose the ice too: 去冰 means no ice, 少冰 means less ice.",
+   "p_bantang": "half sugar",
+   "p_qubing": "no ice",
+   "a_shaotang": "less sugar",
+   "a_wutang": "no sugar",
+   "a_quantang": "full sugar",
+   "a_shaobing": "less ice",
+   "a_weibing": "a little ice",
+   "a_zhengchangbing": "regular ice",
+   "measure": "Drinks are counted with 杯 (cup): 一杯珍珠奶茶, one bubble tea.",
+   "r1g": "milk tea",
+   "r1n": "The same drink without the pearls.",
+   "r2g": "tapioca pearls",
+   "r2n": "The black chewy balls, also called 粉圓.",
+   "r3g": "hand-shaken drinks",
+   "r3n": "Any drink shaken to order at a shop; bubble tea is one of them.",
+   "taiwan": "In Taiwan you pick the sweetness (**半糖・少糖・無糖**) and the ice (**去冰・少冰**) yourself when you order. Many people just say 珍奶 for short."
+  },
+  "zh-TW": {
+   "meaning": "台灣發明的飲料：加了Q彈粉圓（珍珠）的奶茶。",
+   "ex1": "我要一杯珍珠奶茶，半糖少冰。",
+   "ex2": "我每次都點珍珠奶茶，去冰少糖。",
+   "chunk1": "珍珠奶茶，甜度半糖",
+   "chunk2": "珍珠奶茶，不加冰",
+   "note1": "點餐時要自己說甜度，半糖是最多人選的。",
+   "note2": "冰量也要自己選：去冰是不加冰，少冰是冰少一點。",
+   "p_bantang": "甜度一半",
+   "p_qubing": "不加冰",
+   "a_shaotang": "甜度少一點",
+   "a_wutang": "不加糖",
+   "a_quantang": "正常甜度",
+   "a_shaobing": "冰少一點",
+   "a_weibing": "一點點冰",
+   "a_zhengchangbing": "正常冰量",
+   "measure": "飲料用「杯」來數：一杯珍珠奶茶。",
+   "r1g": "奶茶",
+   "r1n": "沒有加珍珠的奶茶。",
+   "r2g": "珍珠",
+   "r2n": "黑色Q彈的粉圓。",
+   "r3g": "手搖飲",
+   "r3n": "店家現場搖出來的飲料的總稱，珍珠奶茶也是其中一種。",
+   "taiwan": "在台灣點飲料時，甜度（**半糖、少糖、無糖**）和冰量（**去冰、少冰**）都要自己選。很多人會簡稱「珍奶」。"
+  },
+  "es": {
+   "meaning": "Té con leche y perlas de tapioca (珍珠), una bebida inventada en Taiwán.",
+   "ex1": "Un té de perlas, por favor, con mitad de azúcar y poco hielo.",
+   "ex2": "Siempre pido el té de perlas sin hielo y con poca azúcar.",
+   "chunk1": "té de perlas con mitad de azúcar",
+   "chunk2": "té de perlas sin hielo",
+   "note1": "El dulzor lo dices tú al pedir; la mitad de azúcar es lo que más se elige.",
+   "note2": "El hielo también se elige: 去冰 es sin hielo, 少冰 es poco hielo.",
+   "p_bantang": "mitad de azúcar",
+   "p_qubing": "sin hielo",
+   "a_shaotang": "poca azúcar",
+   "a_wutang": "sin azúcar",
+   "a_quantang": "azúcar normal",
+   "a_shaobing": "poco hielo",
+   "a_weibing": "muy poco hielo",
+   "a_zhengchangbing": "hielo normal",
+   "measure": "Las bebidas se cuentan con 杯 (vaso): 一杯珍珠奶茶, un té de perlas.",
+   "r1g": "té con leche",
+   "r1n": "La misma bebida sin perlas.",
+   "r2g": "perlas de tapioca",
+   "r2n": "Las bolitas negras y masticables, también llamadas 粉圓.",
+   "r3g": "bebidas agitadas",
+   "r3n": "Cualquier bebida preparada al momento en una tienda; el té de perlas es una de ellas.",
+   "taiwan": "En Taiwán eliges tú el dulzor (**半糖・少糖・無糖**) y el hielo (**去冰・少冰**) al pedir. Mucha gente dice solo 珍奶."
+  },
+  "ko": {
+   "meaning": "버블티. 쫄깃한 타피오카 펄(珍珠)이 들어간 밀크티로, 대만에서 시작된 음료예요.",
+   "ex1": "버블티 한 잔 주세요. 당도는 반, 얼음은 적게요.",
+   "ex2": "저는 늘 버블티를 얼음 없이, 설탕 적게 시켜요.",
+   "chunk1": "버블티 당도 반",
+   "chunk2": "버블티 얼음 없이",
+   "note1": "주문할 때 당도를 직접 말해요. 반당이 가장 많이 고르는 선택이에요.",
+   "note2": "얼음 양도 직접 골라요. 去冰은 얼음 없음, 少冰은 얼음 적게예요.",
+   "p_bantang": "당도 반",
+   "p_qubing": "얼음 없이",
+   "a_shaotang": "설탕 적게",
+   "a_wutang": "무설탕",
+   "a_quantang": "정상 당도",
+   "a_shaobing": "얼음 적게",
+   "a_weibing": "얼음 아주 조금",
+   "a_zhengchangbing": "정상 얼음",
+   "measure": "음료는 杯(잔)로 세요. 一杯珍珠奶茶, 버블티 한 잔.",
+   "r1g": "밀크티",
+   "r1n": "펄이 들어가지 않은 것.",
+   "r2g": "타피오카 펄",
+   "r2n": "검은 쫄깃한 알갱이. 粉圓이라고도 해요.",
+   "r3g": "수제 음료",
+   "r3n": "가게에서 바로 흔들어 만드는 음료를 통틀어 부르는 말. 버블티도 그중 하나예요.",
+   "taiwan": "대만에서는 주문할 때 당도(**半糖・少糖・無糖**)와 얼음 양(**去冰・少冰**)을 직접 골라요. 짧게 珍奶라고 부르는 사람도 많아요."
+  },
+  "vi": {
+   "meaning": "Trà sữa trân châu: trà sữa có trân châu dai (珍珠), ra đời ở Đài Loan.",
+   "ex1": "Cho tôi một ly trà sữa trân châu, nửa đường, ít đá.",
+   "ex2": "Tôi luôn gọi trà sữa trân châu không đá, ít đường.",
+   "chunk1": "trà sữa trân châu nửa đường",
+   "chunk2": "trà sữa trân châu không đá",
+   "note1": "Khi gọi món bạn tự nói độ ngọt; nửa đường là lựa chọn phổ biến nhất.",
+   "note2": "Lượng đá cũng tự chọn: 去冰 là không đá, 少冰 là ít đá.",
+   "p_bantang": "nửa đường",
+   "p_qubing": "không đá",
+   "a_shaotang": "ít đường",
+   "a_wutang": "không đường",
+   "a_quantang": "đường bình thường",
+   "a_shaobing": "ít đá",
+   "a_weibing": "rất ít đá",
+   "a_zhengchangbing": "đá bình thường",
+   "measure": "Đồ uống đếm bằng 杯 (ly): 一杯珍珠奶茶, một ly trà sữa trân châu.",
+   "r1g": "trà sữa",
+   "r1n": "Cùng loại đồ uống nhưng không có trân châu.",
+   "r2g": "trân châu",
+   "r2n": "Những viên đen dai dai, còn gọi là 粉圓.",
+   "r3g": "đồ uống pha tay",
+   "r3n": "Tên chung cho đồ uống lắc tại quán; trà sữa trân châu là một trong số đó.",
+   "taiwan": "Ở Đài Loan, khi gọi món bạn tự chọn độ ngọt (**半糖・少糖・無糖**) và lượng đá (**去冰・少冰**). Nhiều người gọi tắt là 珍奶."
+  }
+ }
+}
