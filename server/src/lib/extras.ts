@@ -655,8 +655,51 @@ export const MAX_CHUNK_CHARS_EN = 28;
  * 「生成はされているのに全部落ちる」が日本語で起きる。指示文の「12文字以内」と揃える。
  */
 export const MAX_CHUNK_CHARS_JA = 12;
-/** 型1つのパーツ数の上限。 */
+/** 型1つのパーツ数の上限（中身のパーツ — 下の `isUncountedChunkPart` は数えない）。 */
 export const MAX_CHUNK_PARTS = 4;
+/** 数えない札も入れたパーツ数の上限（把＋原子筆＋放進＋筆袋＋裡 は5つ）。 */
+export const MAX_CHUNK_PARTS_TOTAL = 6;
+
+/**
+ * **名詞の後ろの方位の語**（裡・上…）。「在＋場所」では欠かせず、「放進＋容器」でもふつう付く。
+ * オーナー 2026-10-30（筆袋）: 「把＋物＋裝進筆袋裡 が最も自然では？」— 長さの上限（4札・8字）に 把 と 裡 を
+ * 数えていたので、自然な形が入らず、AI は 裝進＋筆袋 に切り詰めていた。
+ */
+export const LOCATIVE_PARTS: ReadonlySet<string> = new Set([
+  "裡", "裏", "上", "下", "中", "內", "外", "旁", "邊", "前", "後",
+  "裡面", "上面", "下面", "外面", "旁邊", "前面", "後面",
+]);
+/** 文の骨組みの介詞（把 / 被 / 將）。中身の長さに数えない。 */
+const FRAME_PREPOSITIONS: ReadonlySet<string> = new Set(["把", "被", "將"]);
+
+/** 長さの上限に数えない札: 把・被・將 と、名詞の後ろの方位の語。 */
+export function isUncountedChunkPart(
+  parts: ReadonlyArray<{ text?: string | null; pos?: string | null }>,
+  i: number,
+): boolean {
+  const text = (parts[i]?.text ?? "").trim();
+  if (FRAME_PREPOSITIONS.has(text)) return true;
+  if (!LOCATIVE_PARTS.has(text) || i === 0) return false;
+  const prev = (parts[i - 1]?.pos ?? "N").trim().toUpperCase();
+  return prev.startsWith("N") && prev !== "NCD";
+}
+
+/** 長さの上限で数える中身のパーツ。 */
+export function countedChunkParts<T extends { text?: string | null; pos?: string | null }>(
+  parts: ReadonlyArray<T>,
+): T[] {
+  return parts.filter((_, i) => !isUncountedChunkPart(parts, i));
+}
+
+/** パーツ数が上限を超えるか（中身4つ・全部で6つ）。 */
+export function chunkTooManyParts(parts: ReadonlyArray<{ text?: string | null; pos?: string | null }>): boolean {
+  return parts.length > MAX_CHUNK_PARTS_TOTAL || countedChunkParts(parts).length > MAX_CHUNK_PARTS;
+}
+
+/** 字数の上限で測る字（台湾華語・日本語）。数えない札を除いてつなぐ。 */
+export function countedChunkChars(parts: ReadonlyArray<{ text?: string | null; pos?: string | null }>): number {
+  return [...countedChunkParts(parts).map((p) => (p.text ?? "").trim()).join("")].length;
+}
 /** カードに並べる型の数の上限。 */
 export const MAX_CHUNKS = 5;
 
@@ -788,7 +831,7 @@ export function refineUsageChunks(
   )
     .filter((c) => {
       const parts = (c.parts ?? []).filter((p) => (p?.text ?? "").trim().length > 0);
-      if (parts.length === 0 || parts.length > MAX_CHUNK_PARTS) return false;
+      if (parts.length === 0 || chunkTooManyParts(parts)) return false;
       const text = chunkText(c, isEnglish ? " " : "");
       if (text.length === 0) return false;
       // 句点の付いた物は文。**長さの前に見る** — 短い文(`我去了。`)は
@@ -798,7 +841,7 @@ export function refineUsageChunks(
         // 英語は**語の数**で測る（文字数だと `put on socks` すら落ちる）。
         if (countWords(text) > MAX_CHUNK_WORDS_EN) return false;
         if (text.length > MAX_CHUNK_CHARS_EN) return false;
-      } else if (text.length > maxChars) {
+      } else if (countedChunkChars(parts) > maxChars) {
         return false;
       }
       // 見出し語だけの型は、その語を見れば分かることしか言っていない。

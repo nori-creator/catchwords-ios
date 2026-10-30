@@ -40,6 +40,7 @@ import {
 } from "./extras";
 import { chunkVerifyMode, describeChunkGate, gateUsageChunks } from "./chunk-quality";
 import { allowsSimplePartners } from "./generic-chunks";
+import { chunkCasesRule } from "./chunk-cases";
 import { normalizeTargetLanguage } from "./target-lang";
 import {
   readerMeaning,
@@ -1538,6 +1539,7 @@ ${
   ${chunkSenseRule(data.headword, "上の meaning_ja に書いた意味")}
   ${formulaChunkRule(cardProfile.code)}
   ${specificChunkRule(data.headword, levelGoal)}
+  ${chunkCasesRule(data.headword)}
   **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
   そのまま声に出せる形にする。「${data.headword}」自体を必ず**1つのパーツとして**含める（別の語の中に埋めない）。
   ${cardProfile.chunkPrompt.styleRule}
@@ -2500,9 +2502,14 @@ function chunkHardRules(headword: string, nl: string, levelGoal: string): string
   return [
     `【使い方チャンクの絶対ルール — 1つでも破った型は配列に入れない】`,
     `1. 「${headword}」をそのまま1つのパーツとして必ず入れる（slot にしない・別の語の中に埋めない）。`,
-    `2. パーツは2〜4個、字は合計8字以内。主語・句点（。！？）・量詞（一個/一杯/一條…）を入れない。`,
+    `2. 中身のパーツは2〜4個・合計8字以内。把・被 と、名詞の後ろの方位の語（裡・上・中…）は数えない（把＋原子筆＋放進＋筆袋＋裡 は中身3つ・6字）。` +
+      `主語・句点（。！？）・量詞（一個/一杯/一條…）を入れない。**長さに収めるために自然な句を削らない** — 削らないと入らない型は返さない` +
+      `（✗ 裝進＋筆袋 — 把＋原子筆＋放進＋筆袋＋裡 から 把＋物 と 裡 を削った形）。`,
     `3. パーツを左から続けて読むと、台湾のネイティブがそのまま言う正しい句になる。` +
-      `✗ 跌倒＋膝蓋 / ✗ 擦＋手帕＋汗水 / ✗ 站＋在＋手扶梯 → ○ 撞到＋膝蓋 / ○ 用＋手帕＋擦汗 / ○ 站＋在＋手扶梯＋上。`,
+      `✗ 跌倒＋膝蓋 / ✗ 擦＋手帕＋汗水 / ✗ 站＋在＋手扶梯 → ○ 撞到＋膝蓋 / ○ 用＋手帕＋擦汗 / ○ 站＋在＋手扶梯＋上。` +
+      `在＋場所の名詞 の後ろには 裡・上・中 などを別のパーツで必ず付け、放進・收進＋容器 もふつう 裡 を付ける（✗ 放在＋筆袋 → ○ 放在＋筆袋＋裡）。` +
+      `容器・入れ物・場所の名詞では、物をそこへ入れる・置く・そこから出す型（把＋物＋放進＋容器＋裡 / 從＋容器＋裡＋拿出＋物）が` +
+      `ネイティブの最頻の使い方なので、汎用とみなさず①にしてよい。珍しい動詞を探すために、よく使う 放・收 を避けない。`,
     simpleOk
       ? `4. 学習者の目標は 1・2級なので、吃/喝/拿/買/看/用 ＋ ${headword} のような簡単な動詞の型を1つまで入れてよい（その物で本当によく言う時だけ）。` +
         `残りはその物だけの動詞・状態にする（○ 吹＋電風扇、沖＋馬桶、剝＋椪柑、馬桶＋塞住了、膝蓋＋破皮、用＋夾子＋夾起來）。` +
@@ -2554,7 +2561,7 @@ const CHUNK_DEFINITION_RULE =
   `**チャンクの定義**: ネイティブがその語を使うときに**最もよく・最も自然に**口にする語の塊（使い方の公式）。` +
   `その塊を覚えれば、そのまま会話で言える物だけ。\n` +
   `1. **語順はネイティブが実際に言う順番を厳守する。** パーツを左から順に読むと、そのまま自然な句になること` +
-  `（✗ 紙箱＋裝＋東西 — この順では言わない → ○ 用＋紙箱＋裝＋東西 / ○ 把＋東西＋裝進＋紙箱）。\n` +
+  `（✗ 紙箱＋裝＋東西 — この順では言わない → ○ 用＋紙箱＋裝＋書 / ○ 把＋書＋放進＋紙箱＋裡）。\n` +
   `2. **パーツの区切りは品詞が変わる所。** ネイティブが1つの塊として言う語は分けない（○ 半糖・去冰・手搖飲）。` +
   `**逆に、1語ではない物を1つのパーツにつなげない**（✗ 熱水馬克杯 — そんな語は無く「熱湯マグカップ」に読める → ` +
   `○ 用＋馬克杯＋裝＋熱水）。\n` +
@@ -3113,7 +3120,7 @@ async function runSectionRegen(
         }),
     },
     usage_chunks: {
-      prompt: `${base}\n${chunkHardRules(head, NL, regenLevelGoal)}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${chunkNoteRule(NL)}\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","note":"ひと言解説","fits":true,"why":""}]}`,
+      prompt: `${base}\n${chunkHardRules(head, NL, regenLevelGoal)}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n${chunkCasesRule(head)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${chunkNoteRule(NL)}\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","note":"ひと言解説","fits":true,"why":""}]}`,
       // 部品の形は `extras.ts` の1つ（`ja`・`alts` を落とさない）。返ってきた型は生成と同じ門を通す
       // （`chunk-quality.ts`）。1つも残らなければ「作れなかった」— 崩れた型を書くより、空のまま次に任せる。
       schema: RegenUsageChunksSchema.transform((r, ctx) => {
