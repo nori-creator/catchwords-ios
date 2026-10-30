@@ -12,6 +12,7 @@ import {
   poolCandidates,
   rankAndSelect,
   readJudgeRanks,
+  repairChunkText,
   sentenceLength,
   type ChunkCandidate,
   type UsageChunkV2,
@@ -96,6 +97,31 @@ describe("形だけの門（gateChunksV2）", () => {
   });
 });
 
+describe("塊の字を文に合わせて直す（repairChunkText）", () => {
+  it("字が少し違う塊は、文の中でその字が順に入る最短の範囲に", () => {
+    expect(repairChunkText("開電風扇", "你去開一下電風扇好不好", "電風扇")).toBe("開一下電風扇");
+    expect(repairChunkText("手扶梯壞了", "手扶梯壞掉了，走樓梯吧", "手扶梯")).toBe("手扶梯壞掉了");
+    expect(repairChunkText("紙箱拿去回收", "記得把紙箱要拿去回收", "紙箱")).toBe("紙箱要拿去回收");
+  });
+  it("見出し語を外して切った塊は、隣の見出し語まで広げる（間に 1 字まで）", () => {
+    expect(repairChunkText("借我撐一下", "雨傘借我撐一下好嗎", "雨傘")).toBe("雨傘借我撐一下");
+    expect(repairChunkText("掉到桌子底下", "馬克杯掉到桌子底下了", "馬克杯")).toBe("馬克杯掉到桌子底下");
+    expect(repairChunkText("站右邊", "搭手扶梯要站右邊", "手扶梯")).toBe("手扶梯要站右邊");
+    expect(repairChunkText("借我撐一下", "下雨了，雨傘呢，借我撐一下", "雨傘")).toBeNull();
+  });
+  it("余分の字が多い・句読点をまたぐ・見つからない時は null", () => {
+    expect(repairChunkText("開電風扇", "你先去開一下那台很舊的電風扇", "電風扇")).toBeNull();
+    expect(repairChunkText("開電風扇", "你去開，電風扇在那邊", "電風扇")).toBeNull();
+    expect(repairChunkText("關電風扇", "你去開一下電風扇", "電風扇")).toBeNull();
+  });
+  it("門は直した字で通す", () => {
+    const r = gateChunksV2([ai({ text: "開電風扇", sentence: "你去開一下電風扇好不好", key: "開", slot: null, alts: [] })], { headword: "電風扇", language: "zh-TW" });
+    expect(r.kept.map((c) => c.text)).toEqual(["開一下電風扇"]);
+    const h = gateChunksV2([ai({ text: "借我撐一下", sentence: "雨傘借我撐一下好嗎", key: "撐", slot: null, alts: [] })], { headword: "雨傘", language: "zh-TW" });
+    expect(h.kept.map((c) => c.text)).toEqual(["雨傘借我撐一下"]);
+  });
+});
+
 describe("鍵（frameKey / coreKey）", () => {
   it("型の字は入れ替えの所を ＿ に。候補でも保存した塊でも作れる", () => {
     expect(frameKey(cand("把原子筆放進筆袋裡", "放進", { slot: "原子筆" }))).toBe("把＿放進筆袋裡");
@@ -148,13 +174,29 @@ describe("2 社の照合（mergeByAgreement）", () => {
 });
 
 describe("審査と並べ替え（readJudgeRanks / rankAndSelect）", () => {
-  it("文字列の true・数字も読み、範囲外の i は捨てる", () => {
-    const v = readJudgeRanks({ verdicts: [{ i: 1, natural: "true", rank: "2" }, { i: 2, natural: false, rank: null }, { i: 9, natural: true, rank: 1 }, "x"] }, 2);
+  it("文字列の true・数字も読み、範囲外の i は捨てる。same は範囲内で自分以外の番号だけ", () => {
+    const v = readJudgeRanks({ verdicts: [{ i: 1, natural: "true", rank: "2", same: null }, { i: 2, natural: false, rank: null, same: 1 }, { i: 9, natural: true, rank: 1 }, "x"] }, 2);
     expect(v).toEqual([
       { i: 1, natural: true, rank: 2 },
-      { i: 2, natural: false, rank: null },
+      { i: 2, natural: false, rank: null, same: 1 },
+    ]);
+    expect(readJudgeRanks({ verdicts: [{ i: 1, natural: true, rank: 1, same: 1 }, { i: 2, natural: true, rank: 2, same: "9" }] }, 2)).toEqual([
+      { i: 1, natural: true, rank: 1 },
+      { i: 2, natural: true, rank: 2 },
     ]);
     expect(readJudgeRanks(null, 2)).toEqual([]);
+  });
+
+  it("審査が「同じ言い方」と言った塊は 1 つ（順位の良い方を残す。どちらかの会社が言えば同じ）", () => {
+    const pool = poolCandidates({ agreed: [], onlyA: [cand("把雨衣穿起來", "穿起來"), cand("把雨衣穿上", "穿上"), cand("把雨衣脫掉", "脫掉")], onlyB: [] });
+    const ranksA = [
+      { i: 1, natural: true, rank: 2 },
+      { i: 2, natural: true, rank: 1, same: 1 },
+      { i: 3, natural: true, rank: 3 },
+    ];
+    const r = rankAndSelect(pool, ranksA, null);
+    expect(r.selected.map((c) => c.text)).toEqual(["把雨衣穿上", "把雨衣脫掉"]);
+    expect(r.rejected.map((c) => [c.text, c.reason])).toEqual([["把雨衣穿起來", "duplicate"]]);
   });
 
   it("A の塊は B が自然と言った物だけ、B の塊は A が言った物だけ、一致はどちらかが自然と言えば通る。並びは 2 社の順位の平均", () => {

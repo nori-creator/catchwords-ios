@@ -112,7 +112,8 @@ export type ChunkCandidate = {
 export const JudgeReplySchema = z.object({
   verdicts: z.array(z.unknown()).catch([]),
 });
-export type JudgeRank = { i: number; natural: boolean; rank: number | null };
+/** `same` = 同じ言い方だと審査が言った別の候補の番号（語順や補語が違うだけ: 把雨衣穿起來 と 把雨衣穿上）。 */
+export type JudgeRank = { i: number; natural: boolean; rank: number | null; same?: number | null };
 
 /** 画面に出す数の上限。 */
 export const CHUNKS_V2_MAX = 4;
@@ -199,6 +200,61 @@ export function coreKey(chunk: { key?: string | null; text?: string | null; slot
 }
 
 /**
+ * **塊の字を文に合わせて直す**（形だけ）。AI は「文からそのまま写す」と言われても、字を少し変えて切り出す（開電風扇 ← 你去開一下電風扇、
+ * 手扶梯壞了 ← 手扶梯壞掉了）か、見出し語を外して切り出す（借我撐一下 ← 雨傘借我撐一下）ことがある — 考えさせない設定では特に多い
+ * （5・6 回目の採点で 1 社の返事の 2〜5 割）。文はネイティブの一文なので、その中の連続した範囲なら塊として正しい。
+ * 1. 塊が文にそのまま在ればその範囲。無ければ、塊の字が順に全部入る文の最短の範囲（余分の字は `maxExtra` まで）。
+ * 2. 範囲に見出し語が無ければ、隣（間に 1 字まで）にある見出し語まで広げる。
+ * 範囲が句読点をまたぐ・見つからない時は null（門が落とす）。
+ */
+export function repairChunkText(text: string, sentence: string, headword: string, maxExtra = 4): string | null {
+  const t = [...squash(text)];
+  const sArr = [...squash(sentence)];
+  const head = headwordCore(headword);
+  if (t.length === 0 || !head) return null;
+  let a = -1;
+  let b = -1;
+  const direct = squash(sentence).indexOf(t.join(""));
+  if (direct >= 0) {
+    a = [...squash(sentence).slice(0, direct)].length;
+    b = a + t.length;
+  } else {
+    for (let st = 0; st < sArr.length; st++) {
+      if (sArr[st] !== t[0]) continue;
+      let k = 0;
+      let e = st;
+      while (e < sArr.length && k < t.length) {
+        if (sArr[e] === t[k]) k++;
+        e++;
+      }
+      if (k < t.length || e - st - t.length > maxExtra) continue;
+      if (a < 0 || e - st < b - a) {
+        a = st;
+        b = e;
+      }
+    }
+    if (a < 0) return null;
+  }
+  const win = () => sArr.slice(a, b).join("");
+  if (!win().includes(head)) {
+    const hl = [...head].length;
+    let hit = -1;
+    for (let o = 0; o + hl <= sArr.length; o++) {
+      if (sArr.slice(o, o + hl).join("") !== head) continue;
+      if (o + hl >= a - 1 && o <= b + 1) {
+        hit = o;
+        break;
+      }
+    }
+    if (hit < 0) return null;
+    a = Math.min(a, hit);
+    b = Math.max(b, hit + hl);
+  }
+  const out = win();
+  return SENTENCE_PUNCT.test(out) ? null : out;
+}
+
+/**
  * **形だけの門。** 1 つずつ確かめ、通った候補と落とした物（理由つき）を返す。順番は返ってきた順。
  * 見る物: 見出し語が入る / 見出し語だけでない / 句読点が無い / 文の部分文字列 / 文が 24 字以内 / 見出し語の直前が
  * 量詞でない / 重複。入れ替えの所は、塊の中の字で・見出し語を含まず・代名詞でなく・候補が 2 つ以上ある時だけ残す
@@ -214,12 +270,17 @@ export function gateChunksV2(raw: ReadonlyArray<unknown> | null | undefined, ctx
     const parsed = AiChunkV2Schema.safeParse(item);
     if (!parsed.success) continue;
     const c = parsed.data;
-    const text = squash(c.text);
+    let text = squash(c.text);
     const drop = (reason: ChunkV2DropReason) => dropped.push({ text, reason });
 
     if (!text) {
       drop("empty");
       continue;
+    }
+    // 文にそのまま無い・見出し語が無い塊は、文の範囲に直せれば直す（直せなければ下で落ちる）。
+    if (head && squash(c.sentence) && (!squash(c.sentence).includes(text) || !text.includes(head))) {
+      const fixed = repairChunkText(text, c.sentence, ctx.headword);
+      if (fixed) text = fixed;
     }
     if (!head || !text.includes(head)) {
       drop("headword_missing");
@@ -352,7 +413,10 @@ export function readJudgeRanks(raw: unknown, count: number): JudgeRank[] {
     const natural = n === true || (typeof n === "string" && /^(true|yes|是|はい)$/iu.test(n.trim()));
     const rRaw = o.rank;
     const r = typeof rRaw === "number" ? rRaw : Number.parseInt(String(rRaw ?? ""), 10);
-    out.push({ i, natural, rank: Number.isInteger(r) && r >= 1 ? r : null });
+    const sRaw = o.same ?? o.same_as;
+    const sm = typeof sRaw === "number" ? sRaw : Number.parseInt(String(sRaw ?? ""), 10);
+    const same = Number.isInteger(sm) && sm >= 1 && sm <= count && sm !== i ? sm : null;
+    out.push({ i, natural, rank: Number.isInteger(r) && r >= 1 ? r : null, ...(same ? { same } : {}) });
   });
   return out;
 }
@@ -377,7 +441,7 @@ export type RejectedCandidate = ChunkCandidate & { reason: ChunkV2RejectReason }
  * **決める**: A が書いた塊は B の審査が「自然」と言った物だけ、B の塊は A の審査が言った物だけ。審査が片方しか無ければ
  * その審査（自分の会社の分も）で決める。一致した塊は、答えた審査のどれかが「自然」と言えば通す（どちらも不自然と言えば
  * 落とす — 2 社が同じ汎用の文を書いた時の網）。並びは 2 社が付けた順位の平均（片方しか無ければその順位、どちらも無ければ
- * 候補の並び）。同じ中心の語・同じ型の塊は 1 つにし、上限まで。落とした物は理由つき。
+ * 候補の並び）。同じ中心の語・同じ型の塊、審査が「同じ言い方」と言った塊（`same`）は 1 つにし、上限まで。落とした物は理由つき。
  */
 export function rankAndSelect(
   pool: ReadonlyArray<PooledChunk>,
@@ -387,6 +451,18 @@ export function rankAndSelect(
 ): { selected: SelectedCandidate[]; rejected: RejectedCandidate[] } {
   const byA = new Map((ranksA ?? []).map((v) => [v.i, v]));
   const byB = new Map((ranksB ?? []).map((v) => [v.i, v]));
+  // 審査の「同じ言い方」をまとめる（どちらかの会社が言えば同じ）。
+  const parent = new Map<number, number>();
+  const root = (i: number): number => {
+    const p = parent.get(i);
+    if (p == null || p === i) return i;
+    const r = root(p);
+    parent.set(i, r);
+    return r;
+  };
+  for (const v of [...(ranksA ?? []), ...(ranksB ?? [])]) {
+    if (v.same) parent.set(root(Math.max(v.i, v.same)), root(Math.min(v.i, v.same)));
+  }
   const scored: Array<{ chunk: SelectedCandidate; score: number; at: number }> = [];
   const rejected: RejectedCandidate[] = [];
   pool.forEach((p, at) => {
@@ -411,12 +487,14 @@ export function rankAndSelect(
   for (const s of scored) {
     const k = coreKey(s.chunk);
     const f = frameKey(s.chunk);
-    if (seen.has(k) || seen.has(f)) {
+    const g = `G:${root(s.at + 1)}`;
+    if (seen.has(k) || seen.has(f) || seen.has(g)) {
       rejected.push({ ...s.chunk, reason: "duplicate" });
       continue;
     }
     seen.add(k);
     seen.add(f);
+    seen.add(g);
     if (selected.length < max) selected.push(s.chunk);
     else rejected.push({ ...s.chunk, reason: "over_max" });
   }

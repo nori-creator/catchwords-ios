@@ -87,7 +87,8 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
     );
     const rows = await mapLimit(words, Number(process.env.CHUNK_EVAL_CONCURRENCY ?? 3), async (w) => {
       const r = await runChunksV2Pipeline({ headword: w.headword, language: "zh-TW", explainLang: LANG, meaning: w.meaning_ja, writers });
-      return { word: w, chunks: r.chunks, rejected: r.rejected, stats: r.stats };
+      const shown = new Set(r.chunks.map((c) => c.text));
+      return { word: w, chunks: r.chunks, rejected: r.rejected, stats: r.stats, untranslated: r.selected.filter((c) => !shown.has(c.text)).map((c) => c.text) };
     });
 
     // 数字
@@ -156,7 +157,7 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
       `# 使い方チャンク v2 の採点 — ${summary.mode}（${new Date().toISOString()}）`,
       ``,
       `- 書き手: ${summary.providers}（${modelNames.filter(Boolean).join(" / ")}）、読む人の言語: ${LANG}、語: ${summary.words}`,
-      `- 1 語あたりの塊: ${summary.chunksPerWord}、塊が 0 の語: ${summary.wordsWithNone}`,
+      `- 1 語あたりの塊: ${summary.chunksPerWord}、塊が 0 の語: ${summary.wordsWithNone}、訳が付かず出せなかった塊: ${rows.reduce((n, r) => n + r.untranslated.length, 0)}`,
       `- 2 社の一致の割合（出した塊のうち）: ${summary.agreementShare}（候補の一致 ${summary.agreedCandidates}）、候補のうち落ちた割合: ${summary.judgeRejectRate}`,
       `- 1 語の時間: p50 ${summary.p50Ms} ms / p90 ${summary.p90Ms} ms（書く段 1 回: p50 ${percentile(writeMs, 0.5)} ms / p90 ${percentile(writeMs, 0.9)} ms、時間切れ ${failedWrites} 回、審査 p90 ${percentile(timings.map((s) => s.judgeMs), 0.9)} ms、仕上げ p90 ${percentile(timings.map((s) => s.finishMs), 0.9)} ms）`,
       `- 型の内訳: ${Object.entries(summary.patterns).map(([k, v]) => `${k} ${v}`).join("、")}`,
@@ -164,10 +165,10 @@ describe.skipIf(!ON)("使い方チャンク v2 の採点（本物の AI）", () 
         ? `- 参照（上位モデル）との比べ: precision ${summary.vsReference.precision}、① の一致 ${summary.vsReference.top1}、参照の上位 3 の再現 ${summary.vsReference.recallTop3}（${summary.vsReference.words} 語）`
         : `- 参照なし（CHUNK_EVAL_REF=1 で作る）`,
       ``,
-      `| 語 | 塊（決まり方 / 型） | 文 | 不自然と落ちた | 省いた（重複・上限） | 時間 |`,
-      `|---|---|---|---|---|---|`,
+      `| 語 | 塊（決まり方 / 型） | 文 | 不自然と落ちた | 省いた（重複・上限） | 訳が付かなかった | 時間 |`,
+      `|---|---|---|---|---|---|---|`,
       ...rows.map((r) =>
-        `| ${r.word.headword} | ${r.chunks.map(line).join("<br>") || "—"} | ${r.chunks.map((c) => c.sentence).join("<br>")} | ${r.rejected.filter((c) => c.reason === "unnatural").map((c) => c.text).join("<br>")} | ${r.rejected.filter((c) => c.reason !== "unnatural").map((c) => c.text).join("<br>")} | ${ms(r)} |`,
+        `| ${r.word.headword} | ${r.chunks.map(line).join("<br>") || "—"} | ${r.chunks.map((c) => c.sentence).join("<br>")} | ${r.rejected.filter((c) => c.reason === "unnatural").map((c) => c.text).join("<br>")} | ${r.rejected.filter((c) => c.reason !== "unnatural").map((c) => c.text).join("<br>")} | ${r.untranslated.join("<br>")} | ${ms(r)} |`,
       ),
       ``,
       `## 書く段の返事（会社ごと: 通った塊 / 形で落ちた物）`,

@@ -94,12 +94,13 @@ export function judgeV2Prompt(headword: string, chunks: ReadonlyArray<Pick<Chunk
       `**自然かどうかだけ**を見る（その物らしいか・よく言うかは rank で表す。普通に言える物を false にしない）。`,
     `- rank: natural が true の物だけに、その物について話す時に**よく言う順**の順位（1 = いちばんよく言う。同じ順位を付けない）。false の物は null。` +
       `どの物にも言える言い方（多少錢・是誰的・在哪裡・借我一下）や、場面が限られる言い方は後ろに。`,
-    `  似た言い方が 2 つあっても、それぞれ単独で判定する（1 つに絞るのはこちらでする）。`,
+    `- same: 前の候補と**同じ事を言っている**（語順・補語・了 が違うだけ: 把雨衣穿起來 と 把雨衣穿上、紙箱濕掉了 と 紙箱被雨淋濕了）` +
+      `なら、その候補の番号。意味や場面が違えば null（把窗簾拉上 と 把窗簾拉開 は別）。natural と rank は same があっても付ける。`,
     ``,
     `候補:`,
     list,
     ``,
-    `返す形（JSON だけ）: {"verdicts":[{"i":1,"natural":true,"rank":2}]}`,
+    `返す形（JSON だけ）: {"verdicts":[{"i":1,"natural":true,"rank":2,"same":null}]}`,
   ].join("\n");
 }
 
