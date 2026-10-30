@@ -190,54 +190,132 @@ def draw_text(img, T, W, H):
 
 # ---------------------------------------------------------------- device
 
-def rounded_mask(size, radius, scale=4):
-    w, h = size
-    m = Image.new("L", (w * scale, h * scale), 0)
-    ImageDraw.Draw(m).rounded_rectangle([0, 0, w * scale - 1, h * scale - 1],
-                                        radius=radius * scale, fill=255)
-    return m.resize((w, h), Image.LANCZOS)
+# The iPhone Duo's frame as Simulator draws it: the device type's chrome (com.apple.dt.devicekit.chrome.phone15,
+# PhoneComposite), copied out of Xcode by ios-store-shots.yml into chrome/ (not in git: Apple's artwork). It is the
+# folded phone: the spine on the left, small corners on the spine's side and large ones on the other. The black inside
+# is the screen. The owner asked for the real frame, never a drawn one (2026-10-30).
+CHROME = os.path.join(HERE, "chrome", "PhoneComposite.png")
+SCREEN_BOX = (97, 34, 2827, 3966)   # the black screen inside PhoneComposite (x0, y0, x1, y1)
+TOP_MARKS = [(555, 589), (2328, 2363)]      # buttons on the top edge (columns)
+BOTTOM_MARKS = [(1020, 1054), (1864, 1898)]  # and on the bottom edge
+
+
+def _stretch(img, axis, at, by):
+    """Nine-slice stretch as Simulator resizes its chrome: repeat the straight band at `at` by `by` pixels."""
+    if by <= 0:
+        return img
+    w, h = img.size
+    if axis == "x":
+        band = img.crop((at, 0, at + 1, h)).resize((by, h))
+        out = Image.new("RGBA", (w + by, h), (0, 0, 0, 0))
+        out.paste(img.crop((0, 0, at, h)), (0, 0))
+        out.paste(band, (at, 0))
+        out.paste(img.crop((at, 0, w, h)), (at + by, 0))
+    else:
+        band = img.crop((0, at, w, at + 1)).resize((w, by))
+        out = Image.new("RGBA", (w, h + by), (0, 0, 0, 0))
+        out.paste(img.crop((0, 0, w, at)), (0, 0))
+        out.paste(band, (0, at))
+        out.paste(img.crop((0, at, w, h)), (0, at + by))
+    return out
+
+
+def _clear_marks(img, y0, y1, marks):
+    """Paint over the button marks on an edge with the plain edge next to them."""
+    for a, b in marks:
+        plain = img.crop((a - 40, y0, a - 40 + (b - a), y1))
+        img.paste(plain, (a, y0))
+    return img
+
+
+def _screen_mask(chrome, box):
+    """The screen's shape: the black inside the frame (anti-aliased)."""
+    flat = Image.new("RGBA", chrome.size, (255, 255, 255, 255))
+    flat.alpha_composite(chrome)            # outside the frame is clear: not screen
+    lum = flat.convert("L").crop(box)
+    m = lum.point(lambda v: 255 if v <= 6 else (0 if v >= 40 else int(255 * (40 - v) / 34)))
+    return m.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+
+
+def real_frame(kind, screen_size):
+    """(chrome RGBA, screen box, screen mask) at the screen's pixel size.
+
+    outer: the folded Duo as Simulator draws it (PhoneComposite), its straight middle stretched to the outer screen's
+    shape. inner: opened flat, the folded frame and its mirror side by side, joined where the screen continues across
+    the fold; the mirrored half has no buttons."""
+    base = Image.open(CHROME).convert("RGBA")
+    x0, y0, x1, y1 = SCREEN_BOX
+    sw, sh = screen_size
+    if kind == "outer":
+        bw, bh = x1 - x0, y1 - y0
+        k = sw / bw
+        extra = round(sh / k) - bh
+        c = _stretch(base, "y", 2000, extra)
+        box = (x0, y0, x1, y1 + extra)
+    else:
+        half = base.crop((x0, 0, base.size[0], base.size[1]))     # from the screen's spine-side edge
+        # the screen runs on across the fold: no small corners where the halves meet
+        straight = half.crop((300, 0, 301, half.size[1])).resize((140, half.size[1]))
+        half.paste(straight, (0, 0))
+        hx1 = x1 - x0
+        bh = y1 - y0
+        k = sh / bh
+        need = round(sw / k / 2) - hx1                          # each half's screen is a bit wider than folded
+        half = _stretch(half, "x", 1200, need)
+        hx1 += max(0, need)
+        left = half.transpose(Image.FLIP_LEFT_RIGHT)
+        w = left.size[0]
+        flipped = [(w - (b - x0 + (need if a - x0 > 1200 else 0)), w - (a - x0 + (need if a - x0 > 1200 else 0)))
+                   for a, b in TOP_MARKS]
+        left = _clear_marks(left, 0, y0, flipped)
+        flipped = [(w - (b - x0 + (need if a - x0 > 1200 else 0)), w - (a - x0 + (need if a - x0 > 1200 else 0)))
+                   for a, b in BOTTOM_MARKS]
+        left = _clear_marks(left, y1, base.size[1], flipped)
+        c = Image.new("RGBA", (2 * w, base.size[1]), (0, 0, 0, 0))
+        c.paste(left, (0, 0))
+        c.paste(half, (w, 0))
+        box = (w - hx1, y0, w + hx1, y1)
+        k = sh / bh
+    mask = _screen_mask(c, box)
+    # to screen pixels
+    W, H = round(c.size[0] * k), round(c.size[1] * k)
+    c = c.resize((W, H), Image.LANCZOS)
+    box = tuple(round(v * k) for v in box)
+    mask = mask.resize((box[2] - box[0], box[3] - box[1]), Image.LANCZOS)
+    return c, box, mask
 
 
 def add_fold(screen):
-    """Very subtle vertical fold line down the middle (highlight + faint shadow)."""
+    """A faint line down the middle, where the inner screen folds."""
     w, h = screen.size
     ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(ov)
     cx = w // 2
-    band = max(6, w // 90)
-    for i in range(band, 0, -1):  # faint shadow falling off both sides
-        a = int(16 * (1 - i / band) ** 1.5)
+    band = max(6, w // 160)
+    for i in range(band, 0, -1):
+        a = int(10 * (1 - i / band) ** 1.5)
         d.line([(cx - i - 1, 0), (cx - i - 1, h)], fill=(0, 0, 0, a))
         d.line([(cx + i, 0), (cx + i, h)], fill=(0, 0, 0, a))
-    d.line([(cx - 1, 0), (cx - 1, h)], fill=(0, 0, 0, 30))
-    d.line([(cx, 0), (cx, h)], fill=(255, 255, 255, 70))
+    d.line([(cx, 0), (cx, h)], fill=(255, 255, 255, 40))
     return Image.alpha_composite(screen.convert("RGBA"), ov)
 
 
-def device(raw, dev_w, fold, navy):
-    sw0, sh0 = raw.size
-    bezel = max(3, round(0.016 * dev_w))
-    scr_w = dev_w - 2 * bezel
-    scr_h = round(scr_w * sh0 / sw0)
-    dev_h = scr_h + 2 * bezel
-    radius = round(0.05 * dev_w)
-    screen = raw.convert("RGB").resize((scr_w, scr_h), Image.LANCZOS)
-    if fold:
+_FRAMES = {}
+
+
+def device(raw, dev_w, kind):
+    """The screenshot in the real Duo frame, `dev_w` wide."""
+    key = (kind, raw.size)
+    if key not in _FRAMES:
+        _FRAMES[key] = real_frame(kind, raw.size)
+    frame, box, mask = _FRAMES[key]
+    screen = raw.convert("RGB").resize((box[2] - box[0], box[3] - box[1]), Image.LANCZOS)
+    if kind == "inner":
         screen = add_fold(screen)
-    body = Image.new("RGBA", (dev_w, dev_h), (0, 0, 0, 0))
-    frame_col = (17, 17, 17, 255)
-    body.paste(Image.new("RGBA", (dev_w, dev_h), frame_col), (0, 0),
-               rounded_mask((dev_w, dev_h), radius))
-    # thin metallic rim so the frame reads on navy as well
-    rim = Image.new("RGBA", (dev_w, dev_h), (0, 0, 0, 0))
-    ImageDraw.Draw(rim).rounded_rectangle(
-        [0, 0, dev_w - 1, dev_h - 1], radius=radius,
-        outline=(120, 140, 170, 255) if navy else (70, 74, 82, 255),
-        width=max(2, bezel // 4))
-    body = Image.alpha_composite(body, rim)
-    body.paste(screen.convert("RGBA"), (bezel, bezel),
-               rounded_mask((scr_w, scr_h), max(1, radius - bezel)))
-    return body
+    body = frame.copy()
+    body.paste(screen.convert("RGBA"), box[:2], mask)
+    k = dev_w / body.size[0]
+    return body.resize((dev_w, round(body.size[1] * k)), Image.LANCZOS)
 
 
 def paste_device(canvas, dev, x, y, navy):
@@ -262,45 +340,6 @@ def out_size(kind, raw):
     return (h, w) if raw.size[0] > raw.size[1] and kind == "inner" else (w, h)
 
 
-def compose_landscape(entry, lang, kind_size, raw):
-    W, H = out_size(kind_size, raw)
-    bg = entry.get("background", "light")
-    img = background(bg, (W, H))
-    col = int(0.40 * W)  # the headline's column on the left
-    T = layout_text(entry, lang, col, H, bg)
-    # the text block, centred vertically in the left column
-    probe = background(bg, (col, H))
-    text_h = draw_text(probe, T, col, H) - int(0.055 * H)
-    pad_top = (H - text_h) // 2
-    d = ImageDraw.Draw(img)
-    y = pad_top
-    lh = int(T["hs"] * (1.22 if lang == "ja" else 1.12))
-    x0 = int(0.06 * W)
-    for text, color in T["lines"]:
-        d.text((x0, y), text, font=T["hfont"], fill=T["pal"][color], anchor="lt")
-        y += lh
-    y += int(T["hs"] * 0.20)
-    slh = int(T["ss"] * 1.45)
-    for line in T["sub_lines"]:
-        d.text((x0, y), line, font=T["sfont"], fill=T["pal"]["sub"], anchor="lt")
-        y += slh
-    area_x = col + int(0.03 * W)
-    area_w = W - area_x - int(0.04 * W)
-    avail_h = H - int(0.12 * H)
-    sw0, sh0 = raw.size
-    dev_w = int(min(area_w, avail_h / ((sh0 / sw0) * (1 - 0.032) + 0.032)))
-    dev = device(raw, dev_w, fold=False, navy=(bg == "navy"))
-    while dev.size[1] > avail_h:
-        dev_w -= 4
-        dev = device(raw, dev_w, fold=False, navy=(bg == "navy"))
-    x = area_x + (area_w - dev.size[0]) // 2
-    yy = (H - dev.size[1]) // 2
-    out = paste_device(img, dev, x, yy, bg == "navy")
-    info = {"head_shrink": T["head_shrink"], "sub_shrink": T["sub_shrink"],
-            "sub_lines": len(T["sub_lines"]), "device_w_pct": dev.size[0] / W}
-    return out, info
-
-
 def compose(entry, lang, kind_size, raw):
     W, H = out_size(kind_size, raw)
     bg = entry.get("background", "light")
@@ -311,13 +350,10 @@ def compose(entry, lang, kind_size, raw):
     top = text_bottom + int(0.025 * H)
     bottom = H - int(0.035 * H)
     avail_h = bottom - top
-    sw0, sh0 = raw.size
-    # device height ~= width * (sh/sw) adjusted for bezel; solve then clamp
-    dev_w = int(min(0.92 * W, avail_h / ((sh0 / sw0) * (1 - 0.032) + 0.032)))
-    dev = device(raw, dev_w, fold=(kind_size == "inner"), navy=(bg == "navy"))
-    while dev.size[1] > avail_h:
-        dev_w -= 4
-        dev = device(raw, dev_w, fold=(kind_size == "inner"), navy=(bg == "navy"))
+    probe = device(raw, 1000, kind_size)
+    aspect = probe.size[1] / probe.size[0]
+    dev_w = int(min(0.92 * W, avail_h / aspect))
+    dev = device(raw, dev_w, kind_size)
     x = (W - dev.size[0]) // 2
     y = top + (avail_h - dev.size[1]) // 2
     out = paste_device(img, dev, x, y, bg == "navy")
