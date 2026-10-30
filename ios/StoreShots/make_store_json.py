@@ -43,9 +43,9 @@ def st(sid, when, place, lat, lng, cutout=None, photo=None):
     if photo: s["photo"] = photo
     return s
 
-D = "2026-10-15T%s:00" + TPE
+D = "today %s"  # the home's day is the day the shots are taken (DemoDatabase.seedStore)
 words = [
-    # 2026-10-15, 大安区: the home's day (8 words).
+    # Today, 大安区: the home's day.
     word("latte", "拿鐵", "ㄋㄚˊ ㄊㄧㄝˇ", "ná tiě", "drink", "我每天早上都喝一杯拿鐵。",
          ("ラテ", "latte"), ("毎朝ラテを一杯飲みます。", "I have a latte every morning."),
          st("store-latte", D % "09:12", DAAN, 25.0263, 121.5436, "latte_cut.png", "latte.png"),

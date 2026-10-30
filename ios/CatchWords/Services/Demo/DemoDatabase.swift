@@ -378,6 +378,13 @@ nonisolated final class DemoDatabase: @unchecked Sendable {
         let day = 86_400.0
         func at(_ value: Any?) -> Date {
             if let s = value as? String, let d = ISO8601DateFormatter().date(from: s) { return d }
+            // "today HH:mm": the home's day is today, so it opens on those words (not on an empty today). The times are
+            // squeezed into the part of today that has passed, in the same order.
+            if let s = value as? String, s.hasPrefix("today "), case let hm = s.dropFirst(6).split(separator: ":"),
+               hm.count == 2, let h = Double(hm[0]), let m = Double(hm[1]) {
+                let start = Calendar.current.startOfDay(for: now)
+                return start.addingTimeInterval((h * 3600 + m * 60) / day * now.timeIntervalSince(start))
+            }
             return now.addingTimeInterval((DJ.num(value) ?? 0) * day)
         }
         func put(_ name: String?, as path: String) -> Any {

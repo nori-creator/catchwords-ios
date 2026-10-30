@@ -5,6 +5,7 @@ import Charts
 /// strongest (tap → forgetting curve), then 「全体の記憶率（前後2週間）」.
 struct MemoryOverviewPanel: View {
     @Environment(DexStore.self) private var dex
+    @Environment(AppRouter.self) private var router: AppRouter?
     let store: ReviewStore
     let onOpenWord: (Sticker) -> Void
 
@@ -20,9 +21,9 @@ struct MemoryOverviewPanel: View {
     var body: some View {
         let list = rows
         Group {
-            if wide {
+            if wide || router?.isOpenSideways == true {
                 HStack(alignment: .top, spacing: 20) {
-                    wordList(list, height: 420).frame(maxWidth: .infinity)
+                    wordList(list, height: 360).frame(maxWidth: .infinity)
                     overall.frame(maxWidth: .infinity)
                 }
             } else {

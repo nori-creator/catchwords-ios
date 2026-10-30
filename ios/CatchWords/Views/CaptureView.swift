@@ -352,11 +352,11 @@ struct CaptureView: View {
                 if let img = demoPhoto {
                     // The whole photo, on a blur of itself: in a viewfinder of another shape (iPhone Duo held sideways)
                     // filling cut the subject off (owner 2026-10-30: 「犬の画像がサイズがあってないから犬が見切れてる」).
-                    ZStack {
-                        Image(uiImage: img).resizable().scaledToFill().blur(radius: 30).opacity(0.85)
-                        Image(uiImage: img).resizable().scaledToFit()
-                    }
-                    .allowsHitTesting(false)
+                    // The blur is a background, so its fill never sizes the frame the photo is fitted into.
+                    Image(uiImage: img).resizable().scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background { Image(uiImage: img).resizable().scaledToFill().blur(radius: 30).opacity(0.85) }
+                        .allowsHitTesting(false)
                 }
             }
             .clipped()
