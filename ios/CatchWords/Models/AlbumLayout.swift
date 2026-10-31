@@ -342,9 +342,9 @@ nonisolated enum AlbumLayout {
     /// 通り道は横に離してあり、もし箱がかかる時は下の写真を下げる（決して重ならない）。組に1枚だけ残った写真は真ん中。
     private static let SPREAD_PATTERN: [(x: Double, w: Double, top: Double, rot: Double)] = [
         (0.14, 0.26, 0.01, -5.0),
-        (0.64, 0.24, 0.00, 4.0),
-        (0.41, 0.19, 0.19, 3.0),
-        (0.89, 0.19, 0.21, -4.0),
+        (0.655, 0.23, 0.00, 4.0),
+        (0.40, 0.18, 0.19, 3.0),
+        (0.90, 0.18, 0.21, -4.0),
     ]
 
     private static func packSpread(_ items: [CollageItem]) -> [AlbumPlacement] {
