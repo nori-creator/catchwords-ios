@@ -1,0 +1,171 @@
+# iPhone Duo の見て回る録画（オーナー 2026-10-31「iPhone duo のすべての画面と、すべての機能、ボタンを押したときの画面や
+# アニメーションがどのように映るのかすべて目で確認したい」）
+#
+# 何をするか:
+#   1. Xcode 27.1 の iPhone Duo のシミュレーターを、3つの持ち方にする:
+#      折りたたみ（外側の画面）・見開きの横長（内側）・見開きの縦長（内側）。
+#   2. それぞれで本物のアプリをデモモード（-uiDemo、本番に触れない）で、人が使う速さで操作する
+#      （ios/CatchWordsUITests/DuoWalkthroughTests.swift: ホーム → 図鑑の4つの見方 → 単語の頁 → カメラで撮って図鑑へ →
+#      文字で探す → 復習と記憶の状態 → 設定 → サインアウトとログイン）。
+#   3. その間の画面を動画に録る（アニメーションも見える）。動画は artifact（Actions の画面から落とせる）にだけ置く。
+#   4. 1 画面ごとの写真は ci-previews の runs/<ブランチ>-duowalk/ に置く（Claude が確かめる用）。
+#
+# 限界: シミュレーターにカメラは無い（デモの写真で撮る）。音は録れない。
+name: iOS Duo walkthrough（Duo の全画面の録画）
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main, ci-previews]
+    paths:
+      - .github/workflows/ios-duo-walkthrough.yml
+      - ios/CatchWordsUITests/DuoWalkthroughTests.swift
+
+concurrency:
+  group: ios-duo-walkthrough-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  walk:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Duo を開く・閉じる道具を組み立てる
+        run: clang -fobjc-arc -framework Foundation -o "$RUNNER_TEMP/duo-hinge" ios/StoreShots/duo-hinge.m
+
+      - name: iPhone Duo のシミュレーターを起動する
+        run: |
+          set -uo pipefail
+          UDID=$(python3 - <<'PY'
+          import json, re, subprocess, sys
+          def sim(*a):
+              return json.loads(subprocess.check_output(["xcrun", "simctl", "list", *a, "-j"]))
+          for rt, ds in sim("devices", "available")["devices"].items():
+              for d in ds:
+                  if "Duo" in d.get("name", ""):
+                      print(d["udid"]); sys.exit(0)
+          types = [t for t in sim("devicetypes")["devicetypes"] if "Duo" in t.get("name", "")]
+          runtimes = [r for r in sim("runtimes")["runtimes"] if r.get("platform") == "iOS" and r.get("isAvailable")]
+          runtimes.sort(key=lambda r: [int(x) for x in re.findall(r"\d+", r.get("version", "0"))], reverse=True)
+          for t in types:
+              for r in runtimes:
+                  try:
+                      print(subprocess.check_output(["xcrun", "simctl", "create", "CW Duo", t["identifier"], r["identifier"]]).decode().strip())
+                      sys.exit(0)
+                  except subprocess.CalledProcessError:
+                      continue
+          PY
+          ) || UDID=""
+          [ -n "$UDID" ] || { echo "::error::iPhone Duo のシミュレーターが見つかりませんでした"; exit 1; }
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
+
+      - name: 試しを組み立てる
+        working-directory: ios
+        run: |
+          set -o pipefail
+          UDID=$(cat "$RUNNER_TEMP/udid")
+          xcodebuild build-for-testing -project CatchWords.xcodeproj -scheme CatchWords \
+            -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath "$RUNNER_TEMP/dd" CODE_SIGNING_ALLOWED=NO \
+            | tee "$RUNNER_TEMP/build.log" | grep -E "error:|TEST BUILD (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)" || true
+          grep -qE "(TEST )?BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; exit 1; }
+
+      - name: 3つの持ち方で操作して録画する
+        working-directory: ios
+        run: |
+          set +e -uo pipefail
+          UDID=$(cat "$RUNNER_TEMP/udid"); HINGE="$RUNNER_TEMP/duo-hinge"
+          OUT="$RUNNER_TEMP/walk"; mkdir -p "$OUT/video" "$OUT/results"
+          "$HINGE" -d "$UDID" flat; sleep 5
+          xcrun simctl io "$UDID" screenshot "$OUT/probe.png" > "$OUT/display-list.txt" 2>&1; rm -f "$OUT/probe.png"
+          cat "$OUT/display-list.txt"
+          INNER=$(sed -n 's/.*--display=\([0-9][0-9]*\) .* 2007x2853$/\1/p' "$OUT/display-list.txt" | head -1)
+          OUTER=$(sed -n 's/.*--display=\([0-9][0-9]*\) .* 1398x2034$/\1/p' "$OUT/display-list.txt" | head -1)
+          echo "inner=${INNER:-?} outer=${OUTER:-?}"
+          run_posture() {  # <名前> <flat|closed> <画面の番号>
+            local name=$1 hinge=$2 display=$3
+            echo "::group::$name"
+            "$HINGE" -d "$UDID" "$hinge"; sleep 6
+            DISP=(); [ -n "$display" ] && DISP=(--display="$display")
+            xcrun simctl io "$UDID" recordVideo --codec=h264 --force ${DISP[@]+"${DISP[@]}"} "$OUT/video/${name}.mp4" &
+            REC=$!; sleep 2
+            TEST_RUNNER_DUO_POSTURE="$name" xcodebuild test-without-building -project CatchWords.xcodeproj -scheme CatchWords \
+              -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath "$RUNNER_TEMP/dd" \
+              -only-testing:CatchWordsUITests/DuoWalkthroughTests \
+              -resultBundlePath "$OUT/results/${name}.xcresult" \
+              -test-timeouts-enabled YES -default-test-execution-time-allowance 1500 -maximum-test-execution-time-allowance 1800 \
+              CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)" | tail -20
+            sleep 1; kill -INT "$REC"; wait "$REC" 2>/dev/null
+            ls -la "$OUT/video/${name}.mp4" 2>/dev/null || echo "::warning::$name の動画がありません"
+            echo "::endgroup::"
+          }
+          run_posture outer closed "$OUTER"
+          run_posture landscape flat "$INNER"
+          run_posture portrait flat "$INNER"
+
+      - name: 画面の写真を取り出す
+        if: always()
+        run: |
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/walk"; SHOTS="$OUT/shots"; mkdir -p "$SHOTS"
+          for r in "$OUT"/results/*.xcresult; do
+            [ -d "$r" ] || continue
+            RAW="$OUT/raw-$(basename "$r" .xcresult)"; mkdir -p "$RAW"
+            xcrun xcresulttool export attachments --path "$r" --output-path "$RAW" || true
+            python3 - "$RAW" "$SHOTS" <<'PY'
+          import json, os, re, shutil, sys
+          raw, out = sys.argv[1], sys.argv[2]
+          try:
+              manifest = json.load(open(os.path.join(raw, "manifest.json")))
+          except Exception:
+              manifest = []
+          shot = re.compile(r"^(outer|landscape|portrait)_\d{2}_[A-Za-z0-9.-]+$")
+          for test in manifest:
+              for a in test.get("attachments", []):
+                  name = (a.get("suggestedHumanReadableName") or a.get("exportedFileName") or "").split("_0_")[0]
+                  if name.endswith(".png"): name = name[:-4]
+                  src = os.path.join(raw, a.get("exportedFileName", ""))
+                  if os.path.exists(src) and shot.match(name):
+                      shutil.copy(src, os.path.join(out, name + ".png"))
+          PY
+            rm -rf "$RAW"
+          done
+          ls "$SHOTS" | wc -l
+          ls -la "$OUT/video" || true
+
+      - name: 写真を ci-previews ブランチに置く（runs/<ブランチ>-duowalk/）
+        if: always()
+        timeout-minutes: 15
+        continue-on-error: true
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -uo pipefail
+          SRC="$RUNNER_TEMP/walk/shots"; [ -d "$SRC" ] || exit 0
+          DIR="runs/$(echo "$HEAD_REF" | tr '/' '_')-duowalk"
+          STAGE="$RUNNER_TEMP/walk-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
+          for f in "$SRC"/*.png; do
+            [ -f "$f" ] || continue
+            sips -s format jpeg -s formatOptions 70 -Z 1400 "$f" --out "$STAGE/$(basename "$f" .png).jpg" >/dev/null 2>&1 || true
+          done
+          cp "$RUNNER_TEMP/walk/display-list.txt" "$STAGE"/ 2>/dev/null || true
+          echo "${{ github.sha }}" > "$STAGE/COMMIT"
+          GITHUB_TOKEN="${{ github.token }}" python3 scripts/push_ci_previews_api.py "${{ github.repository }}" \
+            "$DIR" "duo walkthrough for $HEAD_REF @ ${{ github.sha }}" "$STAGE"/*
+
+      - name: 動画を保存する（Actions の画面の Artifacts から落とせる）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duo-walkthrough-videos
+          path: ${{ runner.temp }}/walk/video
+          if-no-files-found: warn
+          retention-days: 30
