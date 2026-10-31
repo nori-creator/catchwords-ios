@@ -1275,7 +1275,8 @@ struct DexMapView: View {
                 // 割り当てて。時間の幅ではなく。」).
                 if v.coordinate != nil || v.placeName != nil {
                     Label {
-                        LocalizedPlaceText(lat: v.coordinate?.latitude, lng: v.coordinate?.longitude, saved: v.placeName)
+                        LocalizedPlaceText(lat: v.coordinate?.latitude, lng: v.coordinate?.longitude, saved: v.placeName,
+                                           custom: v.ownPlace != nil)
                     } icon: {
                         Image(systemName: "mappin")
                     }
@@ -1404,7 +1405,11 @@ struct MapVisit: Identifiable {
         return CLLocationCoordinate2D(latitude: pts.map(\.0).reduce(0, +) / n, longitude: pts.map(\.1).reduce(0, +) / n)
     }
 
-    var placeName: String? { items.compactMap(\.locationName).first { !$0.isEmpty } }
+    var placeName: String? { ownPlace ?? items.compactMap(\.locationName).first { !$0.isEmpty } }
+    /// A name the learner wrote or picked for one of these photos (`Sticker.locationCustom`): the stop goes by it.
+    var ownPlace: String? {
+        items.first { $0.locationCustom == true && !($0.locationName ?? "").isEmpty }?.locationName
+    }
 
     static func isNear(_ visit: MapVisit, _ b: Sticker) -> Bool {
         guard let c = visit.coordinate, let lb = b.lat, let lob = b.lng else { return true }

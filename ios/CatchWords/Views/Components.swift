@@ -314,14 +314,19 @@ struct LocalizedPlaceText: View {
     let lng: Double?
     let saved: String?
     var fallback: String = ""
+    /// The learner wrote or picked the saved name (`Sticker.locationCustom`): it is shown as it is.
+    var custom: Bool = false
     @State private var name: String?
 
     private var savedName: String? { LocationService.shownPlace(saved) }
+    private var ownName: String? { custom ? saved.flatMap { $0.isEmpty ? nil : $0 } : nil }
 
     var body: some View {
-        // With coordinates the saved name (maybe another language) is never shown; the lookup replaces it.
-        Text(name ?? (lat == nil ? savedName : nil) ?? fallback)
+        // With coordinates the saved name (maybe another language) is never shown; the lookup replaces it — unless the
+        // learner wrote it.
+        Text(ownName ?? name ?? (lat == nil ? savedName : nil) ?? fallback)
             .task(id: "\(lat ?? 0),\(lng ?? 0),\(L10n.lang)") {
+                guard ownName == nil else { return }
                 name = await LocationService.shared.localizedName(lat: lat, lng: lng, saved: savedName)
             }
     }

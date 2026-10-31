@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import CoreLocation
 
 /// Word detail (WordCard.tsx): a hero card, then one white card per section that has content.
 struct WordDetailView: View {
@@ -92,6 +93,8 @@ struct WordDetailView: View {
     @State private var handTurning: Bool = false
     /// Every time the word was taken, and where, opened under the photo on screen's.
     @State private var placesOpen: Bool = false
+    /// The photo whose place is being put right (`PlaceEditSheet`).
+    @State private var editingPlace: Sticker?
     /// What decides the picture's height (`heroMaxHeight`): the scrolling page's height, the date card, the word's
     /// card and its meaning under the picture.
     @State private var viewportHeight: CGFloat = 0
@@ -319,6 +322,7 @@ struct WordDetailView: View {
         .onChange(of: learningLang) { _, l in prefs.use(l) }
         .onAppear { pageAppeared() }
         .aiConsentSheet(isPresented: $askAIConsent)
+        .sheet(item: $editingPlace) { s in placeSheet(s) }
         .sheet(isPresented: $pickingHero) {
             HeroPhotoPickerSheet(sticker: shown, onPick: { role in
                 if let eid = dex.savedEncounterId(shown) {
@@ -1113,7 +1117,7 @@ struct WordDetailView: View {
         return VStack(alignment: .leading, spacing: 4) {
             if all.count == 1 {
                 takenAtLabel(current)
-                if mapsURL(for: current) != nil { placeButton(current) }
+                if mapsURL(for: current) != nil || placeEditable(current) { placeButton(current) }
             } else {
                 // Taken more than once: the photo on screen first — 2回目 while the second photo is shown — and every
                 // time with its place folded under 「撮った場所（n回）」 (owner 2026-10-31: 「全ての地名を…表示する必要はない。
@@ -1202,31 +1206,57 @@ struct WordDetailView: View {
                 .background(Theme.primary, in: Capsule())
             VStack(alignment: .leading, spacing: 0) {
                 takenAtLabel(s)
-                if mapsURL(for: s) != nil { placeButton(s) }
+                if mapsURL(for: s) != nil || placeEditable(s) { placeButton(s) }
             }
         }
     }
 
-    /// Where it was taken, by name (never 「地図を開く」 in place of the name); a tap opens Maps there.
+    /// Where it was taken, by name (never 「地図を開く」 in place of the name). A tap offers to put it right (owner
+    /// 2026-10-31: 「ユーザーが場所を直す機能もつけて。地図上で指定できるまたは場所の名前を変更できるように」) and to open
+    /// Maps there; a photo with no place saved offers to add one.
     private func placeButton(_ s: Sticker) -> some View {
-        Button {
-            if let url = mapsURL(for: s) { openURL(url) }
+        let known = mapsURL(for: s) != nil
+        return Menu {
+            if placeEditable(s) {
+                Button(known ? L("場所を直す") : L("場所を追加"), systemImage: "pencil") { editingPlace = s }
+            }
+            if let url = mapsURL(for: s) {
+                Button(L("マップで開く"), systemImage: "map") { openURL(url) }
+            }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "mappin.and.ellipse").scaledFont(size: 14)
-                LocalizedPlaceText(lat: s.lat, lng: s.lng, saved: s.locationName, fallback: L("撮影地"))
-                    .scaledFont(size: 15, weight: .semibold)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                Image(systemName: known ? "mappin.and.ellipse" : "mappin.slash").scaledFont(size: 14)
+                if known {
+                    LocalizedPlaceText(lat: s.lat, lng: s.lng, saved: s.locationName, fallback: L("撮影地"),
+                                       custom: s.locationCustom ?? false)
+                        .scaledFont(size: 15, weight: .semibold)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                } else {
+                    Text(L("場所を追加")).scaledFont(size: 15, weight: .semibold)
+                }
                 Spacer(minLength: 4)
-                Image(systemName: "arrow.up.right").scaledFont(size: 12, weight: .semibold).foregroundStyle(Theme.muted)
+                Image(systemName: "pencil").scaledFont(size: 13, weight: .semibold).foregroundStyle(Theme.muted)
             }
-            .foregroundStyle(Theme.primaryInk)
+            .foregroundStyle(known ? Theme.primaryInk : Theme.muted)
             .frame(minHeight: 36)
             .contentShape(.rect)
         }
-        .buttonStyle(PressableStyle(scale: 0.98))
         .accessibilityIdentifier(s.id == current.id ? "detail.place" : "detail.place.later")
+    }
+
+    /// Its place can be put right: the first photo once saved, a later one once its record is on the server.
+    private func placeEditable(_ s: Sticker) -> Bool {
+        s.id == current.id ? !isLocked : dex.savedEncounterId(s) != nil
+    }
+
+    /// The sheet that puts a photo's place right.
+    private func placeSheet(_ s: Sticker) -> some View {
+        let at = s.lat.flatMap { lat in s.lng.map { CLLocationCoordinate2D(latitude: lat, longitude: $0) } }
+        return PlaceEditSheet(start: at, startName: s.locationName ?? "", startCustom: s.locationCustom ?? false) { point, name, custom in
+            try await dex.setCapturePlace(s, lat: point.latitude, lng: point.longitude, name: name, custom: custom)
+        }
+        .presentationDragIndicator(.visible)
     }
 
     private func mapsURL(for s: Sticker) -> URL? {

@@ -50,7 +50,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: L10n.locale)
         let p = placemarks?.first
         // A park, a station or a campus the point lies inside (Apple's own areas) when no shop is right there.
-        let named = await spot ?? p?.areasOfInterest?.lazy.compactMap { Self.shownPlace($0) }.first
+        let named = await spot ?? p?.areasOfInterest?.lazy.compactMap { Self.properName($0) }.first
         // Apple answers in the place's own script when it has no name in the requested language (a Taipei district in
         // 中文 on a Spanish screen): each part is kept only when it reads as the display language.
         let parts: [String]
@@ -68,18 +68,44 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// How near a shop or other place must be to be named: the phone's fix is within about this much in a city.
     nonisolated static let spotRadius: CLLocationDistance = 35
 
-    /// The nearest named place (a shop, café, restaurant, park, station, museum…) within `spotRadius`, in the display
-    /// language; nil when none is that near. Not the kinds no one would say they were at (an ATM, a car park, a toilet).
+    /// The nearest named place (a shop, café, restaurant, park, station, museum…) within `spotRadius`; nil when none is
+    /// that near.
     private static func nearbySpot(_ location: CLLocation) async -> String? {
-        let request = MKLocalPointsOfInterestRequest(center: location.coordinate, radius: spotRadius * 2)
+        await spots(near: location.coordinate, radius: spotRadius).first?.name
+    }
+
+    /// A named place near a point, for the learner to pick (`PlaceEditSheet`).
+    struct Spot: Identifiable, Hashable {
+        let name: String
+        let latitude: Double
+        let longitude: Double
+        let metres: CLLocationDistance
+        var id: String { "\(name)|\(latitude)|\(longitude)" }
+    }
+
+    /// The named places within `radius` of a point, nearest first (their names as Apple has them). Not the kinds
+    /// no one would say they were at (an ATM, a car park, a toilet).
+    static func spots(near point: CLLocationCoordinate2D, radius: CLLocationDistance) async -> [Spot] {
+        let request = MKLocalPointsOfInterestRequest(center: point, radius: max(radius * 2, 100))
         request.pointOfInterestFilter = MKPointOfInterestFilter(excluding: [.atm, .evCharger, .parking, .restroom, .fireStation, .police])
-        guard let items = try? await MKLocalSearch(request: request).start().mapItems else { return nil }
-        let near = items.compactMap { item -> (name: String, metres: CLLocationDistance)? in
-            guard let name = shownPlace(item.name), let at = item.placemark.location else { return nil }
-            let metres = at.distance(from: location)
-            return metres <= spotRadius ? (name, metres) : nil
+        guard let items = try? await MKLocalSearch(request: request).start().mapItems else { return [] }
+        let here = CLLocation(latitude: point.latitude, longitude: point.longitude)
+        var seen = Set<String>()
+        return items.compactMap { item -> Spot? in
+            guard let name = properName(item.name), let at = item.placemark.location else { return nil }
+            let metres = at.distance(from: here)
+            guard metres <= radius, seen.insert(name).inserted else { return nil }
+            return Spot(name: name, latitude: at.coordinate.latitude, longitude: at.coordinate.longitude, metres: metres)
         }
-        return near.min { $0.metres < $1.metres }?.name
+        .sorted { $0.metres < $1.metres }
+    }
+
+    /// A shop's, a park's or a station's own name, as Apple has it — in 中文 on any screen when it has no other: a proper
+    /// name is not a mixed-in language (owner 2026-10-31: 「これは中国語の固有名詞だから表示していい」). The city and
+    /// district around it still follow `shownPlace`.
+    nonisolated static func properName(_ name: String?) -> String? {
+        let v = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return v.isEmpty ? nil : v
     }
 
     private var nameCache: [String: String] = [:]
@@ -95,7 +121,9 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// A saved place shown in the current display language: the coordinates are looked up again
     /// (once per place and language); without coordinates, or when the lookup fails, the saved name when it reads
     /// as the display language (`shownPlace`), else none.
-    func localizedName(lat: Double?, lng: Double?, saved: String?) async -> String? {
+    /// A name the learner wrote or picked (`custom`) is theirs: shown as it is, in whatever language they wrote it.
+    func localizedName(lat: Double?, lng: Double?, saved: String?, custom: Bool = false) async -> String? {
+        if custom, let saved, !saved.isEmpty { return saved }
         guard let lat, let lng else { return Self.shownPlace(saved) }
         let key = String(format: "%.4f,%.4f,", lat, lng) + L10n.lang
         if let hit = nameCache[key] { return hit }

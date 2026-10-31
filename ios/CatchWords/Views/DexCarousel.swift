@@ -478,7 +478,7 @@ private struct CarouselCardFace: View {
                     Text(JPDate.monthDay(s.takenAt)).monospacedDigit()
                     if s.lat != nil || !(s.locationName ?? "").isEmpty {
                         Label {
-                            LocalizedPlaceText(lat: s.lat, lng: s.lng, saved: s.locationName)
+                            LocalizedPlaceText(lat: s.lat, lng: s.lng, saved: s.locationName, custom: s.locationCustom ?? false)
                         } icon: {
                             Image(systemName: "mappin")
                         }

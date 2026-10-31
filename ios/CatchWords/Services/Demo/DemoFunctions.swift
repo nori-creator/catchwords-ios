@@ -78,6 +78,22 @@ nonisolated extension DemoDatabase {
             let value: Any = caption.isEmpty ? (NSNull() as Any) : (String(caption.prefix(500)) as Any)
             guard updateSticker(sid, { s in s["caption"] = value }) else { return notFound() }
             result = ["ok": true]
+        case "setCapturePlace":
+            let name = (DJ.str(data["location_name"]) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let custom = (DJ.bool(data["custom"]) ?? false) && !name.isEmpty
+            let fields: (inout [String: Any]) -> Void = { row in
+                row["lat"] = data["lat"] ?? NSNull()
+                row["lng"] = data["lng"] ?? NSNull()
+                row["location_name"] = name.isEmpty ? (NSNull() as Any) : (name as Any)
+                row["location_custom"] = custom
+            }
+            if let sid = DJ.str(data["sticker_id"]) {
+                guard updateSticker(sid, fields) else { return notFound() }
+            } else {
+                let eid = DJ.str(data["encounter_id"]) ?? ""
+                guard !update("encounters", where: { DJ.str($0["id"]) == eid }, fields).isEmpty else { return notFound() }
+            }
+            result = ["saved": true, "custom_saved": true]
         case "setStickerHeroRole":
             let sid = DJ.str(data["sticker_id"]) ?? ""
             let role = DJ.orNull(DJ.str(data["hero_role"]))
