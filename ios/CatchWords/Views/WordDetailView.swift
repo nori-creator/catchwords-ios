@@ -165,7 +165,11 @@ struct WordDetailView: View {
             // The chips that take the page to a section (§0), under the top bar, staying while the page scrolls.
             if !jumpSections.isEmpty { jumpBar(proxy) }
             ScrollView {
-                VStack(spacing: 14) {
+                // Lazy: only the cards on screen are built and measured when the page opens. All of them were, each
+                // chunk row up to nine times (`ChunkLineView`'s sizes to fit one line) — the page came up 2–3 s after
+                // the tap on the CI simulator, its main thread busy with SwiftUI's layout (owner 2026-10-31: 「ホームの画像を
+                // タップしてから、単語の詳細が表示されるまでのラグがある」).
+                LazyVStack(spacing: 14) {
                     if isUnsaved { unsavedBanner }
                     if !photos.isEmpty { photoHero }
                     metaCard
@@ -218,8 +222,18 @@ struct WordDetailView: View {
             }
             .onChange(of: scrollTarget) { _, target in
                 guard let target else { return }
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .center) }
                 scrollTarget = nil
+                // The cards are built lazily: the examples' card is brought on screen first (an example inside a card
+                // not built yet cannot be scrolled to), then the example itself.
+                guard target.hasPrefix("example-") else {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .center) }
+                    return
+                }
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { proxy.scrollTo(CardSection.example.id, anchor: .top) }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(320))
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .center) }
+                }
             }
             // The first tour's section: brought up under the jump chips, where its light lands.
             .onChange(of: router.tourSection) { _, section in
