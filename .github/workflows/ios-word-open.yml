@@ -57,6 +57,9 @@ jobs:
           if [ -f "$OUT/trace.txt" ]; then
             # The taps, the page asked for and on screen, and the frames delivered late around them.
             grep -E "word page|frames |main thread|touch .*(began|ended)" "$OUT/trace.txt" | tail -400 || true
+            # What the main thread was doing while it did not answer (sampled every 2 s): what holds the page up.
+            echo "---- main thread stacks ----"
+            grep -E "word page|main stack|^    " "$OUT/trace.txt" | head -1500 || true
           fi
           xcrun xcresulttool export attachments --path "$RUNNER_TEMP/word.xcresult" --output-path "$OUT" || true
           find "$OUT" -name "*.mp4" -delete 2>/dev/null || true

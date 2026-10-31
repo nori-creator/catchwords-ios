@@ -159,7 +159,8 @@ nonisolated enum UITestTrace {
             if gap <= 1 { sampledAt = nil }
             if gap > 1, sampledAt.map({ now.timeIntervalSince($0) >= 2 }) ?? true {
                 sampledAt = now
-                let lines = MainStackSampler.describe(MainStackSampler.sample())
+                // Deep enough to reach the app's own frames under SwiftUI's layout and body updates.
+                let lines = MainStackSampler.describe(MainStackSampler.sample(maxFrames: 200), limit: 200)
                 UITestTrace.log("main stack after \(String(format: "%.1f", gap)) s:\n    " + lines.joined(separator: "\n    "))
             }
             DispatchQueue.main.async { [self] in
