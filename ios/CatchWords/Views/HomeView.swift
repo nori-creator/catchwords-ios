@@ -462,8 +462,11 @@ struct HomeAlbum: View {
     var spread: Bool = false
 
     var body: some View {
+        // The App Store shots show only today: the day below peeked out under the tab bar (owner 2026-10-31
+        // 「バーに隠れて見える猫をけして」).
+        let shown = StoreShot.isOn ? Array(days.prefix(1)) : days
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(days.enumerated()), id: \.element.id) { i, d in
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, d in
                 daySection(d)
                     .padding(.bottom, 24)
                     .tourAnchor(.album, if: i == 0)
