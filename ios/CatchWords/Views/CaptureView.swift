@@ -540,9 +540,12 @@ struct CaptureView: View {
                 .background(.white.opacity(0.1), in: .rect(cornerRadius: 13, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(.white.opacity(0.18), lineWidth: 1))
             Text(label).scaledFont(size: 11, weight: .medium)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .foregroundStyle(.white)
-        .frame(minWidth: 56)
+        // Both side buttons the same width, so the shutter between them sits on the row's middle (iPhone Duo's fold).
+        .frame(width: 68)
     }
 
     // MARK: Actions
