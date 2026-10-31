@@ -297,6 +297,7 @@ nonisolated enum AlbumLayout {
     /// - 指で置いた写真が無く、写真が台紙の高さの下限に足りない日は、写真のまとまりを台紙の縦の真ん中へ。
     static func packDay(_ items: [CollageItem], fixed: [AlbumBox] = [], spread: Bool = false) -> [AlbumPlacement] {
         func safeRatio(_ r: Double) -> Double { r.isFinite && r > 0 ? r : 1 }
+        if spread && fixed.isEmpty { return packSpread(items) }
         let w = spread ? SPREAD_PHOTO_W : DAY_PHOTO_W
         let scale = w / BASE_WIDTH
         let left = spread ? SPREAD_COLUMNS.0 : 0.5 - DAY_GUTTER / 2 - w / 2
@@ -331,6 +332,51 @@ nonisolated enum AlbumLayout {
             let room = (spread ? SPREAD_MIN_BOARD_H : MIN_BOARD_H) - GAP_Y - (rowBottom - COLLAGE_GAP)
             if room > 0 { out = out.map { var q = $0; q.y += room / 2; return q } }
         }
+        return out
+    }
+
+    /// 見開き（iPhone Duo を開いて横長）の1日（オーナー 2026-10-31「縦横に無機質に置きすぎ…切り抜き画像が映えるように
+    /// 配置デザインそれぞれの大きさを工夫して」）: 4枚ずつの組で、左のページに大きい1枚と小さい1枚、右のページに小さい1枚と
+    /// 中くらいの1枚を、左右で上下を少しずらして斜めに釣り合うように。大きさと傾きは組の中の順番で決まる（撮った順）。
+    /// 決して重ねない（列ごとに上から積む。左右の列は折り目を挟んで離れている）。組に1枚だけ残った写真は真ん中。
+    private static let SPREAD_PATTERN: [(x: Double, w: Double, rot: Double, right: Bool)] = [
+        (0.27, 0.25, -3.5, false),
+        (0.74, 0.18, 4.0, true),
+        (0.31, 0.18, 2.5, false),
+        (0.71, 0.20, -3.0, true),
+    ]
+    /// 右の列は左より少し下から始める（段がそろって見えないように）。
+    private static let SPREAD_RIGHT_DROP: Double = 0.02
+
+    private static func packSpread(_ items: [CollageItem]) -> [AlbumPlacement] {
+        func safeRatio(_ r: Double) -> Double { r.isFinite && r > 0 ? r : 1 }
+        var out: [AlbumPlacement] = []
+        out.reserveCapacity(items.count)
+        var blockTop: Double = 0
+        var bottom: Double = 0
+        var start = 0
+        while start < items.count {
+            let block = Array(items[start..<min(items.count, start + SPREAD_PATTERN.count)])
+            var left = blockTop
+            var right = blockTop + SPREAD_RIGHT_DROP
+            for (k, it) in block.enumerated() {
+                let slot = SPREAD_PATTERN[k]
+                let alone = block.count == 1
+                var p = AlbumPlacement(x: alone ? 0.5 : slot.x, y: 0, scale: slot.w / BASE_WIDTH,
+                                       rot: slot.rot + (seed(it.id, 13) - 0.5))
+                let bh = boxOf(p, ratio: safeRatio(it.ratio), extra: it.extra).h - it.extra
+                let top = slot.right && !alone ? right : left
+                p.y = top + bh / 2
+                let next = top + bh + it.extra + COLLAGE_GAP
+                if slot.right && !alone { right = next } else { left = next }
+                bottom = Swift.max(bottom, next)
+                out.append(p)
+            }
+            blockTop = Swift.max(left, right)
+            start += block.count
+        }
+        let room = SPREAD_MIN_BOARD_H - GAP_Y - (bottom - COLLAGE_GAP)
+        if room > 0 { out = out.map { var q = $0; q.y += room / 2; return q } }
         return out
     }
 
