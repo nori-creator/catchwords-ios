@@ -52,24 +52,9 @@ struct DexGallery: View {
     var onTargetFrame: ((CGRect) -> Void)? = nil
     let onOpen: (Sticker) -> Void
 
-    @Environment(AppRouter.self) private var router: AppRouter?
-
     var body: some View {
-        // iPhone Duo open sideways: the categories in two columns, one on each page (owner 2026-10-31: 「ただサイズを変えただけ
-        // …広い画面を生かして、両画面使えるように」 — one card across both pages made each picture huge and the dex short).
-        if router?.isOpenSideways == true {
-            HStack(alignment: .top, spacing: 28) {
-                column(sections.enumerated().filter { $0.offset % 2 == 0 }.map(\.element))
-                column(sections.enumerated().filter { $0.offset % 2 == 1 }.map(\.element))
-            }
-        } else {
-            column(sections)
-        }
-    }
-
-    private func column(_ list: [DexSection]) -> some View {
         LazyVStack(spacing: 0) {
-            ForEach(list) { sec in
+            ForEach(sections) { sec in
                 DexCategoryCard(section: sec, focus: focus, calm: calm,
                                 marks: marks?.category == sec.category.no ? marks : nil,
                                 onTargetFrame: onTargetFrame, onOpen: onOpen)
@@ -77,7 +62,6 @@ struct DexGallery: View {
                     .id("dexcat-\(sec.category.no)")
             }
         }
-        .frame(maxWidth: .infinity, alignment: .top)
     }
 }
 

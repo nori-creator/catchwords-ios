@@ -114,45 +114,20 @@ struct CandidatePickerView: View {
         return CatchObject.build(candidates: vm.candidates, masks: nil, photoSize: photo.size)
     }
 
-    /// iPhone Duo open sideways (the window wider than 800 pt and lying down).
-    @State private var wide = false
-
     var body: some View {
         ZStack {
             MachineBackground()
-            if wide {
-                // iPhone Duo open sideways: the photo on the left page, the controls on the right (owner 2026-10-31:
-                // 「ただサイズを変えただけ…両画面使えるようにして」 — the photo ran across both pages under a thin input).
-                HStack(spacing: 20) {
-                    photoStage
-                        .clipShape(.rect(cornerRadius: 24, style: .continuous))
-                        .frame(maxWidth: .infinity)
-                    VStack(spacing: 16) {
-                        topBar
-                        Spacer(minLength: 0)
-                        bottomPanel
-                            .disabled(scanning)
-                            .opacity(scanning ? 0.5 : 1)
-                            .animation(.easeOut(duration: 0.25), value: scanning)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-            } else {
-                VStack(spacing: 12) {
-                    topBar
-                    photoStage
-                        .clipShape(.rect(cornerRadius: 24, style: .continuous))
-                        .padding(.horizontal, 10)
-                    bottomPanel
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, 8)
-                        .disabled(scanning)
-                        .opacity(scanning ? 0.5 : 1)
-                        .animation(.easeOut(duration: 0.25), value: scanning)
-                }
+            VStack(spacing: 12) {
+                topBar
+                photoStage
+                    .clipShape(.rect(cornerRadius: 24, style: .continuous))
+                    .padding(.horizontal, 10)
+                bottomPanel
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 8)
+                    .disabled(scanning)
+                    .opacity(scanning ? 0.5 : 1)
+                    .animation(.easeOut(duration: 0.25), value: scanning)
             }
             if let f = flow {
                 CatchChooseOverlay(words: f.words, subtitle: f.subtitle,
@@ -171,7 +146,6 @@ struct CandidatePickerView: View {
             }
         }
         .allowsHitTesting(!vm.isCheckingOwned)
-        .onGeometryChange(for: Bool.self) { $0.size.width >= 800 && $0.size.width > $0.size.height } action: { wide = $0 }
         // A new photo (撮り直す) or the move on to the celebration closes the choose screen.
         .onChange(of: scanning) { _, _ in
             flow = nil

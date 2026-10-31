@@ -10,69 +10,37 @@ struct AIConsentView: View {
     /// Called after a choice (true = agreed). The overlay leaves it nil: it closes when the answer is saved.
     var onDecided: ((Bool) -> Void)? = nil
 
-    /// iPhone Duo open sideways: the title and the buttons on the left page, what is sent on the right (owner 2026-10-31:
-    /// 「ただサイズを変えただけ…両画面使えるようにして」).
-    @State private var wide = false
-
     var body: some View {
         ZStack {
             AppBackground()
-            if wide {
-                HStack(alignment: .center, spacing: 40) {
-                    VStack(alignment: .leading, spacing: 18) {
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
                         header
-                        legalText
-                        buttons
+                        point(icon: "photo.on.rectangle", title: L("送るもの"),
+                              text: L("撮った写真、写真アプリから選んだ画像、「違う単語を入力」で入力した単語、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前は送りません。"))
+                        point(icon: "network", title: L("送り先"),
+                              text: L("当社のサーバを通して、外部のAIサービス（Google など）に送ります。送り先の会社と国は、プライバシーポリシーに書いてあります。"))
+                        point(icon: "lightbulb", title: L("使い道"),
+                              text: L("写っている物や入力した単語の判定、単語の解説と例文の作成、報告された誤りの修正のためだけに使います。当社が写真や入力した文章を AI の学習に使うことはありません。"))
+                        point(icon: "hand.raised", title: L("同意しない場合"),
+                              text: L("カメラ、写真アプリの画像、「違う単語を入力」、単語の解説と例文の作成など、AI を使う機能は使えません（何も送りません）。集めた単語を見ることや復習は、そのまま使えます。あとから「設定」で同意することも、取り消すこともできます。"))
+                        Text(LegalLinks.aiConsentDetails())
+                            .scaledFont(size: 13)
+                            .foregroundStyle(Theme.muted)
+                            .tint(Theme.primaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 4)
                     }
-                    .frame(maxWidth: .infinity)
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 14) { points }
-                            .padding(.vertical, 28)
-                    }
-                    .scrollBounceBehavior(.basedOnSize)
-                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 28)
+                    .padding(.bottom, 16)
+                    .readableColumn()
                 }
-                .padding(.horizontal, 36)
-            } else {
-                VStack(spacing: 0) {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            header
-                            points
-                            legalText
-                        }
-                        .padding(.horizontal, 22)
-                        .padding(.top, 28)
-                        .padding(.bottom, 16)
-                        .readableColumn()
-                    }
-                    .scrollBounceBehavior(.basedOnSize)
-                    buttons
-                }
+                .scrollBounceBehavior(.basedOnSize)
+                buttons
             }
         }
-        .onGeometryChange(for: Bool.self) { $0.size.width >= 800 && $0.size.width > $0.size.height } action: { wide = $0 }
-    }
-
-    @ViewBuilder
-    private var points: some View {
-        point(icon: "photo.on.rectangle", title: L("送るもの"),
-              text: L("撮った写真、写真アプリから選んだ画像、「違う単語を入力」で入力した単語、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前は送りません。"))
-        point(icon: "network", title: L("送り先"),
-              text: L("当社のサーバを通して、外部のAIサービス（Google など）に送ります。送り先の会社と国は、プライバシーポリシーに書いてあります。"))
-        point(icon: "lightbulb", title: L("使い道"),
-              text: L("写っている物や入力した単語の判定、単語の解説と例文の作成、報告された誤りの修正のためだけに使います。当社が写真や入力した文章を AI の学習に使うことはありません。"))
-        point(icon: "hand.raised", title: L("同意しない場合"),
-              text: L("カメラ、写真アプリの画像、「違う単語を入力」、単語の解説と例文の作成など、AI を使う機能は使えません（何も送りません）。集めた単語を見ることや復習は、そのまま使えます。あとから「設定」で同意することも、取り消すこともできます。"))
-    }
-
-    private var legalText: some View {
-        Text(LegalLinks.aiConsentDetails())
-            .scaledFont(size: 13)
-            .foregroundStyle(Theme.muted)
-            .tint(Theme.primaryInk)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 4)
     }
 
     private var header: some View {

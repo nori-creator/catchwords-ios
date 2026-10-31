@@ -45,51 +45,26 @@ struct SettingsView: View {
     @State private var praiseLoading = false
     @Environment(\.requestReview) private var requestReview
 
-    @ViewBuilder
-    private var laterSections: some View {
-        notifySection
-        appearanceSection
-        feelSection
-        if PlanStore.paywallEnabled { proSection }
-        // The AI consent sits with the terms and the privacy policy, as on the web (owner 2026-10-11).
-        legalSection
-        // Admins only (the server's answer for this account); nobody else ever sees this section.
-        if AdminAccess.shared.isAdmin { developerSection }
-        accountButtons
-    }
-
     var body: some View {
         ScrollView {
-            if router.isOpenSideways {
-                // iPhone Duo open sideways: the sections in two columns, one on each page, meeting on the fold (owner
-                // 2026-10-31: 「ただサイズを変えただけ…広い画面を生かして、見やすく、両画面使えるようにして」).
-                HStack(alignment: .top, spacing: 28) {
-                    VStack(alignment: .leading, spacing: 28) {
-                        profileSection
-                        languageSection
-                        studySection
-                    }
-                    .frame(maxWidth: .infinity, alignment: .top)
-                    VStack(alignment: .leading, spacing: 28) { laterSections }
-                        .frame(maxWidth: .infinity, alignment: .top)
-                }
-                .padding(.horizontal, 20)
-                .padding(.leading, max(0, 2 * router.foldShift))
-                .padding(.trailing, max(0, -2 * router.foldShift))
-                .padding(.top, 16)
-                .padding(.bottom, 130)
-            } else {
-                VStack(alignment: .leading, spacing: 28) {
-                    profileSection
-                    languageSection
-                    studySection
-                    laterSections
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 130)
-                .readableColumn()
+            VStack(alignment: .leading, spacing: 28) {
+                profileSection
+                languageSection
+                studySection
+                notifySection
+                appearanceSection
+                feelSection
+                if PlanStore.paywallEnabled { proSection }
+                // The AI consent sits with the terms and the privacy policy, as on the web (owner 2026-10-11).
+                legalSection
+                // Admins only (the server's answer for this account); nobody else ever sees this section.
+                if AdminAccess.shared.isAdmin { developerSection }
+                accountButtons
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 130)
+            .readableColumn()
         }
         .scrollDismissesKeyboard(.interactively)
         .statusBarScrim()

@@ -708,7 +708,7 @@ extension MainTabView {
                 scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
             }
         }
-        if let t = StoreShot.tab, let tab = ["home": AppTab.home, "dex": .dex, "camera": .camera, "review": .review, "settings": .settings][t] {
+        if let t = StoreShot.tab, let tab = ["home": AppTab.home, "dex": .dex, "camera": .camera, "review": .review][t] {
             router.tab = tab
         }
         for _ in 0..<60 where !dex.hasLoaded { try? await Task.sleep(for: .milliseconds(250)) }

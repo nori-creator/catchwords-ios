@@ -28,142 +28,108 @@ struct PaywallView: View {
         return list
     }
 
-    /// iPhone Duo open sideways: the promise on the left page, the plans and the buying on the right (owner 2026-10-31:
-    /// 「ただサイズを変えただけ…両画面使えるようにして」).
-    @State private var wide = false
-
     var body: some View {
         ZStack {
             AppBackground()
-            if wide {
-                HStack(alignment: .center, spacing: 40) {
-                    VStack(spacing: 26) { heroContent }
-                        .frame(maxWidth: .infinity)
-                    ScrollView {
-                        VStack(spacing: 22) { purchaseContent }
-                            .padding(.vertical, 24)
+            ScrollView {
+                VStack(spacing: 26) {
+                    HStack {
+                        Spacer()
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(Theme.muted)
+                                .frame(width: 44, height: 44)
+                                .background(Theme.card, in: Circle())
+                        }
+                        .buttonStyle(PressableStyle(scale: 0.9))
+                        .accessibilityLabel(L("閉じる"))
                     }
-                    .scrollBounceBehavior(.basedOnSize)
-                    .frame(maxWidth: .infinity)
-                }
-                .padding(.horizontal, 36)
-                .overlay(alignment: .topTrailing) { closeButton.padding(16) }
-            } else {
-                ScrollView {
-                    VStack(spacing: 26) {
-                        closeButton
-                        heroContent
-                        purchaseContent
+                    ZStack {
+                        Circle().fill(Theme.primary.opacity(0.25)).frame(width: 180).blur(radius: 40)
+                        LogoMark(size: 104)
+                            .offset(y: float ? -6 : 4)
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(Theme.gold)
+                            .shadow(color: Theme.gold.opacity(0.7), radius: 10)
+                            .offset(x: 48, y: -54 + (float ? -6 : 4))
                     }
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 30)
-                    .readableColumn()
+                    .frame(height: 150)
+                    VStack(spacing: 8) {
+                        Text(L("街じゅうを、図鑑にしよう。"))
+                            .scaledFont(size: 26, weight: .bold)
+                            .foregroundStyle(Theme.foreground)
+                            .multilineTextAlignment(.center)
+                        Text(PlanStore.catchLimitEnabled && plan.remainingToday == 0 ? L("今日の無料キャッチ（3回）を使い切りました。") : L("Proなら、見つけた瞬間に何度でも。"))
+                            .scaledFont(size: 17)
+                            .foregroundStyle(Theme.muted)
+                            .multilineTextAlignment(.center)
+                    }
+                    VStack(spacing: 12) {
+                        ForEach(Array(benefits.enumerated()), id: \.offset) { idx, b in
+                            HStack(spacing: 14) {
+                                Image(systemName: b.0).font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(Theme.primary)
+                                    .frame(width: 40, height: 40)
+                                    .background(Theme.accent, in: .rect(cornerRadius: 12))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(b.1).scaledFont(size: 15, weight: .semibold).foregroundStyle(Theme.foreground)
+                                    Text(b.2).scaledFont(size: 12).foregroundStyle(Theme.muted)
+                                }
+                                Spacer()
+                            }
+                            .opacity(appeared ? 1 : 0)
+                            .offset(x: appeared ? 0 : -20)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.1 + Double(idx) * 0.06), value: appeared)
+                        }
+                    }
+                    plans
+                    PrimaryButton(title: buyTitle, icon: plan.products.isEmpty && !plan.isLoadingProducts ? "arrow.clockwise" : "sparkles",
+                                  isLoading: plan.isPurchasing, sheen: true) {
+                        guard let product = plan.products.first(where: { $0.id == selectedID }) ?? plan.products.first else {
+                            Task { await plan.loadProducts() }   // the prices could not be read: try again
+                            return
+                        }
+                        Task {
+                            await plan.purchase(product)
+                            if plan.isPro { dismiss() }
+                        }
+                    }
+                    .disabled(plan.isLoadingProducts)
+                    if let msg = plan.message {
+                        Text(msg).scaledFont(size: 13).foregroundStyle(Theme.muted)
+                            .multilineTextAlignment(.center)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                    HStack(spacing: 18) {
+                        Button(L("購入を復元")) { Task { await plan.restore(); if plan.isPro { dismiss() } } }
+                            .buttonStyle(PressableStyle(scale: 0.97))
+                        Link(L("利用規約"), destination: AppConfig.termsURL)
+                        Link(L("プライバシー"), destination: AppConfig.privacyURL)
+                    }
+                    .scaledFont(size: 12, weight: .medium)
+                    .foregroundStyle(Theme.muted)
+                    Link(L("特定商取引法に基づく表記"), destination: AppConfig.tokushohoURL)
+                        .scaledFont(size: 12, weight: .medium)
+                        .foregroundStyle(Theme.muted)
+                    // Auto-renewal terms (Guideline 3.1.2): readable size and full contrast, not fine print.
+                    Text(L("お支払いは購入の確定時にApple IDに請求されます。サブスクリプションは期間終了の24時間前までに解約しない限り、同じ期間・同じ価格で自動更新されます。解約はApp Storeのアカウント設定からいつでも行えます。"))
+                        .scaledFont(size: 12)
+                        .foregroundStyle(Theme.muted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .padding(.horizontal, 22)
+                .padding(.bottom, 30)
+                .readableColumn()
             }
         }
-        .onGeometryChange(for: Bool.self) { $0.size.width >= 800 && $0.size.width > $0.size.height } action: { wide = $0 }
         .task { await plan.loadProducts() }
         .onAppear {
             appeared = true
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) { float = true }
         }
-    }
-
-    private var closeButton: some View {
-        HStack {
-            Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark").font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(Theme.muted)
-                    .frame(width: 44, height: 44)
-                    .background(Theme.card, in: Circle())
-            }
-            .buttonStyle(PressableStyle(scale: 0.9))
-            .accessibilityLabel(L("閉じる"))
-        }
-    }
-
-    @ViewBuilder
-    private var heroContent: some View {
-        ZStack {
-            Circle().fill(Theme.primary.opacity(0.25)).frame(width: 180).blur(radius: 40)
-            LogoMark(size: 104)
-                .offset(y: float ? -6 : 4)
-            Image(systemName: "crown.fill")
-                .font(.system(size: 30))
-                .foregroundStyle(Theme.gold)
-                .shadow(color: Theme.gold.opacity(0.7), radius: 10)
-                .offset(x: 48, y: -54 + (float ? -6 : 4))
-        }
-        .frame(height: 150)
-        VStack(spacing: 8) {
-            Text(L("街じゅうを、図鑑にしよう。"))
-                .scaledFont(size: 26, weight: .bold)
-                .foregroundStyle(Theme.foreground)
-                .multilineTextAlignment(.center)
-            Text(PlanStore.catchLimitEnabled && plan.remainingToday == 0 ? L("今日の無料キャッチ（3回）を使い切りました。") : L("Proなら、見つけた瞬間に何度でも。"))
-                .scaledFont(size: 17)
-                .foregroundStyle(Theme.muted)
-                .multilineTextAlignment(.center)
-        }
-        VStack(spacing: 12) {
-            ForEach(Array(benefits.enumerated()), id: \.offset) { idx, b in
-                HStack(spacing: 14) {
-                    Image(systemName: b.0).font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Theme.primary)
-                        .frame(width: 40, height: 40)
-                        .background(Theme.accent, in: .rect(cornerRadius: 12))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(b.1).scaledFont(size: 15, weight: .semibold).foregroundStyle(Theme.foreground)
-                        Text(b.2).scaledFont(size: 12).foregroundStyle(Theme.muted)
-                    }
-                    Spacer()
-                }
-                .opacity(appeared ? 1 : 0)
-                .offset(x: appeared ? 0 : -20)
-                .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.1 + Double(idx) * 0.06), value: appeared)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var purchaseContent: some View {
-        plans
-        PrimaryButton(title: buyTitle, icon: plan.products.isEmpty && !plan.isLoadingProducts ? "arrow.clockwise" : "sparkles",
-                      isLoading: plan.isPurchasing, sheen: true) {
-            guard let product = plan.products.first(where: { $0.id == selectedID }) ?? plan.products.first else {
-                Task { await plan.loadProducts() }   // the prices could not be read: try again
-                return
-            }
-            Task {
-                await plan.purchase(product)
-                if plan.isPro { dismiss() }
-            }
-        }
-        .disabled(plan.isLoadingProducts)
-        if let msg = plan.message {
-            Text(msg).scaledFont(size: 13).foregroundStyle(Theme.muted)
-                .multilineTextAlignment(.center)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-        }
-        HStack(spacing: 18) {
-            Button(L("購入を復元")) { Task { await plan.restore(); if plan.isPro { dismiss() } } }
-                .buttonStyle(PressableStyle(scale: 0.97))
-            Link(L("利用規約"), destination: AppConfig.termsURL)
-            Link(L("プライバシー"), destination: AppConfig.privacyURL)
-        }
-        .scaledFont(size: 12, weight: .medium)
-        .foregroundStyle(Theme.muted)
-        Link(L("特定商取引法に基づく表記"), destination: AppConfig.tokushohoURL)
-            .scaledFont(size: 12, weight: .medium)
-            .foregroundStyle(Theme.muted)
-        // Auto-renewal terms (Guideline 3.1.2): readable size and full contrast, not fine print.
-        Text(L("お支払いは購入の確定時にApple IDに請求されます。サブスクリプションは期間終了の24時間前までに解約しない限り、同じ期間・同じ価格で自動更新されます。解約はApp Storeのアカウント設定からいつでも行えます。"))
-            .scaledFont(size: 12)
-            .foregroundStyle(Theme.muted)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var buyTitle: String {
