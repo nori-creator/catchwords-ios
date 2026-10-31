@@ -491,6 +491,9 @@ struct DexView: View {
                            onOpen: { router.openDetail($0, zoom: true) })
                     .padding(.top, max(0, headerHeight - 8))
                     .padding(.horizontal, 18)
+                    // The two columns meet on the fold (the clock's strip takes room on one side).
+                    .padding(.leading, router.isOpenSideways ? max(0, 2 * router.foldShift) : 0)
+                    .padding(.trailing, router.isOpenSideways ? max(0, -2 * router.foldShift) : 0)
                     .padding(.bottom, 120)
                     .modifier(DexImpactShake(t: shake, base: shakeBase))
             }
@@ -715,35 +718,54 @@ struct DexView: View {
     }
 
     private var list: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 10) {
+        let groups: [(cat: DexCategory, items: [Sticker])] = DexCatalog.withOther.compactMap { cat in
+            let items = filtered.filter { DexBook.category(of: $0, lang: lang) == cat.no }
+            return items.isEmpty ? nil : (cat, items)
+        }
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
                 Color.clear.frame(height: max(0, headerHeight - 14))
-                // Grouped by the dex's 20 categories, in their order.
-                ForEach(DexCatalog.withOther) { cat in
-                    let items = filtered.filter { DexBook.category(of: $0, lang: lang) == cat.no }
-                    if !items.isEmpty {
-                        HStack(spacing: 6) {
-                            Text(cat.emoji).scaledFont(size: 17)
-                            Text(cat.label).scaledFont(size: 16, weight: .semibold).foregroundStyle(Theme.foreground)
-                            Spacer()
-                            Text("\(items.count)").scaledFont(size: 13, monospacedDigit: true).foregroundStyle(Theme.muted)
-                        }
-                        .padding(.top, 6)
-                        VStack(spacing: 0) {
-                            ForEach(Array(items.enumerated()), id: \.element.id) { i, s in
-                                if i > 0 { Divider().padding(.leading, 12) }
-                                DexListRow(sticker: s) { router.openDetail(s, zoom: true) }
-                            }
-                        }
-                        .background(Theme.card, in: .rect(cornerRadius: 22, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Theme.border, lineWidth: 1))
+                if router.isOpenSideways {
+                    // iPhone Duo open sideways: the categories in two columns, one on each page (owner 2026-10-31:
+                    // 「ただサイズを変えただけ…両画面使えるようにして」 — each row ran across both pages).
+                    HStack(alignment: .top, spacing: 28) {
+                        listColumn(groups.enumerated().filter { $0.offset % 2 == 0 }.map(\.element))
+                        listColumn(groups.enumerated().filter { $0.offset % 2 == 1 }.map(\.element))
                     }
+                    .padding(.leading, max(0, 2 * router.foldShift))
+                    .padding(.trailing, max(0, -2 * router.foldShift))
+                } else {
+                    listColumn(groups)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 120)
         }
         .refreshable { await dex.load() }
+    }
+
+    /// The categories one under another (grouped by the dex's 20 categories, in their order).
+    private func listColumn(_ groups: [(cat: DexCategory, items: [Sticker])]) -> some View {
+        LazyVStack(alignment: .leading, spacing: 10) {
+            ForEach(groups, id: \.cat.no) { g in
+                HStack(spacing: 6) {
+                    Text(g.cat.emoji).scaledFont(size: 17)
+                    Text(g.cat.label).scaledFont(size: 16, weight: .semibold).foregroundStyle(Theme.foreground)
+                    Spacer()
+                    Text("\(g.items.count)").scaledFont(size: 13, monospacedDigit: true).foregroundStyle(Theme.muted)
+                }
+                .padding(.top, 6)
+                VStack(spacing: 0) {
+                    ForEach(Array(g.items.enumerated()), id: \.element.id) { i, s in
+                        if i > 0 { Divider().padding(.leading, 12) }
+                        DexListRow(sticker: s) { router.openDetail(s, zoom: true) }
+                    }
+                }
+                .background(Theme.card, in: .rect(cornerRadius: 22, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Theme.border, lineWidth: 1))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 }
 

@@ -140,6 +140,8 @@ jobs:
             "memory|-uiStoreTab review -uiStoreMemory YES"
             "quiz|-uiStoreTab review"
             "grid|-uiStoreTab dex -uiStoreDex grid"
+            "list|-uiStoreTab dex -uiStoreDex list"
+            "settings|-uiStoreTab settings"
           )
           shoot_all() {  # <inner|innerp|outer> <画面の番号> [アプリへの追加の引数]
             for lang in ja en; do
