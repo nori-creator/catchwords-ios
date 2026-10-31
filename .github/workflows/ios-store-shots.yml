@@ -38,7 +38,8 @@ jobs:
           cp ios/StoreShots/sources/*.png ios/StoreShots/store.json "$STORE"/
           swift ios/StoreShots/cutout.swift ios/StoreShots/sources "$STORE" \
             latte=latte.png flowers=flowers.png dog=corgi_photo.png cake=cake.png bubbletea=bubbletea.png \
-            cat=cat.png fish=fish.png bird=bird.png
+            cat=cat.png fish=fish.png bird=bird.png bracelet=bracelet.png lipbalm=lipbalm.png croissant=croissant.png \
+            clipper=clipper.png puff=puff.png
           ls -la "$STORE"
 
       - name: Duo を開く・閉じる道具を組み立てる

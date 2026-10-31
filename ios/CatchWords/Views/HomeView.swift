@@ -24,6 +24,8 @@ struct HomeView: View {
     @State private var jumpCount = 0
     /// Moves the page while a photo is carried to the screen's top or bottom edge (`AlbumAutoScroll`).
     @State private var autoScroll = AlbumAutoScroll()
+    /// The album scroll's height (iPhone Duo held sideways sizes the day's photos to it).
+    @State private var albumViewportH: CGFloat = 0
     /// A wide screen (the regular width class: iPhone Duo open): the album is a book, one day a spread, its diary on
     /// the right page (`BookSpreadView`, owner 2026-10-24). The iPhone (compact) keeps the one vertical scroll.
     @Environment(\.horizontalSizeClass) private var widthClass
@@ -226,6 +228,10 @@ struct HomeView: View {
                                 onDiary: DiaryFeature.enabled ? { (day: Date) in diaryDay = DiaryDay(day: day) } : nil
                             )
                             .environment(\.albumPasteID, router.tour == .homeAdded ? router.tourStickerId : nil)
+                            // iPhone Duo open and held sideways: the stickers grow with the width, so a day's two rows
+                            // (four photos with their names) are kept within the screen's height above the tab bar.
+                            .frame(maxWidth: router.isOpenSideways ? max(360, (albumViewportH - 230) / 1.12) : nil)
+                            .frame(maxWidth: .infinity)
                             .transition(.opacity)
                         }
                     }
@@ -247,6 +253,7 @@ struct HomeView: View {
             // A drag the system cancelled never reports its end: stop the page when rearranging ends either way.
             .onChange(of: albumEditing) { _, _ in autoScroll.end() }
             .refreshable { await dex.load() }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { albumViewportH = $0 }
             // The header takes its room from the scroll (instead of covering its top), so a day scrolled to from the
             // calendar shows its date just under it.
             .safeAreaInset(edge: .top, spacing: 8) { header }

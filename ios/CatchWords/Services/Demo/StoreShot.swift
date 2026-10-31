@@ -55,8 +55,13 @@ nonisolated enum StoreShot {
     }
 
     /// The camera's viewfinder picture (`camera_photo` in `store.json`).
-    static var cameraPhoto: UIImage? {
-        guard let name = pack?["camera_photo"] as? String, let data = file(name) else { return nil }
+    /// iPhone Duo held sideways takes `camera_photo_wide`, a photo of the viewfinder's own shape, so the whole
+    /// viewfinder is the photo (owner 2026-10-31: 「カメラモードで背景が全て写るようにして」).
+    @MainActor static var cameraPhoto: UIImage? {
+        let window = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+        let sideways = window.map { $0.bounds.width > $0.bounds.height } ?? false
+        let key = sideways && pack?["camera_photo_wide"] != nil ? "camera_photo_wide" : "camera_photo"
+        guard let name = pack?[key] as? String, let data = file(name) else { return nil }
         return UIImage(data: data)
     }
 

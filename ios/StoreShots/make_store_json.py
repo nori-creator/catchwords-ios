@@ -99,17 +99,17 @@ words = [
          ("夕日", "sunset"), ("淡水の夕日はとてもきれいだ。", "The sunset in Tamsui is beautiful."),
          st("store-sunset", "2026-09-13T17:48:00" + TPE, TAMSUI, 25.1665, 121.4440, None, "map_sunset.png")),
 ]
-# Words reviewed often, no photo kept (復習の記憶の一覧).
+# Words reviewed often (復習の記憶の一覧), each with a generated picture.
 fill = [("bracelet", "手鍊", "ㄕㄡˇ ㄌㄧㄢˋ", "shǒu liàn", "jewelry", ("ブレスレット", "bracelet")),
-        ("blacktea", "紅茶", "ㄏㄨㄥˊ ㄔㄚˊ", "hóng chá", "drink", ("紅茶", "black tea")),
         ("lipbalm", "護唇膏", "ㄏㄨˋ ㄔㄨㄣˊ ㄍㄠ", "hù chún gāo", "medicine", ("リップクリーム", "lip balm")),
         ("croissant", "可頌", "ㄎㄜˇ ㄙㄨㄥˋ", "kě sòng", "food", ("クロワッサン", "croissant")),
         ("clipper", "指甲剪", "ㄓˇ ㄐㄧㄚˇ ㄐㄧㄢˇ", "zhǐ jiǎ jiǎn", "tool", ("爪切り", "nail clipper")),
-        ("puff", "泡芙", "ㄆㄠˋ ㄈㄨˊ", "pào fú", "dessert", ("シュークリーム", "cream puff")),
-        ("soap", "洗碗精", "ㄒㄧˇ ㄨㄢˇ ㄐㄧㄥ", "xǐ wǎn jīng", "kitchenware", ("食器用洗剤", "dish soap"))]
+        ("puff", "泡芙", "ㄆㄠˋ ㄈㄨˊ", "pào fú", "dessert", ("シュークリーム", "cream puff"))]
+# 紅茶 and 洗碗精 are left out: no picture of theirs (the dex showed an error card, owner 2026-10-31). Each of these
+# has a generated picture (sources/<key>.png) and its cutout.
 for i, (k, h, z, py, cat, m) in enumerate(fill):
     words.append(word(k, h, z, py, cat, "", m, ("", ""),
-                      st("store-" + k, "2026-09-%02dT12:00:00" % (20 + i) + TPE, DAAN, 25.03, 121.54)))
+                      st("store-" + k, "2026-09-%02dT12:00:00" % (20 + i) + TPE, DAAN, 25.03, 121.54, k + "_cut.png", k + ".png")))
 
 reviews = []
 for i, (k, *_r) in enumerate(fill):
@@ -122,6 +122,6 @@ for w in words[:14]:
     reviews.append({"sticker": sid, "ease": 2.5, "interval": 1, "repetitions": 1, "last": -1, "due": 0 if sid == "store-bubbletea" else 2,
                     "history": [{"at": -1, "score": 5, "interval": 1}]})
 
-out = {"camera_photo": "corgi_photo.png", "words": words, "reviews": reviews}
+out = {"camera_photo": "corgi_photo.png", "camera_photo_wide": "corgi_wide.png", "words": words, "reviews": reviews}
 json.dump(out, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "store.json"), "w"), ensure_ascii=False, indent=1)
 print(len(words), "words,", len(reviews), "reviews")
