@@ -154,7 +154,7 @@ struct AIConsentGateView: View {
             }
             .padding(.horizontal, 32)
             .frame(maxWidth: 440)
-            .padding(.bottom, 90)   // above the tab bar
+            .padding(.bottom, router.barRoom(90, rail: 0))   // above the tab bar (none with the side rail)
         }
         .onAppear {
             // The light screen keeps the ordinary tab bar (not the camera machine's).

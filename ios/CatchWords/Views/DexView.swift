@@ -491,7 +491,7 @@ struct DexView: View {
                            onOpen: { router.openDetail($0, zoom: true) })
                     .padding(.top, max(0, headerHeight - 8))
                     .padding(.horizontal, 18)
-                    .padding(.bottom, 120)
+                    .padding(.bottom, router.barRoom(120, rail: 28))
                     .modifier(DexImpactShake(t: shake, base: shakeBase))
             }
             .scrollIndicators(.hidden)
@@ -741,7 +741,7 @@ struct DexView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 120)
+            .padding(.bottom, router.barRoom(120, rail: 28))
         }
         .refreshable { await dex.load() }
     }
@@ -918,7 +918,7 @@ struct DexMapView: View {
     static let compactPanelHeight: CGFloat = 128
     static let expandedPanelHeight: CGFloat = 250
     private var panelHeight: CGFloat {
-        if wide { return max(Self.expandedPanelHeight, mapFrame.height - topCover - Self.wideReserved) }
+        if wide { return max(Self.expandedPanelHeight, mapFrame.height - topCover - wideReserved) }
         return panelExpanded ? Self.expandedPanelHeight : Self.compactPanelHeight
     }
 
@@ -933,7 +933,7 @@ struct DexMapView: View {
         return fold - mapFrame.minX - 32
     }
     /// Under the column's timeline: the day bar, the tab bar and the gaps.
-    private static let wideReserved: CGFloat = 84 + 64 + 30
+    private var wideReserved: CGFloat { (router?.barRoom(84) ?? 84) + 64 + 30 }
     /// The reading line, from the list's top: the row on it is the current word (web `onListScroll`: 35%).
     private var readingLine: CGFloat { panelHeight * 0.35 }
     /// Room under the last row, so the last words too can be scrolled up to the reading line (web
@@ -1002,7 +1002,7 @@ struct DexMapView: View {
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { y in
                 if abs(y - coverTop) > 2 { coverTop = y }
             }
-            .padding(.bottom, 84)
+            .padding(.bottom, router?.barRoom(84) ?? 84)
         }
         .onChange(of: coverTop) { old, new in
             // The panel opened, closed or changed height: the word being read stays in sight.

@@ -478,6 +478,7 @@ enum CatchLanding {
 /// are left in blue, and five dots (caught: blue with a white check, the new one popping in; still to find: dashed,
 /// breathing). On for 2.5 s.
 struct CatchGoalToast: View {
+    @Environment(AppRouter.self) private var router: AppRouter?
     let goal: CatchGoal
     let start: Double
     let now: Double
@@ -516,7 +517,7 @@ struct CatchGoalToast: View {
             .padding(.horizontal, 16)
             .opacity(a)
             .offset(y: CGFloat(1 - a) * 15)
-            .padding(.bottom, 96)
+            .padding(.bottom, router?.barRoom(96, rail: 28) ?? 96)
             .environment(\.colorScheme, .light)
             .accessibilityElement(children: .combine)
         }

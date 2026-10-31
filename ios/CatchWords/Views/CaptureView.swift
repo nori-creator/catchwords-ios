@@ -255,7 +255,8 @@ struct CaptureView: View {
 
                 controls
                     .padding(.top, 22)
-                    .padding(.bottom, 86)
+                    // Over the tab bar; with the bar as a rail at the side the shutter sits low, where the thumb is.
+                    .padding(.bottom, router.barRoom(86, rail: 20))
             }
             // iPhone Duo open sideways: the viewfinder, the shutter and its buttons are centred on the fold, the room
             // the clock's strip takes on one side left free on the other (owner 2026-10-31: 「犬が折り目の真ん中に」).
@@ -985,6 +986,7 @@ struct CameraMessageView: View {
 /// Web `OfflineSavedPanel` (capture.tsx): the photo was kept in "解析待ち" when analysis failed.
 /// The reason is always shown — a 401 or a broken image must not look like "just try later".
 struct FailedView: View {
+    @Environment(AppRouter.self) private var router: AppRouter?
     let reason: String
     let retryable: Bool
     let offline: Bool
@@ -1019,7 +1021,7 @@ struct FailedView: View {
             Spacer()
         }
         .padding(28)
-        .padding(.bottom, 80)
+        .padding(.bottom, router?.barRoom(80, rail: 0) ?? 80)
     }
 
     private func secondary(_ title: String, action: @escaping () -> Void) -> some View {

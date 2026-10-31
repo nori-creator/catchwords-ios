@@ -62,15 +62,15 @@ final class DuoWalkthroughTests: XCTestCase {
         guard accept.waitForExistence(timeout: 30) else { return }
         pause(2)
         snap("ai-consent")
-        app.swipeUp(); pause(1)
+        swipe(.up); pause(1)
         accept.tap()
         if !gone(accept, 5), accept.exists, accept.isHittable { accept.tap() }
         pause(1.5)
     }
 
     private func home() {
-        app.swipeUp(); pause(1.5); snap("home-scrolled")
-        app.swipeDown(); pause(1.5)
+        swipe(.up); pause(1.5); snap("home-scrolled")
+        swipe(.down); pause(1.5)
         if tapIf("home.calendar") {
             pause(2); snap("home-calendar")
             closeSheet()
@@ -84,14 +84,14 @@ final class DuoWalkthroughTests: XCTestCase {
         guard tapIf("tab.dex") else { return }
         pause(2.5); snap("dex-cards")
         // カードを左右に送る。
-        for _ in 0..<2 { app.swipeLeft(); pause(1.2) }
+        for _ in 0..<2 { swipe(.left); pause(1.2) }
         snap("dex-cards-swiped")
-        app.swipeRight(); pause(1.2)
+        swipe(.right); pause(1.2)
         for mode in ["map", "grid", "list"] {
             if tapIf("dex.mode.\(mode)") {
                 pause(2.5); snap("dex-\(mode)")
-                app.swipeUp(); pause(1.5); snap("dex-\(mode)-scrolled")
-                app.swipeDown(); pause(1)
+                swipe(.up); pause(1.5); snap("dex-\(mode)-scrolled")
+                swipe(.down); pause(1)
             }
         }
         tapIf("dex.mode.grid"); pause(1.5)
@@ -102,7 +102,7 @@ final class DuoWalkthroughTests: XCTestCase {
         guard cell.waitForExistence(timeout: 10) else { return }
         cell.tap()
         pause(3); snap("word-top")
-        for i in 1...6 { app.swipeUp(); pause(1.2); snap("word-\(i)") }
+        for i in 1...6 { swipe(.up); pause(1.2); snap("word-\(i)") }
         if tapIf("detail.sections") {
             pause(1.5); snap("word-sections")
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.12)).tap(); pause(1)
@@ -189,7 +189,7 @@ final class DuoWalkthroughTests: XCTestCase {
                 tapIf("wheel.close"); pause(1)
             }
         }
-        for i in 1...5 { app.swipeUp(); pause(1.2); snap("settings-\(i)") }
+        for i in 1...5 { swipe(.up); pause(1.2); snap("settings-\(i)") }
         if tapIf("settings.aiConsent.review") { pause(2); snap("settings-ai-consent"); closeSheet() }
     }
 
@@ -244,6 +244,21 @@ final class DuoWalkthroughTests: XCTestCase {
     private func gone(_ element: XCUIElement, _ timeout: TimeInterval) -> Bool {
         let e = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
         return XCTWaiter().wait(for: [e], timeout: timeout) == .completed
+    }
+
+    private enum Direction { case up, down, left, right }
+
+    /// A swipe on the screen's scrolling list or map when there is one: on the Duo's inner screen a swipe on the whole
+    /// app landed nowhere (taps on elements worked, the app's own swipes did not move anything).
+    private func swipe(_ d: Direction) {
+        let candidates = [app.scrollViews.firstMatch, app.maps.firstMatch, app.collectionViews.firstMatch]
+        let target = candidates.first { $0.exists && $0.isHittable } ?? app
+        switch d {
+        case .up: target.swipeUp()
+        case .down: target.swipeDown()
+        case .left: target.swipeLeft()
+        case .right: target.swipeRight()
+        }
     }
 
     private func pause(_ seconds: Double) { Thread.sleep(forTimeInterval: seconds) }

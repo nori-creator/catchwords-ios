@@ -51,12 +51,14 @@ struct DexCoverFlow: View {
     /// The floating tab bar (58 + 4 pt) is drawn over the dex's last points, plus a little air above it. The
     /// old reserve of 120 pt left an empty strip between the photo row and the bar.
     static let bottomReserve: CGFloat = 74
+    /// With the tab bar as a rail at the side (iPhone Duo folded or open sideways) nothing floats over the bottom.
+    static let railBottomReserve: CGFloat = 18
 
     /// The card's width: as big as the height under the header allows (the card, its reflection band, the
     /// dots, the photo row and the tab bar's room), at most 80% of the width so the neighbours still peek
     /// (web: `--cf-w` for the gallery theme).
-    static func cardWidth(in size: CGSize, cards: Int) -> CGFloat {
-        let below = dotsHeight + (cards >= 2 ? thumbsHeight : 0) + bottomReserve
+    static func cardWidth(in size: CGSize, cards: Int, rail: Bool = false) -> CGFloat {
+        let below = dotsHeight + (cards >= 2 ? thumbsHeight : 0) + (rail ? railBottomReserve : bottomReserve)
         let byHeight = (size.height - cardTop - below) / (1.48 * (1 + reflectionBand))
         return min(size.width * 0.8, 340, max(150, byHeight))
     }
@@ -68,7 +70,7 @@ struct DexCoverFlow: View {
 
     var body: some View {
         GeometryReader { geo in
-            let w = Self.cardWidth(in: geo.size, cards: stickers.count)
+            let w = Self.cardWidth(in: geo.size, cards: stickers.count, rail: router?.usesRail == true)
             VStack(spacing: 0) {
                 CoverFlowStage(spring: spring, stickers: stickers, stageWidth: geo.size.width, cardWidth: w,
                                reduceMotion: reduceMotion, onOpen: onOpen, bring: bring,
@@ -117,7 +119,7 @@ struct DexCoverFlow: View {
     }
 
     private func startWideRow() {
-        let w = Double(Self.cardWidth(in: stageSize, cards: stickers.count))
+        let w = Double(Self.cardWidth(in: stageSize, cards: stickers.count, rail: router?.usesRail == true))
         guard !wideStage, stickers.count >= 3, CarouselPose.isRow(stageWidth: Double(stageSize.width), cardWidth: w) else { return }
         wideStage = true
         guard initialIndex == 0, center == 0 else { return }

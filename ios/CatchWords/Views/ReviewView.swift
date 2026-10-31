@@ -44,8 +44,9 @@ struct ReviewView: View {
     private var foldLead: CGFloat { spread ? max(0, 2 * router.foldShift) : 0 }
     private var foldTrail: CGFloat { spread ? max(0, -2 * router.foldShift) : 0 }
 
-    /// Room kept under the card for the floating tab bar (58 pt + its 4 pt + a little air).
-    private static let tabBarClearance: CGFloat = 70
+    /// Room kept under the card for the floating tab bar (58 pt + its 4 pt + a little air); just a margin when the bar
+    /// is a rail at the side (iPhone Duo folded or open sideways), so the card takes the whole height.
+    private var tabBarClearance: CGFloat { router.barRoom(70, rail: 16) }
     private static let topID = "review.top"
 
     var body: some View {
@@ -82,7 +83,7 @@ struct ReviewView: View {
                     .padding(.top, 8)
                     // Unanswered: only the tab bar's room (the card already fits). Answered: room under the last
                     // choice for the whole sheet, however tall its explanation is.
-                    .padding(.bottom, answer == nil || spread ? Self.tabBarClearance : panelHeight + 16)
+                    .padding(.bottom, answer == nil || spread ? tabBarClearance : panelHeight + 16)
                 }
                 // Nothing to scroll while it fits (a very large text size can still scroll).
                 .scrollBounceBehavior(.basedOnSize)
@@ -139,7 +140,7 @@ struct ReviewView: View {
                 )
                 .accessibilityAction(named: L("次へ")) { goNext() }
                 .tourAnchor(.reviewNext, if: router.tour == .reviewNext)
-                .modifier(AnswerSheetPlace(spread: spread, quizTop: quizTop, viewportHeight: viewportHeight))
+                .modifier(AnswerSheetPlace(spread: spread, quizTop: quizTop, viewportHeight: viewportHeight, rail: router.usesRail))
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
                 .answerSheetColumn(wide: spread, width: viewportWidth, lead: foldLead, trail: foldTrail)
                 .transition(spread ? .opacity.combined(with: .move(edge: .top)) : .move(edge: .bottom).combined(with: .opacity))
@@ -172,7 +173,7 @@ struct ReviewView: View {
                     // Kept clear of the tab bar drawn over this screen (owner 2026-10-16: 「今が復習どき」 and its
                     // button were under it): when the card is taller than the room left, it scrolls inside.
                     .padding(.top, guided ? 48 : 8)
-                    .padding(.bottom, Self.tabBarClearance + 12)
+                    .padding(.bottom, tabBarClearance + 12)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.92).combined(with: .opacity))
                 }
                 .zIndex(2)
@@ -264,7 +265,7 @@ struct ReviewView: View {
     /// top padding, the header + memory bar, the gap, and the tab bar's room. nil until measured.
     private var quizFitHeight: CGFloat? {
         guard viewportHeight > 0, topHeight > 0 else { return nil }
-        return viewportHeight - 8 - topHeight - 10 - Self.tabBarClearance
+        return viewportHeight - 8 - topHeight - 10 - tabBarClearance
     }
 
     private func closeCurve() {
@@ -521,6 +522,8 @@ private struct AnswerSheetPlace: ViewModifier {
     let spread: Bool
     let quizTop: CGFloat
     let viewportHeight: CGFloat
+    /// The tab bar is a rail at the side: nothing to keep clear at the bottom.
+    var rail: Bool = false
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -529,11 +532,11 @@ private struct AnswerSheetPlace: ViewModifier {
                 // A card of its own on the page: rounded at the bottom too (on the iPhone it runs off the screen's edge).
                 .clipShape(.rect(cornerRadius: 28, style: .continuous))
                 .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
-                .frame(maxHeight: max(240, viewportHeight - quizTop - 78), alignment: .top)
+                .frame(maxHeight: max(240, viewportHeight - quizTop - (rail ? 24 : 78)), alignment: .top)
                 .padding(.top, max(0, quizTop))
         } else {
             content
-                .padding(.bottom, 66)
+                .padding(.bottom, rail ? 12 : 66)
                 .background(alignment: .bottom) { Theme.card.frame(height: 80) }
                 .ignoresSafeArea(edges: .bottom)
         }

@@ -142,7 +142,10 @@ struct CatchCelebrationView: View {
     /// number under it, six sparkles round it. A re-encounter: 「また会えた！」 and 「再会 N回目」 in the chip.
     @ViewBuilder
     private func headline(_ tc: Double, _ size: CGSize) -> some View {
-        let W = size.width, H = size.height, k = W / 1080
+        // Scaled by the shorter fit of the film's 1080×2340 canvas: on a screen wider than tall (iPhone Duo open and held
+        // sideways) the width alone made the headline as tall as the gap to the NEW chip under it, and they overlapped.
+        // On a phone held upright both are the same.
+        let W = size.width, H = size.height, k = min(W / 1080, H / 2340)
         let hp = Film6.seg(tc, Film6.catchT, Film6.catchT + 0.4)
         let a = textAlpha(tc)
         if hp > 0 {
@@ -158,7 +161,7 @@ struct CatchCelebrationView: View {
                 .position(x: W / 2, y: Film6.y(552, H))
             if dexLabel != nil || again != nil {
                 let cp = Film6.outCubic(Film6.seg(tc, Film6.catchT + 0.12, Film6.catchT + 0.42))
-                CatchDexChip(label: dexLabel, scale: W / 393,
+                CatchDexChip(label: dexLabel, scale: k * 1080 / 393,
                              badge: again.map { L("再会\($0.encounterCount + 1)回目") })
                     .opacity(cp * a)
                     .position(x: W / 2, y: Film6.y(636, H) + CGFloat(1 - cp) * 14 * k)
@@ -238,7 +241,7 @@ struct CatchCelebrationView: View {
     @ViewBuilder
     private func meaningBlock(_ tc: Double, _ size: CGSize) -> some View {
         if let c = vm.picked {
-            let W = size.width, H = size.height, k = W / 1080
+            let W = size.width, H = size.height, k = min(W / 1080, H / 2340)
             let ma = Film6.outCubic(Film6.seg(tc, Film6.meaning, Film6.meaning + 0.3))
             let a = textAlpha(tc)
             if ma > 0 {

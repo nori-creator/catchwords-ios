@@ -40,6 +40,22 @@ final class AppRouter {
     /// The fold's x on the screen (sideways on the Duo), nil elsewhere.
     var foldX: CGFloat? { isOpenSideways ? screenWidth / 2 : nil }
     var isOpenSideways: Bool = false
+    /// iPhone Duo folded (the outer screen) or open and held sideways: the window has a strip on one side (the clock's,
+    /// the camera's) and the tab bar stands in it as a vertical rail, so every screen gets the whole height (owner
+    /// 2026-10-31: 「折りたたんだ時も見開きの時も下のバー右端を縦の帯に配置…縦の全画面を使うようにして」; Apple's iPhone Duo
+    /// guidance puts the tab bar, toolbars and the back button in that strip). nil: the bar at the bottom (iPhone, Duo
+    /// open upright).
+    var railEdge: HorizontalEdge?
+    /// The strip's width (the window's safe-area inset on that side).
+    var railStrip: CGFloat = 0
+    var usesRail: Bool { railEdge != nil }
+    /// The rail is never narrower than this: where the strip is narrower, the screens keep the rest free beside it.
+    static let railWidth: CGFloat = 64
+    /// How much wider the rail is than the strip it stands in (the screens leave that much free on its side).
+    var railOverhang: CGFloat { usesRail ? max(0, Self.railWidth - railStrip) : 0 }
+    /// The room a screen keeps at its bottom for the floating tab bar: `bar` with the bar at the bottom, `rail` (just the
+    /// usual margin) when the bar is a rail at the side.
+    func barRoom(_ bar: CGFloat, rail: CGFloat = 16) -> CGFloat { usesRail ? rail : bar }
     var landingStickerId: String?
     /// The catch's star waiting for the save: it leaves from the celebration's sticker (CaptureView → CatchLanding).
     var catchStar: CatchStar?
@@ -139,15 +155,34 @@ struct TabBarSlot: View {
 
     var body: some View {
         @Bindable var router = router
-        ZStack(alignment: .bottom) {
-            if !router.hidesTabBar {
-                CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
-                              onSelect: onSelect)
-                    .padding(.bottom, 4)
-                    .offset(x: router.foldShift)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .onAppear { UITestTrace.log("tabbar view in tab=\(router.tab)") }
-                    .onDisappear { UITestTrace.log("tabbar view out tab=\(router.tab)") }
+        Group {
+            if let edge = router.railEdge {
+                // iPhone Duo folded or open sideways: a vertical rail in the strip at the side (`AppRouter.railEdge`).
+                ZStack {
+                    if !router.hidesTabBar {
+                        CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
+                                      onSelect: onSelect, vertical: true)
+                            .transition(.move(edge: edge == .trailing ? .trailing : .leading).combined(with: .opacity))
+                            .onAppear { UITestTrace.log("tabbar view in tab=\(router.tab) rail") }
+                            .onDisappear { UITestTrace.log("tabbar view out tab=\(router.tab) rail") }
+                    }
+                }
+                .frame(width: max(router.railStrip, AppRouter.railWidth))
+                .padding(.bottom, 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: edge == .trailing ? .bottomTrailing : .bottomLeading)
+                .ignoresSafeArea(.container, edges: .horizontal)
+            } else {
+                ZStack(alignment: .bottom) {
+                    if !router.hidesTabBar {
+                        CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
+                                      onSelect: onSelect)
+                            .padding(.bottom, 4)
+                            .offset(x: router.foldShift)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .onAppear { UITestTrace.log("tabbar view in tab=\(router.tab)") }
+                            .onDisappear { UITestTrace.log("tabbar view out tab=\(router.tab)") }
+                    }
+                }
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.9), value: router.hidesTabBar)
@@ -209,6 +244,14 @@ struct MainTabView: View {
         router.isOpenSideways = open
         // Positive when the clock's strip is on the right: the safe area's middle lies left of the fold, so it moves right.
         router.foldShift = open ? (insets.right - insets.left) / 2 : 0
+        // A strip on one side (the outer screen's, or the inner screen's held sideways): the bar becomes a rail there.
+        // The iPhone and the Duo open upright have none (their clock is at the top).
+        let side = max(insets.left, insets.right)
+        let edge: HorizontalEdge? = side >= 20 ? (insets.right >= insets.left ? .trailing : .leading) : nil
+        if router.railEdge != edge || abs(router.railStrip - side) > 0.5 {
+            router.railEdge = edge
+            router.railStrip = edge == nil ? 0 : side
+        }
     }
 
     private func wordPageDismissed() {
@@ -244,6 +287,8 @@ struct MainTabView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The rail is wider than the strip it stands in: the screens keep that much free beside it.
+            .safeAreaPadding(router.railEdge == .leading ? .leading : .trailing, router.railOverhang)
 
             // Above every tab's page, the dex rising for a landing too (it takes zIndex 1 for that).
             TabBarSlot(onSelect: beginShutterFlight)
@@ -289,7 +334,8 @@ struct MainTabView: View {
             // word landing in the dex: the card waits until the word has landed (it used to darken the landing).
             if router.tour != .off, !router.tour.isWord, router.tour != .complete, router.landing == nil,
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
-                TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: endTour)
+                TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: endTour,
+                          bottomClearance: router.barRoom(84, rail: 12))
                     .transition(.opacity)
             }
         }
@@ -479,6 +525,9 @@ struct CapsuleTabBar: View {
     var onCamera: Bool
     /// Called with the tapped tab just before the selection changes (MainTabView starts the shutter flight).
     var onSelect: ((AppTab) -> Void)? = nil
+    /// iPhone Duo folded or open sideways: a rail standing in the strip at the side — the four tabs in a tall capsule,
+    /// the camera disc under them where the thumb rests (Apple's iPhone Duo guidance: the tab bar stays bottom aligned).
+    var vertical: Bool = false
 
     @Namespace private var bubble
     /// Taps per tab: drives each icon's bounce, so only the tab just chosen bounces.
@@ -488,7 +537,34 @@ struct CapsuleTabBar: View {
     static let height: CGFloat = 58
     static let raise: CGFloat = 16
 
+    /// The rail's capsule width and each tab's height in it.
+    static let railBarWidth: CGFloat = 56
+    static let railCellHeight: CGFloat = 60
+
     var body: some View {
+        if vertical { railBody } else { barBody }
+    }
+
+    private var railBody: some View {
+        VStack(spacing: 14) {
+            VStack(spacing: 0) {
+                ForEach(AppTab.allCases.filter { $0 != .camera }) { tab in
+                    cell(tab).frame(height: Self.railCellHeight)
+                }
+            }
+            .padding(.vertical, 4)
+            .frame(width: Self.railBarWidth)
+            .background {
+                Capsule().fill(Theme.card.opacity(onCamera ? 1 : 0.9)).background(.regularMaterial, in: Capsule())
+                    .overlay { Capsule().stroke(Theme.border, lineWidth: 1) }
+            }
+            .shadow(color: .black.opacity(onCamera ? 0.3 : 0.1), radius: 14, y: 4)
+            raisedCameraDisc
+        }
+        .animation(.easeInOut(duration: 0.25), value: onCamera)
+    }
+
+    private var barBody: some View {
         GeometryReader { geo in
             let width = min(geo.size.width * 0.92, 400)
             HStack(spacing: 0) {
@@ -524,6 +600,7 @@ struct CapsuleTabBar: View {
                     .foregroundStyle(tint)
                     .symbolEffect(.bounce, value: bounces[tab, default: 0])
                 Text(tab.title).font(.system(size: 10, weight: .medium))
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
             .foregroundStyle(tint)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -564,10 +641,10 @@ struct CapsuleTabBar: View {
             // The guide lights the disc where it is drawn, raised above the bar (owner 2026-10-28: lit on the cell, the
             // ring sat below the disc).
             .tourAnchor(.cameraTab)
-            .offset(y: -Self.raise)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .offset(y: vertical ? 0 : -Self.raise)
+            .frame(maxWidth: vertical ? nil : .infinity, maxHeight: vertical ? nil : .infinity)
             // The whole cell takes the tap; the tap area moves up with the disc so its top is reachable.
-            .contentShape(Rectangle().offset(y: -Self.raise))
+            .contentShape(Rectangle().offset(y: vertical ? 0 : -Self.raise))
         }
         .buttonStyle(PressableStyle(scale: 0.92))
         // On the camera tab the disc has gone up into the camera screen's shutter (owner 2026-10-26: 「下のカメラアイコン
@@ -580,7 +657,7 @@ struct CapsuleTabBar: View {
         .animation(isOn ? nil : .spring(response: 0.42, dampingFraction: 0.86).delay(0.08), value: isOn)
         // The other four tabs share the bar evenly meanwhile (owner 2026-10-26: 「4つのタブを均等に並べ直して」). The cell
         // narrows to nothing in the middle, so its centre — where the shutter flight starts — stays put.
-        .frame(maxWidth: isOn ? 0 : .infinity)
+        .frame(maxWidth: vertical ? nil : (isOn ? 0 : .infinity), maxHeight: vertical && isOn ? 0 : nil)
         .allowsHitTesting(!isOn)
         .accessibilityHidden(isOn)
         .accessibilityLabel(AppTab.camera.title)

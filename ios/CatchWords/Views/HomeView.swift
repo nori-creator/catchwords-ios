@@ -82,7 +82,7 @@ struct HomeView: View {
                     .buttonStyle(PressableStyle())
                     .accessibilityIdentifier("home.album.done")
                 }
-                .padding(.bottom, 84)
+                .padding(.bottom, router.barRoom(84))
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -102,7 +102,7 @@ struct HomeView: View {
                     Haptics.selection()
                     Task { await dex.setAlbumHidden(id, hidden: false) }
                 }
-                .padding(.bottom, 110)   // above the tab bar
+                .padding(.bottom, router.barRoom(110, rail: 24))   // above the tab bar (none with the side rail)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -237,7 +237,8 @@ struct HomeView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
 
-                    Color.clear.frame(height: 120)
+                    // Room for the floating tab bar under the album's end; the side rail needs none.
+                    Color.clear.frame(height: router.barRoom(120, rail: 28))
                 }
                 // iPhone Duo held sideways: the album uses the whole screen, its middle on the fold — a day's two
                 // columns stand on the two pages (owner 2026-10-31: 「ホーム全体を使って」「左画面と右画面で同じ中心」).
@@ -297,8 +298,8 @@ struct HomeView: View {
             .animation(.easeOut(duration: 0.3), value: dex.hasLoaded)
         }
         .padding(.horizontal, 20)
-        // The floating tab bar.
-        .padding(.bottom, 78)
+        // The floating tab bar (a rail at the side on iPhone Duo folded or open sideways: none to keep clear).
+        .padding(.bottom, router.barRoom(78))
         .environment(autoScroll)
         .onChange(of: albumEditing) { _, _ in autoScroll.end() }
         .safeAreaInset(edge: .top, spacing: 8) { header }
