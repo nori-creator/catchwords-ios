@@ -98,7 +98,7 @@ jobs:
             # 位置などの許可の窓が画面をふさがないよう、先に入れて許可しておく（試しは同じアプリを入れ直さない）
             APP=$(ls -d "$RUNNER_TEMP"/dd/Build/Products/Debug-iphonesimulator/CatchWords.app 2>/dev/null | head -1)
             [ -n "$APP" ] && xcrun simctl install "$UDID" "$APP"
-            for s in camera microphone photos location location-always; do xcrun simctl privacy "$UDID" grant "$s" com.nori.catchwords 2>/dev/null || true; done
+            for s in camera microphone photos photos-add location location-always; do xcrun simctl privacy "$UDID" grant "$s" com.nori.catchwords 2>/dev/null || true; done
             # 内側の画面は試しの写真（XCTAttachment）が黒くなる（外側の画面を撮る）ので、2秒ごとに内側の画面を撮る
             mkdir -p "$OUT/frames/$name"
             ( i=0; while true; do i=$((i + 1)); xcrun simctl io "$UDID" screenshot ${DISP[@]+"${DISP[@]}"} "$OUT/frames/$name/$(printf %04d $i).png" >/dev/null 2>&1; sleep 2; done ) &
