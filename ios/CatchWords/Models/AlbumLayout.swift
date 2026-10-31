@@ -336,17 +336,15 @@ nonisolated enum AlbumLayout {
     }
 
     /// 見開き（iPhone Duo を開いて横長）の1日（オーナー 2026-10-31「縦横に無機質に置きすぎ…切り抜き画像が映えるように
-    /// 配置デザインそれぞれの大きさを工夫して」）: 4枚ずつの組で、左のページに大きい1枚と小さい1枚、右のページに小さい1枚と
-    /// 中くらいの1枚を、左右で上下を少しずらして斜めに釣り合うように。大きさと傾きは組の中の順番で決まる（撮った順）。
-    /// 決して重ねない（列ごとに上から積む。左右の列は折り目を挟んで離れている）。組に1枚だけ残った写真は真ん中。
-    private static let SPREAD_PATTERN: [(x: Double, w: Double, rot: Double, right: Bool)] = [
-        (0.27, 0.25, -3.5, false),
-        (0.74, 0.18, 4.0, true),
-        (0.31, 0.18, 2.5, false),
-        (0.71, 0.20, -3.0, true),
+    /// 配置デザインそれぞれの大きさを工夫して」）: 4枚ずつの組を、横に4つの通り道（左のページの外・内、右のページの内・外）へ
+    /// 1枚ずつ、大きさ・高さ・傾きを変えて波のように置く（外は大きく上へ、内は小さく下へ）。折り目を挟んで左右が釣り合う。
+    /// 通り道どうしは横に離れているので決して重ならない。組に1枚だけ残った写真は真ん中。
+    private static let SPREAD_PATTERN: [(x: Double, w: Double, top: Double, rot: Double)] = [
+        (0.15, 0.23, 0.00, -4.0),
+        (0.63, 0.19, 0.03, -2.0),
+        (0.37, 0.17, 0.17, 3.0),
+        (0.85, 0.18, 0.14, 4.0),
     ]
-    /// 右の列は左より少し下から始める（段がそろって見えないように）。
-    private static let SPREAD_RIGHT_DROP: Double = 0.02
 
     private static func packSpread(_ items: [CollageItem]) -> [AlbumPlacement] {
         func safeRatio(_ r: Double) -> Double { r.isFinite && r > 0 ? r : 1 }
@@ -357,22 +355,20 @@ nonisolated enum AlbumLayout {
         var start = 0
         while start < items.count {
             let block = Array(items[start..<min(items.count, start + SPREAD_PATTERN.count)])
-            var left = blockTop
-            var right = blockTop + SPREAD_RIGHT_DROP
+            var blockBottom = blockTop
             for (k, it) in block.enumerated() {
                 let slot = SPREAD_PATTERN[k]
                 let alone = block.count == 1
                 var p = AlbumPlacement(x: alone ? 0.5 : slot.x, y: 0, scale: slot.w / BASE_WIDTH,
                                        rot: slot.rot + (seed(it.id, 13) - 0.5))
                 let bh = boxOf(p, ratio: safeRatio(it.ratio), extra: it.extra).h - it.extra
-                let top = slot.right && !alone ? right : left
+                let top = blockTop + (alone ? 0 : slot.top)
                 p.y = top + bh / 2
-                let next = top + bh + it.extra + COLLAGE_GAP
-                if slot.right && !alone { right = next } else { left = next }
-                bottom = Swift.max(bottom, next)
+                blockBottom = Swift.max(blockBottom, top + bh + it.extra + COLLAGE_GAP)
                 out.append(p)
             }
-            blockTop = Swift.max(left, right)
+            bottom = blockBottom
+            blockTop = blockBottom
             start += block.count
         }
         let room = SPREAD_MIN_BOARD_H - GAP_Y - (bottom - COLLAGE_GAP)
