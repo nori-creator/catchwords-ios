@@ -95,6 +95,14 @@ jobs:
             echo "::group::$name"
             "$HINGE" -d "$UDID" "$hinge"; sleep 6
             DISP=(); [ -n "$display" ] && DISP=(--display="$display")
+            # 位置などの許可の窓が画面をふさがないよう、先に入れて許可しておく（試しは同じアプリを入れ直さない）
+            APP=$(ls -d "$RUNNER_TEMP"/dd/Build/Products/Debug-iphonesimulator/CatchWords.app 2>/dev/null | head -1)
+            [ -n "$APP" ] && xcrun simctl install "$UDID" "$APP"
+            for s in camera microphone photos location location-always; do xcrun simctl privacy "$UDID" grant "$s" com.nori.catchwords 2>/dev/null || true; done
+            # 内側の画面は試しの写真（XCTAttachment）が黒くなる（外側の画面を撮る）ので、2秒ごとに内側の画面を撮る
+            mkdir -p "$OUT/frames/$name"
+            ( i=0; while true; do i=$((i + 1)); xcrun simctl io "$UDID" screenshot ${DISP[@]+"${DISP[@]}"} "$OUT/frames/$name/$(printf %04d $i).png" >/dev/null 2>&1; sleep 2; done ) &
+            SHOOT=$!
             xcrun simctl io "$UDID" recordVideo --codec=h264 --force ${DISP[@]+"${DISP[@]}"} "$OUT/video/${name}.mp4" &
             REC=$!; sleep 2
             TEST_RUNNER_DUO_POSTURE="$name" xcodebuild test-without-building -project CatchWords.xcodeproj -scheme CatchWords \
@@ -103,7 +111,8 @@ jobs:
               -resultBundlePath "$OUT/results/${name}.xcresult" \
               -test-timeouts-enabled YES -default-test-execution-time-allowance 1500 -maximum-test-execution-time-allowance 1800 \
               CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)" | tail -20
-            sleep 1; kill -INT "$REC"; wait "$REC" 2>/dev/null
+            sleep 1; kill -INT "$REC"; wait "$REC" 2>/dev/null; kill "$SHOOT" 2>/dev/null
+            echo "$name: $(ls "$OUT/frames/$name" | wc -l) frames"
             ls -la "$OUT/video/${name}.mp4" 2>/dev/null || echo "::warning::$name の動画がありません"
             echo "::endgroup::"
           }
@@ -154,7 +163,15 @@ jobs:
           STAGE="$RUNNER_TEMP/walk-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
           for f in "$SRC"/*.png; do
             [ -f "$f" ] || continue
+            case "$(basename "$f")" in landscape_*|portrait_*) continue;; esac  # 黒い（外側の画面を撮った）写真
             sips -s format jpeg -s formatOptions 70 -Z 1400 "$f" --out "$STAGE/$(basename "$f" .png).jpg" >/dev/null 2>&1 || true
+          done
+          # 内側の画面は 2 秒ごとのコマ（landscape_f0001.jpg …）
+          for d in "$RUNNER_TEMP"/walk/frames/landscape "$RUNNER_TEMP"/walk/frames/portrait; do
+            [ -d "$d" ] || continue
+            for f in "$d"/*.png; do
+              sips -s format jpeg -s formatOptions 60 -Z 1100 "$f" --out "$STAGE/$(basename "$d")_f$(basename "$f" .png).jpg" >/dev/null 2>&1 || true
+            done
           done
           cp "$RUNNER_TEMP/walk/display-list.txt" "$STAGE"/ 2>/dev/null || true
           echo "${{ github.sha }}" > "$STAGE/COMMIT"
