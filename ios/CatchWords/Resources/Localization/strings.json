@@ -9749,5 +9749,12 @@
   "es": "Inicia sesión y sigue donde lo dejaste.",
   "ko": "로그인하고 모은 단어를 이어서 공부해요.",
   "vi": "Đăng nhập để học tiếp những từ đã thu thập."
+ },
+ "撮った場所（{1}回）": {
+  "en": "Where it was taken ({1} times)",
+  "zh-TW": "拍攝地（{1} 次）",
+  "es": "Lugar de la foto ({1} veces)",
+  "ko": "촬영 장소 ({1}번)",
+  "vi": "Nơi chụp ({1} lần)"
  }
 }

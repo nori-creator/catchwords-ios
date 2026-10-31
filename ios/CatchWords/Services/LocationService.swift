@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 
 /// Grabs the capture location and turns it into a readable place name in the display language.
 final class LocationService: NSObject, CLLocationManagerDelegate {
@@ -40,13 +41,45 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     /// The place name in the display language (a saved name stays in the language it was saved in, so
     /// screens re-ask with `localizedName` when the coordinates are known).
+    ///
+    /// A named place where there is one — the shop, café, park or station it was taken at, then the district
+    /// (「星巴克 忠孝門市 · 大安區」) — so the learner can picture where it was (owner 2026-10-31: 「ただの住所になってるから
+    /// …具体的な場所やお店の名前を表示して」). Without one, the city and district as before.
     func placeName(for location: CLLocation) async -> String? {
+        async let spot = Self.nearbySpot(location)
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: L10n.locale)
-        guard let p = placemarks?.first else { return nil }
+        let p = placemarks?.first
+        // A park, a station or a campus the point lies inside (Apple's own areas) when no shop is right there.
+        let named = await spot ?? p?.areasOfInterest?.lazy.compactMap { Self.shownPlace($0) }.first
         // Apple answers in the place's own script when it has no name in the requested language (a Taipei district in
         // 中文 on a Spanish screen): each part is kept only when it reads as the display language.
-        let parts = [p.locality, p.subLocality ?? p.name].compactMap { Self.shownPlace($0) }
+        let parts: [String]
+        if let named {
+            let area = [p?.subLocality, p?.locality].lazy.compactMap { Self.shownPlace($0) }.first
+            parts = [named] + (area.map { $0 == named ? [] : [$0] } ?? [])
+        } else if let p {
+            parts = [p.locality, p.subLocality ?? p.name].compactMap { Self.shownPlace($0) }
+        } else {
+            return nil
+        }
         return parts.isEmpty ? nil : parts.joined(separator: L10n.current.placeSeparator)
+    }
+
+    /// How near a shop or other place must be to be named: the phone's fix is within about this much in a city.
+    nonisolated static let spotRadius: CLLocationDistance = 35
+
+    /// The nearest named place (a shop, café, restaurant, park, station, museum…) within `spotRadius`, in the display
+    /// language; nil when none is that near. Not the kinds no one would say they were at (an ATM, a car park, a toilet).
+    private static func nearbySpot(_ location: CLLocation) async -> String? {
+        let request = MKLocalPointsOfInterestRequest(center: location.coordinate, radius: spotRadius * 2)
+        request.pointOfInterestFilter = MKPointOfInterestFilter(excluding: [.atm, .evCharger, .parking, .restroom, .fireStation, .police])
+        guard let items = try? await MKLocalSearch(request: request).start().mapItems else { return nil }
+        let near = items.compactMap { item -> (name: String, metres: CLLocationDistance)? in
+            guard let name = shownPlace(item.name), let at = item.placemark.location else { return nil }
+            let metres = at.distance(from: location)
+            return metres <= spotRadius ? (name, metres) : nil
+        }
+        return near.min { $0.metres < $1.metres }?.name
     }
 
     private var nameCache: [String: String] = [:]
@@ -64,7 +97,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// as the display language (`shownPlace`), else none.
     func localizedName(lat: Double?, lng: Double?, saved: String?) async -> String? {
         guard let lat, let lng else { return Self.shownPlace(saved) }
-        let key = String(format: "%.3f,%.3f,", lat, lng) + L10n.lang
+        let key = String(format: "%.4f,%.4f,", lat, lng) + L10n.lang
         if let hit = nameCache[key] { return hit }
         guard let name = await placeName(for: CLLocation(latitude: lat, longitude: lng)) else { return Self.shownPlace(saved) }
         nameCache[key] = name
