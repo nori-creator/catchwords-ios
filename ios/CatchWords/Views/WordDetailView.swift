@@ -237,6 +237,7 @@ struct WordDetailView: View {
 
     /// Once the page is on screen: the hero's picture, and the previews' starting state.
     private func pageAppeared() {
+        UITestTrace.log("word page appeared")
         applyHeroRole(animated: false)
         if previewSelfieOriginal { selfieOriginal = true }
         if previewPanel {

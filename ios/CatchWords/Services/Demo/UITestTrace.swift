@@ -68,7 +68,7 @@ nonisolated enum UITestTrace {
         MainStackSampler.captureMain()
         MainWatchdog.shared.start()
         // The previews of the catch's animations measure their frames (CI compares the counts run to run).
-        if d.string(forKey: "uiPreview") != nil { FrameMeter.shared.start() }
+        if d.string(forKey: "uiPreview") != nil || d.bool(forKey: "uiFrames") { FrameMeter.shared.start() }
         #endif
     }
 
