@@ -100,12 +100,25 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         .sorted { $0.metres < $1.metres }
     }
 
-    /// A shop's, a park's or a station's own name, as Apple has it — in 中文 on any screen when it has no other: a proper
-    /// name is not a mixed-in language (owner 2026-10-31: 「これは中国語の固有名詞だから表示していい」). The city and
-    /// district around it still follow `shownPlace`.
+    /// A shop's, a park's or a station's own name, as Apple has it: one that reads as the display language, or one in
+    /// 中文 only — a Chinese proper name on any screen (owner 2026-10-31: 「これは中国語の固有名詞だから表示していい」).
+    /// Another script (an English shop name on a Japanese screen, 「NewDays 東京幹線」) is not shown: the area or the
+    /// district stands for it. The city and district around it follow `shownPlace`.
     nonisolated static func properName(_ name: String?) -> String? {
         let v = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return v.isEmpty ? nil : v
+        guard !v.isEmpty else { return nil }
+        return shownPlace(v) ?? (isChineseName(v) ? v : nil)
+    }
+
+    /// Han characters only, with the spaces, digits and marks a name may carry (「星巴克 忠孝門市」「台北101」).
+    nonisolated static func isChineseName(_ v: String) -> Bool {
+        var han = false
+        for u in v.unicodeScalars {
+            if u.properties.isIdeographic { han = true; continue }
+            if u.properties.isWhitespace || ("0"..."9").contains(Character(u)) || "·・()（）-－〔〕「」".unicodeScalars.contains(u) { continue }
+            return false
+        }
+        return han
     }
 
     private var nameCache: [String: String] = [:]
