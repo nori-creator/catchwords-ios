@@ -498,6 +498,10 @@ struct CaptureView: View {
             .opacity(cameraLive ? 1 : 0.4)
         }
         .padding(.horizontal, 44)
+        // On a wide screen (iPhone Duo open) the 写真 / 切替 buttons stay as near the shutter as on an iPhone, not out
+        // at the screen's edges (owner 2026-10-31: 「端すぎる」). An iPhone (≤ 440 pt) is unchanged.
+        .frame(maxWidth: 440)
+        .frame(maxWidth: .infinity)
         // The shutter on iPhone Duo's fold when it is open sideways.
         .offset(x: router.foldShift)
     }
