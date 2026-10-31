@@ -51,14 +51,15 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         let p = placemarks?.first
         // A park, a station or a campus the point lies inside (Apple's own areas) when no shop is right there.
         let named = await spot ?? p?.areasOfInterest?.lazy.compactMap { Self.properName($0) }.first
-        // Apple answers in the place's own script when it has no name in the requested language (a Taipei district in
-        // 中文 on a Spanish screen): each part is kept only when it reads as the display language.
+        // Apple answers in the display language where the place has a name in it, else in the place's own script (a
+        // Taipei district in 中文 on a Spanish screen): shown as it comes — a place's name as it is written there
+        // (owner 2026-10-31: 「その地名や具体的な名前はそのまま表記して。英語でも中国語でも」).
         let parts: [String]
         if let named {
-            let area = [p?.subLocality, p?.locality].lazy.compactMap { Self.shownPlace($0) }.first
+            let area = [p?.subLocality, p?.locality].lazy.compactMap { Self.properName($0) }.first
             parts = [named] + (area.map { $0 == named ? [] : [$0] } ?? [])
         } else if let p {
-            parts = [p.locality, p.subLocality ?? p.name].compactMap { Self.shownPlace($0) }
+            parts = [p.locality, p.subLocality ?? p.name].compactMap { Self.properName($0) }
         } else {
             return nil
         }
@@ -100,25 +101,12 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         .sorted { $0.metres < $1.metres }
     }
 
-    /// A shop's, a park's or a station's own name, as Apple has it: one that reads as the display language, or one in
-    /// 中文 only — a Chinese proper name on any screen (owner 2026-10-31: 「これは中国語の固有名詞だから表示していい」).
-    /// Another script (an English shop name on a Japanese screen, 「NewDays 東京幹線」) is not shown: the area or the
-    /// district stands for it. The city and district around it follow `shownPlace`.
+    /// A shop's, a park's, a station's or a district's own name, as Apple has it — in whatever script it is written there,
+    /// English, 中文 or any other, on every screen: a place's name is not a mixed-in language (owner 2026-10-31: 「お店は
+    /// 現地の名前表記通りでいい。言語混ざるとかではなく、その地名や具体的な名前はそのまま表記して。英語でも中国語でも」).
     nonisolated static func properName(_ name: String?) -> String? {
         let v = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !v.isEmpty else { return nil }
-        return shownPlace(v) ?? (isChineseName(v) ? v : nil)
-    }
-
-    /// Han characters only, with the spaces, digits and marks a name may carry (「星巴克 忠孝門市」「台北101」).
-    nonisolated static func isChineseName(_ v: String) -> Bool {
-        var han = false
-        for u in v.unicodeScalars {
-            if u.properties.isIdeographic { han = true; continue }
-            if u.properties.isWhitespace || ("0"..."9").contains(Character(u)) || "·・()（）-－〔〕「」".unicodeScalars.contains(u) { continue }
-            return false
-        }
-        return han
+        return v.isEmpty ? nil : v
     }
 
     private var nameCache: [String: String] = [:]

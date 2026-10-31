@@ -325,6 +325,8 @@ struct LocalizedPlaceText: View {
         // With coordinates the saved name (maybe another language) is never shown; the lookup replaces it — unless the
         // learner wrote it.
         Text(ownName ?? name ?? (lat == nil ? savedName : nil) ?? fallback)
+            // A place's own name, as written there (not counted as a mixed-in language by the UI tests' check).
+            .accessibilityIdentifier("place.name")
             .task(id: "\(lat ?? 0),\(lng ?? 0),\(L10n.lang)") {
                 guard ownName == nil else { return }
                 name = await LocationService.shared.localizedName(lat: lat, lng: lng, saved: savedName)

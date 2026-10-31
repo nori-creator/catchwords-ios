@@ -531,13 +531,17 @@ final class FullTourTests: XCTestCase {
         var labels: Set<String> = []
         var stack: [XCUIElementSnapshot] = [root]
         while let e = stack.popLast() {
+            stack.append(contentsOf: e.children)
+            // Where a photo was taken: a place's own name as written there, in any script (owner 2026-10-31: 「お店は現地の
+            // 名前表記通りでいい…英語でも中国語でも」).
+            // The word page's place row is a button labelled with that name.
+            if e.identifier == "place.name" || e.identifier.hasPrefix("detail.place") { continue }
             let l = e.label.trimmingCharacters(in: .whitespacesAndNewlines)
             if !l.isEmpty { labels.insert(l) }
             if let v = e.value as? String {
                 let t = v.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !t.isEmpty { labels.insert(t) }
             }
-            stack.append(contentsOf: e.children)
         }
         for text in labels {
             if let problem = LanguageCheck.problem(text, display: display, learning: learning) {
