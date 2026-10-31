@@ -41,8 +41,8 @@ struct ReviewView: View {
     private var spread: Bool { QuizCard.isSpread(widthClass: widthClass, width: viewportWidth, height: viewportHeight) }
     /// Side by side on iPhone Duo held sideways: extra margin on the side away from the clock's strip, so the photo and
     /// the choices meet on the fold (owner 2026-10-30: 「スマホの折り目で画面を半分にして」).
-    private var foldLead: CGFloat { spread ? max(0, -2 * router.foldShift) : 0 }
-    private var foldTrail: CGFloat { spread ? max(0, 2 * router.foldShift) : 0 }
+    private var foldLead: CGFloat { spread ? max(0, 2 * router.foldShift) : 0 }
+    private var foldTrail: CGFloat { spread ? max(0, -2 * router.foldShift) : 0 }
 
     /// Room kept under the card for the floating tab bar (58 pt + its 4 pt + a little air).
     private static let tabBarClearance: CGFloat = 70

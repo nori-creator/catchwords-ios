@@ -207,7 +207,8 @@ struct MainTabView: View {
         let open = size.width >= 800 && size.width > size.height
         router.screenWidth = size.width
         router.isOpenSideways = open
-        router.foldShift = open ? (insets.left - insets.right) / 2 : 0
+        // Positive when the clock's strip is on the right: the safe area's middle lies left of the fold, so it moves right.
+        router.foldShift = open ? (insets.right - insets.left) / 2 : 0
     }
 
     private func wordPageDismissed() {
