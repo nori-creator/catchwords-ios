@@ -343,7 +343,7 @@ nonisolated enum AlbumLayout {
     private static let SPREAD_PATTERN: [(x: Double, w: Double, top: Double, rot: Double)] = [
         (0.14, 0.26, 0.01, -5.0),
         (0.64, 0.24, 0.00, 4.0),
-        (0.39, 0.19, 0.23, 3.0),
+        (0.41, 0.19, 0.19, 3.0),
         (0.89, 0.19, 0.21, -4.0),
     ]
 
