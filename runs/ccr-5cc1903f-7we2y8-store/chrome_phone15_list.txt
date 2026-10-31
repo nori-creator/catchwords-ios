@@ -1,0 +1,35 @@
+Contents
+
+/Library/Developer/DeviceKit/Chrome/phone15.devicechrome/Contents:
+_CodeSignature
+Info.plist
+MacOS
+Resources
+version.plist
+
+/Library/Developer/DeviceKit/Chrome/phone15.devicechrome/Contents/_CodeSignature:
+CodeResources
+
+/Library/Developer/DeviceKit/Chrome/phone15.devicechrome/Contents/MacOS:
+phone15
+
+/Library/Developer/DeviceKit/Chrome/phone15.devicechrome/Contents/Resources:
+chrome.json
+Home BTN Dn.pdf
+Home BTN.pdf
+Mute BTN Dn.pdf
+Mute BTN.pdf
+Phone Base.pdf
+Phone BL.pdf
+Phone BR.pdf
+Phone Left.pdf
+Phone Right.pdf
+Phone TL.pdf
+Phone Top.pdf
+Phone TR.pdf
+PhoneComposite.pdf
+Screen.pdf
+Vol BTN Dn.pdf
+Vol BTN.pdf
+X_Power BTN Dn.pdf
+X_Power BTN.pdf

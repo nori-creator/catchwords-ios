@@ -1,0 +1,27 @@
+devicetype: /Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone Duo.simdevicetype
+Contents
+
+/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone Duo.simdevicetype/Contents:
+_CodeSignature
+Info.plist
+MacOS
+Resources
+version.plist
+
+/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone Duo.simdevicetype/Contents/_CodeSignature:
+CodeResources
+
+/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone Duo.simdevicetype/Contents/MacOS:
+iPhone Duo
+
+/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone Duo.simdevicetype/Contents/Resources:
+1C896A2B-F0D7-405C-8D0F-66E4B80AD044.pdf
+BF0DC480-5EE2-4EC1-B02B-C75E94759832.pdf
+capabilities.plist
+en.lproj
+profile.plist
+sensor_bar_class_04.pdf
+
+/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone Duo.simdevicetype/Contents/Resources/en.lproj:
+InfoPlist.strings
+chrome: com.apple.dt.devicekit.chrome.phone15

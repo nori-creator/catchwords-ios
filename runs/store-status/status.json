@@ -1,0 +1,635 @@
+{
+ "bundleId": "com.nori.catchwords",
+ "app": {
+  "name": "CatchWords: Taiwanese Mandarin",
+  "bundleId": "com.nori.catchwords",
+  "primaryLocale": "en-US",
+  "contentRightsDeclaration": "USES_THIRD_PARTY_CONTENT",
+  "isOrEverWasMadeForKids": false,
+  "subscriptionStatusUrl": null,
+  "id": "6818121962"
+ },
+ "appInfos": [
+  {
+   "id": "d9de27f6-10b7-436d-89ed-9c9ac2ae9e99",
+   "state": "READY_FOR_DISTRIBUTION",
+   "ageRating": "FOUR_PLUS",
+   "kidsAgeBand": null,
+   "localizations": [
+    {
+     "locale": "en-US",
+     "name": "CatchWords: Taiwanese Mandarin",
+     "subtitle": "Snap it. Learn the real word.",
+     "privacyPolicyUrl": "https://catchwords.lovable.app/privacy"
+    },
+    {
+     "locale": "ja",
+     "name": "CatchWords-撮って覚える台湾華語",
+     "subtitle": "世界があなただけの単語帳になる",
+     "privacyPolicyUrl": "https://catchwords.lovable.app/privacy"
+    }
+   ],
+   "primaryCategory": "EDUCATION",
+   "secondaryCategory": "REFERENCE",
+   "ageRatingDeclaration": {
+    "advertising": false,
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "contests": "NONE",
+    "gambling": false,
+    "gamblingSimulated": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+    "healthOrWellnessTopics": false,
+    "kidsAgeBand": null,
+    "lootBox": false,
+    "medicalOrTreatmentInformation": "NONE",
+    "messagingAndChat": false,
+    "parentalControls": false,
+    "profanityOrCrudeHumor": "NONE",
+    "ageAssurance": false,
+    "sexualContentGraphicAndNudity": "NONE",
+    "sexualContentOrNudity": "NONE",
+    "socialMedia": false,
+    "socialMediaAgeRestricted": false,
+    "horrorOrFearThemes": "NONE",
+    "matureOrSuggestiveThemes": "NONE",
+    "unrestrictedWebAccess": false,
+    "userGeneratedContent": false,
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+    "violenceRealistic": "NONE",
+    "ageRatingOverride": "NONE",
+    "ageRatingOverrideV2": "NONE",
+    "koreaAgeRatingOverride": "NONE",
+    "gracRatingClassificationNumber": null,
+    "developerAgeRatingInfoUrl": null
+   }
+  },
+  {
+   "id": "869f9db5-c313-4217-8e81-d3154c8461ba",
+   "state": "PREPARE_FOR_SUBMISSION",
+   "ageRating": "FOUR_PLUS",
+   "kidsAgeBand": null,
+   "localizations": [
+    {
+     "locale": "ja",
+     "name": "CatchWords: 撮って覚える台湾華語・中国語単語帳",
+     "subtitle": "身の回りのものを撮るだけで自分だけの単語帳ができる",
+     "privacyPolicyUrl": "https://catchwords.lovable.app/privacy"
+    },
+    {
+     "locale": "en-US",
+     "name": "CatchWords: Taiwanese Mandarin",
+     "subtitle": "Chinese Photo Flashcards & AI",
+     "privacyPolicyUrl": "https://catchwords.lovable.app/privacy"
+    }
+   ],
+   "primaryCategory": "EDUCATION",
+   "secondaryCategory": "REFERENCE",
+   "ageRatingDeclaration": {
+    "advertising": false,
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "contests": "NONE",
+    "gambling": false,
+    "gamblingSimulated": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+    "healthOrWellnessTopics": false,
+    "kidsAgeBand": null,
+    "lootBox": false,
+    "medicalOrTreatmentInformation": "NONE",
+    "messagingAndChat": false,
+    "parentalControls": false,
+    "profanityOrCrudeHumor": "NONE",
+    "ageAssurance": false,
+    "sexualContentGraphicAndNudity": "NONE",
+    "sexualContentOrNudity": "NONE",
+    "socialMedia": false,
+    "socialMediaAgeRestricted": false,
+    "horrorOrFearThemes": "NONE",
+    "matureOrSuggestiveThemes": "NONE",
+    "unrestrictedWebAccess": false,
+    "userGeneratedContent": false,
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+    "violenceRealistic": "NONE",
+    "ageRatingOverride": "NONE",
+    "ageRatingOverrideV2": "NONE",
+    "koreaAgeRatingOverride": "NONE",
+    "gracRatingClassificationNumber": null,
+    "developerAgeRatingInfoUrl": null
+   }
+  }
+ ],
+ "versions": [
+  {
+   "id": "a8bebe09-fb74-43c4-8555-9119e3a0f094",
+   "version": "1.0.4",
+   "state": "PREPARE_FOR_SUBMISSION",
+   "appStoreState": "PREPARE_FOR_SUBMISSION",
+   "releaseType": "AFTER_APPROVAL",
+   "copyright": "2026 近藤範之",
+   "createdDate": "2026-10-23T03:33:23-07:00",
+   "build": null,
+   "reviewDetail": {
+    "contactName": true,
+    "contactPhone": true,
+    "contactEmail": true,
+    "demoAccountRequired": true,
+    "demoAccountName": true,
+    "demoAccountPassword": true,
+    "notesLength": 2894
+   },
+   "localizations": [
+    {
+     "locale": "en-US",
+     "descriptionLength": 2276,
+     "descriptionStart": "You see something on the street and wonder what it's called. Looking it up means",
+     "keywords": "Chinese,Taiwan,Traditional,TOCFL,vocab,flashcard,pinyin,zhuyin,bopomofo,camera,photo,translate,speak",
+     "promotionalText": null,
+     "supportUrl": "https://catchwords.app/support",
+     "marketingUrl": "https://catchwords.app",
+     "whatsNew": null,
+     "screenshots": [
+      {
+       "displayType": "APP_IPHONE_61",
+       "count": 9
+      }
+     ]
+    },
+    {
+     "locale": "ja",
+     "descriptionLength": 1397,
+     "descriptionStart": "「あれ、台湾華語で何て言うんだろう？」\nその場で写真を撮るだけ。意味・台湾の自然な発音・例文・使い方の公式まで、すぐにそろいます。無料で始められます。\n\n辞書を",
+     "keywords": "中国語,繁体字,単語帳,カメラ,翻訳,写真,辞書,勉強,発音,TOCFL,留学,注音,ボポモフォ,ピンイン,暗記,フラッシュカード,,語学,学習,検定,リスニング,日常,フレーズ,スキャン,AI",
+     "promotionalText": null,
+     "supportUrl": "https://catchwords.app/support",
+     "marketingUrl": "https://catchwords.app",
+     "whatsNew": "App Store の説明と画面写真を新しくしました。\n・「使い方」：ネイティブがよく使う公式（チャンク）を、場面と例文つきで、よく使う順に表示\n・例文の漢字すべてに注音またはピンイン\n・撮影から図鑑に入るまでの演出を追加。ホーム・単語ページ・復習を使いやすく改善\n・自撮りモード、地図からの見返し、Google でのサインイン\n・図鑑で画像が表示されない不具合などを修正\n",
+     "screenshots": [
+      {
+       "displayType": "APP_IPHONE_67",
+       "count": 6
+      },
+      {
+       "displayType": "APP_IPHONE_61",
+       "count": 9
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "8640080a-f996-4409-87d2-086b71072e46",
+   "version": "1.0.3",
+   "state": "READY_FOR_DISTRIBUTION",
+   "appStoreState": "READY_FOR_SALE",
+   "releaseType": "AFTER_APPROVAL",
+   "copyright": "2026 近藤範之",
+   "createdDate": "2026-10-21T06:58:34-07:00",
+   "build": {
+    "version": "1047",
+    "processingState": "VALID",
+    "uploadedDate": "2026-10-21T06:42:45-07:00",
+    "expired": false
+   },
+   "reviewDetail": {
+    "contactName": true,
+    "contactPhone": true,
+    "contactEmail": true,
+    "demoAccountRequired": true,
+    "demoAccountName": true,
+    "demoAccountPassword": true,
+    "notesLength": 2894
+   },
+   "localizations": [
+    {
+     "locale": "en-US",
+     "descriptionLength": 2292,
+     "descriptionStart": "You see something on the street and wonder what it's called. Looking it up means",
+     "keywords": "Mandarin,Chinese,Taiwan,Traditional,Language,Learning,TOCFL,vocabulary,flashcards,pinyin,zhuyin,",
+     "promotionalText": "What’s that in Taiwanese Mandarin? Snap a photo for its meaning, natural pronunciation, examples, and phrases. Review with your photos. Don’t just look it up—remember it.",
+     "supportUrl": "https://catchwords.lovable.app/support",
+     "marketingUrl": "https://catchwords.lovable.app",
+     "whatsNew": "- New display languages: Traditional Chinese, Spanish, Korean and Vietnamese\n- Photos are now always cut out along the object's shape, even when automatic cutout fails\n- Choose which photo appears in your Home album from the word page, and restore removed photos from a dated list\n- Smoother Dex slides and map view\n- Cleaner word-chunk layout, with the word you're learning in the same color as in example sentences\n- Measure-word readings now follow your setting (Zhuyin or Pinyin)\n- New shutter and sound effects\n- Fixed the Dex tab freezing on iPad\n- Other bug fixes\n",
+     "screenshots": [
+      {
+       "displayType": "APP_IPHONE_61",
+       "count": 9
+      }
+     ]
+    },
+    {
+     "locale": "ja",
+     "descriptionLength": 1023,
+     "descriptionStart": "街で見かけた物を「何て言うんだろう」と思っても、辞書を引いて、発音を調べて、例文を探して、単語カードにするのは面倒です。だから調べずに終わる。調べても、次に見た",
+     "keywords": "台湾華語,中国語,語学,語学学習,台湾,単語帳,TOCFL,発音,ピンイン,繁體字,注音,SRS",
+     "promotionalText": "「あれ、これ台湾華語で何て言うんだろう？」そんな瞬間に、写真を撮るだけでその単語の意味、自然な発音、例文、チャンクをすぐに表示。自分が実際に撮った写真で楽しく復習しながら、毎日の発見を自分だけの単語帳に変えよう。調べて終わり、をもう繰り返さない。",
+     "supportUrl": "https://catchwords.lovable.app/support",
+     "marketingUrl": "https://catchwords.lovable.app",
+     "whatsNew": "・表示言語に繁體中文・スペイン語・韓国語・ベトナム語を追加しました\n・撮った物を、うまく切り抜けない時も物の形に合わせて切り抜くようにしました\n・単語のページで、ホームのアルバムに出す写真を選べるようにしました。アルバムから外した写真は、日付つきの一覧から戻せます\n・図鑑のスライドと地図の表示を、なめらかにしました\n・チャンク（言葉の組み合わせ）の見た目を整え、覚える単語を例文と同じ色にしました\n・量詞の読みが、設定した発音表記（注音／ピンイン）で正しく出るようにしました\n・シャッター音と効果音を新しくしました\n・iPad で図鑑のタブが固まる不具合を直しました\n・そのほか、細かな不具合を直しました\n",
+     "screenshots": [
+      {
+       "displayType": "APP_IPHONE_61",
+       "count": 9
+      },
+      {
+       "displayType": "APP_IPHONE_67",
+       "count": 6
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "0e529512-2061-47e0-a785-da18340e8454",
+   "version": "1.0.1",
+   "state": "READY_FOR_DISTRIBUTION",
+   "appStoreState": "READY_FOR_SALE",
+   "releaseType": "AFTER_APPROVAL",
+   "copyright": "2026 近藤範之",
+   "createdDate": "2026-10-14T03:36:39-07:00",
+   "build": {
+    "version": "1039",
+    "processingState": "VALID",
+    "uploadedDate": "2026-10-16T19:42:09-07:00",
+    "expired": false
+   },
+   "reviewDetail": {
+    "contactName": true,
+    "contactPhone": true,
+    "contactEmail": true,
+    "demoAccountRequired": true,
+    "demoAccountName": true,
+    "demoAccountPassword": true,
+    "notesLength": 2894
+   },
+   "localizations": [
+    {
+     "locale": "ja",
+     "descriptionLength": 1023,
+     "descriptionStart": "街で見かけた物を「何て言うんだろう」と思っても、辞書を引いて、発音を調べて、例文を探して、単語カードにするのは面倒です。だから調べずに終わる。調べても、次に見た",
+     "keywords": "台湾華語,中国語,語学,語学学習,台湾,単語帳,TOCFL,発音,ピンイン,繁體字,注音,SRS",
+     "promotionalText": "「あれ、これ台湾華語で何て言うんだろう？」そんな瞬間に、写真を撮るだけでその単語の意味、自然な発音、例文、チャンクをすぐに表示。自分が実際に撮った写真で楽しく復習しながら、毎日の発見を自分だけの単語帳に変えよう。調べて終わり、をもう繰り返さない。",
+     "supportUrl": "https://catchwords.lovable.app/support",
+     "marketingUrl": "https://catchwords.lovable.app",
+     "whatsNew": "App Store の説明と画面写真を新しくしました。\n撮影から図鑑に入るまでの演出を追加し、ホーム・単語ページ・復習を使いやすく改善しました。図鑑で画像が表示されない不具合などを修正しました。\n",
+     "screenshots": [
+      {
+       "displayType": "APP_IPHONE_61",
+       "count": 9
+      },
+      {
+       "displayType": "APP_IPHONE_67",
+       "count": 6
+      }
+     ]
+    },
+    {
+     "locale": "en-US",
+     "descriptionLength": 2292,
+     "descriptionStart": "You see something on the street and wonder what it's called. Looking it up means",
+     "keywords": "Mandarin,Chinese,Taiwan,Traditional,Language,Learning,TOCFL,vocabulary,flashcards,pinyin,zhuyin,",
+     "promotionalText": "What’s that in Taiwanese Mandarin? Snap a photo for its meaning, natural pronunciation, examples, and phrases. Review with your photos. Don’t just look it up—remember it.",
+     "supportUrl": "https://catchwords.lovable.app/support",
+     "marketingUrl": "https://catchwords.lovable.app",
+     "whatsNew": "New App Store description and screenshots.\nNew catch animation from photo to collection, plus improvements to Home, word pages and review. Fixed words whose pictures didn't appear in the collection, and other bugs.\n",
+     "screenshots": [
+      {
+       "displayType": "APP_IPHONE_61",
+       "count": 9
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "5132cbbf-3786-4ee7-b227-b02466c1acea",
+   "version": "1.0.0",
+   "state": "READY_FOR_DISTRIBUTION",
+   "appStoreState": "READY_FOR_SALE",
+   "releaseType": "AFTER_APPROVAL",
+   "copyright": "2026 近藤範之",
+   "createdDate": "2026-10-01T04:24:38-07:00",
+   "build": {
+    "version": "1024",
+    "processingState": "VALID",
+    "uploadedDate": "2026-10-11T06:01:26-07:00",
+    "expired": false
+   },
+   "reviewDetail": {
+    "contactName": true,
+    "contactPhone": true,
+    "contactEmail": true,
+    "demoAccountRequired": true,
+    "demoAccountName": true,
+    "demoAccountPassword": true,
+    "notesLength": 2894
+   },
+   "localizations": [
+    {
+     "locale": "ja",
+     "descriptionLength": 785,
+     "descriptionStart": "身の回りの物を撮るだけで、台湾華語（繁体字）の単語が集まる図鑑アプリです。単語は、自分で撮った写真から切り抜いたステッカーになって図鑑に並びます。\n\n■ 撮ると",
+     "keywords": "台湾華語,中国語,繁体字,単語帳,発音,ピンイン,注音,写真,図鑑,復習,台湾",
+     "promotionalText": "撮った物に、台湾華語の単語がその場で付きます。言い方が複数ある物は、使い分けの説明つきで選べます。",
+     "supportUrl": "https://catchwords.lovable.app/support",
+     "marketingUrl": "https://catchwords.lovable.app",
+     "whatsNew": null,
+     "screenshots": [
+      {
+       "displayType": "APP_IPHONE_67",
+       "count": 6
+      }
+     ]
+    },
+    {
+     "locale": "en-US",
+     "descriptionLength": 1631,
+     "descriptionStart": "Take a photo of things around you and collect their words in Taiwanese Mandarin ",
+     "keywords": "Mandarin,Chinese,Taiwan,Traditional,vocabulary,flashcards,pinyin,zhuyin,camera,photo,study",
+     "promotionalText": "Words in Taiwanese Mandarin appear right on the things you photograph. When there is more than one way to say it, pick the one you want to learn.",
+     "supportUrl": "https://catchwords.lovable.app/support",
+     "marketingUrl": "https://catchwords.lovable.app",
+     "whatsNew": null,
+     "screenshots": []
+    }
+   ]
+  }
+ ],
+ "builds": [
+  {
+   "build": "1061",
+   "version": "1.0.4",
+   "processingState": "VALID",
+   "uploadedDate": "2026-10-23T22:48:08-07:00",
+   "expired": false,
+   "minOsVersion": "18.0"
+  },
+  {
+   "build": "1060",
+   "version": "1.0.4",
+   "processingState": "VALID",
+   "uploadedDate": "2026-10-23T09:15:57-07:00",
+   "expired": false,
+   "minOsVersion": "18.0"
+  },
+  {
+   "build": "1059",
+   "version": "1.0.4",
+   "processingState": "VALID",
+   "uploadedDate": "2026-10-23T03:37:01-07:00",
+   "expired": false,
+   "minOsVersion": "18.0"
+  },
+  {
+   "build": "1058",
+   "version": "1.0.4",
+   "processingState": "VALID",
+   "uploadedDate": "2026-10-23T00:49:02-07:00",
+   "expired": false,
+   "minOsVersion": "18.0"
+  },
+  {
+   "build": "1057",
+   "version": "1.0.4",
+   "processingState": "VALID",
+   "uploadedDate": "2026-10-22T23:58:39-07:00",
+   "expired": false,
+   "minOsVersion": "18.0"
+  },
+  {
+   "build": "1054",
+   "version": "1.0.4",
+   "processingState": "VALID",
+   "uploadedDate": "2026-10-22T05:41:05-07:00",
+   "expired": false,
+   "minOsVersion": "18.0"
+  },
+  {
+   "build": "1053",
+   "version": "1.0.4",
+   "processingState": "VALID",
+   "uploadedDate": "2026-10-22T04:59:33-07:00",
+   "expired": false,
+   "minOsVersion": "18.0"
+  },
+  {
+   "build": "1047",
+   "version": "1.0.3",
+   "processingState": "VALID",
+   "uploadedDate": "2026-10-21T06:42:45-07:00",
+   "expired": false,
+   "minOsVersion": "18.0"
+  }
+ ],
+ "reviewSubmissions": [
+  {
+   "state": "COMPLETE",
+   "submittedDate": "2026-10-21T14:08:06.069Z",
+   "platform": "IOS"
+  },
+  {
+   "state": "COMPLETE",
+   "submittedDate": "2026-10-17T02:45:34.388Z",
+   "platform": "IOS"
+  },
+  {
+   "state": "COMPLETE",
+   "submittedDate": "2026-10-17T00:44:10.341Z",
+   "platform": "IOS"
+  },
+  {
+   "state": "COMPLETE",
+   "submittedDate": "2026-10-11T15:09:52.688Z",
+   "platform": "IOS"
+  },
+  {
+   "state": "COMPLETE",
+   "submittedDate": "2026-10-04T10:57:40.361Z",
+   "platform": "IOS"
+  }
+ ],
+ "purchases": {
+  "inAppPurchases": [],
+  "subscriptionGroups": []
+ },
+ "availability": {
+  "availableInNewTerritories": true,
+  "territories": [
+   "AFG",
+   "AGO",
+   "AIA",
+   "ALB",
+   "ARE",
+   "ARG",
+   "ARM",
+   "ATG",
+   "AUS",
+   "AUT",
+   "AZE",
+   "BEL",
+   "BEN",
+   "BFA",
+   "BGR",
+   "BHR",
+   "BHS",
+   "BIH",
+   "BLR",
+   "BLZ",
+   "BMU",
+   "BOL",
+   "BRA",
+   "BRB",
+   "BRN",
+   "BTN",
+   "BWA",
+   "CAN",
+   "CHE",
+   "CHL",
+   "CIV",
+   "CMR",
+   "COD",
+   "COG",
+   "COL",
+   "CPV",
+   "CRI",
+   "CYM",
+   "CYP",
+   "CZE",
+   "DEU",
+   "DMA",
+   "DNK",
+   "DOM",
+   "DZA",
+   "ECU",
+   "EGY",
+   "ESP",
+   "EST",
+   "FIN",
+   "FJI",
+   "FRA",
+   "FSM",
+   "GAB",
+   "GBR",
+   "GEO",
+   "GHA",
+   "GMB",
+   "GNB",
+   "GRC",
+   "GRD",
+   "GTM",
+   "GUY",
+   "HKG",
+   "HND",
+   "HRV",
+   "HUN",
+   "IDN",
+   "IND",
+   "IRL",
+   "IRQ",
+   "ISL",
+   "ISR",
+   "ITA",
+   "JAM",
+   "JOR",
+   "JPN",
+   "KAZ",
+   "KEN",
+   "KGZ",
+   "KHM",
+   "KNA",
+   "KOR",
+   "KWT",
+   "LAO",
+   "LBN",
+   "LBR",
+   "LBY",
+   "LCA",
+   "LKA",
+   "LTU",
+   "LUX",
+   "LVA",
+   "MAC",
+   "MAR",
+   "MDA",
+   "MDG",
+   "MDV",
+   "MEX",
+   "MKD",
+   "MLI",
+   "MLT",
+   "MMR",
+   "MNE",
+   "MNG",
+   "MOZ",
+   "MRT",
+   "MSR",
+   "MUS",
+   "MWI",
+   "MYS",
+   "NAM",
+   "NER",
+   "NGA",
+   "NIC",
+   "NLD",
+   "NOR",
+   "NPL",
+   "NRU",
+   "NZL",
+   "OMN",
+   "PAK",
+   "PAN",
+   "PER",
+   "PHL",
+   "PLW",
+   "PNG",
+   "POL",
+   "PRT",
+   "PRY",
+   "QAT",
+   "ROU",
+   "RUS",
+   "RWA",
+   "SAU",
+   "SEN",
+   "SGP",
+   "SLB",
+   "SLE",
+   "SLV",
+   "SRB",
+   "STP",
+   "SUR",
+   "SVK",
+   "SVN",
+   "SWE",
+   "SWZ",
+   "SYC",
+   "TCA",
+   "TCD",
+   "THA",
+   "TJK",
+   "TKM",
+   "TON",
+   "TTO",
+   "TUN",
+   "TUR",
+   "TWN",
+   "TZA",
+   "UGA",
+   "UKR",
+   "URY",
+   "USA",
+   "UZB",
+   "VCT",
+   "VEN",
+   "VGB",
+   "VNM",
+   "VUT",
+   "XKS",
+   "YEM",
+   "ZAF",
+   "ZMB",
+   "ZWE"
+  ],
+  "count": 174
+ }
+}
