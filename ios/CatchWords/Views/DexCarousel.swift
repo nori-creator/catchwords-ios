@@ -13,6 +13,7 @@ import SwiftUI
 /// into the snap. Only `CoverFlowStage` reads that per-frame number; this view (dots, photo row, sound)
 /// redraws only when the middle card changes (`CarouselSpring.index`).
 struct DexCoverFlow: View {
+    @Environment(AppRouter.self) private var router: AppRouter?
     @Environment(DexStore.self) private var dex
     @Environment(\.appReduceMotion) private var reduceMotion
     let stickers: [Sticker]
@@ -70,7 +71,10 @@ struct DexCoverFlow: View {
             let w = Self.cardWidth(in: geo.size, cards: stickers.count)
             VStack(spacing: 0) {
                 CoverFlowStage(spring: spring, stickers: stickers, stageWidth: geo.size.width, cardWidth: w,
-                               reduceMotion: reduceMotion, onOpen: onOpen, bring: bring)
+                               reduceMotion: reduceMotion, onOpen: onOpen, bring: bring,
+                               // iPhone Duo open sideways: the middle card on the fold, not on the safe area's middle
+                               // (owner 2026-10-31: 「折り目がスライドの中心に来るように」).
+                               centerX: router?.foldX.map { $0 - geo.frame(in: .global).minX })
                     .frame(height: Self.stageHeight(cardWidth: w))
                 dots
                 thumbnails
@@ -234,8 +238,12 @@ private struct CoverFlowStage: View {
     let reduceMotion: Bool
     let onOpen: (Sticker) -> Void
     let bring: @MainActor (Int) -> Void
+    /// Where the middle card stands (the stage's middle unless given).
+    var centerX: CGFloat? = nil
 
     @State private var dragFrom: Double?
+
+    private var midX: CGFloat { centerX ?? stageWidth / 2 }
 
     private var center: Int {
         guard !stickers.isEmpty else { return 0 }
@@ -271,7 +279,7 @@ private struct CoverFlowStage: View {
         .background(alignment: .topLeading) {
             EllipticalGradient(colors: [.white.opacity(0.95), .white.opacity(0)], center: .center)
                 .frame(width: w * 2.2, height: w * 0.5)
-                .position(x: width / 2, y: top + ch - w * 0.12 + w * 0.25)
+                .position(x: midX, y: top + ch - w * 0.12 + w * 0.25)
                 .allowsHitTesting(false)
         }
         .gesture(
@@ -344,7 +352,7 @@ private struct CoverFlowStage: View {
             }
             .rotation3DEffect(.degrees(p.rotateY), axis: (x: 0, y: 1, z: 0), perspective: ch / perspective)
             .scaleEffect(scale)
-            .position(x: stageWidth / 2 + p.x * w * scale, y: originY + (cardCenterY - originY) * scale)
+            .position(x: midX + p.x * w * scale, y: originY + (cardCenterY - originY) * scale)
             .opacity(p.opacity)
             .zIndex(p.zIndex)
             .accessibilityElement(children: .ignore)
@@ -372,7 +380,7 @@ enum CarouselPose {
     /// The cards on each side of the middle one that fit in the row.
     static func rowReach(stageWidth: Double, cardWidth: Double) -> Double {
         guard cardWidth > 0 else { return reach }
-        return (stageWidth / 2 / (rowGap * 0.88 * cardWidth)).rounded(.up) + 1
+        return (stageWidth / 2 / (rowGap * 0.88 * cardWidth)).rounded(.up) + 2
     }
     /// How far the middle card moves per card (card widths), so it sticks to the finger.
     static func stepWidth(row: Bool) -> Double { row ? rowGap : step }

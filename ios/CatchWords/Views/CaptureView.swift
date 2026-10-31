@@ -257,6 +257,10 @@ struct CaptureView: View {
                     .padding(.top, 22)
                     .padding(.bottom, 86)
             }
+            // iPhone Duo open sideways: the viewfinder, the shutter and its buttons are centred on the fold, the room
+            // the clock's strip takes on one side left free on the other (owner 2026-10-31: 「犬が折り目の真ん中に」).
+            .padding(.leading, max(0, 2 * router.foldShift))
+            .padding(.trailing, max(0, -2 * router.foldShift))
         }
     }
 
@@ -502,8 +506,6 @@ struct CaptureView: View {
         // at the screen's edges (owner 2026-10-31: 「端すぎる」). An iPhone (≤ 440 pt) is unchanged.
         .frame(maxWidth: 440)
         .frame(maxWidth: .infinity)
-        // The shutter on iPhone Duo's fold when it is open sideways.
-        .offset(x: router.foldShift)
     }
 
     private var usagePill: some View {
