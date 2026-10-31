@@ -36,6 +36,10 @@ struct ChunkLineView: View {
     @State private var noteOpen = false
     /// Part index → chosen text.
     @State private var pick: [Int: String] = [:]
+    /// The width the line has, and a count bumped when its width tight at full size has been measured (`fittedLine`,
+    /// kept in `widths`).
+    @State private var room: CGFloat = 0
+    @State private var measured = 0
     /// 設定 › 発音表記: zhuyin (default) or pinyin over each block (the same choice as the word's own reading).
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
 
@@ -92,18 +96,9 @@ struct ChunkLineView: View {
             // Number, chunk and speaker on the middle of the characters (§3: 0 pt apart in the mock).
             HStack(alignment: .hanCenter, spacing: 8) {
                 if let number { numberView(number) }
-                ViewThatFits(in: .horizontal) {
-                    oneLine(tight: false, scale: 1)
-                    oneLine(tight: true, scale: 1)
-                    oneLine(tight: true, scale: 0.92)
-                    oneLine(tight: true, scale: 0.85)
-                    oneLine(tight: true, scale: 0.8)
-                    oneLine(tight: true, scale: 0.75)
-                    oneLine(tight: true, scale: 0.68)
-                    oneLine(tight: true, scale: 0.6)
-                    oneLine(tight: true, scale: 0.52)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                fittedLine
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { room = $0 }
                 .reviewBlur(reviewKey + "-zh", .target)
                 DetailSpeakButton(text: ChunkRules.spoken(shown, target: target), style: size == .large ? .normal : .small)
             }
@@ -224,6 +219,58 @@ struct ChunkLineView: View {
     }
 
     /// The chunk on one line: `tight` narrows the boxes' sides and the ＋ (tried before anything gets smaller).
+    /// The chunk on one line at the largest size that fits (§3: always one line): roomy at full size, else tight and as
+    /// small as needed, down to 0.52. Worked out from the line's width measured once (tight, full size), which is
+    /// remembered — not by building and measuring every size in turn (a `ViewThatFits` of nine): that held the word page
+    /// for seconds as it opened (owner 2026-10-31: 「単語の詳細が表示されるまでのラグがある」). Until the width is known
+    /// the line is laid out unseen, for a frame.
+    @ViewBuilder
+    private var fittedLine: some View {
+        let _ = measured   // read, so a measurement draws the line again
+        if let natural = Self.widths[widthKey], room > 0 {
+            let f = Self.fit(natural: natural, room: room, looseExtra: looseExtra)
+            oneLine(tight: f.tight, scale: f.scale)
+        } else {
+            oneLine(tight: true, scale: 1)
+                .opacity(0)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in
+                    guard w > 0 else { return }
+                    Self.widths[widthKey] = w
+                    measured += 1   // draw again, now at its size
+                }
+        }
+    }
+
+    /// The sizes the line may take below full size, largest first.
+    static let fitScales: [CGFloat] = [1, 0.92, 0.85, 0.8, 0.75, 0.68, 0.6, 0.52]
+
+    /// The size the line is drawn at, from its width tight at full size (`natural`), the room it has and how much wider the
+    /// roomy line is: roomy at full size when that fits, else the largest tight size that fits (a little room kept for
+    /// what does not shrink with the size, such as the boxes' lines), else the smallest. Pure, so it can be tested.
+    static func fit(natural: CGFloat, room: CGFloat, looseExtra: CGFloat) -> (tight: Bool, scale: CGFloat) {
+        if natural + looseExtra <= room { return (false, 1) }
+        let usable = room * 0.97
+        let scale = fitScales.first { natural * $0 <= usable } ?? fitScales[fitScales.count - 1]
+        return (true, scale)
+    }
+
+    /// How much wider the roomy line is than the tight one at full size: the boxes' wider sides and the wider space
+    /// around each ＋.
+    private var looseExtra: CGFloat {
+        let boxes = chunk.parts.filter { ChunkRules.role($0, headword: headword, target: target) == .partner }.count
+        let pluses = max(0, shown.count - 1)
+        return CGFloat(boxes) * 2 * (12 - 7) + CGFloat(pluses) * 2 * (0.22 - 0.08) * charSize(1)
+    }
+
+    /// What the line's width depends on: its words, their readings and the text size.
+    private var widthKey: String {
+        shown.map { "\($0.text)/\($0.zhuyin ?? "")/\($0.pinyin ?? "")" }.joined(separator: "+")
+            + "|\(readingPref)|\(target)|\(charSize(1))|\(headword)"
+    }
+
+    /// Lines' widths tight at full size, by `widthKey`: a page opened again draws its chunks at once.
+    private static var widths: [String: CGFloat] = [:]
+
     private func oneLine(tight: Bool, scale: CGFloat) -> some View {
         HStack(alignment: .hanCenter, spacing: 0) {
             ForEach(Array(shown.enumerated()), id: \.offset) { i, part in

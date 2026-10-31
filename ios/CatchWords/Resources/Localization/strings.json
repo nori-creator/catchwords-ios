@@ -9749,5 +9749,75 @@
   "es": "Inicia sesión y sigue donde lo dejaste.",
   "ko": "로그인하고 모은 단어를 이어서 공부해요.",
   "vi": "Đăng nhập để học tiếp những từ đã thu thập."
+ },
+ "撮った場所（{1}回）": {
+  "en": "Where it was taken ({1} times)",
+  "zh-TW": "拍攝地（{1} 次）",
+  "es": "Lugar de la foto ({1} veces)",
+  "ko": "촬영 장소 ({1}번)",
+  "vi": "Nơi chụp ({1} lần)"
+ },
+ "場所を直す": {
+  "en": "Fix the place",
+  "zh-TW": "修改地點",
+  "es": "Corregir el lugar",
+  "ko": "장소 고치기",
+  "vi": "Sửa địa điểm"
+ },
+ "場所を追加": {
+  "en": "Add the place",
+  "zh-TW": "新增地點",
+  "es": "Añadir el lugar",
+  "ko": "장소 추가",
+  "vi": "Thêm địa điểm"
+ },
+ "マップで開く": {
+  "en": "Open in Maps",
+  "zh-TW": "在地圖中開啟",
+  "es": "Abrir en Mapas",
+  "ko": "지도에서 열기",
+  "vi": "Mở trong Bản đồ"
+ },
+ "場所の名前": {
+  "en": "Place name",
+  "zh-TW": "地點名稱",
+  "es": "Nombre del lugar",
+  "ko": "장소 이름",
+  "vi": "Tên địa điểm"
+ },
+ "地図の名前に戻す": {
+  "en": "Use the map's name",
+  "zh-TW": "改回地圖上的名稱",
+  "es": "Usar el nombre del mapa",
+  "ko": "지도의 이름으로 되돌리기",
+  "vi": "Dùng lại tên trên bản đồ"
+ },
+ "近くの場所": {
+  "en": "Places nearby",
+  "zh-TW": "附近的地點",
+  "es": "Lugares cercanos",
+  "ko": "근처 장소",
+  "vi": "Địa điểm gần đây"
+ },
+ "探しています…": {
+  "en": "Searching…",
+  "zh-TW": "搜尋中…",
+  "es": "Buscando…",
+  "ko": "찾는 중…",
+  "vi": "Đang tìm…"
+ },
+ "近くに名前のある場所はありません": {
+  "en": "No named places nearby",
+  "zh-TW": "附近沒有有名稱的地點",
+  "es": "No hay lugares con nombre cerca",
+  "ko": "근처에 이름 있는 장소가 없어요",
+  "vi": "Không có địa điểm có tên ở gần"
+ },
+ "地図を動かして、撮った場所にピンを合わせてください": {
+  "en": "Move the map to put the pin where you took it",
+  "zh-TW": "移動地圖，把圖釘對準拍攝的地方",
+  "es": "Mueve el mapa para poner el pin donde tomaste la foto",
+  "ko": "지도를 움직여 찍은 곳에 핀을 맞춰 주세요",
+  "vi": "Di chuyển bản đồ để đặt ghim vào nơi bạn đã chụp"
  }
 }

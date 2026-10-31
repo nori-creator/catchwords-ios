@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 
 /// Grabs the capture location and turns it into a readable place name in the display language.
 final class LocationService: NSObject, CLLocationManagerDelegate {
@@ -40,13 +41,72 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     /// The place name in the display language (a saved name stays in the language it was saved in, so
     /// screens re-ask with `localizedName` when the coordinates are known).
+    ///
+    /// A named place where there is one — the shop, café, park or station it was taken at, then the district
+    /// (「星巴克 忠孝門市 · 大安區」) — so the learner can picture where it was (owner 2026-10-31: 「ただの住所になってるから
+    /// …具体的な場所やお店の名前を表示して」). Without one, the city and district as before.
     func placeName(for location: CLLocation) async -> String? {
+        async let spot = Self.nearbySpot(location)
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: L10n.locale)
-        guard let p = placemarks?.first else { return nil }
-        // Apple answers in the place's own script when it has no name in the requested language (a Taipei district in
-        // 中文 on a Spanish screen): each part is kept only when it reads as the display language.
-        let parts = [p.locality, p.subLocality ?? p.name].compactMap { Self.shownPlace($0) }
+        let p = placemarks?.first
+        // A park, a station or a campus the point lies inside (Apple's own areas) when no shop is right there.
+        let named = await spot ?? p?.areasOfInterest?.lazy.compactMap { Self.properName($0) }.first
+        // Apple answers in the display language where the place has a name in it, else in the place's own script (a
+        // Taipei district in 中文 on a Spanish screen): shown as it comes — a place's name as it is written there
+        // (owner 2026-10-31: 「その地名や具体的な名前はそのまま表記して。英語でも中国語でも」).
+        let parts: [String]
+        if let named {
+            let area = [p?.subLocality, p?.locality].lazy.compactMap { Self.properName($0) }.first
+            parts = [named] + (area.map { $0 == named ? [] : [$0] } ?? [])
+        } else if let p {
+            parts = [p.locality, p.subLocality ?? p.name].compactMap { Self.properName($0) }
+        } else {
+            return nil
+        }
         return parts.isEmpty ? nil : parts.joined(separator: L10n.current.placeSeparator)
+    }
+
+    /// How near a shop or other place must be to be named: the phone's fix is within about this much in a city.
+    nonisolated static let spotRadius: CLLocationDistance = 35
+
+    /// The nearest named place (a shop, café, restaurant, park, station, museum…) within `spotRadius`; nil when none is
+    /// that near.
+    private static func nearbySpot(_ location: CLLocation) async -> String? {
+        await spots(near: location.coordinate, radius: spotRadius).first?.name
+    }
+
+    /// A named place near a point, for the learner to pick (`PlaceEditSheet`).
+    struct Spot: Identifiable, Hashable {
+        let name: String
+        let latitude: Double
+        let longitude: Double
+        let metres: CLLocationDistance
+        var id: String { "\(name)|\(latitude)|\(longitude)" }
+    }
+
+    /// The named places within `radius` of a point, nearest first (their names as Apple has them). Not the kinds
+    /// no one would say they were at (an ATM, a car park, a toilet).
+    static func spots(near point: CLLocationCoordinate2D, radius: CLLocationDistance) async -> [Spot] {
+        let request = MKLocalPointsOfInterestRequest(center: point, radius: max(radius * 2, 100))
+        request.pointOfInterestFilter = MKPointOfInterestFilter(excluding: [.atm, .evCharger, .parking, .restroom, .fireStation, .police])
+        guard let items = try? await MKLocalSearch(request: request).start().mapItems else { return [] }
+        let here = CLLocation(latitude: point.latitude, longitude: point.longitude)
+        var seen = Set<String>()
+        return items.compactMap { item -> Spot? in
+            guard let name = properName(item.name), let at = item.placemark.location else { return nil }
+            let metres = at.distance(from: here)
+            guard metres <= radius, seen.insert(name).inserted else { return nil }
+            return Spot(name: name, latitude: at.coordinate.latitude, longitude: at.coordinate.longitude, metres: metres)
+        }
+        .sorted { $0.metres < $1.metres }
+    }
+
+    /// A shop's, a park's, a station's or a district's own name, as Apple has it — in whatever script it is written there,
+    /// English, 中文 or any other, on every screen: a place's name is not a mixed-in language (owner 2026-10-31: 「お店は
+    /// 現地の名前表記通りでいい。言語混ざるとかではなく、その地名や具体的な名前はそのまま表記して。英語でも中国語でも」).
+    nonisolated static func properName(_ name: String?) -> String? {
+        let v = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return v.isEmpty ? nil : v
     }
 
     private var nameCache: [String: String] = [:]
@@ -62,9 +122,11 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// A saved place shown in the current display language: the coordinates are looked up again
     /// (once per place and language); without coordinates, or when the lookup fails, the saved name when it reads
     /// as the display language (`shownPlace`), else none.
-    func localizedName(lat: Double?, lng: Double?, saved: String?) async -> String? {
+    /// A name the learner wrote or picked (`custom`) is theirs: shown as it is, in whatever language they wrote it.
+    func localizedName(lat: Double?, lng: Double?, saved: String?, custom: Bool = false) async -> String? {
+        if custom, let saved, !saved.isEmpty { return saved }
         guard let lat, let lng else { return Self.shownPlace(saved) }
-        let key = String(format: "%.3f,%.3f,", lat, lng) + L10n.lang
+        let key = String(format: "%.4f,%.4f,", lat, lng) + L10n.lang
         if let hit = nameCache[key] { return hit }
         guard let name = await placeName(for: CLLocation(latitude: lat, longitude: lng)) else { return Self.shownPlace(saved) }
         nameCache[key] = name

@@ -304,6 +304,7 @@ struct MainTabView: View {
                 router.tourSection = nil   // the page lights its first section once it knows them
                 router.advanceTour(from: .dexOpen, to: .wordSection)
             }
+            if old == nil, s != nil { UITestTrace.log("word page asked") }
             // Every way into a word (dex, home, review, a reminder) pons open; closing it pons back.
             if old == nil, s != nil { SoundService.shared.pon(open: true) }
             if old != nil, s == nil { SoundService.shared.pon(open: false) }

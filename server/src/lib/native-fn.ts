@@ -98,6 +98,7 @@ export const NATIVE_FNS: Record<string, Loader> = {
   checkOwnedWord: from(encounters, "checkOwnedWord"),
   recordEncounter: from(encounters, "recordEncounter"),
   editEncounter: from(encounters, "editEncounter"),
+  setCapturePlace: from(encounters, "setCapturePlace"),
   listStickerPhotos: from(encounters, "listStickerPhotos"),
   // 発音
   synthesizeSpeech: from(tts, "synthesizeSpeech"),

@@ -304,6 +304,7 @@ private struct CollagePiece: View {
         .position(x: p.x * Double(boardW), y: p.y * Double(boardW) + captionH / 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(sticker.word?.headword ?? "")
+        .accessibilityIdentifier("album.photo")
         .accessibilityHint(editing ? L("ドラッグで移動、2本指で大きさと傾き") : L("単語をひらく"))
         .accessibilityAction(named: L("配置を変える")) { if canEdit && !editing { onGrab() } }
         .accessibilityAction(named: L("アルバムから外す")) { if canEdit && editing { onRemove() } }
