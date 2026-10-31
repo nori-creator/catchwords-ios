@@ -252,7 +252,8 @@ final class DuoWalkthroughTests: XCTestCase {
     /// app landed nowhere (taps on elements worked, the app's own swipes did not move anything).
     private func swipe(_ d: Direction) {
         let candidates = [app.scrollViews.firstMatch, app.maps.firstMatch, app.collectionViews.firstMatch]
-        let target = candidates.first { $0.exists && $0.isHittable } ?? app
+        let whole: XCUIElement = app
+        let target: XCUIElement = candidates.first { $0.exists && $0.isHittable } ?? whole
         switch d {
         case .up: target.swipeUp()
         case .down: target.swipeDown()
