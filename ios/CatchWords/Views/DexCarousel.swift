@@ -380,7 +380,7 @@ enum CarouselPose {
     /// The cards on each side of the middle one that fit in the row.
     static func rowReach(stageWidth: Double, cardWidth: Double) -> Double {
         guard cardWidth > 0 else { return reach }
-        return (stageWidth / 2 / (rowGap * 0.88 * cardWidth)).rounded(.up) + 2
+        return (stageWidth / 2 / (rowGap * 0.88 * cardWidth)).rounded(.up) + 1
     }
     /// How far the middle card moves per card (card widths), so it sticks to the finger.
     static func stepWidth(row: Bool) -> Double { row ? rowGap : step }

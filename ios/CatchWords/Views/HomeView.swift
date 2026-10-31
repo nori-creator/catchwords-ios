@@ -243,7 +243,9 @@ struct HomeView: View {
                 // columns stand on the two pages (owner 2026-10-31: 「ホーム全体を使って」「左画面と右画面で同じ中心」).
                 .frame(maxWidth: router.isOpenSideways ? nil : ScreenOrientation.readableWidth)
                 .frame(maxWidth: .infinity)
-                .offset(x: router.isOpenSideways ? router.foldShift : 0)
+                // The room the clock's strip takes on one side is left free on the other, so the middle is the fold.
+                .padding(.leading, router.isOpenSideways ? max(0, 2 * router.foldShift) : 0)
+                .padding(.trailing, router.isOpenSideways ? max(0, -2 * router.foldShift) : 0)
                 .background(ScrollViewFinder { [autoScroll] sv in autoScroll.scrollView = sv })
             }
             .environment(autoScroll)

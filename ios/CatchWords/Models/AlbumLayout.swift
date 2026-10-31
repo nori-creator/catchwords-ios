@@ -133,7 +133,7 @@ nonisolated enum AlbumLayout {
     /// 見開き（iPhone Duo を開いて横長、台紙が画面の幅いっぱい）: 写真の幅と、左右のページの真ん中、台紙の高さの下限
     /// （オーナー 2026-10-31「ホーム全体を使って…うまく配置」「左画面と右画面で同じ中心になるように」）。
     static let SPREAD_PHOTO_W: Double = 0.2
-    static let SPREAD_COLUMNS: (Double, Double) = (0.25, 0.75)
+    static let SPREAD_COLUMNS: (Double, Double) = (0.22, 0.78)
     static let SPREAD_MIN_BOARD_H: Double = 0.3
 
     // MARK: - 定数（album-day-layout.ts）
