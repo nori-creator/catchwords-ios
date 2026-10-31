@@ -336,20 +336,22 @@ nonisolated enum AlbumLayout {
     }
 
     /// 見開き（iPhone Duo を開いて横長）の1日（オーナー 2026-10-31「縦横に無機質に置きすぎ…切り抜き画像が映えるように
-    /// 配置デザインそれぞれの大きさを工夫して」）: 4枚ずつの組を、横に4つの通り道（左のページの外・内、右のページの内・外）へ
-    /// 1枚ずつ、大きさ・高さ・傾きを変えて波のように置く（外は大きく上へ、内は小さく下へ）。折り目を挟んで左右が釣り合う。
-    /// 通り道どうしは横に離れているので決して重ならない。組に1枚だけ残った写真は真ん中。
+    /// 配置デザインそれぞれの大きさを工夫して」、同日「4つに絞って、一つ一つを少し大きく、有機的に並べて」→ 案1「対角の流れ」）:
+    /// 4枚ずつの組を、横の4つの通り道へ撮った順に1枚ずつ。1枚目は左上に大きく、2枚目は右のページの上、3枚目は左のページの
+    /// 内側の下、4枚目は右の外側の下。左上から右下へゆるく下る対角の流れで、大きさと傾きを少しずつ変える。
+    /// 通り道は横に離してあり、もし箱がかかる時は下の写真を下げる（決して重ならない）。組に1枚だけ残った写真は真ん中。
     private static let SPREAD_PATTERN: [(x: Double, w: Double, top: Double, rot: Double)] = [
-        (0.15, 0.23, 0.00, -4.0),
-        (0.63, 0.19, 0.03, -2.0),
-        (0.37, 0.17, 0.17, 3.0),
-        (0.85, 0.18, 0.14, 4.0),
+        (0.14, 0.26, 0.01, -5.0),
+        (0.64, 0.24, 0.00, 4.0),
+        (0.39, 0.19, 0.23, 3.0),
+        (0.89, 0.19, 0.21, -4.0),
     ]
 
     private static func packSpread(_ items: [CollageItem]) -> [AlbumPlacement] {
         func safeRatio(_ r: Double) -> Double { r.isFinite && r > 0 ? r : 1 }
         var out: [AlbumPlacement] = []
         out.reserveCapacity(items.count)
+        var placed: [AlbumBox] = []
         var blockTop: Double = 0
         var bottom: Double = 0
         var start = 0
@@ -362,8 +364,17 @@ nonisolated enum AlbumLayout {
                 var p = AlbumPlacement(x: alone ? 0.5 : slot.x, y: 0, scale: slot.w / BASE_WIDTH,
                                        rot: slot.rot + (seed(it.id, 13) - 0.5))
                 let bh = boxOf(p, ratio: safeRatio(it.ratio), extra: it.extra).h - it.extra
-                let top = blockTop + (alone ? 0 : slot.top)
+                var top = blockTop + (alone ? 0 : slot.top)
                 p.y = top + bh / 2
+                // Never overlap: if this photo's box touches one already placed, move it below that one.
+                for _ in 0..<out.count {
+                    let box = boxOf(p, ratio: safeRatio(it.ratio), extra: it.extra)
+                    guard let hit = placed.first(where: { boxesOverlap(box, $0) }) else { break }
+                    let push = (hit.y + hit.h / 2 + COLLAGE_GAP) - (box.y - box.h / 2)
+                    top += Swift.max(push, 0.001)
+                    p.y = top + bh / 2
+                }
+                placed.append(boxOf(p, ratio: safeRatio(it.ratio), extra: it.extra))
                 blockBottom = Swift.max(blockBottom, top + bh + it.extra + COLLAGE_GAP)
                 out.append(p)
             }

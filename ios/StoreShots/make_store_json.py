@@ -53,7 +53,7 @@ words = [
                  chunk([P("冰", "Vs"), P("拿鐵", "N")], "アイスラテ", "iced latte")]),
     word("flowers", "花束", "ㄏㄨㄚ ㄕㄨˋ", "huā shù", "flower", "畢業那天，我送她一束花束。",
          ("花束", "bouquet"), ("卒業の日、彼女に花束を贈った。", "On graduation day, I gave her a bouquet."),
-         st("store-flowers", D % "17:28", DAAN, 25.0271, 121.5429, "flowers_cut.png", "flowers.png"),
+         st("store-flowers", "2026-10-11T17:28:00" + TPE, DAAN, 25.0271, 121.5429, "flowers_cut.png", "flowers.png"),
          chunks=[chunk([P("送", "V", pinyin="sòng"), P("花束", "N")], "花束を贈る", "give a bouquet"),
                  chunk([P("收到", "V", pinyin="shōu dào"), P("花束", "N")], "花束を受け取る", "receive a bouquet"),
                  chunk([P("包裝", "V", pinyin="bāo zhuāng"), P("花束", "N")], "花束を包む", "wrap a bouquet")],
