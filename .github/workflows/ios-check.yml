@@ -713,6 +713,11 @@ jobs:
           "$RUNNER_TEMP/cutout-harness" scripts/cutout-harness/cases.json "$RUNNER_TEMP/cutout" | tee "$RUNNER_TEMP/cutout/log.txt"
       - name: 結果を ci-previews に置く
         if: always()
+        # Best effort, like the other jobs' ci-previews steps: a push that keeps colliding with another job's push
+        # (each attempt took ~10 min, "stale info") ran into the job's 30-min limit and cancelled a job whose
+        # harness had passed (PR #26, 2026-11-01). The table is in the step summary either way.
+        timeout-minutes: 12
+        continue-on-error: true
         env:
           HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |
