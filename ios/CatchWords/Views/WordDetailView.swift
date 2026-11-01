@@ -8,10 +8,14 @@ struct WordDetailView: View {
     /// Today's review round (optional: previews have none); told when this page changes the sticker's headword.
     @Environment(ReviewStore.self) private var review: ReviewStore?
     @Environment(\.dismiss) private var dismiss
+    private func close() { if let onClose { onClose() } else { dismiss() } }
     @Environment(\.openURL) private var openURL
     @Environment(AppRouter.self) private var router
     @Environment(PlanStore.self) private var plan
     let sticker: Sticker
+    /// Set when the page is drawn inside the tab screen, not presented (iPhone Duo with the tabs in the side strip,
+    /// `MainTabView.inlineWordPage`): closing it clears the router instead of dismissing a presentation.
+    var onClose: (() -> Void)? = nil
     /// DEBUG preview: open scrolled to this section so the simulator frame shows it.
     var previewFocus: CardSection? = nil
     /// DEBUG preview: the selfie side opens on the selfie as it was taken (its 「元の写真」).
@@ -95,9 +99,10 @@ struct WordDetailView: View {
     @State private var placesOpen: Bool = false
     /// The photo whose place is being put right (`PlaceEditSheet`).
     @State private var editingPlace: Sticker?
-    /// What decides the picture's height (`heroMaxHeight`): the scrolling page's height, the date card, the word's
+    /// What decides the picture's height (`heroMaxHeight`): the scrolling page's size, the date card, the word's
     /// card and its meaning under the picture.
-    @State private var viewportHeight: CGFloat = 0
+    @State private var viewportSize: CGSize = .zero
+    @State private var viewportMinX: CGFloat = 0
     @State private var metaHeight: CGFloat = 0
     @State private var headHeight: CGFloat = 0
     @State private var meaningHeight: CGFloat = 0
@@ -164,53 +169,34 @@ struct WordDetailView: View {
             VStack(spacing: 0) {
             // The chips that take the page to a section (§0), under the top bar, staying while the page scrolls.
             if !jumpSections.isEmpty { jumpBar(proxy) }
-            ScrollView {
-                // Lazy: only the cards on screen are built and measured when the page opens. All of them were, each
-                // chunk row up to nine times (`ChunkLineView`'s sizes to fit one line) — the page came up 2–3 s after
-                // the tap on the CI simulator, its main thread busy with SwiftUI's layout (owner 2026-10-31: 「ホームの画像を
-                // タップしてから、単語の詳細が表示されるまでのラグがある」).
-                LazyVStack(spacing: 14) {
-                    if isUnsaved { unsavedBanner }
-                    if !photos.isEmpty { photoHero }
-                    metaCard
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { metaHeight = $0 }
-                    heroCard
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headHeight = $0 }
-                    // The list of every photo and place is in metaCard now; this is the server's list when no
-                    // re-encounter rows could be read.
-                    if !isLocked, laterCaptures.isEmpty { EncounterHistoryView(stickerId: current.id) }
-                    // Web WordCard: no frequency/register meters and no separate "使う場面" card
-                    // (owner: メーターいらない). Register is a chip word in the header only.
-                    ForEach(visibleSections.filter { hasContent($0) || isFilling($0) }) { section in
-                        if hasContent(section) {
-                            sectionView(section)
-                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
-                                    if section == .meaning { meaningHeight = h }
-                                }
-                                // The first tour goes through the sections one by one (owner 2026-10-28).
-                                .tourAnchor(.wordSection, if: router.tour == .wordSection && router.tourSection == section)
-                                .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)), removal: .opacity))
-                        } else {
-                            SectionSkeleton(title: section.title, icon: section.icon)
-                                .transition(.opacity)
+            Group {
+                if wideWord {
+                    // iPhone Duo held sideways: the picture, the place, the word and its meaning large on the left page,
+                    // the other sections on the right (owner 2026-10-30: 「左側に切り抜きの写真と撮った場所、日本語訳は左の
+                    // 画面を使って大きく表示して、右側にそれ以外の例文などのほかの項目を並べて」).
+                    // The left page ends on the fold (owner 2026-10-30: 「スマホの折り目で画面を半分にして」).
+                    let leftWidth = (router.foldX.map { min(viewportSize.width - 320, max(320, $0 - viewportMinX)) }
+                        ?? viewportSize.width * 0.5).rounded()
+                    HStack(alignment: .top, spacing: 0) {
+                        ScrollView { pageColumn(width: leftWidth) { leadCards(withFirstSection: true) } }
+                            .frame(width: leftWidth)
+                        ScrollView { pageColumn(width: viewportSize.width - leftWidth) { restCards(skipFirstSection: true) } }
+                    }
+                } else {
+                    ScrollView {
+                        pageColumn(width: nil) {
+                            leadCards(withFirstSection: false)
+                            restCards(skipFirstSection: false)
                         }
                     }
-                    footer
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 40)
-                // Exactly the screen's width, even when a part comes out a few points wider (an example line drawn a
-                // hair wider than measured, a long translation): wider content let the page slide sideways while it
-                // scrolled and spring back (owner 2026-10-28: 「スクロールすると横揺れする」, up to 37 px on a device).
-                .modifier(PageColumnWidth(width: pageWidthOverride))
-                // 「文字の大きさ」 and 復習モード of the page's settings (§9) reach every part of the page.
-                .environment(\.pageTextScale, CGFloat(textScale))
-                .environment(\.reviewMask, reviewMask)
             }
             // Up and down only: never a sideways bounce.
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { f in
+                viewportSize = f.size
+                viewportMinX = f.minX
+            }
             .background(
                 LinearGradient(colors: [Theme.background, Theme.backgroundDeep], startPoint: .top, endPoint: .bottom)
                     .ignoresSafeArea()
@@ -249,6 +235,72 @@ struct WordDetailView: View {
         .onChange(of: reviewOn) { _, _ in revealed = [] }
         .onChange(of: reviewHideRaw) { _, _ in revealed = [] }
         .onChange(of: current.id) { _, _ in revealed = [] }
+    }
+
+    /// The page is two pages side by side: iPhone Duo's inner screen held sideways.
+    private var wideWord: Bool { viewportSize.width >= 800 && viewportSize.width > viewportSize.height }
+
+    /// A column of the page's cards: its margins, its width (exactly the screen's on the iPhone, `PageColumnWidth`), and
+    /// the page's text size and review mode.
+    private func pageColumn<Content: View>(width: CGFloat?, @ViewBuilder _ content: () -> Content) -> some View {
+        // Lazy: only the cards on screen are built and measured when the page opens. All of them were, each chunk row
+        // up to nine times (`ChunkLineView`'s sizes to fit one line) — the page came up 2–3 s after the tap on the CI
+        // simulator (owner 2026-10-31: 「ホームの画像をタップしてから、単語の詳細が表示されるまでのラグがある」).
+        LazyVStack(spacing: 14) { content() }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 40)
+            // Exactly the screen's width, even when a part comes out a few points wider (an example line drawn a
+            // hair wider than measured, a long translation): wider content let the page slide sideways while it
+            // scrolled and spring back (owner 2026-10-28: 「スクロールすると横揺れする」, up to 37 px on a device).
+            .modifier(PageColumnWidth(width: width ?? pageWidthOverride, fill: width != nil))
+            // 「文字の大きさ」 and 復習モード of the page's settings (§9) reach every part of the page.
+            .environment(\.pageTextScale, CGFloat(textScale))
+            .environment(\.reviewMask, reviewMask)
+    }
+
+    /// The picture, the date and place, the word; side by side also the first section (its meaning).
+    @ViewBuilder
+    private func leadCards(withFirstSection: Bool) -> some View {
+        if isUnsaved { unsavedBanner }
+        if !photos.isEmpty { photoHero }
+        metaCard
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { metaHeight = $0 }
+        heroCard
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headHeight = $0 }
+        if withFirstSection, let first = firstShownSection {
+            sectionList([first])
+        }
+    }
+
+    /// The encounters, the sections (without the first when it is on the left page) and the footer.
+    @ViewBuilder
+    private func restCards(skipFirstSection: Bool) -> some View {
+        // The list of every photo and place is in metaCard now; this is the server's list when no re-encounter rows
+        // could be read.
+        if !isLocked, laterCaptures.isEmpty { EncounterHistoryView(stickerId: current.id) }
+        // Web WordCard: no frequency/register meters and no separate "使う場面" card
+        // (owner: メーターいらない). Register is a chip word in the header only.
+        let shown = visibleSections.filter { hasContent($0) || isFilling($0) }
+        sectionList(skipFirstSection ? shown.filter { $0 != firstShownSection } : shown)
+        footer
+    }
+
+    private func sectionList(_ sections: [CardSection]) -> some View {
+        ForEach(sections) { section in
+            if hasContent(section) {
+                sectionView(section)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                        if section == .meaning { meaningHeight = h }
+                    }
+                    // The first tour goes through the sections one by one (owner 2026-10-28).
+                    .tourAnchor(.wordSection, if: router.tour == .wordSection && router.tourSection == section)
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)), removal: .opacity))
+            } else {
+                SectionSkeleton(title: section.title, icon: section.icon)
+                    .transition(.opacity)
+            }
+        }
     }
 
     /// The first tour's walk through this page: the sections it shows, in order; the first is lit once there is one (a
@@ -399,13 +451,13 @@ struct WordDetailView: View {
                     dex.discardUnsaved(pendingId: pid)
                     dex.refreshPending()
                     plan.undoCatch()
-                    dismiss()
+                    close()
                     return
                 }
                 Task {
                     do {
                         try await dex.delete(current)
-                        dismiss()
+                        close()
                     } catch {
                         Haptics.warning()
                         let reason = (error as? LocalizedError)?.errorDescription ?? ""
@@ -472,7 +524,7 @@ struct WordDetailView: View {
                     .presentationCompactAdaptation(.popover)
                     .presentationBackground(Theme.background.mix(with: Theme.primary, by: 0.06))
             }
-            Button { dismiss() } label: {
+            Button { close() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.foreground)
@@ -629,11 +681,17 @@ struct WordDetailView: View {
     /// 大きさを調整して」; from the iPhone Duo session's e994feb). The meaning counts only where it is the first section
     /// (a learner who put another first keeps a bigger picture). Until the page is measured, no limit.
     private var heroMaxHeight: CGFloat {
+        let viewportHeight = viewportSize.height
         guard viewportHeight > 0, metaHeight > 0, headHeight > 0 else { return .infinity }
         let meaning = visibleSections.first { hasContent($0) } == .meaning ? meaningHeight + 14 : 0
         let below = metaHeight + 14 + headHeight + 14 + meaning
         let unsaved: CGFloat = isUnsaved ? 80 : 0
         return max(Self.minHeroHeight, viewportHeight - 8 - 14 - below - unsaved)
+    }
+
+    /// The first section shown under the word's card (its meaning, normally): on the left page when held sideways.
+    private var firstShownSection: CardSection? {
+        visibleSections.first { hasContent($0) }
     }
 
     /// The slideshow waits while a finger is on the photo, while the selfie or an original photo is shown, while the
@@ -651,7 +709,7 @@ struct WordDetailView: View {
                 .transition(slideTransition)
                 .offset(x: dragX)
         }
-        .frame(maxWidth: widthClass == .regular ? Self.wideHeroWidth : .infinity,
+        .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity,
                maxHeight: heroMaxHeight.isFinite ? heroMaxHeight : nil)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { heroWidth = $0 }
         // The photo coming in beside it, under the finger (owner 2026-10-31: 「スワイプしてスムーズに画像を変更」).
@@ -2360,11 +2418,15 @@ extension EnvironmentValues {
 /// The word page's column exactly as wide as its screen (`containerRelativeFrame`), or `width` when one is given.
 private struct PageColumnWidth: ViewModifier {
     let width: CGFloat?
+    /// One of the two pages side by side: the column fills it.
+    var fill = false
 
     @ViewBuilder
     func body(content: Content) -> some View {
         // The cards at most a reading column wide, in the middle (iPhone Duo held sideways, `readableColumn()`).
-        if let width {
+        if fill, let width {
+            content.frame(width: width)
+        } else if let width {
             content.frame(maxWidth: ScreenOrientation.readableWidth).frame(width: width)
         } else {
             content.frame(maxWidth: ScreenOrientation.readableWidth).containerRelativeFrame(.horizontal)

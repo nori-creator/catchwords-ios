@@ -63,7 +63,7 @@ struct SettingsView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
-            .padding(.bottom, 130)
+            .padding(.bottom, router.barRoom(130, rail: 28))
             .readableColumn()
         }
         .scrollDismissesKeyboard(.interactively)

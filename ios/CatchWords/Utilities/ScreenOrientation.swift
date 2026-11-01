@@ -13,6 +13,9 @@ enum ScreenOrientation {
     static let readableWidth: CGFloat = 680
 
     static func mask(for window: UIWindow?) -> UIInterfaceOrientationMask {
+        #if DEBUG
+        if StoreShot.portraitOnly { return .portrait }
+        #endif
         guard let size = window?.bounds.size, min(size.width, size.height) >= turningSide else { return .portrait }
         return .allButUpsideDown
     }

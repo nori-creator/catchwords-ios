@@ -24,6 +24,11 @@ struct CollageBoard: View {
     let onOpen: (Sticker) -> Void
     /// Lay every photo out automatically, ignoring positions placed by hand (the memorial album).
     var autoOnly: Bool = false
+    /// iPhone Duo open sideways, the board across the whole screen: the two columns on the two pages' middles
+    /// (`AlbumLayout.packDay`). Laid out automatically and not rearranged there — a place set by hand is a share of the
+    /// board's width and would be another size on the wide board.
+    var spread: Bool = false
+    private var autoLayout: Bool { autoOnly || spread }
     /// Tells the screen to stop scrolling (and show 「完了」) while photos are being moved.
     var onEditingChange: ((Bool) -> Void)? = nil
     /// Goes up when 「完了」 is pressed: an editing board saves and stops.
@@ -51,7 +56,7 @@ struct CollageBoard: View {
                         item: item,
                         boardW: boardW,
                         editing: editing,
-                        canEdit: editable && !autoOnly,
+                        canEdit: editable && !autoLayout,
                         isGrabbed: grabbed == s.id,
                         reduceMotion: reduceMotion,
                         onOpen: { onOpen(s) },
@@ -82,7 +87,7 @@ struct CollageBoard: View {
     private func computeLayout() -> (items: [DayLayoutItem], boardH: Double) {
         guard boardW > 0 else { return ([], 1.25) }
         let stickers: [DayLayoutSticker] = items.map { s in
-            var d = (autoOnly ? nil : dex.albumPlacements[s.id]) ?? DayLayoutSticker(id: s.id)
+            var d = (autoLayout ? nil : dex.albumPlacements[s.id]) ?? DayLayoutSticker(id: s.id)
             d.id = s.id
             d.caption = s.caption
             if let p = live[s.id] {
@@ -104,7 +109,8 @@ struct CollageBoard: View {
             stickers: stickers,
             hasHero: { id in items.first { $0.id == id }.flatMap { AlbumPhoto.path(for: $0) } != nil },
             photoRatio: ratios,
-            boardW: Double(boardW)
+            boardW: Double(boardW),
+            spread: spread
         )
         return AlbumLayout.layoutDayAlbum(input)
     }

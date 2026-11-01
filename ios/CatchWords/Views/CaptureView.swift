@@ -56,7 +56,8 @@ struct CaptureView: View {
 
     private var demoPhoto: UIImage? {
         #if DEBUG
-        return UIImage(data: DemoImages.png(seed: "camera-sample", emoji: "🛵", text: "", transparent: false, size: 1024))
+        return StoreShot.cameraPhoto
+            ?? UIImage(data: DemoImages.png(seed: "camera-sample", emoji: "🛵", text: "", transparent: false, size: 1024))
         #else
         return nil
         #endif
@@ -254,8 +255,13 @@ struct CaptureView: View {
 
                 controls
                     .padding(.top, 22)
-                    .padding(.bottom, 86)
+                    // Over the tab bar; with the bar as a rail at the side the shutter sits low, where the thumb is.
+                    .padding(.bottom, router.barRoom(86, rail: 20))
             }
+            // iPhone Duo open sideways: the viewfinder, the shutter and its buttons are centred on the fold, the room
+            // the clock's strip takes on one side left free on the other (owner 2026-10-31: 「犬が折り目の真ん中に」).
+            .padding(.leading, max(0, 2 * router.foldShift))
+            .padding(.trailing, max(0, -2 * router.foldShift))
         }
     }
 
@@ -349,7 +355,13 @@ struct CaptureView: View {
         Color.black
             .overlay {
                 if let img = demoPhoto {
-                    Image(uiImage: img).resizable().scaledToFill().allowsHitTesting(false)
+                    // The whole photo, on a blur of itself: in a viewfinder of another shape (iPhone Duo held sideways)
+                    // filling cut the subject off (owner 2026-10-30: 「犬の画像がサイズがあってないから犬が見切れてる」).
+                    // The blur is a background, so its fill never sizes the frame the photo is fitted into.
+                    Image(uiImage: img).resizable().scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background { Image(uiImage: img).resizable().scaledToFill().blur(radius: 30).opacity(0.85) }
+                        .allowsHitTesting(false)
                 }
             }
             .clipped()
@@ -491,6 +503,10 @@ struct CaptureView: View {
             .opacity(cameraLive ? 1 : 0.4)
         }
         .padding(.horizontal, 44)
+        // On a wide screen (iPhone Duo open) the 写真 / 切替 buttons stay as near the shutter as on an iPhone, not out
+        // at the screen's edges (owner 2026-10-31: 「端すぎる」). An iPhone (≤ 440 pt) is unchanged.
+        .frame(maxWidth: 440)
+        .frame(maxWidth: .infinity)
     }
 
     private var usagePill: some View {
@@ -527,9 +543,12 @@ struct CaptureView: View {
                 .background(.white.opacity(0.1), in: .rect(cornerRadius: 13, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(.white.opacity(0.18), lineWidth: 1))
             Text(label).scaledFont(size: 11, weight: .medium)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .foregroundStyle(.white)
-        .frame(minWidth: 56)
+        // Both side buttons the same width, so the shutter between them sits on the row's middle (iPhone Duo's fold).
+        .frame(width: 68)
     }
 
     // MARK: Actions
@@ -967,6 +986,7 @@ struct CameraMessageView: View {
 /// Web `OfflineSavedPanel` (capture.tsx): the photo was kept in "解析待ち" when analysis failed.
 /// The reason is always shown — a 401 or a broken image must not look like "just try later".
 struct FailedView: View {
+    @Environment(AppRouter.self) private var router: AppRouter?
     let reason: String
     let retryable: Bool
     let offline: Bool
@@ -1001,7 +1021,7 @@ struct FailedView: View {
             Spacer()
         }
         .padding(28)
-        .padding(.bottom, 80)
+        .padding(.bottom, router?.barRoom(80, rail: 0) ?? 80)
     }
 
     private func secondary(_ title: String, action: @escaping () -> Void) -> some View {

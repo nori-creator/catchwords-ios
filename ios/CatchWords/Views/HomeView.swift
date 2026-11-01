@@ -82,7 +82,7 @@ struct HomeView: View {
                     .buttonStyle(PressableStyle())
                     .accessibilityIdentifier("home.album.done")
                 }
-                .padding(.bottom, 84)
+                .padding(.bottom, router.barRoom(84))
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -102,7 +102,7 @@ struct HomeView: View {
                     Haptics.selection()
                     Task { await dex.setAlbumHidden(id, hidden: false) }
                 }
-                .padding(.bottom, 110)   // above the tab bar
+                .padding(.bottom, router.barRoom(110, rail: 24))   // above the tab bar (none with the side rail)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -223,7 +223,8 @@ struct HomeView: View {
                                 onCamera: { router.tab = .camera },
                                 onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
                                 finishRequest: finishEditing,
-                                onDiary: DiaryFeature.enabled ? { (day: Date) in diaryDay = DiaryDay(day: day) } : nil
+                                onDiary: DiaryFeature.enabled ? { (day: Date) in diaryDay = DiaryDay(day: day) } : nil,
+                                spread: router.isOpenSideways
                             )
                             .environment(\.albumPasteID, router.tour == .homeAdded ? router.tourStickerId : nil)
                             .transition(.opacity)
@@ -236,10 +237,16 @@ struct HomeView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
 
-                    Color.clear.frame(height: 120)
+                    // Room for the floating tab bar under the album's end; the side rail needs none.
+                    Color.clear.frame(height: router.barRoom(120, rail: 28))
                 }
-                // iPhone Duo held sideways (951 pt): the stickers grow with the width and a day no longer fits the screen.
-                .readableColumn()
+                // iPhone Duo held sideways: the album uses the whole screen, its middle on the fold — a day's two
+                // columns stand on the two pages (owner 2026-10-31: 「ホーム全体を使って」「左画面と右画面で同じ中心」).
+                .frame(maxWidth: router.isOpenSideways ? nil : ScreenOrientation.readableWidth)
+                .frame(maxWidth: .infinity)
+                // The room the clock's strip takes on one side is left free on the other, so the middle is the fold.
+                .padding(.leading, router.isOpenSideways ? max(0, 2 * router.foldShift) : 0)
+                .padding(.trailing, router.isOpenSideways ? max(0, -2 * router.foldShift) : 0)
                 .background(ScrollViewFinder { [autoScroll] sv in autoScroll.scrollView = sv })
             }
             .environment(autoScroll)
@@ -291,8 +298,8 @@ struct HomeView: View {
             .animation(.easeOut(duration: 0.3), value: dex.hasLoaded)
         }
         .padding(.horizontal, 20)
-        // The floating tab bar.
-        .padding(.bottom, 78)
+        // The floating tab bar (a rail at the side on iPhone Duo folded or open sideways: none to keep clear).
+        .padding(.bottom, router.barRoom(78))
         .environment(autoScroll)
         .onChange(of: albumEditing) { _, _ in autoScroll.end() }
         .safeAreaInset(edge: .top, spacing: 8) { header }
@@ -452,10 +459,24 @@ struct HomeAlbum: View {
     var finishRequest: Int = 0
     /// 「日記」 on a day's date: opens that day's diary page (2026-10-24).
     var onDiary: ((Date) -> Void)? = nil
+    /// iPhone Duo open sideways: each day's photos in two columns on the two pages (`CollageBoard.spread`).
+    var spread: Bool = false
+
+    /// The days drawn (the App Store shots, DEBUG only: today, and the next day when held sideways).
+    private var shownDays: [AlbumDay] {
+        #if DEBUG
+        if StoreShot.isOn { return Array(days.prefix(spread ? 2 : 1)) }
+        #endif
+        return days
+    }
 
     var body: some View {
+        // The App Store shots show only today: the day below peeked out under the tab bar (owner 2026-10-31
+        // 「バーに隠れて見える猫をけして」). Open sideways the tabs are in the side strip, nothing covers the bottom, and
+        // today's four photos fill only the top half, so the next day follows (no empty lower half).
+        let shown = shownDays
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(days.enumerated()), id: \.element.id) { i, d in
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, d in
                 daySection(d)
                     .padding(.bottom, 24)
                     .tourAnchor(.album, if: i == 0)
@@ -506,7 +527,7 @@ struct HomeAlbum: View {
             if d.items.isEmpty {
                 emptyDay(isToday: isToday)
             } else {
-                CollageBoard(items: d.items, editable: true, onOpen: onOpen, onEditingChange: onEditingChange,
+                CollageBoard(items: d.items, editable: true, onOpen: onOpen, spread: spread, onEditingChange: onEditingChange,
                              finishRequest: finishRequest)
             }
         }

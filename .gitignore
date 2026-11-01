@@ -6,3 +6,4 @@ __pycache__/
 
 # Built by scripts/build_site.py
 site/public/
+duo-store-shots/
