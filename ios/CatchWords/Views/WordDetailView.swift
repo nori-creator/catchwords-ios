@@ -717,7 +717,8 @@ struct WordDetailView: View {
                 .transition(slideTransition)
                 .offset(x: dragX)
         }
-        .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity, height: heroHeight)
+        .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity)
+        .frame(height: heroHeight)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { heroWidth = $0 }
         // The photo coming in beside it, under the finger (owner 2026-10-31: 「スワイプしてスムーズに画像を変更」).
         .overlay {
