@@ -105,6 +105,8 @@ struct WordDetailView: View {
     @State private var viewportMinX: CGFloat = 0
     @State private var metaHeight: CGFloat = 0
     @State private var headHeight: CGFloat = 0
+    /// The row of buttons under the picture (`heroControls`).
+    @State private var controlsHeight: CGFloat = 0
     /// `derived`'s last answer.
     @State private var memo = DerivedMemo()
     @Environment(\.scenePhase) private var scenePhase
@@ -702,14 +704,17 @@ struct WordDetailView: View {
     /// The hero, plus the photos from later encounters: they slide by every few seconds and can be swiped through.
     private var photoHero: some View {
         let later = laterFaces
-        return ZStack {
+        // The picture, and under it its buttons and the photos' dots — never on the picture (owner 2026-11-01:
+        // 「タップで自撮りへ、元の画像ってボタンが画像に被ってるから被らせないようにして」).
+        return VStack(spacing: Self.controlsGap) {
+        ZStack {
             heroFace(later)
                 .id(heroPage)
                 .transition(slideTransition)
                 .offset(x: dragX)
         }
         .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity,
-               maxHeight: heroMaxHeight.isFinite ? heroMaxHeight : nil)
+               maxHeight: pictureMaxHeight(later))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { heroWidth = $0 }
         // The photo coming in beside it, under the finger (owner 2026-10-31: 「スワイプしてスムーズに画像を変更」).
         .overlay {
@@ -735,20 +740,10 @@ struct WordDetailView: View {
                 if dragX != 0 { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragX = 0 } }
             }
         }
-        .overlay(alignment: .bottom) {
-            if !later.isEmpty, !showSelfie {
-                HStack(spacing: 6) {
-                    ForEach(0...later.count, id: \.self) { i in
-                        Capsule().fill(.white.opacity(i == heroPage ? 1 : 0.5))
-                            .frame(width: i == heroPage ? 18 : 7, height: 7)
-                    }
-                }
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(.black.opacity(0.35), in: Capsule())
-                .padding(.bottom, 14)
-                .animation(.snappy, value: heroPage)
-                .accessibilityHidden(true)
-            }
+        if hasHeroControls(later) {
+            heroControls(later)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { controlsHeight = $0 }
+        }
         }
         // Scrolling down, the picture shrinks smoothly to half its size, its buttons with it, staying at the top until
         // it is half as big; scrolled back to the top it grows back (owner 2026-11-01). The selfie is turned on the same
@@ -852,9 +847,6 @@ struct WordDetailView: View {
                 }
                 .clipShape(.rect(cornerRadius: 28, style: .continuous))
                 .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
-                .overlay(alignment: .topLeading) {
-                    if page > 0 { captureBadge(number: page + 1, at: s.takenAt, place: s.locationName) }
-                }
         }
     }
 
@@ -887,9 +879,6 @@ struct WordDetailView: View {
             laterFace(p, number: heroPage + 1)
         } else {
             mainFace
-                .overlay(alignment: .topLeading) {
-                    if heroPage > 0 { captureBadge(number: heroPage + 1, at: shown.takenAt, place: shown.locationName) }
-                }
         }
     }
 
@@ -928,31 +917,11 @@ struct WordDetailView: View {
                     .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
             }
         }
-        .overlay(alignment: .topLeading) { captureBadge(number: number, at: p.takenAt, place: p.place) }
         .contentShape(.rect(cornerRadius: 28))
         // A finger on the photo holds the slideshow (the long press itself does nothing here).
         .onLongPressGesture(minimumDuration: 60, perform: {}, onPressingChanged: { pressing in touching = pressing })
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L("\(number)回目に撮った写真"))
-    }
-
-    /// 「n回目 · 日付 · 場所」 on a later photo.
-    private func captureBadge(number: Int, at: Date?, place: String?) -> some View {
-        HStack(spacing: 6) {
-            Text(L("\(number)回目"))
-                .scaledFont(size: 12, weight: .bold)
-            if let d = at {
-                Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
-            }
-            if let place = LocationService.shownPlace(place) {
-                Text(place).scaledFont(size: 12).lineLimit(1)
-            }
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(.black.opacity(0.55), in: Capsule())
-        .padding(12)
-        .allowsHitTesting(false)
     }
 
     /// The hero's shape: a cut-out's own width ÷ height (kept between a tall 0.8 and a wide 1.8, so neither a bottle
@@ -1033,39 +1002,6 @@ struct WordDetailView: View {
         let back = showSelfie
         let path = back ? shown.selfieImageUrl : frontPath
         return faceBody(back: back)
-            .overlay(alignment: .bottomTrailing) {
-                // With a selfie, a tap anywhere on the picture turns the card (photo ⇄ selfie), as the hint says
-                // (owner 2026-10-14: 「タップすると自撮りへと書いてるのに元の画像が見える。2つを両立させて」); the
-                // original photo has its own button at the top.
-                if hasSelfie {
-                    Text(back ? L("タップで戻る") : L("タップで自撮りへ"))
-                        .scaledFont(size: 12, weight: .semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(.black.opacity(0.55), in: Capsule())
-                        .padding(12)
-                        .allowsHitTesting(false)
-                }
-            }
-            .overlay(alignment: .topTrailing) {
-                if back {
-                    // The selfie's own 「元の写真」: the selfie as it was taken, in place; again (切り抜き) back to the
-                    // cut-out. Only when there is a cut-out to go back to (「大きく見る」 is gone).
-                    if selfieCutReady {
-                        heroButton(selfieOriginal ? L("切り抜き") : L("元の写真"),
-                                   icon: selfieOriginal ? "chevron.backward" : "arrow.up.left.and.arrow.down.right",
-                                   id: "detail.selfieOriginal") {
-                            withAnimation(.easeInOut(duration: 0.25)) { selfieOriginal.toggle() }
-                        }
-                    }
-                } else if hasSelfie, originalPath != nil {
-                    // The photo side's original photo, full screen.
-                    heroButton(L("元の写真"), icon: "arrow.up.left.and.arrow.down.right", id: "detail.viewOriginal") {
-                        showingOriginal = true
-                    }
-                }
-            }
             .overlay(alignment: .bottomLeading) {
                 // An internet picture says whose it is (Unsplash asks for the photographer's name).
                 if !back, path != nil, path == shown.placeholderImageUrl, let name = shown.placeholderCredit?.name, !name.isEmpty {
@@ -1118,24 +1054,79 @@ struct WordDetailView: View {
             }
     }
 
-    /// A small dark capsule button on the picture (top right).
-    private func heroButton(_ title: String, icon: String, id: String, action: @escaping () -> Void) -> some View {
+    /// The space between the picture and its buttons.
+    static let controlsGap: CGFloat = 10
+
+    /// The picture's height: what the page leaves it, less the row of buttons under it.
+    private func pictureMaxHeight(_ later: [LaterPhoto]) -> CGFloat? {
+        guard heroMaxHeight.isFinite else { return nil }
+        let row = hasHeroControls(later) ? controlsHeight + Self.controlsGap : 0
+        return max(Self.minHeroHeight, heroMaxHeight - row)
+    }
+
+    /// Something to show under the picture: the photos' dots, the original photo, the selfie.
+    private func hasHeroControls(_ later: [LaterPhoto]) -> Bool {
+        (!later.isEmpty && !showSelfie) || hasSelfie
+    }
+
+    /// Under the picture: the dots of the word's photos, then 「元の写真」 and 「タップで自撮りへ」 (on the selfie side,
+    /// 「元の写真」/「切り抜き」 and 「タップで戻る」). Scaled with the picture as the page scrolls (`HeroShrink`).
+    @ViewBuilder
+    private func heroControls(_ later: [LaterPhoto]) -> some View {
+        VStack(spacing: 8) {
+            if !later.isEmpty, !showSelfie {
+                HStack(spacing: 6) {
+                    ForEach(0...later.count, id: \.self) { i in
+                        Capsule().fill(i == heroPage ? Theme.primary : Theme.muted.opacity(0.35))
+                            .frame(width: i == heroPage ? 18 : 7, height: 7)
+                    }
+                }
+                .animation(.snappy, value: heroPage)
+                .accessibilityHidden(true)
+            }
+            if hasSelfie {
+                HStack(spacing: 8) {
+                    if showSelfie {
+                        // The selfie's own 「元の写真」: the selfie as it was taken; again (切り抜き) back to its cut-out.
+                        if selfieCutReady {
+                            heroControl(selfieOriginal ? L("切り抜き") : L("元の写真"),
+                                        icon: selfieOriginal ? "chevron.backward" : "arrow.up.left.and.arrow.down.right",
+                                        id: "detail.selfieOriginal") {
+                                withAnimation(.easeInOut(duration: 0.25)) { selfieOriginal.toggle() }
+                            }
+                        }
+                    } else if originalPath != nil {
+                        heroControl(L("元の写真"), icon: "arrow.up.left.and.arrow.down.right", id: "detail.viewOriginal") {
+                            showingOriginal = true
+                        }
+                    }
+                    heroControl(showSelfie ? L("タップで戻る") : L("タップで自撮りへ"),
+                                icon: "arrow.triangle.2.circlepath", id: "detail.flipSelfie") { flip() }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// A light capsule button under the picture.
+    private func heroControl(_ title: String, icon: String, id: String, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.selection()
             action()
         } label: {
             Label(title, systemImage: icon)
-                .scaledFont(size: 12, weight: .semibold)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(.black.opacity(0.55), in: Capsule())
+                .scaledFont(size: 13, weight: .semibold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(Theme.foreground.opacity(0.85))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Theme.secondary, in: Capsule())
+                .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle(scale: 0.94))
-        .padding(.horizontal, 12)
-        .padding(.top, 2)
         .accessibilityIdentifier(id)
     }
 
