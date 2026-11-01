@@ -3,3 +3,4 @@
 "NSLocationWhenInUseUsageDescription" = "CatchWords 會記錄拍照地點的名稱，讓你連同回憶一起記住單字。開啟「地點提醒」後，也會在你靠近曾拍下單字的地點時通知你。";
 "NSPhotoLibraryAddUsageDescription" = "CatchWords 也會把拍的照片存到照片 App。";
 "NSPhotoLibraryUsageDescription" = "CatchWords 會使用照片 App 裡的圖片來找單字。";
+"CapturePlace" = "為了準確記錄拍照地點的店家、車站或公園名稱，只在拍照時使用你的精確位置。";

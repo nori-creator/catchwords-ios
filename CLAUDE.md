@@ -274,7 +274,9 @@
   - **撮った場所はもっと正確に**: 位置は一番高い精度で、その場で取り直す（15 秒より古い・20m より粗い位置は使わない。6 秒待って
     一番良い物）。近くの店の名前は位置が確かな時だけ（約 50m 以内）。店も施設も無い時は**地図の住所**（「台北市 大安區
     和平東路一段162號」、`LocationService.street`）。位置が粗い時は市と区だけ。カメラロールの写真は写真に入っている位置
-    （EXIF）で名付ける（`LocationService.photoLocation`）。
+    （EXIF）で名付ける（`LocationService.photoLocation`）。**カメラを開いた時から位置を測り始める**（`warmUp` / `coolDown`。
+    シャッターの時に精度の高い位置がある）。「正確な位置情報」がオフの人には、起動ごとに1回、撮る間だけオンにする確認を出す
+    （`CapturePlace`、Info.plist の `NSLocationTemporaryUsageDescriptionDictionary`）。
 - **時計（ステータスバー）の色**（2026-10-29「時計の色最適化して」）: 画面ごとの白・黒の切り替え（`statusBarTone`）は、アプリの
   窓の SwiftUI の controller に答えさせる（`StatusBarHook`）。前の「上に重ねた透明な窓の controller」は iOS に読まれず、開く演出の青・
   夜空・カメラでも時計が黒かった（CI の写真で確認）。

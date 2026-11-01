@@ -15,6 +15,13 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// The most accurate fix of the request in flight (a fix comes in a few times as the phone narrows it down).
     private var best: CLLocation?
     private var startedAt = Date()
+    /// The camera is open: the phone keeps measuring, so a precise point is ready at the shutter (the first fixes after
+    /// starting are rough — a cold start can take longer than the capture waits).
+    private var warming = false
+    /// The newest fix while the camera is open.
+    private var latest: CLLocation?
+    /// 「正確な位置情報」 off: asked once per launch to turn it on while photos are taken (`CapturePlace`).
+    private var askedFullAccuracy = false
 
     /// A fix this close is taken at once; a less accurate one only when nothing better came in time.
     nonisolated static let goodAccuracy: CLLocationAccuracy = 20
@@ -38,6 +45,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func current() async -> CLLocation? {
         let status = manager.authorizationStatus
         guard status == .authorizedWhenInUse || status == .authorizedAlways else { return nil }
+        if let fresh = latest, Self.isGood(fresh, maxAge: Self.cachedAge) { return fresh }
         if let cached = manager.location, Self.isGood(cached, maxAge: Self.cachedAge) { return cached }
         return await withCheckedContinuation { cont in
             waiters.append(cont)
@@ -54,9 +62,30 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
                 guard self.generation == mine else { return }
                 // Nothing new in time: the phone's last fix when it is from the last minute.
                 let recent = self.manager.location.flatMap { $0.timestamp.timeIntervalSinceNow > -60 ? $0 : nil }
-                self.finish(self.best ?? recent)
+                self.finish(self.best ?? self.latest ?? recent)
             }
         }
+    }
+
+    /// The camera opened: start measuring now (owner 2026-11-01: 「地名の精度も高めて」). With 「正確な位置情報」 off
+    /// the point is only known to a few kilometres — the system asks once per launch to allow it while photos are taken.
+    func warmUp() {
+        // Wanted even before the permission is answered: measuring starts once it is given.
+        warming = true
+        let status = manager.authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
+        if manager.accuracyAuthorization == .reducedAccuracy, !askedFullAccuracy {
+            askedFullAccuracy = true
+            manager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "CapturePlace")
+        }
+        manager.startUpdatingLocation()
+    }
+
+    /// The camera closed: stop measuring (unless a capture is still waiting for its point).
+    func coolDown() {
+        warming = false
+        latest = nil
+        if waiters.isEmpty { manager.stopUpdatingLocation() }
     }
 
     /// A fix recent enough and as accurate as `goodAccuracy`.
@@ -202,7 +231,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     private func finish(_ location: CLLocation?) {
         guard !waiters.isEmpty else { return }
-        manager.stopUpdatingLocation()
+        if !warming { manager.stopUpdatingLocation() }
         best = nil
         let done = waiters
         waiters = []
@@ -212,6 +241,13 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor in
+            if self.warming, let newest = locations.last(where: { $0.horizontalAccuracy >= 0 }) {
+                // The newest unless it is much rougher than a fix from the last few seconds.
+                let rougher = self.latest.map { kept in
+                    kept.timestamp.timeIntervalSinceNow > -5 && newest.horizontalAccuracy > kept.horizontalAccuracy * 2
+                } ?? false
+                if !rougher { self.latest = newest }
+            }
             guard !self.waiters.isEmpty else { return }
             // Only fixes made for this request (an old one the phone hands back first is not where the photo is).
             for l in locations where l.horizontalAccuracy >= 0 && l.timestamp >= self.startedAt.addingTimeInterval(-2) {
@@ -219,6 +255,10 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             }
             if let best = self.best, best.horizontalAccuracy <= Self.goodAccuracy { self.finish(best) }
         }
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor in if self.warming { self.warmUp() } }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {

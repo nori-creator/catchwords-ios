@@ -96,6 +96,8 @@ struct CaptureView: View {
         .task { await startCamera() }
         .onAppear {
             LocationService.shared.requestPermissionIfNeeded()
+            // Measuring starts with the camera, so the point is precise by the shutter.
+            LocationService.shared.warmUp()
             syncChrome()
             SoundService.shared.warmTicks()   // the shutter plays from the tick engine
             SoundService.shared.prepareCatchSounds()
@@ -104,6 +106,7 @@ struct CaptureView: View {
             UITestTrace.log("capture.disappear step=\(vm.step)")
             selfieCountdown.cancel()
             camera.stop()
+            LocationService.shared.coolDown()
             router.cameraImmersive = true
             router.tabBarHidden = false
         }

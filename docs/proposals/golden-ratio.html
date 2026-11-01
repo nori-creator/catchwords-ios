@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CatchWords 黄金比の案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* アプリの色: 背景 #F9FCFF・文字 #0B121A・灰 #5C646F・青 #0083FF。黄金の線だけ別の色 */
+  --bg:#F9FCFF; --card:#FFFFFF; --ink:#0B121A; --muted:#5C646F; --line:#E2E9F2;
+  --accent:#0083FF; --gold:#C9851C; --gold-soft:rgba(201,133,28,.14);
+  --font:"Noto Sans JP",-apple-system,"Hiragino Sans",sans-serif;
+  /* 縦に流れる1列。案ごとに「図・説明」の2段（広い画面では左右） */
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#030915; --card:#0C1626; --ink:#F2F6F8; --muted:#99A6B8; --line:#1D2635; --accent:#3AA0FF; --gold:#E8A93E; --gold-soft:rgba(232,169,62,.16); color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#030915; --card:#0C1626; --ink:#F2F6F8; --muted:#99A6B8; --line:#1D2635; --accent:#3AA0FF; --gold:#E8A93E; --gold-soft:rgba(232,169,62,.16); color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.75;font-size:15px}
+main{max-width:980px;margin:0 auto;padding:32px 20px 64px;display:grid;gap:34px}
+h1{font-size:34px;line-height:1.3;margin:0;text-wrap:balance;font-weight:900}
+h2{font-size:21px;line-height:1.4;margin:0;text-wrap:balance}
+p{margin:0;max-width:65ch}
+.lead{display:grid;gap:13px}
+.note{border-left:3px solid var(--gold);padding:8px 13px;background:var(--gold-soft);border-radius:0 8px 8px 0}
+.idea{display:grid;grid-template-columns:260px 1fr;gap:34px;align-items:start;background:var(--card);border:1px solid var(--line);border-radius:21px;padding:21px}
+.idea svg{width:100%;height:auto;display:block}
+.body{display:grid;gap:13px}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:99px;border:1px solid var(--line);color:var(--muted);margin-right:6px}
+.tag.go{color:var(--accent);border-color:var(--accent)}
+.tag.warn{color:var(--gold);border-color:var(--gold)}
+dl{margin:0;display:grid;grid-template-columns:7em 1fr;gap:4px 13px;font-size:14px}
+dt{color:var(--muted)} dd{margin:0}
+table{border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+td,th{padding:4px 13px 4px 0;text-align:left;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:500}
+.rank{display:grid;gap:8px}
+.rank li{margin-left:1.2em}
+@media (max-width:640px){.idea{grid-template-columns:1fr}.idea svg{max-width:260px;margin:0 auto}}
+</style>
+</head>
+<body>
+<main>
+<section class="lead">
+<h1>CatchWords で黄金比（1 : 1.618）を使う案</h1>
+<p>今のアプリの画面で、黄金比を当てはめられる場所を6つ挙げます。どれも「比率を1つに揃えて画面に統一感を出す」ための使い方です。</p>
+<p class="note">前提: 黄金比が他の比率より美しく見えるという主張は、心理学の実験では一貫した結果が出ていません。効くのは「画面のあちこちで同じ比率が繰り返されて、まとまりが出る」点です。そのため、1か所だけでなく、文字・余白・写真の比率に同じ数を通して使うと効果が出やすいです。</p>
+<p>黄金比で使う数: 1.618（φ）、その逆数 0.618、さらに小さい 0.382。フィボナッチ数 8・13・21・34・55 は、隣同士の比がほぼ 1.618 になります。</p>
+</section>
+
+<!-- 案1 -->
+<section class="idea">
+<svg viewBox="0 0 260 520" role="img" aria-label="単語の詳細の頁を 61.8 と 38.2 に分けた図">
+  <rect x="10" y="10" width="240" height="500" rx="34" fill="var(--bg)" stroke="var(--line)" stroke-width="2"/>
+  <rect x="26" y="34" width="208" height="20" rx="10" fill="var(--line)"/>
+  <!-- 見える範囲 70..490 = 420。61.8% = 260 -->
+  <rect x="26" y="70" width="208" height="252" rx="20" fill="var(--gold-soft)"/>
+  <rect x="78" y="92" width="104" height="208" rx="10" fill="#EDE6D6" stroke="#B8AE98"/>
+  <g fill="#8E8573"><rect x="90" y="110" width="80" height="5"/><rect x="90" y="124" width="66" height="5"/><rect x="90" y="138" width="74" height="5"/><rect x="90" y="152" width="58" height="5"/><rect x="90" y="166" width="80" height="5"/><rect x="90" y="180" width="62" height="5"/></g>
+  <rect x="26" y="330" width="208" height="54" rx="14" fill="var(--card)" stroke="var(--line)"/>
+  <text x="40" y="352" font-size="11" fill="var(--muted)">2026年11月1日 13:13</text>
+  <text x="40" y="372" font-size="11" fill="var(--accent)" font-weight="700">國立臺灣師範大學</text>
+  <rect x="26" y="392" width="208" height="84" rx="14" fill="var(--card)" stroke="var(--line)"/>
+  <text x="40" y="416" font-size="10" fill="var(--muted)">míng  xì  biǎo</text>
+  <text x="40" y="452" font-size="30" font-weight="900" fill="var(--ink)">明細表</text>
+  <circle cx="206" cy="436" r="17" fill="var(--accent)"/>
+  <line x1="18" y1="326" x2="242" y2="326" stroke="var(--gold)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="236" y="200" font-size="12" fill="var(--gold)" text-anchor="end" font-weight="700">61.8%</text>
+  <text x="236" y="489" font-size="12" fill="var(--gold)" text-anchor="end" font-weight="700">38.2%</text>
+</svg>
+<div class="body">
+<h2>案1 単語の詳細: 写真と「場所・単語」を 61.8 : 38.2 に</h2>
+<p><span class="tag go">おすすめ</span><span class="tag">小さな変更</span></p>
+<p>開いた時、見えている高さのうち写真が 61.8%、撮った場所と見出しの単語が 38.2% になるように写真の高さを決めます。今回の変更（写真＝頁の高さから場所と単語の札を引いた分）は、普通の iPhone でだいたい 60% 前後になるので、これを 61.8% にそろえる形です。</p>
+<p>下へスクロールした時の縮み方も、今の「半分（0.5）まで」を「0.618 倍まで」にすると、大きい時と小さい時の比がそのまま黄金比になります。</p>
+<dl><dt>変える所</dt><dd><code>WordDetailView.heroMaxHeight</code>、<code>shrunkScale</code></dd>
+<dt>注意</dt><dd>言葉が長い・文字が大きい時は札が高くなり、写真が 61.8% を取れない時がある。その時は今のように札を優先する。</dd></dl>
+</div>
+</section>
+
+<!-- 案2 -->
+<section class="idea">
+<svg viewBox="0 0 260 300" role="img" aria-label="文字の大きさを 1.618 倍ずつにした段">
+  <rect x="10" y="10" width="240" height="280" rx="21" fill="var(--card)" stroke="var(--line)" stroke-width="2"/>
+  <text x="28" y="50" font-size="9" fill="var(--muted)">9pt   No.285</text>
+  <text x="28" y="82" font-size="14.6" fill="var(--muted)">14.6pt   míng xì biǎo</text>
+  <text x="28" y="126" font-size="23.6" font-weight="700" fill="var(--ink)">23.6pt 意味</text>
+  <text x="28" y="186" font-size="38.2" font-weight="900" fill="var(--ink)">明細表</text>
+  <text x="28" y="270" font-size="61.8" font-weight="900" fill="var(--accent)">明細</text>
+  <text x="236" y="186" font-size="11" fill="var(--gold)" text-anchor="end" font-weight="700">38.2pt</text>
+  <text x="236" y="270" font-size="11" fill="var(--gold)" text-anchor="end" font-weight="700">61.8pt</text>
+</svg>
+<div class="body">
+<h2>案2 文字の大きさの段を 1.618 倍ずつに</h2>
+<p><span class="tag go">おすすめ</span><span class="tag">中くらいの変更</span></p>
+<p>文字の大きさを 9 → 14.6 → 23.6 → 38.2 → 61.8 の段だけに絞ります。単語の頁の見出しは今 38pt で、すでにほぼ 38.2 です。図鑑の「No.」は 9.5pt でほぼ 9。この段に寄せると、頁ごとに少しずつ違う大きさ（13・14・15・16・17pt など）が減り、見出し・読み・本文の差がはっきりします。</p>
+<table>
+<tr><th>段</th><th>使う所（例）</th></tr>
+<tr><td>61.8</td><td>キャッチの演出の単語、褒める演出の数字</td></tr>
+<tr><td>38.2</td><td>単語の頁の見出し（今 38）</td></tr>
+<tr><td>23.6</td><td>画面の題（図鑑・復習）、復習の問題の単語</td></tr>
+<tr><td>14.6</td><td>本文・意味・例文の訳・読み</td></tr>
+<tr><td>9</td><td>No.・小さな札</td></tr>
+</table>
+<dl><dt>注意</dt><dd>本文 14.6 と 23.6 の間が広いので、ボタンなどの 17pt 前後は「中間の段」として 1つだけ残すのが現実的。読みやすさのため、設定の文字の大きさ（Dynamic Type）は今どおり効かせる。</dd></dl>
+</div>
+</section>
+
+<!-- 案3 -->
+<section class="idea">
+<svg viewBox="0 0 260 300" role="img" aria-label="余白を 8・13・21・34 にしたカード">
+  <rect x="10" y="10" width="240" height="280" rx="21" fill="var(--bg)" stroke="var(--line)" stroke-width="2"/>
+  <rect x="31" y="31" width="198" height="100" rx="21" fill="var(--card)" stroke="var(--line)"/>
+  <rect x="31" y="152" width="198" height="100" rx="21" fill="var(--card)" stroke="var(--line)"/>
+  <rect x="10" y="31" width="21" height="100" fill="var(--gold-soft)"/><text x="20" y="85" font-size="9" fill="var(--gold)" text-anchor="middle">21</text>
+  <rect x="31" y="131" width="198" height="21" fill="var(--gold-soft)"/><text x="130" y="145" font-size="9" fill="var(--gold)" text-anchor="middle">21</text>
+  <rect x="44" y="44" width="172" height="13" fill="var(--gold-soft)"/>
+  <text x="44" y="78" font-size="13" font-weight="700" fill="var(--ink)">意味</text>
+  <text x="44" y="104" font-size="12" fill="var(--muted)">カードの中は 13、カードの間は 21</text>
+  <text x="44" y="190" font-size="13" font-weight="700" fill="var(--ink)">例文</text>
+  <text x="44" y="216" font-size="12" fill="var(--muted)">画面の端からは 21</text>
+</svg>
+<div class="body">
+<h2>案3 余白をフィボナッチ数（8・13・21・34）にそろえる</h2>
+<p><span class="tag go">おすすめ</span><span class="tag">中くらいの変更（触る所が多い）</span></p>
+<p>今の余白は 10・12・14・16・18 などが混ざっています。これを 8・13・21・34 の4つに絞ります。隣の数の比がほぼ 1.618 なので、「カードの中（13）→ カードの間（21）→ 区切りの大きな余白（34）」が同じ比で大きくなります。角の丸みも、外のカード 21・中の部品 13 にすると、入れ子の形がそろいます。</p>
+<dl><dt>変える所</dt><dd>単語の頁のカード（今 14・16）、図鑑のカード（今 12・18・22）、設定の行</dd>
+<dt>注意</dt><dd>画面の幅が 1〜2pt 変わる所があるので、図鑑の4列・チャンクの1行に収める処理を CI の見本画面で確かめる必要がある。</dd></dl>
+</div>
+</section>
+
+<!-- 案4 -->
+<section class="idea">
+<svg viewBox="0 0 260 520" role="img" aria-label="キャッチの演出で切り抜きを黄金分割の点に置いた図">
+  <rect x="10" y="10" width="240" height="500" rx="34" fill="#0B1E3D"/>
+  <line x1="10" y1="201" x2="250" y2="201" stroke="var(--gold)" stroke-dasharray="5 4"/>
+  <line x1="102" y1="10" x2="102" y2="510" stroke="var(--gold)" stroke-dasharray="5 4"/>
+  <line x1="158" y1="10" x2="158" y2="510" stroke="var(--gold)" stroke-dasharray="5 4" opacity=".5"/>
+  <circle cx="130" cy="201" r="62" fill="#F3EBDC"/>
+  <rect x="106" y="160" width="48" height="82" rx="6" fill="#EDE6D6" stroke="#B8AE98"/>
+  <rect x="78" y="292" width="104" height="34" rx="17" fill="#fff"/>
+  <text x="130" y="315" font-size="16" font-weight="900" fill="#0B121A" text-anchor="middle">明細表</text>
+  <text x="130" y="356" font-size="12" fill="#A9C4EA" text-anchor="middle">明細書</text>
+  <text x="240" y="196" font-size="10" fill="var(--gold)" text-anchor="end">上から 38.2%</text>
+</svg>
+<div class="body">
+<h2>案4 キャッチの演出・褒める演出: 主役を黄金分割の高さに</h2>
+<p><span class="tag">小さな変更</span></p>
+<p>撮った物の切り抜きを、画面のちょうど真ん中ではなく、上から 38.2% の高さに置きます。下の 61.8% に単語の札・訳・ボタンが入り、目が「切り抜き → 単語 → 訳」の順に下へ流れます。真ん中に置くより、写真が少し上に浮いて見え、下の情報に余裕ができます。</p>
+<dl><dt>変える所</dt><dd><code>CatchCelebrationView</code>、<code>PraiseCelebrationView</code> の切り抜きの縦位置</dd>
+<dt>注意</dt><dd>着地の演出（図鑑へ飛ぶ動き）の出発点も一緒に動くので、動きの通り道を確かめる。</dd></dl>
+</div>
+</section>
+
+<!-- 案5 -->
+<section class="idea">
+<svg viewBox="0 0 260 360" role="img" aria-label="図鑑のスライドのカードを 1 対 1.618 にした図">
+  <rect x="64" y="20" width="132" height="214" rx="16" fill="var(--card)" stroke="var(--accent)" stroke-width="2"/>
+  <rect x="64" y="20" width="132" height="132" rx="16" fill="var(--gold-soft)"/>
+  <rect x="104" y="40" width="52" height="90" rx="6" fill="#EDE6D6" stroke="#B8AE98"/>
+  <text x="130" y="178" font-size="9" fill="var(--muted)" text-anchor="middle">No.285</text>
+  <text x="130" y="206" font-size="20" font-weight="900" fill="var(--ink)" text-anchor="middle">明細表</text>
+  <line x1="56" y1="152" x2="204" y2="152" stroke="var(--gold)" stroke-dasharray="5 4"/>
+  <text x="210" y="90" font-size="10" fill="var(--gold)">正方形</text>
+  <text x="210" y="196" font-size="10" fill="var(--gold)">残り</text>
+  <text x="130" y="262" font-size="12" fill="var(--muted)" text-anchor="middle">幅 1 : 高さ 1.618</text>
+  <text x="130" y="282" font-size="11" fill="var(--muted)" text-anchor="middle">上の正方形に写真、残りに No. と単語</text>
+</svg>
+<div class="body">
+<h2>案5 図鑑のスライドのカード: 幅 1 : 高さ 1.618</h2>
+<p><span class="tag">中くらいの変更</span></p>
+<p>カードを黄金長方形にすると、上から正方形を切り取った残りも黄金長方形になります。上の正方形に切り抜き、残りに No.・読み・単語を入れると、写真の枠と文字の枠の比が自然に決まります。トレーディングカードやクレジットカード（約 1 : 1.586）に近い形なので、「集めるカード」らしさも出ます。</p>
+<dl><dt>変える所</dt><dd><code>DexCarousel</code> のカードの縦横比</dd>
+<dt>注意</dt><dd>Duo の横長で「入るだけ全部」並べる時、カードが縦に長くなる分、1列に入る枚数が変わる。</dd></dl>
+</div>
+</section>
+
+<!-- 案6 -->
+<section class="idea">
+<svg viewBox="0 0 260 260" role="img" aria-label="アイコンの2つの輪を黄金比の大きさにした図">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0589FE"/><stop offset="1" stop-color="#0040DA"/></linearGradient></defs>
+  <rect x="30" y="30" width="200" height="200" rx="46" fill="url(#g)"/>
+  <circle cx="108" cy="132" r="50" fill="none" stroke="#fff" stroke-width="12"/>
+  <circle cx="170" cy="132" r="31" fill="none" stroke="#fff" stroke-width="12"/>
+  <text x="130" y="252" font-size="11" fill="var(--muted)" text-anchor="middle">左の輪の半径 50 : 右の輪 31（≈ 1.618 : 1）</text>
+</svg>
+<div class="body">
+<h2>案6 アイコン: C と W の2つの輪の大きさを黄金比に</h2>
+<p><span class="tag warn">慎重に</span><span class="tag">見た目の変更が大きい</span></p>
+<p>今は同じ大きさの2つの輪です。左（C）を大きく、右（W）を 0.618 倍にすると、「大きな世界から言葉を1つつかまえる」動きが形に出ます。開く演出（輪から C と W が出る）もこの大きさに合わせられます。</p>
+<dl><dt>注意</dt><dd>アイコンはストアでの見分けやすさに直結し、開く演出・ログイン画面のロゴ・ウィジェットも全部変わる。変えるなら最後に、比べる見本を作ってから。</dd></dl>
+</div>
+</section>
+
+<section class="lead">
+<h2>使わない方がいい所</h2>
+<p>・Duo の見開き（横長）の左右の分け方: 折り目を真ん中にする決定（10-30）があり、61.8 : 38.2 にすると折り目と境目がずれる。<br>・iPhone のホームのアルバム: 「どの写真も同じ大きさ」（10-22）と合わない。</p>
+<h2>進め方の提案</h2>
+<ol class="rank">
+<li>案1（単語の詳細の 61.8 : 38.2、縮み方 0.618）: 今回の変更の続きで、数字を2つ変えるだけ。</li>
+<li>案3（余白 8・13・21・34）と案2（文字の段）: 画面全体の統一感が一番上がる。触る所が多いので、単語の頁 → 図鑑 → ほかの順に分けて進める。</li>
+<li>案4・案5: 見本を見て決める。</li>
+<li>案6: 最後に、見本の比較を作ってから。</li>
+</ol>
+</section>
+</main>
+</body>
+</html>
