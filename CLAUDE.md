@@ -274,8 +274,10 @@
     （`coach.selfieFlip`・`showSelfieHint`。写真のタップで返す操作は今のまま）。「n回目」の札は写真に戻さない。
   - **「表示する写真」で選んだ元の写真は、頁を開いた時もその写真**（同日夜「元の画像というボタンを押しても…切り抜きが見出しの
     画像になる」。10-09 の「開く時はいつも切り抜き」をやめ、10-21 の「選んだ時だけ元の写真」に揃えた。`applyHeroRole`）。
-  - **写真の上からでも頁がスクロールできる**（同日夜）: 長押しは `onLongPressGesture` でなく `simultaneousGesture(LongPressGesture)`
-    （前者がスクロールのタッチを奪っていた）。`WordOpenTests.test_scrollPageDownAndUp` が写真の上から引いて頁が動くかを確かめる。
+  - **写真の上からでも頁がスクロールできる**（同日夜）: 写真の横引きと長押しは SwiftUI のジェスチャーでなく UIKit の認識器
+    （`HeroGestures.swift` の `SidewaysPan`・`HoldPress`、`UIGestureRecognizerRepresentable`）。横に動いた時だけ始まり、縦は頁の
+    スクロールに渡す。SwiftUI の `DragGesture`/`LongPressGesture` は `simultaneousGesture` でもスクロールを止めた（UI テストで確認）。
+    `WordOpenTests.test_scrollPageDownAndUp` が写真の上から引いて単語の札が上がるかを確かめる。
   - **図鑑のギャラリーがスクロール中に飛ばない**: 各マスの高さを固定（`DexSlotSize`: 絵＋「No.」＋名前の箱）、カテゴリーの札は
     最初から全部並べ（中のマスだけ見える所を作る）、札の高さは行の数で決まる。前は札が遅れて作られ、読みの行の有無で高さが変わって
     位置が飛んだ（撮った後の着地で下のカテゴリーへ飛んだ後に上へ戻る時）。

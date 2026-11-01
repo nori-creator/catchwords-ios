@@ -82,8 +82,8 @@ struct WordDetailView: View {
     @State private var laterRatios: [String: CGFloat] = [:]
     /// A finger is on the hero (pressing) or swiping it (the slideshow waits; a swipe the scroll view takes over
     /// resets by itself), the hero is on screen, and which way the last slide went.
-    @GestureState private var pressing: Bool = false
-    @GestureState private var swiping: Bool = false
+    @State private var pressing: Bool = false
+    @State private var swiping: Bool = false
     /// The one-time hint beside the turn button (「タップで自撮りへ」): shown for a moment on the first word with a selfie
     /// after the app is installed (owner 2026-11-01), then never again.
     @AppStorage("coach.selfieFlip") private var selfieCoachSeen: Bool = false
@@ -94,8 +94,6 @@ struct WordDetailView: View {
     /// photo's width.
     @State private var dragX: CGFloat = 0
     @State private var heroWidth: CGFloat = 0
-    /// The drag is sideways (decided at its start; an up-and-down drag is the page's scroll).
-    @State private var dragSideways: Bool?
     /// A finger is bringing the next photo in (no slide of its own when it becomes the page's), and it is finishing.
     @State private var handSwap: Bool = false
     @State private var handTurning: Bool = false
@@ -729,21 +727,28 @@ struct WordDetailView: View {
                     .allowsHitTesting(false)
             }
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 12)
-                .updating($swiping) { _, state, _ in state = true }
-                .onChanged { v in pull(v, count: later.count) }
-                .onEnded { v in letGo(v, count: later.count) }
-        )
-        // A drag the page's scroll took over never ends: the photo goes back to its place.
-        .onChange(of: swiping) { _, on in
-            guard !on else { return }
-            Task { @MainActor in
+        // UIKit recognizers (`HeroGestures.swift`): the sideways pan begins only for a sideways movement, so an
+        // up-and-down drag on the picture scrolls the page; the long press fails as soon as the finger moves.
+        .gesture(SidewaysPan(
+            onBegan: { swiping = true },
+            onChanged: { x in pull(x, count: later.count) },
+            onEnded: { x, vx in
+                swiping = false
+                letGo(x, velocity: vx, count: later.count)
+            },
+            onCancelled: {
+                swiping = false
                 guard !handTurning else { return }
-                dragSideways = nil
                 if dragX != 0 { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragX = 0 } }
-            }
-        }
+                handSwap = false
+            }))
+        // 長押し: この単語をどの絵で見せるか選ぶ（Web HeroPhotoPicker）。 Not while the catch is still being saved.
+        // A finger held on the photo also holds the slideshow (`pressing`).
+        .gesture(HoldPress(onPressing: { pressing = $0 }, onLongPress: {
+            guard shownEditable else { return }
+            Haptics.impact(.medium)
+            pickingHero = true
+        }))
         .overlay(alignment: .bottom) {
             if !later.isEmpty, !showSelfie {
                 HStack(spacing: 6) {
@@ -812,25 +817,28 @@ struct WordDetailView: View {
     /// The space between two photos side by side while one is pulled across.
     static let pageGap: CGFloat = 24
 
-    /// A finger pulling the photo sideways: it follows the finger, with the next (or the previous) photo beside it; at
-    /// either end it gives a little and springs back.
-    private func pull(_ v: DragGesture.Value, count: Int) {
+    /// A finger pulling the photo sideways by `w` points: it follows the finger, with the next (or the previous) photo
+    /// beside it; at either end it gives a little and springs back.
+    private func pull(_ w: CGFloat, count: Int) {
         guard count > 0, !showSelfie, !handTurning else { return }
-        if dragSideways == nil { dragSideways = abs(v.translation.width) > abs(v.translation.height) * 1.2 }
-        guard dragSideways == true else { return }
-        let w = v.translation.width
         let hasNext = w < 0 ? heroPage < count : heroPage > 0
         handSwap = true
         dragX = hasNext ? w : w / 3
     }
 
-    /// Let go: past a third of the photo (or flicked) the next photo finishes coming in, else the photo goes back.
-    private func letGo(_ v: DragGesture.Value, count: Int) {
-        defer { dragSideways = nil }
-        guard dragSideways == true, count > 0, !showSelfie, !handTurning, heroWidth > 0 else { return }
-        let forward = v.translation.width < 0
+    /// Let go after pulling `w` points at `velocity` points a second: past a third of the photo (or flicked) the next
+    /// photo finishes coming in, else the photo goes back.
+    private func letGo(_ w: CGFloat, velocity: CGFloat, count: Int) {
+        guard count > 0, !showSelfie, !handTurning, heroWidth > 0 else {
+            if dragX != 0 { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragX = 0 } }
+            handSwap = false
+            return
+        }
+        let forward = w < 0
         let target = forward ? heroPage + 1 : heroPage - 1
-        let far = abs(v.translation.width) > heroWidth / 3 || abs(v.predictedEndTranslation.width) > heroWidth * 0.6
+        // Where the finger would be a moment later at this speed (the flick).
+        let predicted = w + velocity * 0.15
+        let far = abs(w) > heroWidth / 3 || abs(predicted) > heroWidth * 0.6
         guard far, (0...count).contains(target) else {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragX = 0 } completion: { handSwap = false }
             return
@@ -1097,19 +1105,6 @@ struct WordDetailView: View {
             .fullScreenCover(isPresented: $showingOriginal) {
                 OriginalPhotoViewer(path: originalPath, url: dex.url(for: originalPath, preferThumb: false))
             }
-            // 長押し: この単語をどの絵で見せるか選ぶ（Web HeroPhotoPicker）。 Not while the catch is still being saved.
-            // A finger on the photo also holds the slideshow (`pressing`). A simultaneous gesture, not
-            // `onLongPressGesture`: that one took the touch from the page's scroll view, so a drag that began on the
-            // picture did not scroll the page (owner 2026-11-01: 「切り抜きの上をスクロールしても下に行かない」).
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.45)
-                    .updating($pressing) { _, state, _ in state = true }
-                    .onEnded { _ in
-                        guard shownEditable else { return }
-                        Haptics.impact(.medium)
-                        pickingHero = true
-                    }
-            )
             .accessibilityAction(named: L("表示する写真を選ぶ")) { if shownEditable { pickingHero = true } }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(back ? L("自撮り写真") : L("写真"))
