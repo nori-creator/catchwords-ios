@@ -462,11 +462,19 @@ struct HomeAlbum: View {
     /// iPhone Duo open sideways: each day's photos in two columns on the two pages (`CollageBoard.spread`).
     var spread: Bool = false
 
+    /// The days drawn (the App Store shots, DEBUG only: today, and the next day when held sideways).
+    private var shownDays: [AlbumDay] {
+        #if DEBUG
+        if StoreShot.isOn { return Array(days.prefix(spread ? 2 : 1)) }
+        #endif
+        return days
+    }
+
     var body: some View {
         // The App Store shots show only today: the day below peeked out under the tab bar (owner 2026-10-31
         // 「バーに隠れて見える猫をけして」). Open sideways the tabs are in the side strip, nothing covers the bottom, and
         // today's four photos fill only the top half, so the next day follows (no empty lower half).
-        let shown = StoreShot.isOn ? Array(days.prefix(spread ? 2 : 1)) : days
+        let shown = shownDays
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(shown.enumerated()), id: \.element.id) { i, d in
                 daySection(d)
