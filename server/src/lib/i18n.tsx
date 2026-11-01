@@ -1450,7 +1450,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "dexcat.6": { ja: "家具・インテリア", en: "Furniture & Interior", "zh-TW": "家具、室內擺設" },
   "dexcat.7": { ja: "家電", en: "Appliances", "zh-TW": "家電" },
   "dexcat.8": { ja: "スマホ・パソコン", en: "Phones & Computers", "zh-TW": "手機、電腦" },
-  "dexcat.9": { ja: "文房具・本", en: "Stationery & Books", "zh-TW": "文具、書" },
+  "dexcat.9": { ja: "文具・本・書類", en: "Stationery, Books & Documents", "zh-TW": "文具、書、文件" },
   "dexcat.10": { ja: "洗面・日用品", en: "Toiletries & Daily Goods", "zh-TW": "盥洗、日用品" },
   "dexcat.11": { ja: "服", en: "Clothes", "zh-TW": "衣服" },
   "dexcat.12": {

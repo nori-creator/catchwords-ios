@@ -17,7 +17,7 @@ struct CCCategory: Equatable {
         6:  (0xF6E6DD, 0xA9836E),  // 家具・インテリア
         7:  (0xE0ECF3, 0x86A3B5),  // 家電
         8:  (0xEDE2FF, 0xA383E3),  // スマホ・パソコン
-        9:  (0xFAE8BE, 0xECBE3F),  // 文房具・本
+        9:  (0xFAE8BE, 0xECBE3F),  // 文具・本・書類
         10: (0xC7F4F0, 0x2DC2BB),  // 洗面・日用品
         11: (0xF9DFFF, 0xBA7DC8),  // 服
         12: (0xFFDCF2, 0xDB78B2),  // 靴・バッグ・小物

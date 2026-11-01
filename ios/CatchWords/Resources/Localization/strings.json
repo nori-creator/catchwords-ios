@@ -3436,12 +3436,12 @@
   "ko": "문구",
   "vi": "Văn phòng phẩm"
  },
- "文房具・本": {
-  "en": "Stationery & Books",
-  "zh-TW": "文具、書",
-  "es": "Papelería y libros",
-  "ko": "문구·책",
-  "vi": "Văn phòng phẩm & sách"
+ "文具・本・書類": {
+  "en": "Stationery, Books & Documents",
+  "zh-TW": "文具、書、文件",
+  "es": "Papelería, libros y documentos",
+  "ko": "문구·책·서류",
+  "vi": "Văn phòng phẩm, sách & giấy tờ"
  },
  "料理・屋台": {
   "en": "Dishes & Street Food",
