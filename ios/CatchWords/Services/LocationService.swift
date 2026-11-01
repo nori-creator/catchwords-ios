@@ -113,41 +113,26 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// The place name in the display language (a saved name stays in the language it was saved in, so
     /// screens re-ask with `localizedName` when the coordinates are known).
     ///
-    /// A named place where there is one — the shop, café, park or station it was taken at, then the district
-    /// (「星巴克 忠孝門市 · 大安區」) — so the learner can picture where it was (owner 2026-10-31: 「ただの住所になってるから
-    /// …具体的な場所やお店の名前を表示して」). Without one, the city and district as before.
-    ///
-    /// How near a place must be follows how sure the point is (owner 2026-11-01: 「もっと正確に場所、具体的な名称を
-    /// 表示して。もし特定の場所が、具体的なお店、場所がない場合は、その場所の地図の住所を表示して」):
-    /// - a precise point: the nearest shop or place within `spotRadius`, else the park, station or campus it lies in,
-    ///   else its address on the map (「台北市 大安區 和平東路一段162號」);
-    /// - a point only known to within a block or so: no shop (the nearest one to a wrong point is a wrong name) —
-    ///   the park, station or campus, else the street without its number;
+    /// The address of the point on the map — city, district, street and number (「台北市 大安區 和平東路一段162號」).
+    /// No shop or place name is picked by itself any more: the nearest shop to the phone's point was mostly the wrong one
+    /// (owner 2026-11-01: 「具体的な場所の名前がほぼ間違ってるから…詳しい住所名前を表示するだけでいいわ。もとに戻して」 —
+    /// undoes 2026-10-31's 「具体的な場所やお店の名前を表示して」). The learner names the place themselves when they want
+    /// to: 「場所を直す」 (`PlaceEditSheet`) lets them write a name or pick one of the places nearby.
+    /// - a point known to within about 50 m (or read back from saved coordinates, accuracy 0): the street and its number;
+    /// - within a block or so: the street without its number;
     /// - a rough point (Precise Location off, or no better fix): the city and district.
-    /// A point read back from saved coordinates has no accuracy (0) and is taken as precise.
     func placeName(for location: CLLocation) async -> String? {
         let accuracy = location.horizontalAccuracy
-        let precise = accuracy >= 0 && accuracy <= Self.spotRadius + 15
         let rough = accuracy < 0 || accuracy > 150
-        async let spot = Self.nearbySpot(location, look: precise)
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: L10n.locale)
-        let p = placemarks?.first
-        // A park, a station or a campus the point lies inside (Apple's own areas) when no shop is right there.
-        let named = await spot ?? (rough ? nil : p?.areasOfInterest?.lazy.compactMap { Self.properName($0) }.first)
+        guard let p = placemarks?.first else { return nil }
         // Apple answers in the display language where the place has a name in it, else in the place's own script (a
         // Taipei district in 中文 on a Spanish screen): shown as it comes — a place's name as it is written there
         // (owner 2026-10-31: 「その地名や具体的な名前はそのまま表記して。英語でも中国語でも」).
-        let parts: [String]
-        if let named {
-            let area = [p?.subLocality, p?.locality].lazy.compactMap { Self.properName($0) }.first
-            parts = [named] + (area.map { $0 == named ? [] : [$0] } ?? [])
-        } else if let p {
-            let area = [p.locality, p.subLocality].compactMap { Self.properName($0) }
-            let street = rough ? nil : Self.street(p, withNumber: precise || accuracy <= 50)
-            parts = area + (street.map { s in area.contains(s) ? [] : [s] } ?? [])
-        } else {
-            return nil
-        }
+        var area = [p.locality, p.subLocality].compactMap { Self.properName($0) }
+        if area.isEmpty, let name = Self.properName(p.name) { area = [name] }
+        let street = rough ? nil : Self.street(p, withNumber: accuracy <= 50)
+        let parts = area + (street.map { s in area.contains(s) ? [] : [s] } ?? [])
         return parts.isEmpty ? nil : parts.joined(separator: L10n.current.placeSeparator)
     }
 
@@ -159,16 +144,6 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         // The number as part of the street's name: Han (台灣・日本) writes it after the street without a space.
         let han = road.unicodeScalars.contains { $0.properties.isIdeographic }
         return han ? road + number : number + " " + road
-    }
-
-    /// How near a shop or other place must be to be named: the phone's fix is within about this much in a city.
-    nonisolated static let spotRadius: CLLocationDistance = 35
-
-    /// The nearest named place (a shop, café, restaurant, park, station, museum…) within `spotRadius`; nil when none is
-    /// that near.
-    private static func nearbySpot(_ location: CLLocation, look: Bool) async -> String? {
-        guard look else { return nil }
-        return await spots(near: location.coordinate, radius: spotRadius).first?.name
     }
 
     /// A named place near a point, for the learner to pick (`PlaceEditSheet`).
