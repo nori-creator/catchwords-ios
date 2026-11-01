@@ -510,7 +510,7 @@ nonisolated struct Sticker: Codable, Sendable, Identifiable, Hashable {
     var cutoutImageUrl: String?
     var selfieImageUrl: String?
     var caption: String?
-    let locationName: String?
+    var locationName: String?
     let takenAt: Date
     let captureType: String?
     var word: Word?
@@ -528,6 +528,9 @@ nonisolated struct Sticker: Codable, Sendable, Identifiable, Hashable {
     /// The level band the word was saved with (`stickers.level_band`, docs/sharing-rules.md S4): "A>B" = its examples
     /// and chunks are that band's; "legacy" = saved before the rule (read as before); nil = not written yet / unknown.
     var levelBand: String? = nil
+    /// The place's name was written or picked by the learner (`stickers.location_custom`): shown as it is, never looked
+    /// up again from the point (owner 2026-10-31: 「ユーザーが場所を直す機能もつけて」).
+    var locationCustom: Bool? = nil
 
     nonisolated struct PlaceholderCredit: Codable, Sendable, Hashable {
         var name: String?
@@ -555,6 +558,7 @@ nonisolated struct Sticker: Codable, Sendable, Identifiable, Hashable {
         case placeholderImageUrl = "placeholder_image_url"
         case placeholderCredit = "placeholder_credit"
         case levelBand = "level_band"
+        case locationCustom = "location_custom"
         case wordId = "word_id"
         case shelfKey = "shelf_key"
         case objectImageUrl = "object_image_url"

@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import CoreLocation
 
 /// Word detail (WordCard.tsx): a hero card, then one white card per section that has content.
 struct WordDetailView: View {
@@ -85,13 +86,28 @@ struct WordDetailView: View {
     @GestureState private var swiping: Bool = false
     @State private var heroVisible: Bool = true
     @State private var slideForward: Bool = true
-    /// What decides the picture's height (`heroMaxHeight`): the scrolling page's height and the date card, the word's
-    /// card and the first section under the picture.
+    /// How far a finger has pulled the photo sideways (the next or the previous photo comes in beside it), and the
+    /// photo's width.
+    @State private var dragX: CGFloat = 0
+    @State private var heroWidth: CGFloat = 0
+    /// The drag is sideways (decided at its start; an up-and-down drag is the page's scroll).
+    @State private var dragSideways: Bool?
+    /// A finger is bringing the next photo in (no slide of its own when it becomes the page's), and it is finishing.
+    @State private var handSwap: Bool = false
+    @State private var handTurning: Bool = false
+    /// Every time the word was taken, and where, opened under the photo on screen's.
+    @State private var placesOpen: Bool = false
+    /// The photo whose place is being put right (`PlaceEditSheet`).
+    @State private var editingPlace: Sticker?
+    /// What decides the picture's height (`heroMaxHeight`): the scrolling page's size, the date card, the word's
+    /// card and its meaning under the picture.
     @State private var viewportSize: CGSize = .zero
     @State private var viewportMinX: CGFloat = 0
     @State private var metaHeight: CGFloat = 0
     @State private var headHeight: CGFloat = 0
-    @State private var firstSectionHeight: CGFloat = 0
+    @State private var meaningHeight: CGFloat = 0
+    /// `derived`'s last answer.
+    @State private var memo = DerivedMemo()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var widthClass
@@ -112,8 +128,19 @@ struct WordDetailView: View {
     private var extras: WordExtras? { word?.extras }
     private var headword: String { word?.headword ?? "" }
 
-    /// A selfie can be taken for this word (its own photo, a front camera, already saved).
-    private var canTakeSelfie: Bool { current.hasOwnPhoto && SelfieCamera.isAvailable && !isLocked }
+    /// The word's later photos (`encounter-<id>`), oldest first: each paged in the hero with the first photo's tools
+    /// (owner 2026-10-30: 「2回目3回目だと…無いから足して」).
+    private var laterCaptures: [Sticker] { dex.laterCaptures(of: current) }
+    /// The photo on screen: the first (page 0) or a later one. The hero's pictures, its tools and its sheet follow it.
+    private var shown: Sticker {
+        guard heroPage > 0, let s = laterCaptures[safe: heroPage - 1] else { return current }
+        return s
+    }
+    /// The photo on screen can be changed: the first once saved, a later one once its record is on the server.
+    private var shownEditable: Bool { shown.id == current.id ? !isLocked : dex.savedEncounterId(shown) != nil }
+
+    /// A selfie can be taken for this photo (its own photo, a front camera, already saved).
+    private var canTakeSelfie: Bool { shown.hasOwnPhoto && SelfieCamera.isAvailable && shownEditable }
 
     /// 自撮りを撮る in the long-press photo sheet, under 写真を替える (owner 2026-10-14); nil = not offered.
     private var selfieHandler: ((UIImage) async -> Void)? {
@@ -181,8 +208,18 @@ struct WordDetailView: View {
             }
             .onChange(of: scrollTarget) { _, target in
                 guard let target else { return }
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .center) }
                 scrollTarget = nil
+                // The cards are built lazily: the examples' card is brought on screen first (an example inside a card
+                // not built yet cannot be scrolled to), then the example itself.
+                guard target.hasPrefix("example-") else {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .center) }
+                    return
+                }
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { proxy.scrollTo(CardSection.example.id, anchor: .top) }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(320))
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .center) }
+                }
             }
             // The first tour's section: brought up under the jump chips, where its light lands.
             .onChange(of: router.tourSection) { _, section in
@@ -206,7 +243,10 @@ struct WordDetailView: View {
     /// A column of the page's cards: its margins, its width (exactly the screen's on the iPhone, `PageColumnWidth`), and
     /// the page's text size and review mode.
     private func pageColumn<Content: View>(width: CGFloat?, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(spacing: 14) { content() }
+        // Lazy: only the cards on screen are built and measured when the page opens. All of them were, each chunk row
+        // up to nine times (`ChunkLineView`'s sizes to fit one line) — the page came up 2–3 s after the tap on the CI
+        // simulator (owner 2026-10-31: 「ホームの画像をタップしてから、単語の詳細が表示されるまでのラグがある」).
+        LazyVStack(spacing: 14) { content() }
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 40)
@@ -236,7 +276,9 @@ struct WordDetailView: View {
     /// The encounters, the sections (without the first when it is on the left page) and the footer.
     @ViewBuilder
     private func restCards(skipFirstSection: Bool) -> some View {
-        if !isLocked { EncounterHistoryView(stickerId: current.id) }
+        // The list of every photo and place is in metaCard now; this is the server's list when no re-encounter rows
+        // could be read.
+        if !isLocked, laterCaptures.isEmpty { EncounterHistoryView(stickerId: current.id) }
         // Web WordCard: no frequency/register meters and no separate "使う場面" card
         // (owner: メーターいらない). Register is a chip word in the header only.
         let shown = visibleSections.filter { hasContent($0) || isFilling($0) }
@@ -249,7 +291,7 @@ struct WordDetailView: View {
             if hasContent(section) {
                 sectionView(section)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
-                        if section == firstShownSection { firstSectionHeight = h }
+                        if section == .meaning { meaningHeight = h }
                     }
                     // The first tour goes through the sections one by one (owner 2026-10-28).
                     .tourAnchor(.wordSection, if: router.tour == .wordSection && router.tourSection == section)
@@ -288,6 +330,7 @@ struct WordDetailView: View {
 
     /// Once the page is on screen: the hero's picture, and the previews' starting state.
     private func pageAppeared() {
+        UITestTrace.log("word page appeared")
         applyHeroRole(animated: false)
         if previewSelfieOriginal { selfieOriginal = true }
         if previewPanel {
@@ -328,6 +371,11 @@ struct WordDetailView: View {
         .task(id: current.id + "|cutout") {
             if CutoutBackfill.needsCutout(current) { await CutoutBackfill.shared.make(for: current, dex: dex) }
         }
+        // A later photo without its cut-out gets one too, when it is shown (owner 2026-10-30).
+        .task(id: shown.id + "|" + (shown.objectImageUrl ?? "") + "|cutout") {
+            guard shown.id != current.id, CutoutBackfill.needsCutout(shown) else { return }
+            await CutoutBackfill.shared.make(for: shown, dex: dex)
+        }
         .task(id: sticker.id + "|play") {
             // The word is read once when its page opens (web WordCard autoplay, 400 ms) — keyed on the page's own
             // sticker, so a catch saved while its page is open is not read a second time.
@@ -340,9 +388,14 @@ struct WordDetailView: View {
         .onChange(of: learningLang) { _, l in prefs.use(l) }
         .onAppear { pageAppeared() }
         .aiConsentSheet(isPresented: $askAIConsent)
+        .sheet(item: $editingPlace) { s in placeSheet(s) }
         .sheet(isPresented: $pickingHero) {
-            HeroPhotoPickerSheet(sticker: current, onPick: { role in
-                try await dex.setHeroRole(current, role: role)
+            HeroPhotoPickerSheet(sticker: shown, onPick: { role in
+                if let eid = dex.savedEncounterId(shown) {
+                    try await dex.setEncounterHeroRole(eid, role: role)
+                } else {
+                    try await dex.setHeroRole(current, role: role)
+                }
                 applyHeroRole(animated: true)
             }, onReplace: { item in
                 // 写真を替える sits at the bottom of this sheet now (owner 2026-10-11).
@@ -581,10 +634,10 @@ struct WordDetailView: View {
     // MARK: - Photo hero (flips to the selfie like a card; slides through the word's photos)
 
     private var frontPath: String? {
-        showCutout ? (current.cutoutImageUrl ?? current.objectImageUrl ?? current.placeholderImageUrl)
-            : (current.objectImageUrl ?? current.cutoutImageUrl ?? current.placeholderImageUrl)
+        showCutout ? (shown.cutoutImageUrl ?? shown.objectImageUrl ?? shown.placeholderImageUrl)
+            : (shown.objectImageUrl ?? shown.cutoutImageUrl ?? shown.placeholderImageUrl)
     }
-    private var hasSelfie: Bool { current.selfieImageUrl != nil }
+    private var hasSelfie: Bool { shown.selfieImageUrl != nil }
 
     /// A later encounter's picture in the hero: the re-encounter's cut-out where it saved one, else its photo — shown
     /// like the first one (owner 2026-10-15: the second and later photos were not cut-outs). Read from the dex's
@@ -622,19 +675,21 @@ struct WordDetailView: View {
     /// The picture is never smaller than this (a short screen, very large text).
     static let minHeroHeight: CGFloat = 150
 
-    /// The picture is as tall as leaves the date, the word with its reading and the first section (its meaning) on
-    /// the screen when the page opens — on the iPhone and on iPhone Duo's screens alike (owner 2026-10-30: 「単語の詳細を
-    /// 開いてまず画像しか映ってない…切り抜きの画像と…台湾の中国語と意味くらいが映るように画像の大きさを調整して」).
-    /// Until the page is measured, no limit.
+    /// The picture is as tall as leaves when and where it was taken, the word with its reading and its meaning on the
+    /// screen when the page opens — on the iPhone and on iPhone Duo's screens alike (owner 2026-10-30/31: 「パッと開いた
+    /// 時に写真しか写ってない…切り抜きの画像と…取った場所の地名、見出しの単語、日本語訳はパッと表示されるように画像の
+    /// 大きさを調整して」; from the iPhone Duo session's e994feb). The meaning counts only where it is the first section
+    /// (a learner who put another first keeps a bigger picture). Until the page is measured, no limit.
     private var heroMaxHeight: CGFloat {
         let viewportHeight = viewportSize.height
         guard viewportHeight > 0, metaHeight > 0, headHeight > 0 else { return .infinity }
-        let below = metaHeight + headHeight + firstSectionHeight + 14 * 3  // the cards and the stack's spacing
+        let meaning = visibleSections.first { hasContent($0) } == .meaning ? meaningHeight + 14 : 0
+        let below = metaHeight + 14 + headHeight + 14 + meaning
         let unsaved: CGFloat = isUnsaved ? 80 : 0
-        return max(Self.minHeroHeight, viewportHeight - 8 - below - unsaved - 14)
+        return max(Self.minHeroHeight, viewportHeight - 8 - 14 - below - unsaved)
     }
 
-    /// The first section shown under the word's card (its meaning, normally).
+    /// The first section shown under the word's card (its meaning, normally): on the left page when held sideways.
     private var firstShownSection: CardSection? {
         visibleSections.first { hasContent($0) }
     }
@@ -652,21 +707,35 @@ struct WordDetailView: View {
             heroFace(later)
                 .id(heroPage)
                 .transition(slideTransition)
+                .offset(x: dragX)
         }
-        .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity, maxHeight: heroMaxHeight)
+        .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity,
+               maxHeight: heroMaxHeight.isFinite ? heroMaxHeight : nil)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { heroWidth = $0 }
+        // The photo coming in beside it, under the finger (owner 2026-10-31: 「スワイプしてスムーズに画像を変更」).
+        .overlay {
+            let next = dragX < 0 ? heroPage + 1 : heroPage - 1
+            if dragX != 0, (0...later.count).contains(next) {
+                neighbourFace(next, later)
+                    .offset(x: dragX + (dragX < 0 ? 1 : -1) * (heroWidth + Self.pageGap))
+                    .allowsHitTesting(false)
+            }
+        }
         .simultaneousGesture(
-            DragGesture(minimumDistance: 24)
+            DragGesture(minimumDistance: 12)
                 .updating($swiping) { _, state, _ in state = true }
-                .onEnded { v in
-                    guard !later.isEmpty, !showSelfie,
-                          abs(v.translation.width) > abs(v.translation.height) * 1.4 else { return }
-                    let next = v.translation.width < -50 ? heroPage + 1 : v.translation.width > 50 ? heroPage - 1 : heroPage
-                    let clamped = min(max(next, 0), later.count)
-                    guard clamped != heroPage else { return }
-                    Haptics.selection()
-                    slide(to: clamped, forward: clamped > heroPage)
-                }
+                .onChanged { v in pull(v, count: later.count) }
+                .onEnded { v in letGo(v, count: later.count) }
         )
+        // A drag the page's scroll took over never ends: the photo goes back to its place.
+        .onChange(of: swiping) { _, on in
+            guard !on else { return }
+            Task { @MainActor in
+                guard !handTurning else { return }
+                dragSideways = nil
+                if dragX != 0 { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragX = 0 } }
+            }
+        }
         .overlay(alignment: .bottom) {
             if !later.isEmpty, !showSelfie {
                 HStack(spacing: 6) {
@@ -691,11 +760,20 @@ struct WordDetailView: View {
             }
         }
         .onScrollVisibilityChange(threshold: 0.3) { heroVisible = $0 }
+        // Each photo opens on its own picture (its cut-out, or its chosen side), at its own shape.
+        .onChange(of: heroPage) { _, _ in
+            cutoutRatio = nil
+            selfieRatio = nil
+            selfieCutRatio = nil
+            selfieOriginal = false
+            showCutout = true
+            applyHeroRole(animated: false)
+        }
         // Keyed on the page shown too: each photo gets its full time, also after a swipe.
         .task(id: "\(later.count)|\(heroPage)|\(slidePaused)") { await autoSlide(count: later.count) }
         // The selfie's cut-out (its people and what they hold) is made on this phone before the card is turned.
-        .task(id: current.selfieImageUrl ?? "") {
-            if let p = current.selfieImageUrl, !isLocked { SelfieCutouts.shared.request(p, dex: dex) }
+        .task(id: shown.selfieImageUrl ?? "") {
+            if let p = shown.selfieImageUrl, shownEditable { SelfieCutouts.shared.request(p, dex: dex) }
         }
         // Keyed on the photo too: a replaced photo reloads the list while the page is open. A catch still being
         // saved has no photos on the server yet (the list is read once it is saved).
@@ -707,8 +785,78 @@ struct WordDetailView: View {
         }
     }
 
-    /// The next photo slides in from the right (from the left going back); with Reduce Motion they cross-fade.
+    /// The space between two photos side by side while one is pulled across.
+    static let pageGap: CGFloat = 24
+
+    /// A finger pulling the photo sideways: it follows the finger, with the next (or the previous) photo beside it; at
+    /// either end it gives a little and springs back.
+    private func pull(_ v: DragGesture.Value, count: Int) {
+        guard count > 0, !showSelfie, !handTurning else { return }
+        if dragSideways == nil { dragSideways = abs(v.translation.width) > abs(v.translation.height) * 1.2 }
+        guard dragSideways == true else { return }
+        let w = v.translation.width
+        let hasNext = w < 0 ? heroPage < count : heroPage > 0
+        handSwap = true
+        dragX = hasNext ? w : w / 3
+    }
+
+    /// Let go: past a third of the photo (or flicked) the next photo finishes coming in, else the photo goes back.
+    private func letGo(_ v: DragGesture.Value, count: Int) {
+        defer { dragSideways = nil }
+        guard dragSideways == true, count > 0, !showSelfie, !handTurning, heroWidth > 0 else { return }
+        let forward = v.translation.width < 0
+        let target = forward ? heroPage + 1 : heroPage - 1
+        let far = abs(v.translation.width) > heroWidth / 3 || abs(v.predictedEndTranslation.width) > heroWidth * 0.6
+        guard far, (0...count).contains(target) else {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragX = 0 } completion: { handSwap = false }
+            return
+        }
+        Haptics.selection()
+        handTurning = true
+        let end = (forward ? -1 : 1) * (heroWidth + Self.pageGap)
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.92)) { dragX = end } completion: {
+            // The photo that came in is now the page's own, in the same place: no slide of its own, only the
+            // picture's height settling to its shape.
+            slideForward = forward
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                heroPage = target
+                dragX = 0
+            } completion: {
+                handSwap = false
+                handTurning = false
+            }
+        }
+    }
+
+    /// A photo as its page opens (its cut-out, else its photo), without the page's buttons: the one beside the photo
+    /// while a finger pulls it. Drawn like `mainFace`, so nothing changes when it becomes the page's photo.
+    @ViewBuilder
+    private func neighbourFace(_ page: Int, _ later: [LaterPhoto]) -> some View {
+        if page > 0, laterCaptures[safe: page - 1] == nil, let p = later[safe: page - 1] {
+            laterFace(p, number: page + 1)
+        } else {
+            let s = page == 0 ? current : (laterCaptures[safe: page - 1] ?? current)
+            let path = s.cutoutImageUrl ?? s.objectImageUrl ?? s.placeholderImageUrl
+            let isCut = path != nil && path == s.cutoutImageUrl
+            (isCut ? Color.clear : Theme.surface2)
+                .aspectRatio(isCut ? Self.cutRatio(ImageCache.shared.image(for: path ?? "")?.size) : 0.8, contentMode: .fit)
+                .overlay {
+                    StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: isCut ? .fit : .fill)
+                        .padding(isCut ? 14 : 0)
+                        .shadow(color: .black.opacity(isCut ? 0.2 : 0), radius: 10, y: 7)
+                }
+                .clipShape(.rect(cornerRadius: 28, style: .continuous))
+                .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
+                .overlay(alignment: .topLeading) {
+                    if page > 0 { captureBadge(number: page + 1, at: s.takenAt, place: s.locationName) }
+                }
+        }
+    }
+
+    /// The next photo slides in from the right (from the left going back); with Reduce Motion they cross-fade. One a
+    /// finger brought in is already in place.
     private var slideTransition: AnyTransition {
+        if handSwap { return .identity }
         if reduceMotion { return .opacity }
         return .asymmetric(insertion: .move(edge: slideForward ? .trailing : .leading).combined(with: .opacity),
                            removal: .move(edge: slideForward ? .leading : .trailing).combined(with: .opacity))
@@ -729,10 +877,14 @@ struct WordDetailView: View {
 
     @ViewBuilder
     private func heroFace(_ later: [LaterPhoto]) -> some View {
-        if heroPage > 0, let p = later[safe: heroPage - 1] {
+        if heroPage > 0, laterCaptures[safe: heroPage - 1] == nil, let p = later[safe: heroPage - 1] {
+            // Only the server's photo list (no re-encounter rows read): the photo alone.
             laterFace(p, number: heroPage + 1)
         } else {
             mainFace
+                .overlay(alignment: .topLeading) {
+                    if heroPage > 0 { captureBadge(number: heroPage + 1, at: shown.takenAt, place: shown.locationName) }
+                }
         }
     }
 
@@ -771,22 +923,7 @@ struct WordDetailView: View {
                     .shadow(color: .black.opacity(0.14), radius: 16, y: 8)
             }
         }
-        .overlay(alignment: .topLeading) {
-            HStack(spacing: 6) {
-                Text(L("\(number)回目"))
-                    .scaledFont(size: 12, weight: .bold)
-                if let d = p.takenAt {
-                    Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
-                }
-                if let place = LocationService.shownPlace(p.place) {
-                    Text(place).scaledFont(size: 12).lineLimit(1)
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(.black.opacity(0.55), in: Capsule())
-            .padding(12)
-        }
+        .overlay(alignment: .topLeading) { captureBadge(number: number, at: p.takenAt, place: p.place) }
         .contentShape(.rect(cornerRadius: 28))
         // A finger on the photo holds the slideshow (the long press itself does nothing here).
         .onLongPressGesture(minimumDuration: 60, perform: {}, onPressingChanged: { pressing in touching = pressing })
@@ -794,12 +931,37 @@ struct WordDetailView: View {
         .accessibilityLabel(L("\(number)回目に撮った写真"))
     }
 
+    /// 「n回目 · 日付 · 場所」 on a later photo.
+    private func captureBadge(number: Int, at: Date?, place: String?) -> some View {
+        HStack(spacing: 6) {
+            Text(L("\(number)回目"))
+                .scaledFont(size: 12, weight: .bold)
+            if let d = at {
+                Text(JPDate.monthDay(d)).scaledFont(size: 12, monospacedDigit: true)
+            }
+            if let place = LocationService.shownPlace(place) {
+                Text(place).scaledFont(size: 12).lineLimit(1)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(.black.opacity(0.55), in: Capsule())
+        .padding(12)
+        .allowsHitTesting(false)
+    }
+
     /// The hero's shape: a cut-out's own width ÷ height (kept between a tall 0.8 and a wide 1.8, so neither a bottle
     /// nor a long bench makes the page odd), a photo the 4:5 card.
     private func heroRatio(isCut: Bool, path: String?) -> CGFloat {
         guard isCut else { return 0.8 }
-        let known = cutoutRatio ?? path.flatMap { ImageCache.shared.image(for: $0) }.map { $0.size.width / max(1, $0.size.height) }
-        return min(1.8, max(0.8, known ?? 1))
+        if let cutoutRatio { return min(1.8, max(0.8, cutoutRatio)) }
+        return Self.cutRatio(path.flatMap { ImageCache.shared.image(for: $0) }?.size)
+    }
+
+    /// A cut-out's shape from its size (square until it is known).
+    private static func cutRatio(_ size: CGSize?) -> CGFloat {
+        guard let size, size.height > 0 else { return 1 }
+        return min(1.8, max(0.8, size.width / size.height))
     }
 
     /// The selfie side shows the selfie's cut-out — its people and the thing they hold (`SelfieCutouts`) — once this
@@ -807,12 +969,12 @@ struct WordDetailView: View {
     /// 「タップしたら自撮りになり、自撮りもデフォルトでは切り抜きを表示し、右上に元の写真ボタンを表示し、元の自撮り画像を
     /// 見えるようにする」).
     private var selfieCutReady: Bool {
-        current.selfieImageUrl.map { SelfieCutouts.shared.state(for: $0) == .ready } ?? false
+        shown.selfieImageUrl.map { SelfieCutouts.shared.state(for: $0) == .ready } ?? false
     }
 
     @ViewBuilder
     private func faceBody(back: Bool) -> some View {
-        if back, let selfie = current.selfieImageUrl {
+        if back, let selfie = shown.selfieImageUrl {
             if selfieCutReady && !selfieOriginal {
                 Color.clear
                     .aspectRatio(min(1.8, max(0.6, selfieCutRatio ?? 0.8)), contentMode: .fit)
@@ -844,10 +1006,10 @@ struct WordDetailView: View {
             }
         } else {
             let path = frontPath
-            let isCut = showCutout && path == current.cutoutImageUrl
+            let isCut = showCutout && path == shown.cutoutImageUrl
             // A cut-out stands on the page by itself — no grey box around it (owner 2026-10-11); a photo keeps its card.
             (isCut ? Color.clear : Theme.surface2)
-                .aspectRatio(heroRatio(isCut: isCut, path: current.cutoutImageUrl), contentMode: .fit)
+                .aspectRatio(heroRatio(isCut: isCut, path: shown.cutoutImageUrl), contentMode: .fit)
                 .overlay {
                     StickerImage(path: path, url: dex.url(for: path, preferThumb: false), contentMode: isCut ? .fit : .fill,
                                  onLoad: isCut ? { size in
@@ -864,7 +1026,7 @@ struct WordDetailView: View {
 
     private var mainFace: some View {
         let back = showSelfie
-        let path = back ? current.selfieImageUrl : frontPath
+        let path = back ? shown.selfieImageUrl : frontPath
         return faceBody(back: back)
             .overlay(alignment: .bottomTrailing) {
                 // With a selfie, a tap anywhere on the picture turns the card (photo ⇄ selfie), as the hint says
@@ -901,7 +1063,7 @@ struct WordDetailView: View {
             }
             .overlay(alignment: .bottomLeading) {
                 // An internet picture says whose it is (Unsplash asks for the photographer's name).
-                if !back, path != nil, path == current.placeholderImageUrl, let name = current.placeholderCredit?.name, !name.isEmpty {
+                if !back, path != nil, path == shown.placeholderImageUrl, let name = shown.placeholderCredit?.name, !name.isEmpty {
                     Label(name, systemImage: "camera")
                         .scaledFont(size: 12, weight: .semibold)
                         .lineLimit(1)
@@ -935,11 +1097,11 @@ struct WordDetailView: View {
             // 長押し: この単語をどの絵で見せるか選ぶ（Web HeroPhotoPicker）。 Not while the catch is still being saved.
             // A finger on the photo also holds the slideshow.
             .onLongPressGesture(minimumDuration: 0.45, perform: {
-                guard !isLocked else { return }
+                guard shownEditable else { return }
                 Haptics.impact(.medium)
                 pickingHero = true
             }, onPressingChanged: { pressing in touching = pressing })
-            .accessibilityAction(named: L("表示する写真を選ぶ")) { if !isLocked { pickingHero = true } }
+            .accessibilityAction(named: L("表示する写真を選ぶ")) { if shownEditable { pickingHero = true } }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(back ? L("自撮り写真") : L("写真"))
             .accessibilityAction(named: L("元の写真を見る")) {
@@ -974,17 +1136,17 @@ struct WordDetailView: View {
 
     /// The photo as it was taken (not the cut-out); a word with no photo of its own shows its stand-in.
     private var originalPath: String? {
-        current.objectImageUrl ?? current.placeholderImageUrl ?? current.cutoutImageUrl
+        shown.objectImageUrl ?? shown.placeholderImageUrl ?? shown.cutoutImageUrl
     }
 
     /// Shows the side the learner chose (`hero_role`): the selfie is the card's back, the cut-out a toggle.
     private func applyHeroRole(animated: Bool) {
-        let role = current.heroRole
+        let role = shown.heroRole
         let wantSelfie = role == "selfie" && hasSelfie
         let change = {
             // Opening the page always starts on the cut-out (owner 2026-10-09: the dex shows cut-outs); a choice
             // just made in the picker (animated) is shown at once.
-            if animated, role == "cutout" || role == "object" { showCutout = role == "cutout" && current.cutoutImageUrl != nil }
+            if animated, role == "cutout" || role == "object" { showCutout = role == "cutout" && shown.cutoutImageUrl != nil }
             if wantSelfie != showSelfie {
                 showSelfie = wantSelfie
                 flipAngle = wantSelfie ? 180 : 0
@@ -1023,19 +1185,45 @@ struct WordDetailView: View {
     /// 時刻と場所だけ」). The one-liner shows only when one was written at the catch (still editable with its pencil);
     /// the memory curve is no longer on this page (the review screen has it).
     private var metaCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label {
-                Text(JPDate.full(current.takenAt))
-                    .scaledFont(size: 15, weight: .medium, monospacedDigit: true)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            } icon: {
-                Image(systemName: "clock").scaledFont(size: 14)
+        let all = [current] + laterCaptures
+        return VStack(alignment: .leading, spacing: 4) {
+            if all.count == 1 {
+                takenAtLabel(current)
+                if mapsURL(for: current) != nil || placeEditable(current) { placeButton(current) }
+            } else {
+                // Taken more than once: the photo on screen first — 2回目 while the second photo is shown — and every
+                // time with its place folded under 「撮った場所（n回）」 (owner 2026-10-31: 「全ての地名を…表示する必要はない。
+                // 折りたたんで」; no map, the place names only: 「地図はたさなくていい。地名だけでいい」).
+                let at = all.firstIndex { $0.id == shown.id } ?? 0
+                captureRow(all[at], number: at + 1)
+                Button {
+                    Haptics.selection()
+                    withAnimation(reduceMotion ? nil : .snappy) { placesOpen.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(L("撮った場所（\(all.count)回）"))
+                            .scaledFont(size: 14, weight: .semibold)
+                        Image(systemName: "chevron.down")
+                            .scaledFont(size: 12, weight: .semibold)
+                            .rotationEffect(.degrees(placesOpen ? 180 : 0))
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(Theme.muted)
+                    .frame(minHeight: 36)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(PressableStyle(scale: 0.98))
+                .accessibilityIdentifier("detail.places")
+                if placesOpen {
+                    ForEach(Array(all.enumerated()), id: \.element.id) { i, s in
+                        if i != at {
+                            Divider().overlay(Theme.border).padding(.vertical, 2)
+                            captureRow(s, number: i + 1)
+                        }
+                    }
+                    .transition(.opacity)
+                }
             }
-            .foregroundStyle(Theme.foreground.opacity(0.8))
-            .frame(minHeight: 30, alignment: .leading)
-            .accessibilityIdentifier("detail.takenAt")
-            if mapsURL != nil { placeButton }
             if let cap = current.caption, !cap.isEmpty {
                 Divider().overlay(Theme.border).padding(.vertical, 4)
                 Button {
@@ -1065,32 +1253,88 @@ struct WordDetailView: View {
         .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
     }
 
-    /// Where it was taken, by name (never 「地図を開く」 in place of the name); a tap opens Maps there.
-    private var placeButton: some View {
-        Button {
-            if let url = mapsURL { openURL(url) }
+    /// When it was taken, to the minute.
+    private func takenAtLabel(_ s: Sticker) -> some View {
+        Label {
+            Text(JPDate.full(s.takenAt))
+                .scaledFont(size: 15, weight: .medium, monospacedDigit: true)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        } icon: {
+            Image(systemName: "clock").scaledFont(size: 14)
+        }
+        .foregroundStyle(Theme.foreground.opacity(0.8))
+        .frame(minHeight: 30, alignment: .leading)
+        .accessibilityIdentifier(s.id == current.id ? "detail.takenAt" : "detail.takenAt.later")
+    }
+
+    /// 「n回目」, when and where one photo was taken.
+    private func captureRow(_ s: Sticker, number: Int) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(L("\(number)回目"))
+                .scaledFont(size: 12, weight: .bold, monospacedDigit: true)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Theme.primary, in: Capsule())
+            VStack(alignment: .leading, spacing: 0) {
+                takenAtLabel(s)
+                if mapsURL(for: s) != nil || placeEditable(s) { placeButton(s) }
+            }
+        }
+    }
+
+    /// Where it was taken, by name (never 「地図を開く」 in place of the name). A tap offers to put it right (owner
+    /// 2026-10-31: 「ユーザーが場所を直す機能もつけて。地図上で指定できるまたは場所の名前を変更できるように」) and to open
+    /// Maps there; a photo with no place saved offers to add one.
+    private func placeButton(_ s: Sticker) -> some View {
+        let known = mapsURL(for: s) != nil
+        return Menu {
+            if placeEditable(s) {
+                Button(known ? L("場所を直す") : L("場所を追加"), systemImage: "pencil") { editingPlace = s }
+            }
+            if let url = mapsURL(for: s) {
+                Button(L("マップで開く"), systemImage: "map") { openURL(url) }
+            }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "mappin.and.ellipse").scaledFont(size: 14)
-                LocalizedPlaceText(lat: current.lat, lng: current.lng, saved: current.locationName, fallback: L("撮影地"))
-                    .scaledFont(size: 15, weight: .semibold)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                Image(systemName: known ? "mappin.and.ellipse" : "mappin.slash").scaledFont(size: 14)
+                if known {
+                    LocalizedPlaceText(lat: s.lat, lng: s.lng, saved: s.locationName, fallback: L("撮影地"),
+                                       custom: s.locationCustom ?? false)
+                        .scaledFont(size: 15, weight: .semibold)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                } else {
+                    Text(L("場所を追加")).scaledFont(size: 15, weight: .semibold)
+                }
                 Spacer(minLength: 4)
-                Image(systemName: "arrow.up.right").scaledFont(size: 12, weight: .semibold).foregroundStyle(Theme.muted)
+                Image(systemName: "pencil").scaledFont(size: 13, weight: .semibold).foregroundStyle(Theme.muted)
             }
-            .foregroundStyle(Theme.primaryInk)
+            .foregroundStyle(known ? Theme.primaryInk : Theme.muted)
             .frame(minHeight: 36)
             .contentShape(.rect)
         }
-        .buttonStyle(PressableStyle(scale: 0.98))
-        .accessibilityIdentifier("detail.place")
+        .accessibilityIdentifier(s.id == current.id ? "detail.place" : "detail.place.later")
     }
 
-    private var mapsURL: URL? {
-        let q = (current.locationName ?? headword).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        if let lat = current.lat, let lng = current.lng { return URL(string: "https://maps.apple.com/?ll=\(lat),\(lng)&q=\(q)") }
-        if let name = current.locationName, !name.isEmpty { return URL(string: "https://maps.apple.com/?q=\(q)") }
+    /// Its place can be put right: the first photo once saved, a later one once its record is on the server.
+    private func placeEditable(_ s: Sticker) -> Bool {
+        s.id == current.id ? !isLocked : dex.savedEncounterId(s) != nil
+    }
+
+    /// The sheet that puts a photo's place right.
+    private func placeSheet(_ s: Sticker) -> some View {
+        let at = s.lat.flatMap { lat in s.lng.map { CLLocationCoordinate2D(latitude: lat, longitude: $0) } }
+        return PlaceEditSheet(start: at, startName: s.locationName ?? "", startCustom: s.locationCustom ?? false) { point, name, custom in
+            try await dex.setCapturePlace(s, lat: point.latitude, lng: point.longitude, name: name, custom: custom)
+        }
+        .presentationDragIndicator(.visible)
+    }
+
+    private func mapsURL(for s: Sticker) -> URL? {
+        let q = (s.locationName ?? headword).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let lat = s.lat, let lng = s.lng { return URL(string: "https://maps.apple.com/?ll=\(lat),\(lng)&q=\(q)") }
+        if let name = s.locationName, !name.isEmpty { return URL(string: "https://maps.apple.com/?q=\(q)") }
         return nil
     }
 
@@ -1104,17 +1348,36 @@ struct WordDetailView: View {
 
     /// The word's language, corrected from its headword when the stored one is wrong (I4: "lamp" saved
     /// as a Mandarin word showed measure words and a Taiwan note).
-    private var learningLang: String { LanguageRules.resolveWordLanguage(stored: word?.language, headword: headword) }
+    private var learningLang: String { derived.learningLang }
     /// Every example the card holds: the main example and every other usage pattern's example (`ExampleItem.all`).
     private var allExamples: [ExampleItem] {
         ExampleItem.all(sentence: word?.exampleSentence, translation: word?.exampleTranslation, extras: extras, target: learningLang)
     }
     /// 「使い方チャンク」 in the server's order (= most natural and frequent first, owner 2026-10-25), as shown: numbered 1, 2, 3…
-    private var chunks: [UsageChunk] { refinedChunks(extras?.usageChunks ?? []) }
+    private var chunks: [UsageChunk] { derived.chunks }
     /// 「例文」 as shown, with the chunk each one is shown under (its number and colours, §4/§10). Only examples that use a
     /// chunk, one per chunk in the chunks' order (owner 2026-10-26: 「例文はチャンク専用」 — an unnumbered example before 1
     /// was odd). A card none of whose examples uses a chunk (older cards) shows its examples unnumbered.
-    private var shownExamples: [(item: ExampleItem, hit: ChunkRules.ExampleHit?)] {
+    private var shownExamples: [(item: ExampleItem, hit: ChunkRules.ExampleHit?)] { derived.shownExamples }
+
+    /// The chunks, examples and language worked out from the word's card — once per card, display language and choice
+    /// of sections. The page asks for them dozens of times each time it is drawn, and each time ran the chunk rules over
+    /// every chunk and example, so the page came up late after a tap on the home album (owner 2026-10-31: 「ラグがある。
+    /// 高速で表示して」).
+    private var derived: DerivedContent {
+        let key = DerivedContent.Key(word: word, reader: L10n.lang, chunksShown: prefs.visible.contains(.usageChunks))
+        if let hit = memo.content, hit.key == key { return hit }
+        let lang = LanguageRules.resolveWordLanguage(stored: word?.language, headword: headword)
+        var made = DerivedContent(key: key, learningLang: lang, chunks: [], shownExamples: [])
+        memo.content = made   // `learningLang` below reads the language from here
+        made.chunks = refinedChunks(extras?.usageChunks ?? [])
+        memo.content = made
+        made.shownExamples = makeShownExamples()
+        memo.content = made
+        return made
+    }
+
+    private func makeShownExamples() -> [(item: ExampleItem, hit: ChunkRules.ExampleHit?)] {
         let all = allExamples
         // With 「使い方チャンク」 hidden there is nothing to number against: every example, unnumbered.
         guard visibleSections.contains(.usageChunks) else { return all.map { (item: $0, hit: ChunkRules.ExampleHit?.none) } }
@@ -1439,7 +1702,11 @@ struct WordDetailView: View {
         isAddingSelfie = true
         defer { isAddingSelfie = false }
         do {
-            try await dex.addSelfie(to: current, image: image)
+            if let eid = dex.savedEncounterId(shown) {
+                try await dex.addEncounterSelfie(eid, image: image)
+            } else {
+                try await dex.addSelfie(to: current, image: image)
+            }
             Haptics.success()
         } catch {
             Haptics.warning()
@@ -2024,12 +2291,22 @@ struct WordDetailView: View {
         }
         isReplacing = true
         defer { isReplacing = false }
+        // The photo on screen: the first one, or a later one (its own record).
+        let eid = dex.savedEncounterId(shown)
         do {
-            try await dex.replacePhoto(current, with: img)
+            if let eid {
+                try await dex.replaceEncounterPhoto(eid, with: img)
+            } else {
+                try await dex.replacePhoto(current, with: img)
+            }
             Haptics.success()
             showToast(L("写真を替えました"))
             if let lifted = await CutoutService.liftSubject(from: img) {
-                try? await dex.addCutout(to: current, image: lifted)
+                if let eid {
+                    try? await dex.addEncounterCutout(eid, image: lifted)
+                } else {
+                    try? await dex.addCutout(to: current, image: lifted)
+                }
             }
         } catch {
             Haptics.warning()
@@ -2346,4 +2623,22 @@ struct SectionSkeleton: View {
             }
         }
     }
+}
+
+/// What the word page works out from the word's card (`WordDetailView.derived`), with what it was worked out from.
+struct DerivedContent {
+    struct Key: Equatable {
+        let word: Word?
+        let reader: String
+        let chunksShown: Bool
+    }
+    let key: Key
+    let learningLang: String
+    var chunks: [UsageChunk]
+    var shownExamples: [(item: ExampleItem, hit: ChunkRules.ExampleHit?)]
+}
+
+/// Holds `DerivedContent` across the page's draws (a class: filling it while the page is drawn changes nothing on screen).
+final class DerivedMemo {
+    var content: DerivedContent?
 }

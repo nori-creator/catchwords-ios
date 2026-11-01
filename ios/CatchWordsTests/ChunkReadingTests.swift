@@ -232,4 +232,17 @@ final class UsagePatternTests: XCTestCase {
         XCTAssertEqual(Sentences.unbreakable("水完全沖不下去！", words: ["沖不下去"]), "水完全沖\u{2060}不\u{2060}下\u{2060}去！")
         XCTAssertEqual(SentenceRuby.groups(chars, words: []).count, chars.count, "no words: every character on its own")
     }
+
+    /// The chunk's line at the largest size that fits, from its width measured once (owner 2026-10-31: the word page
+    /// opened late while every size was built and measured in turn).
+    func testChunkLineFitsOneLine() {
+        // Roomy when even the roomy line fits.
+        XCTAssertTrue(ChunkLineView.fit(natural: 200, room: 300, looseExtra: 40) == (false, 1))
+        // Tight at full size when only the tight one fits.
+        XCTAssertTrue(ChunkLineView.fit(natural: 280, room: 300, looseExtra: 40) == (true, 1))
+        // The largest smaller size that fits, with a little room kept.
+        XCTAssertTrue(ChunkLineView.fit(natural: 320, room: 300, looseExtra: 40) == (true, 0.85))
+        // Never smaller than 0.52.
+        XCTAssertTrue(ChunkLineView.fit(natural: 900, room: 300, looseExtra: 40) == (true, 0.52))
+    }
 }

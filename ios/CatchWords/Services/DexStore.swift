@@ -114,7 +114,8 @@ final class DexStore {
         "id,word_id,object_image_url,cutout_image_url,selfie_image_url,caption,location_name,lat,lng,taken_at,capture_type,shelf_key"
     /// Columns that came with later migrations (the web reads them the same way, in stages). If the
     /// server doesn't have one yet the dex still loads without it.
-    nonisolated(unsafe) private static var optionalColumns = ["hero_role", "placeholder_image_url", "placeholder_credit", "level_band"]
+    nonisolated(unsafe) private static var optionalColumns = ["hero_role", "placeholder_image_url", "placeholder_credit", "level_band",
+                                                              "location_custom"]
     private static var selectColumns: String {
         ([baseColumns] + optionalColumns + ["word:words(*)"]).joined(separator: ",")
     }
@@ -527,11 +528,23 @@ final class DexStore {
             let cutout_path: String?
             let location_name: String?
             let created_at: Date?
+            var lat: Double? = nil
+            var lng: Double? = nil
+            var selfie_path: String? = nil
+            var hero_role: String? = nil
+            var location_custom: Bool? = nil
         }
-        guard let uid = client.userId,
-              let rows = try? await readAll("encounters?select=id,sticker_id,image_path,cutout_path,location_name,created_at&user_id=eq.\(uid)&order=created_at.asc,id.asc",
-                                            as: Row.self, decoder: SupabaseDate.decoder),
-              client.userId == uid else { return }
+        guard let uid = client.userId else { return }
+        // Where it was met (the dex map, the word page's places) and the picture tools of a later photo (owner
+        // 2026-10-30). A server without the selfie / picture-choice columns yet (20261030120000_encounter_pictures)
+        // is read without them, then without the place too, rather than losing every re-encounter.
+        let base = "id,sticker_id,image_path,cutout_path,location_name,created_at"
+        var read: [Row]?
+        for extra in [",lat,lng,selfie_path,hero_role,location_custom", ",lat,lng,selfie_path,hero_role", ",lat,lng", ""] where read == nil {
+            read = try? await readAll("encounters?select=\(base)\(extra)&user_id=eq.\(uid)&order=created_at.asc,id.asc",
+                                      as: Row.self, decoder: SupabaseDate.decoder)
+        }
+        guard let rows = read, client.userId == uid else { return }
         var out: [String: [DexPicture]] = [:]
         var entries: [EncounterEntry] = []
         for r in rows {
@@ -539,7 +552,9 @@ final class DexStore {
             let image = r.image_path.flatMap { $0.isEmpty ? nil : $0 }
             if let id = r.id, let at = r.created_at, cut != nil || image != nil {
                 entries.append(EncounterEntry(id: id, stickerId: r.sticker_id, image: image, cutout: cut,
-                                              place: r.location_name, at: at))
+                                              place: r.location_name, at: at, lat: r.lat, lng: r.lng,
+                                              selfie: r.selfie_path.flatMap { $0.isEmpty ? nil : $0 }, heroRole: r.hero_role,
+                                              placeCustom: r.location_custom))
             }
             guard let p = cut ?? image, out[r.sticker_id]?.contains(where: { $0.path == p }) != true else { continue }
             out[r.sticker_id, default: []].append(DexPicture(path: p, isCutout: cut != nil))
@@ -550,8 +565,8 @@ final class DexStore {
             e.id.hasPrefix("local-") && !entries.contains { $0.stickerId == e.stickerId && abs($0.at.timeIntervalSince(e.at)) < 120 }
         }
         encounterEntries = entries + pendingLocal
-        // The album shows the photo or the cut-out (設定 › ホームに表示する写真): both are signed.
-        let paths = out.values.flatMap { $0 }.map(\.path) + entries.flatMap { [$0.image, $0.cutout].compactMap { $0 } }
+        // The album shows the photo or the cut-out (設定 › ホームに表示する写真): both are signed, and the selfie.
+        let paths = out.values.flatMap { $0 }.map(\.path) + entries.flatMap { [$0.image, $0.cutout, $0.selfie].compactMap { $0 } }
         await sign(paths.filter { signed[$0] == nil })
     }
 
@@ -562,10 +577,18 @@ final class DexStore {
     nonisolated struct EncounterEntry: Equatable, Sendable {
         let id: String
         let stickerId: String
-        let image: String?
-        let cutout: String?
-        let place: String?
+        var image: String?
+        var cutout: String?
+        var place: String?
         let at: Date
+        /// Where it was met (owner 2026-10-30: the dex map and the word page show every place).
+        var lat: Double? = nil
+        var lng: Double? = nil
+        /// A selfie taken later for this photo, and the picture chosen for it (表示する写真) — as the first photo's.
+        var selfie: String? = nil
+        var heroRole: String? = nil
+        /// The place's name was written or picked by the learner (`encounters.location_custom`).
+        var placeCustom: Bool? = nil
     }
 
     /// Every re-encounter photo of this account, oldest first (read with `loadEncounterPhotos`; one recorded on this
@@ -587,12 +610,21 @@ final class DexStore {
     var albumEncounters: [Sticker] {
         guard !encounterEntries.isEmpty else { return [] }
         let byId = Dictionary(stickers.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        return encounterEntries.compactMap { e in
-            guard let base = byId[e.stickerId] else { return nil }
-            return Sticker(id: Self.encounterAlbumPrefix + e.id, wordId: base.wordId, objectImageUrl: e.image,
-                           cutoutImageUrl: e.cutout, selfieImageUrl: nil, caption: nil, locationName: e.place,
-                           takenAt: e.at, captureType: base.captureType, word: base.word)
-        }
+        return encounterEntries.compactMap { e in byId[e.stickerId].map { Self.encounterSticker(e, base: $0) } }
+    }
+
+    /// One word's later photos as stickers (`encounter-<id>`), oldest first: the word page pages through them with the
+    /// first photo's tools, and lists where each was taken (owner 2026-10-30).
+    func laterCaptures(of base: Sticker) -> [Sticker] {
+        encounterEntries.filter { $0.stickerId == base.id }.sorted { $0.at < $1.at }.map { Self.encounterSticker($0, base: base) }
+    }
+
+    /// The re-encounter's photo, cut-out, selfie, choice and place, standing for the word it was met again as.
+    private static func encounterSticker(_ e: EncounterEntry, base: Sticker) -> Sticker {
+        Sticker(id: encounterAlbumPrefix + e.id, wordId: base.wordId, objectImageUrl: e.image,
+                cutoutImageUrl: e.cutout, selfieImageUrl: e.selfie, caption: nil, locationName: e.place,
+                takenAt: e.at, captureType: base.captureType, word: base.word, lat: e.lat, lng: e.lng,
+                heroRole: e.heroRole, locationCustom: e.placeCustom)
     }
 
     /// The word an album entry opens: a re-encounter's page is its word's own sticker.
@@ -1356,7 +1388,8 @@ final class DexStore {
         }
         // Its page in the home album at once, on today's page like a new catch (the read after the record names it).
         let albumEntry: EncounterEntry? = shown == nil ? nil : EncounterEntry(id: "local-\(ts)", stickerId: sid, image: imageName, cutout: cutoutName,
-                                                              place: placeName, at: Date())
+                                                              place: placeName, at: Date(),
+                                                              lat: location?.coordinate.latitude, lng: location?.coordinate.longitude)
         if let albumEntry { encounterEntries.append(albumEntry) }
         struct Recorded: Decodable {
             let encounterCount: Int?
@@ -1377,6 +1410,8 @@ final class DexStore {
                 "cutout_path": orNull(cut),
             ], as: Recorded.self, timeout: 30, asUser: uid)
             StickerPhoto.invalidate(sid)
+            // The row's own id (and place) replaces the local stand-in, so its photo can be edited on the word page.
+            Task { await loadEncounterPhotos() }
             return (res.encounterCount ?? owned.encounterCount + 1, image != nil || cut != nil)
         } catch {
             // Signed out (or into another account) meanwhile: that account's dex is gone already; nothing is told.
@@ -1783,6 +1818,112 @@ final class DexStore {
             var s = old
             s.heroRole = role
             return s
+        }
+    }
+
+    // MARK: - A later photo's pictures (owner 2026-10-30: the 2nd and later photos get the first one's tools)
+
+    /// A later photo (`encounter-<id>` as the word page and the album hold it) → its re-encounter's id, while it is
+    /// saved on the server (one just recorded on this phone has none yet).
+    func savedEncounterId(_ s: Sticker) -> String? {
+        guard Self.isEncounterAlbumEntry(s.id) else { return nil }
+        let eid = String(s.id.dropFirst(Self.encounterAlbumPrefix.count))
+        return eid.hasPrefix("local-") ? nil : eid
+    }
+
+    /// Writes one later photo's change (`editEncounter`); a server without the columns yet says so.
+    private func editEncounter(_ eid: String, _ fields: [String: Any], update: (inout EncounterEntry) -> Void) async throws {
+        struct Saved: Decodable { let saved: Bool }
+        var body = fields
+        body["encounter_id"] = eid
+        let res: Saved = try await NativeAPI.call("editEncounter", body, as: Saved.self)
+        guard res.saved else { throw APIError.message(L("まだ保存できません。サーバの更新を待ってください。")) }
+        guard let i = encounterEntries.firstIndex(where: { $0.id == eid }) else { return }
+        let before = encounterEntries[i]
+        update(&encounterEntries[i])
+        let after = encounterEntries[i]
+        // The dex square's picture of it follows (the cut-out, else the photo).
+        let sid = after.stickerId
+        if let old = (before.cutout ?? before.image), let new = (after.cutout ?? after.image), old != new,
+           let j = encounterPhotos[sid]?.firstIndex(where: { $0.path == old }) {
+            encounterPhotos[sid]?[j] = DexPicture(path: new, isCutout: after.cutout != nil)
+        }
+        StickerPhoto.invalidate(sid)
+    }
+
+    /// 写真を替える for a later photo: its date and place are kept, its old cut-out dropped (a new one is made).
+    func replaceEncounterPhoto(_ eid: String, with image: UIImage) async throws {
+        guard let uid = client.userId else { throw APIError.unauthorized }
+        let ts = Int(Date().timeIntervalSince1970 * 1000)
+        guard let path = try await uploadJPEG(image, uid: uid, ts: ts, kind: "encounter") else {
+            throw APIError.message(L("写真を読み込めませんでした。"))
+        }
+        ImageCache.shared.store(image, for: path, maxSide: 1600)
+        try await editEncounter(eid, ["image_path": path]) { e in
+            e.image = path
+            e.cutout = nil
+        }
+        await sign([path])
+    }
+
+    /// The cut-out of a later photo (made on this phone, `CutoutBackfill`).
+    func addEncounterCutout(_ eid: String, image: UIImage) async throws {
+        guard let uid = client.userId else { throw APIError.unauthorized }
+        let ts = Int(Date().timeIntervalSince1970 * 1000)
+        guard let path = await uploadPNG(image, uid: uid, ts: ts, kind: "encounter-cutout") else {
+            throw APIError.message(L("切り抜きの保存に失敗しました。"))
+        }
+        ImageCache.shared.store(image, for: path, maxSide: 1024)
+        try await editEncounter(eid, ["cutout_path": path]) { $0.cutout = path }
+        await sign([path])
+    }
+
+    /// A selfie for a later photo (taken or retaken from its page).
+    func addEncounterSelfie(_ eid: String, image: UIImage) async throws {
+        guard let uid = client.userId else { throw APIError.unauthorized }
+        let ts = Int(Date().timeIntervalSince1970 * 1000)
+        guard let path = try await uploadJPEG(image, uid: uid, ts: ts, kind: "selfie") else {
+            throw APIError.message(L("写真の保存に失敗しました。"))
+        }
+        ImageCache.shared.store(image, for: path, maxSide: 1600)
+        try await editEncounter(eid, ["selfie_path": path]) { $0.selfie = path }
+        await sign([path])
+    }
+
+    /// 表示する写真 for a later photo (nil = default order).
+    func setEncounterHeroRole(_ eid: String, role: String?) async throws {
+        try await editEncounter(eid, ["hero_role": role.map { $0 as Any } ?? NSNull()]) { $0.heroRole = role }
+    }
+
+    /// Where a photo was taken, put right by the learner (owner 2026-10-31: 「ユーザーが場所を直す機能もつけて。地図上で
+    /// 指定できるまたは場所の名前を変更できるように」): the point picked on the map and its name — `custom` when the learner
+    /// wrote or picked the name (shown as it is, never looked up again). The first photo or a later one.
+    func setCapturePlace(_ s: Sticker, lat: Double, lng: Double, name: String?, custom: Bool) async throws {
+        struct Saved: Decodable { let saved: Bool }
+        let trimmed = name.map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120)) }.flatMap { $0.isEmpty ? nil : $0 }
+        let isCustom = custom && trimmed != nil
+        let eid = savedEncounterId(s)
+        var body: [String: Any] = ["lat": lat, "lng": lng, "location_name": trimmed.map { $0 as Any } ?? NSNull(), "custom": isCustom]
+        if let eid { body["encounter_id"] = eid } else { body["sticker_id"] = s.id }
+        let res: Saved = try await NativeAPI.call("setCapturePlace", body, as: Saved.self)
+        guard res.saved else { throw APIError.message(L("保存できませんでした。もう一度お試しください。")) }
+        if let eid {
+            guard let i = encounterEntries.firstIndex(where: { $0.id == eid }) else { return }
+            encounterEntries[i].place = trimmed
+            encounterEntries[i].lat = lat
+            encounterEntries[i].lng = lng
+            encounterEntries[i].placeCustom = isCustom
+            StickerPhoto.invalidate(encounterEntries[i].stickerId)
+        } else {
+            replace(s.id) { old in
+                var x = old
+                x.locationName = trimmed
+                x.lat = lat
+                x.lng = lng
+                x.locationCustom = isCustom
+                return x
+            }
+            StickerPhoto.invalidate(s.id)
         }
     }
 

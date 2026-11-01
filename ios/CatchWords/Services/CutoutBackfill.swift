@@ -56,6 +56,8 @@ final class CutoutBackfill {
     /// A photo of the learner's own, still without a cut-out (a typed word's text card is never cut out).
     static func needsCutout(_ s: Sticker) -> Bool {
         s.cutoutImageUrl == nil && s.objectImageUrl != nil && !DexStore.isProvisional(s.id) && s.captureType != "text"
+            // A later photo just recorded on this phone: not on the server under its own id yet.
+            && !s.id.hasPrefix(DexStore.encounterAlbumPrefix + "local-")
     }
 
     /// Starts working through the words without a cut-out (after a dex read). Does nothing while a run is going.
@@ -140,7 +142,7 @@ final class CutoutBackfill {
         defer { running.remove(sticker.id) }
         if let kept = Self.kept(for: sticker.id) {
             do {
-                try await dex.addCutout(to: sticker, image: kept)
+                try await Self.attach(kept, to: sticker, dex: dex)
                 Self.forget(sticker.id)
                 DevLog.shared.add("upload", "\(sticker.word?.headword ?? sticker.id): cut-out kept from the catch attached later")
                 return .made
@@ -159,10 +161,20 @@ final class CutoutBackfill {
         guard let image else { return .failed }
         guard let lifted = await CutoutService.liftSubject(from: image) else { return .noSubject }
         do {
-            try await dex.addCutout(to: sticker, image: lifted)
+            try await Self.attach(lifted, to: sticker, dex: dex)
             return .made
         } catch {
             return .failed
+        }
+    }
+
+    /// A word's first photo keeps its cut-out on the sticker; a later photo (`encounter-<id>`, owner 2026-10-30) on
+    /// its re-encounter.
+    private static func attach(_ image: UIImage, to sticker: Sticker, dex: DexStore) async throws {
+        if let eid = dex.savedEncounterId(sticker) {
+            try await dex.addEncounterCutout(eid, image: image)
+        } else {
+            try await dex.addCutout(to: sticker, image: image)
         }
     }
 }

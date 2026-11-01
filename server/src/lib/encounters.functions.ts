@@ -193,6 +193,137 @@ export const recordEncounter = createServerFn({ method: "POST" })
     return { encounter_count: newCount, next_due_at: nextDueAt, interval_days: intervalDays };
   });
 
+const EditEncounterInput = z.object({
+  encounter_id: z.string().uuid(),
+  /** 写真を替える。古い切り抜きは消す（新しい写真から作り直す）。 */
+  image_path: z.string().min(1).optional(),
+  /** 切り抜きだけを足す（写真はそのまま）。 */
+  cutout_path: z.string().min(1).optional(),
+  /** あとから自撮りを足す・撮り直す。 */
+  selfie_path: z.string().min(1).optional(),
+  /** その1枚をどの絵で見せるか。null = 設定に従う。 */
+  hero_role: z.enum(["object", "cutout", "selfie"]).nullable().optional(),
+});
+
+/**
+ * `editEncounter` が書く欄。**自分の場所（`<uid>/`）の絵だけ**。何も変えない入力は投げる。
+ * 写真を替えた時は、切り抜きを一緒に渡さない限り古い切り抜きを消す（`replaceStickerPhoto` と同じ）。
+ */
+export function encounterPatch(
+  data: z.infer<typeof EditEncounterInput>,
+  userId: string,
+): Record<string, string | null> {
+  for (const p of [data.image_path, data.cutout_path, data.selfie_path]) {
+    if (p !== undefined && !p.startsWith(`${userId}/`)) throw new Error("不正な画像パスです");
+  }
+  const patch: Record<string, string | null> = {};
+  if (data.image_path !== undefined) {
+    patch.image_path = data.image_path;
+    patch.cutout_path = null;
+  }
+  if (data.cutout_path !== undefined) patch.cutout_path = data.cutout_path;
+  if (data.selfie_path !== undefined) patch.selfie_path = data.selfie_path;
+  if (data.hero_role !== undefined) patch.hero_role = data.hero_role;
+  if (Object.keys(patch).length === 0) throw new Error("変える物がありません");
+  return patch;
+}
+
+/**
+ * **2回目以降に撮った写真を、1回目と同じように直す**（オーナー指示 2026-10-30「2回目3回目だと…無いから足して」）。
+ * 写真の差し替え・切り抜き・自撮り・表示する写真を、再会の1行（`encounters`）に書く。**自分の行だけ。**
+ *
+ * 自撮りと表示する写真の列（20261030120000_encounter_pictures.sql）がまだ無い環境では、投げずに
+ * `saved: false` を返す（`setStickerHeroRole` と同じ）。
+ */
+export const editEncounter = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => EditEncounterInput.parse(input))
+  .handler(async ({ context, data }): Promise<{ saved: boolean; reason?: string }> => {
+    const { supabase, userId } = context;
+    const patch = encounterPatch(data, userId);
+    const { data: rows, error } = await supabase
+      .from("encounters")
+      .update(patch as never)
+      .eq("id", data.encounter_id)
+      .eq("user_id", userId)
+      .select("id");
+    if (error) {
+      if (/selfie_path|hero_role|policy|permission/.test(error.message)) {
+        console.warn("editEncounter: 移行待ち", error.message);
+        return { saved: false, reason: "migration" };
+      }
+      throw new Error(error.message);
+    }
+    // 書き換えの決まり（RLS の UPDATE）がまだ無い時は、エラーにならず0行になる。
+    if (!rows || rows.length === 0) return { saved: false, reason: "migration" };
+    return { saved: true };
+  });
+
+/** 撮った場所の名前の長さの上限（学習者が書く名前も、地図から選んだ名前も）。 */
+export const PLACE_NAME_MAX = 120;
+
+const CapturePlaceInput = z
+  .object({
+    /** 1回目の写真（`stickers`）か、2回目以降の写真（`encounters`）の、どちらか一方。 */
+    sticker_id: z.string().uuid().optional(),
+    encounter_id: z.string().uuid().optional(),
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    location_name: z.string().max(PLACE_NAME_MAX).nullable(),
+    /** 学習者が書いた・選んだ名前（端末は座標から引き直さず、この名前をそのまま出す）。 */
+    custom: z.boolean(),
+  })
+  .refine((d) => (d.sticker_id === undefined) !== (d.encounter_id === undefined), {
+    message: "sticker_id か encounter_id のどちらか一方",
+  });
+
+/**
+ * `setCapturePlace` が書く欄。名前は前後の空白を落とし、空なら null。名前の無い「書いた名前」は書いた名前にしない
+ * （座標から引き直す）。
+ */
+export function capturePlacePatch(
+  data: z.infer<typeof CapturePlaceInput>,
+): { lat: number; lng: number; location_name: string | null; location_custom: boolean } {
+  const name = data.location_name?.trim() || null;
+  return { lat: data.lat, lng: data.lng, location_name: name, location_custom: data.custom && name !== null };
+}
+
+/**
+ * **撮った場所を学習者が直す**（オーナー指示 2026-10-31「ユーザーが場所を直す機能もつけて。地図上で指定できるまたは
+ * 場所の名前を変更できるように」）。地図で指した点と、その名前（書いた名前なら `custom`）を、1回目の写真
+ * （`stickers`）か2回目以降の写真（`encounters`）の自分の行に書く。
+ *
+ * `location_custom` の列（20261031120000_capture_place_custom.sql）がまだ無い環境では、点と名前だけを書いて
+ * `custom_saved: false` を返す。
+ */
+export const setCapturePlace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => CapturePlaceInput.parse(input))
+  .handler(async ({ context, data }): Promise<{ saved: boolean; custom_saved: boolean }> => {
+    const { supabase, userId } = context;
+    const patch = capturePlacePatch(data);
+    const table = data.sticker_id ? "stickers" : "encounters";
+    const id = (data.sticker_id ?? data.encounter_id) as string;
+    const write = async (fields: Record<string, unknown>) =>
+      supabase
+        .from(table)
+        .update(fields as never)
+        .eq("id", id)
+        .eq("user_id", userId)
+        .select("id");
+    let customSaved = true;
+    let { data: rows, error } = await write(patch);
+    if (error && /location_custom/.test(error.message)) {
+      console.warn("setCapturePlace: 移行待ち", error.message);
+      const { location_custom: _, ...rest } = patch;
+      customSaved = false;
+      ({ data: rows, error } = await write(rest));
+    }
+    if (error) throw new Error(error.message);
+    if (!rows || rows.length === 0) return { saved: false, custom_saved: false };
+    return { saved: true, custom_saved: customSaved };
+  });
+
 /**
  * その単語をこれまでに撮った写真を、**古い順に**返す。
  *

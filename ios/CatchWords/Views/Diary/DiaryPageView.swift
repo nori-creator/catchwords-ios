@@ -184,7 +184,7 @@ struct DiaryPageView: View {
                         if i > 0 {
                             Text(verbatim: "·").foregroundStyle(ink.color.opacity(0.35))
                         }
-                        LocalizedPlaceText(lat: s.lat, lng: s.lng, saved: s.locationName)
+                        LocalizedPlaceText(lat: s.lat, lng: s.lng, saved: s.locationName, custom: s.locationCustom ?? false)
                             .lineLimit(1)
                     }
                 }
