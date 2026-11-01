@@ -398,6 +398,9 @@ struct MainTabView: View {
         .animation(.spring(response: 0.42, dampingFraction: 0.9), value: wordPageInline ? router.detailSticker?.id : nil)
         .onGeometryChange(for: Bool.self) { $0.size.width >= 800 && $0.size.width > $0.size.height } action: { wideScreen = $0 }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in measureFold() }
+        // Turned straight from one sideways hold to the other, the size stays and the clock's strip changes side: the
+        // safe area tells (the rail and the fold's offset follow the strip).
+        .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { _ in measureFold() }
         .onAppear {
             router.detailZoom = detailZoom
             beginTourIfPending()
