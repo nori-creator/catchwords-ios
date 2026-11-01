@@ -2666,11 +2666,15 @@ struct HeroShrink: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .scaleEffect(scale, anchor: .bottom)
+            // Measured OUTSIDE the scale: the picture's place on the page, not where it is drawn. Measured inside it (as
+            // first written), the frame shrank with the scale, the next scale undid it, and the two took turns on every
+            // frame while the page scrolled — the app crashed on scrolling the word page (owner 2026-11-01:
+            // 「単語の詳細をタップし、下にスクロールしたり、上にスクロールする、クラッシュした」).
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView(axis: .vertical)) } action: { f in
                 let s = still ? 1 : Self.scale(minY: f.minY, height: f.height, top: top, smallest: smallest)
                 if abs(s - scale) > 0.002 || (s == 1 && scale != 1) || (s == smallest && scale != smallest) { scale = s }
             }
-            .scaleEffect(scale, anchor: .bottom)
     }
 
     /// 1 while the picture's top is at or below `top`; then 1 − moved ÷ height (the top stays put), down to `smallest`.
