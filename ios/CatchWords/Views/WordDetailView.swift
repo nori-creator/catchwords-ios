@@ -7,10 +7,14 @@ struct WordDetailView: View {
     /// Today's review round (optional: previews have none); told when this page changes the sticker's headword.
     @Environment(ReviewStore.self) private var review: ReviewStore?
     @Environment(\.dismiss) private var dismiss
+    private func close() { if let onClose { onClose() } else { dismiss() } }
     @Environment(\.openURL) private var openURL
     @Environment(AppRouter.self) private var router
     @Environment(PlanStore.self) private var plan
     let sticker: Sticker
+    /// Set when the page is drawn inside the tab screen, not presented (iPhone Duo with the tabs in the side strip,
+    /// `MainTabView.inlineWordPage`): closing it clears the router instead of dismissing a presentation.
+    var onClose: (() -> Void)? = nil
     /// DEBUG preview: open scrolled to this section so the simulator frame shows it.
     var previewFocus: CardSection? = nil
     /// DEBUG preview: the selfie side opens on the selfie as it was taken (its 「元の写真」).
@@ -394,13 +398,13 @@ struct WordDetailView: View {
                     dex.discardUnsaved(pendingId: pid)
                     dex.refreshPending()
                     plan.undoCatch()
-                    dismiss()
+                    close()
                     return
                 }
                 Task {
                     do {
                         try await dex.delete(current)
-                        dismiss()
+                        close()
                     } catch {
                         Haptics.warning()
                         let reason = (error as? LocalizedError)?.errorDescription ?? ""
@@ -467,7 +471,7 @@ struct WordDetailView: View {
                     .presentationCompactAdaptation(.popover)
                     .presentationBackground(Theme.background.mix(with: Theme.primary, by: 0.06))
             }
-            Button { dismiss() } label: {
+            Button { close() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.foreground)

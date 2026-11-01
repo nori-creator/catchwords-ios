@@ -151,6 +151,8 @@ final class AppRouter {
 /// at most `CatchLanding.longest` even if its animation never finishes.
 struct TabBarSlot: View {
     let onSelect: (AppTab) -> Void
+    /// A tap on the tab already shown (it closes a word's page drawn in the tab screen).
+    var onReselect: (() -> Void)? = nil
     @Environment(AppRouter.self) private var router
 
     var body: some View {
@@ -161,7 +163,7 @@ struct TabBarSlot: View {
                 ZStack {
                     if !router.hidesTabBar {
                         CapsuleTabBar(selection: $router.tab, onCamera: router.tab == .camera && router.cameraImmersive,
-                                      onSelect: onSelect, vertical: true)
+                                      onSelect: onSelect, onReselect: onReselect, vertical: true)
                             .transition(.move(edge: edge == .trailing ? .trailing : .leading).combined(with: .opacity))
                             .onAppear { UITestTrace.log("tabbar view in tab=\(router.tab) rail") }
                             .onDisappear { UITestTrace.log("tabbar view out tab=\(router.tab) rail") }
@@ -223,16 +225,23 @@ struct MainTabView: View {
             .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
             .presentationDragIndicator(.visible)
             .presentationBackground(Theme.background)
-            // The word's page is a sheet over the tabs: its guide steps light its own parts (the jump chips, the
-            // settings button), with a layer of their own.
-            .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-                if router.tour.isWord {
-                    TourLayer(step: router.tour, anchors: anchors, onNext: wordTourNext, onSkip: endTour,
-                              bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
-                        .transition(.opacity)
-                }
-            }
+            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: endTour))
     }
+
+    /// iPhone Duo folded, or open and held sideways (the tabs are a rail in the side strip, `AppRouter.usesRail`): the
+    /// word's page is drawn in the tab screen under the rail instead of presented over it, so the tabs stay at hand
+    /// (owner 2026-11-01 「単語の詳細でも右端にアイコンバーが並ぶように」; a sheet or a cover hid the rail). It closes
+    /// with its ✕ or with any tab.
+    private func inlineWordPage(_ sticker: Sticker) -> some View {
+        WordDetailView(sticker: sticker, onClose: { router.detailSticker = nil }, previewFocus: storeFocus)
+            .id(sticker.id)
+            .environment(router)
+            .background(Theme.background.ignoresSafeArea())
+            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: endTour))
+    }
+
+    /// The word's page in the tab screen (`inlineWordPage`) rather than a sheet or a cover.
+    private var wordPageInline: Bool { router.usesRail }
 
     /// The fold from the window itself (its full width and safe-area insets, whatever this view ignores).
     private func measureFold() {
@@ -290,8 +299,18 @@ struct MainTabView: View {
             // The rail is wider than the strip it stands in: the screens keep that much free beside it.
             .safeAreaPadding(router.railEdge == .leading ? .leading : .trailing, router.railOverhang)
 
+            if wordPageInline, let sticker = router.detailSticker {
+                inlineWordPage(sticker)
+                    .safeAreaPadding(router.railEdge == .leading ? .leading : .trailing, router.railOverhang)
+                    .transition(.move(edge: .bottom))
+                    .zIndex(1.5)
+            }
+
             // Above every tab's page, the dex rising for a landing too (it takes zIndex 1 for that).
-            TabBarSlot(onSelect: beginShutterFlight)
+            TabBarSlot(onSelect: { tab in
+                if wordPageInline { router.detailSticker = nil }
+                beginShutterFlight(tab)
+            }, onReselect: { if wordPageInline { router.detailSticker = nil } })
                 .zIndex(2)
         }
         .overlay {
@@ -368,12 +387,15 @@ struct MainTabView: View {
         // The word's page: a sheet on the iPhone; with iPhone Duo open and held sideways, the whole screen (its two pages
         // side by side — owner 2026-10-30: 「単語の詳細を開いたときにページの中央部分しか使ってないのがもったいない」; a sheet
         // stayed a narrow card in the middle there whatever its sizing).
-        .sheet(item: wideScreen ? Binding<Sticker?>.constant(nil) : $router.detailSticker, onDismiss: wordPageDismissed) { sticker in
+        .sheet(item: wideScreen || wordPageInline ? Binding<Sticker?>.constant(nil) : $router.detailSticker,
+               onDismiss: wordPageDismissed) { sticker in
             wordPage(sticker)
         }
-        .fullScreenCover(item: wideScreen ? $router.detailSticker : Binding<Sticker?>.constant(nil), onDismiss: wordPageDismissed) { sticker in
+        .fullScreenCover(item: wideScreen && !wordPageInline ? $router.detailSticker : Binding<Sticker?>.constant(nil),
+                         onDismiss: wordPageDismissed) { sticker in
             wordPage(sticker)
         }
+        .animation(.spring(response: 0.42, dampingFraction: 0.9), value: wordPageInline ? router.detailSticker?.id : nil)
         .onGeometryChange(for: Bool.self) { $0.size.width >= 800 && $0.size.width > $0.size.height } action: { wideScreen = $0 }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in measureFold() }
         .onAppear {
@@ -403,6 +425,8 @@ struct MainTabView: View {
             // Every way into a word (dex, home, review, a reminder) pons open; closing it pons back.
             if old == nil, s != nil { SoundService.shared.pon(open: true) }
             if old != nil, s == nil { SoundService.shared.pon(open: false) }
+            // Drawn in the tab screen, the page has no presentation to call back when it closes.
+            if wordPageInline, old != nil, s == nil { wordPageDismissed() }
         }
         .fullScreenCover(isPresented: $router.showPaywall) {
             PaywallView()
@@ -525,6 +549,7 @@ struct CapsuleTabBar: View {
     var onCamera: Bool
     /// Called with the tapped tab just before the selection changes (MainTabView starts the shutter flight).
     var onSelect: ((AppTab) -> Void)? = nil
+    var onReselect: (() -> Void)? = nil
     /// iPhone Duo folded or open sideways: a rail standing in the strip at the side — the four tabs in a tall capsule,
     /// the camera disc under them where the thumb rests (Apple's iPhone Duo guidance: the tab bar stays bottom aligned).
     var vertical: Bool = false
@@ -665,7 +690,7 @@ struct CapsuleTabBar: View {
     }
 
     private func select(_ tab: AppTab) {
-        guard selection != tab else { return }
+        guard selection != tab else { onReselect?(); return }
         SoundService.shared.pon(open: true)   // a tab switch is a page opening: bubble pon + soft tap
         bounces[tab, default: 0] += 1
         onSelect?(tab)
@@ -800,3 +825,22 @@ extension MainTabView {
 }
 #endif
 
+
+
+/// The word page's own guide layer (its steps light the page's parts: the jump chips, the settings button), the same
+/// whether the page is presented or drawn in the tab screen.
+private struct WordPageGuide: ViewModifier {
+    let router: AppRouter
+    let onNext: () -> Void
+    let onSkip: () -> Void
+
+    func body(content: Content) -> some View {
+        content.overlayPreferenceValue(TourAnchorKey.self) { anchors in
+            if router.tour.isWord {
+                TourLayer(step: router.tour, anchors: anchors, onNext: onNext, onSkip: onSkip,
+                          bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
+                    .transition(.opacity)
+            }
+        }
+    }
+}
