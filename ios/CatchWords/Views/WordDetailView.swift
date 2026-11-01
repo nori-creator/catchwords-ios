@@ -80,10 +80,14 @@ struct WordDetailView: View {
     @State private var heroPage: Int = 0
     /// Later pictures' cut-outs' width ÷ height once drawn, by id.
     @State private var laterRatios: [String: CGFloat] = [:]
-    /// A finger is on the hero or swiping it (the slideshow waits; a swipe the scroll view takes over resets by
-    /// itself), the hero is on screen, and which way the last slide went.
-    @State private var touching: Bool = false
+    /// A finger is on the hero (pressing) or swiping it (the slideshow waits; a swipe the scroll view takes over
+    /// resets by itself), the hero is on screen, and which way the last slide went.
+    @GestureState private var pressing: Bool = false
     @GestureState private var swiping: Bool = false
+    /// The one-time hint beside the turn button (「タップで自撮りへ」): shown for a moment on the first word with a selfie
+    /// after the app is installed (owner 2026-11-01), then never again.
+    @AppStorage("coach.selfieFlip") private var selfieCoachSeen: Bool = false
+    @State private var showSelfieHint: Bool = false
     @State private var heroVisible: Bool = true
     @State private var slideForward: Bool = true
     /// How far a finger has pulled the photo sideways (the next or the previous photo comes in beside it), and the
@@ -99,14 +103,12 @@ struct WordDetailView: View {
     @State private var placesOpen: Bool = false
     /// The photo whose place is being put right (`PlaceEditSheet`).
     @State private var editingPlace: Sticker?
-    /// What decides the picture's height (`heroMaxHeight`): the scrolling page's size, the date card and the word's
+    /// What decides the picture's height (`heroHeight`): the scrolling page's size, the date card and the word's
     /// card under the picture.
     @State private var viewportSize: CGSize = .zero
     @State private var viewportMinX: CGFloat = 0
     @State private var metaHeight: CGFloat = 0
     @State private var headHeight: CGFloat = 0
-    /// The row of buttons under the picture (`heroControls`).
-    @State private var controlsHeight: CGFloat = 0
     /// `derived`'s last answer.
     @State private var memo = DerivedMemo()
     @Environment(\.scenePhase) private var scenePhase
@@ -579,6 +581,7 @@ struct WordDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // 版25 (owner 2026-10-25: 「見出しの単語の背景白なのに…背景色ついてる。白にして」): a white card like the others.
         .background(Theme.card, in: .rect(cornerRadius: 24, style: .continuous))
+        .accessibilityIdentifier("detail.head")
         .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Theme.border, lineWidth: 1))
         .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
     }
@@ -673,20 +676,24 @@ struct WordDetailView: View {
     /// The picture is never smaller than this (a short screen, very large text).
     static let minHeroHeight: CGFloat = 150
 
-    /// The picture is as tall as leaves when and where it was taken and the word with its reading on the screen when
-    /// the page opens — on the iPhone and on iPhone Duo's screens alike — with the top of the next card just showing
-    /// (there is more below). The meaning is no longer counted: with it the picture came out too small (owner
-    /// 2026-11-01: 「画面上に、切り抜きの画像、撮った場所、単語の見出しが出るようにして。（今までは日本語の意味も入れて
-    /// いたけど、画像が小さすぎるから変更する。）」; it was 2026-10-30/31's 「…見出しの単語、日本語訳はパッと表示される
-    /// ように」). Scrolling down then shrinks it (`HeroShrink`). Until the page is measured, no limit.
-    private var heroMaxHeight: CGFloat {
-        let viewportHeight = viewportSize.height
-        guard viewportHeight > 0, metaHeight > 0, headHeight > 0 else { return .infinity }
-        let below = metaHeight + 14 + headHeight + 14 + Self.nextCardPeek
-        let unsaved: CGFloat = isUnsaved ? 80 : 0
-        return max(Self.minHeroHeight, viewportHeight - 8 - 14 - below - unsaved)
+    /// The picture's box is about half the page (owner 2026-11-01: 「単語の詳細の半分ぐらいを占める大きさに…その大きさで
+    /// 固定して」), the same for every word of a device whatever the cut-out's shape, so when and where it was taken and the
+    /// word always stand at the same height under it. Where the two cards would not fit under half (a short screen, very
+    /// large text), as much as leaves them on screen. Scrolling no longer changes its size (the shrinking of the same day
+    /// was dropped: 「その機能はやっぱりいらない」). Until the page is measured, no limit.
+    private var heroHeight: CGFloat? {
+        let h = viewportSize.height
+        guard h > 0 else { return nil }
+        var box = h * Self.heroShare
+        if metaHeight > 0, headHeight > 0 {
+            let unsaved: CGFloat = isUnsaved ? 80 : 0
+            box = min(box, h - 8 - 14 - metaHeight - 14 - headHeight - 14 - Self.nextCardPeek - unsaved)
+        }
+        return max(Self.minHeroHeight, box)
     }
 
+    /// The picture's share of the page's height.
+    static let heroShare: CGFloat = 0.5
     /// How much of the card under the word shows at the bottom when the page opens.
     static let nextCardPeek: CGFloat = 24
 
@@ -698,23 +705,19 @@ struct WordDetailView: View {
     /// The slideshow waits while a finger is on the photo, while the selfie or an original photo is shown, while the
     /// photo sheet is open, while the photo is off screen and while the app is in the background.
     private var slidePaused: Bool {
-        touching || swiping || showSelfie || selfieOriginal || showingOriginal || pickingHero || !heroVisible || scenePhase != .active
+        pressing || swiping || showSelfie || selfieOriginal || showingOriginal || pickingHero || !heroVisible || scenePhase != .active
     }
 
     /// The hero, plus the photos from later encounters: they slide by every few seconds and can be swiped through.
     private var photoHero: some View {
         let later = laterFaces
-        // The picture, and under it its buttons and the photos' dots — never on the picture (owner 2026-11-01:
-        // 「タップで自撮りへ、元の画像ってボタンが画像に被ってるから被らせないようにして」).
-        return VStack(spacing: Self.controlsGap) {
-        ZStack {
+        return ZStack {
             heroFace(later)
                 .id(heroPage)
                 .transition(slideTransition)
                 .offset(x: dragX)
         }
-        .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity,
-               maxHeight: pictureMaxHeight(later))
+        .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity, height: heroHeight)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { heroWidth = $0 }
         // The photo coming in beside it, under the finger (owner 2026-10-31: 「スワイプしてスムーズに画像を変更」).
         .overlay {
@@ -740,15 +743,37 @@ struct WordDetailView: View {
                 if dragX != 0 { withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { dragX = 0 } }
             }
         }
-        if hasHeroControls(later) {
-            heroControls(later)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { controlsHeight = $0 }
+        .overlay(alignment: .bottom) {
+            if !later.isEmpty, !showSelfie {
+                HStack(spacing: 6) {
+                    ForEach(0...later.count, id: \.self) { i in
+                        Capsule().fill(.white.opacity(i == heroPage ? 1 : 0.5))
+                            .frame(width: i == heroPage ? 18 : 7, height: 7)
+                    }
+                }
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(.black.opacity(0.35), in: Capsule())
+                .padding(.bottom, 6)
+                .animation(.snappy, value: heroPage)
+                .accessibilityHidden(true)
+            }
         }
+        // The one-time hint by the turn button: the first word with a selfie after the install, for a few seconds.
+        .task(id: "\(hasSelfie)|\(selfieCoachSeen)") {
+            guard hasSelfie, !selfieCoachSeen else { return }
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { showSelfieHint = true }
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.3)) { showSelfieHint = false }
+            selfieCoachSeen = true
         }
-        // Scrolling down, the picture shrinks smoothly to half its size, its buttons with it, staying at the top until
-        // it is half as big; scrolled back to the top it grows back (owner 2026-11-01). The selfie is turned on the same
-        // picture: large when the picture is large, small when it is small.
-        .modifier(HeroShrink(top: 8, smallest: Self.shrunkScale, still: reduceMotion))
+        .onChange(of: showSelfie) { _, _ in
+            // Turned once: the learner knows the tap.
+            if showSelfieHint { withAnimation(.easeOut(duration: 0.2)) { showSelfieHint = false } }
+            selfieCoachSeen = true
+        }
         .accessibilityAdjustableAction { dir in
             guard !later.isEmpty else { return }
             switch dir {
@@ -785,8 +810,6 @@ struct WordDetailView: View {
 
     /// The space between two photos side by side while one is pulled across.
     static let pageGap: CGFloat = 24
-    /// How small the picture gets as the page scrolls down (of its size when the page opens).
-    static let shrunkScale: CGFloat = 0.5
 
     /// A finger pulling the photo sideways: it follows the finger, with the next (or the previous) photo beside it; at
     /// either end it gives a little and springs back.
@@ -918,8 +941,6 @@ struct WordDetailView: View {
             }
         }
         .contentShape(.rect(cornerRadius: 28))
-        // A finger on the photo holds the slideshow (the long press itself does nothing here).
-        .onLongPressGesture(minimumDuration: 60, perform: {}, onPressingChanged: { pressing in touching = pressing })
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L("\(number)回目に撮った写真"))
     }
@@ -1002,6 +1023,46 @@ struct WordDetailView: View {
         let back = showSelfie
         let path = back ? shown.selfieImageUrl : frontPath
         return faceBody(back: back)
+            .overlay(alignment: .topTrailing) {
+                if back {
+                    // The selfie's own 「元の写真」: the selfie as it was taken, in place; again (切り抜き) back to the
+                    // cut-out. Only when there is a cut-out to go back to.
+                    if selfieCutReady {
+                        heroIcon(selfieOriginal ? "person.crop.square" : "arrow.up.left.and.arrow.down.right",
+                                 label: selfieOriginal ? L("切り抜き") : L("元の写真"), id: "detail.selfieOriginal") {
+                            withAnimation(.easeInOut(duration: 0.25)) { selfieOriginal.toggle() }
+                        }
+                        .padding(2)
+                    }
+                } else if hasSelfie, originalPath != nil {
+                    // The photo side's original photo, full screen (without a selfie the tap on the picture opens it).
+                    heroIcon("arrow.up.left.and.arrow.down.right", label: L("元の写真"), id: "detail.viewOriginal") {
+                        showingOriginal = true
+                    }
+                    .padding(2)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                // With a selfie, a tap anywhere on the picture turns the card (photo ⇄ selfie); the small turn button on
+                // the corner says so, and the hint beside it is shown once per install (owner 2026-11-01).
+                if hasSelfie {
+                    HStack(spacing: 4) {
+                        if showSelfieHint {
+                            Text(back ? L("タップで戻る") : L("タップで自撮りへ"))
+                                .scaledFont(size: 12, weight: .semibold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(.black.opacity(0.55), in: Capsule())
+                                .transition(.opacity.combined(with: .move(edge: .trailing)))
+                                .allowsHitTesting(false)
+                        }
+                        heroIcon("arrow.triangle.2.circlepath", label: back ? L("タップで戻る") : L("タップで自撮りへ"),
+                                 id: "detail.flipSelfie") { flip() }
+                    }
+                    .padding(2)
+                }
+            }
             .overlay(alignment: .bottomLeading) {
                 // An internet picture says whose it is (Unsplash asks for the photographer's name).
                 if !back, path != nil, path == shown.placeholderImageUrl, let name = shown.placeholderCredit?.name, !name.isEmpty {
@@ -1036,12 +1097,18 @@ struct WordDetailView: View {
                 OriginalPhotoViewer(path: originalPath, url: dex.url(for: originalPath, preferThumb: false))
             }
             // 長押し: この単語をどの絵で見せるか選ぶ（Web HeroPhotoPicker）。 Not while the catch is still being saved.
-            // A finger on the photo also holds the slideshow.
-            .onLongPressGesture(minimumDuration: 0.45, perform: {
-                guard shownEditable else { return }
-                Haptics.impact(.medium)
-                pickingHero = true
-            }, onPressingChanged: { pressing in touching = pressing })
+            // A finger on the photo also holds the slideshow (`pressing`). A simultaneous gesture, not
+            // `onLongPressGesture`: that one took the touch from the page's scroll view, so a drag that began on the
+            // picture did not scroll the page (owner 2026-11-01: 「切り抜きの上をスクロールしても下に行かない」).
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45)
+                    .updating($pressing) { _, state, _ in state = true }
+                    .onEnded { _ in
+                        guard shownEditable else { return }
+                        Haptics.impact(.medium)
+                        pickingHero = true
+                    }
+            )
             .accessibilityAction(named: L("表示する写真を選ぶ")) { if shownEditable { pickingHero = true } }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(back ? L("自撮り写真") : L("写真"))
@@ -1054,79 +1121,24 @@ struct WordDetailView: View {
             }
     }
 
-    /// The space between the picture and its buttons.
-    static let controlsGap: CGFloat = 10
-
-    /// The picture's height: what the page leaves it, less the row of buttons under it.
-    private func pictureMaxHeight(_ later: [LaterPhoto]) -> CGFloat? {
-        guard heroMaxHeight.isFinite else { return nil }
-        let row = hasHeroControls(later) ? controlsHeight + Self.controlsGap : 0
-        return max(Self.minHeroHeight, heroMaxHeight - row)
-    }
-
-    /// Something to show under the picture: the photos' dots, the original photo, the selfie.
-    private func hasHeroControls(_ later: [LaterPhoto]) -> Bool {
-        (!later.isEmpty && !showSelfie) || hasSelfie
-    }
-
-    /// Under the picture: the dots of the word's photos, then 「元の写真」 and 「タップで自撮りへ」 (on the selfie side,
-    /// 「元の写真」/「切り抜き」 and 「タップで戻る」). Scaled with the picture as the page scrolls (`HeroShrink`).
-    @ViewBuilder
-    private func heroControls(_ later: [LaterPhoto]) -> some View {
-        VStack(spacing: 8) {
-            if !later.isEmpty, !showSelfie {
-                HStack(spacing: 6) {
-                    ForEach(0...later.count, id: \.self) { i in
-                        Capsule().fill(i == heroPage ? Theme.primary : Theme.muted.opacity(0.35))
-                            .frame(width: i == heroPage ? 18 : 7, height: 7)
-                    }
-                }
-                .animation(.snappy, value: heroPage)
-                .accessibilityHidden(true)
-            }
-            if hasSelfie {
-                HStack(spacing: 8) {
-                    if showSelfie {
-                        // The selfie's own 「元の写真」: the selfie as it was taken; again (切り抜き) back to its cut-out.
-                        if selfieCutReady {
-                            heroControl(selfieOriginal ? L("切り抜き") : L("元の写真"),
-                                        icon: selfieOriginal ? "chevron.backward" : "arrow.up.left.and.arrow.down.right",
-                                        id: "detail.selfieOriginal") {
-                                withAnimation(.easeInOut(duration: 0.25)) { selfieOriginal.toggle() }
-                            }
-                        }
-                    } else if originalPath != nil {
-                        heroControl(L("元の写真"), icon: "arrow.up.left.and.arrow.down.right", id: "detail.viewOriginal") {
-                            showingOriginal = true
-                        }
-                    }
-                    heroControl(showSelfie ? L("タップで戻る") : L("タップで自撮りへ"),
-                                icon: "arrow.triangle.2.circlepath", id: "detail.flipSelfie") { flip() }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    /// A light capsule button under the picture.
-    private func heroControl(_ title: String, icon: String, id: String, action: @escaping () -> Void) -> some View {
+    /// A small round button on a corner of the picture (owner 2026-11-01: back on the picture's corners, as icons only,
+    /// so they cover next to nothing of the cut-out: 「切り抜きの画像の邪魔にならない配置と大きさにして。ただしユーザーが
+    /// 見えるように」). The tap area is 44 pt; the visible circle 30.
+    private func heroIcon(_ icon: String, label: String, id: String, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.selection()
             action()
         } label: {
-            Label(title, systemImage: icon)
-                .scaledFont(size: 13, weight: .semibold)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .foregroundStyle(Theme.foreground.opacity(0.85))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(Theme.secondary, in: Capsule())
-                .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(.black.opacity(0.45), in: Circle())
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
         }
-        .buttonStyle(PressableStyle(scale: 0.94))
+        .buttonStyle(PressableStyle(scale: 0.9))
+        .accessibilityLabel(label)
         .accessibilityIdentifier(id)
     }
 
@@ -1140,9 +1152,10 @@ struct WordDetailView: View {
         let role = shown.heroRole
         let wantSelfie = role == "selfie" && hasSelfie
         let change = {
-            // Opening the page always starts on the cut-out (owner 2026-10-09: the dex shows cut-outs); a choice
-            // just made in the picker (animated) is shown at once.
-            if animated, role == "cutout" || role == "object" { showCutout = role == "cutout" && shown.cutoutImageUrl != nil }
+            // The picture the learner chose in 「表示する写真」, when the page opens too (owner 2026-10-21: the original
+            // photo shows only when chosen there; 2026-11-01: a page opened after choosing 「元の写真」 still showed the
+            // cut-out — it used to start on the cut-out whatever was chosen). No choice, or 切り抜き: the cut-out.
+            showCutout = !(role == "object" && shown.objectImageUrl != nil)
             if wantSelfie != showSelfie {
                 showSelfie = wantSelfie
                 flipAngle = wantSelfie ? 180 : 0
@@ -2637,41 +2650,4 @@ struct DerivedContent {
 /// Holds `DerivedContent` across the page's draws (a class: filling it while the page is drawn changes nothing on screen).
 final class DerivedMemo {
     var content: DerivedContent?
-}
-
-/// The word page's picture shrinking as the page scrolls (owner 2026-11-01: 「したにスクロールしたら滑らかに小さくなって
-/// …切り抜きが小さくなった時は、元の画像とタップして自撮りへボタンもそれに合わせて小さく表示して」「スクロールを一番上
-/// まで戻したら、切り抜きを始めに表示していた大きい大きさに滑らかに戻して」).
-///
-/// Once the picture's top passes `top` (where it stands when the page opens), it is drawn smaller by as much as the page
-/// has moved, about its bottom edge: its top stays where it was and its bottom rises with the page, until it is
-/// `smallest` of its size; from there it scrolls away at that size. Only drawn smaller — its place on the page stays
-/// the same, so nothing under it moves and the scroll never jumps. Its buttons are drawn (and tapped) at the same
-/// scale. The scale is kept here, so only the picture is drawn again as the page moves, not the whole page.
-struct HeroShrink: ViewModifier {
-    let top: CGFloat
-    let smallest: CGFloat
-    /// Reduce Motion: the picture keeps its size.
-    var still: Bool = false
-    @State private var scale: CGFloat = 1
-
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(scale, anchor: .bottom)
-            // Measured OUTSIDE the scale: the picture's place on the page, not where it is drawn. Measured inside it (as
-            // first written), the frame shrank with the scale, the next scale undid it, and the two took turns on every
-            // frame while the page scrolled — the app crashed on scrolling the word page (owner 2026-11-01:
-            // 「単語の詳細をタップし、下にスクロールしたり、上にスクロールする、クラッシュした」).
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView(axis: .vertical)) } action: { f in
-                let s = still ? 1 : Self.scale(minY: f.minY, height: f.height, top: top, smallest: smallest)
-                if abs(s - scale) > 0.002 || (s == 1 && scale != 1) || (s == smallest && scale != smallest) { scale = s }
-            }
-    }
-
-    /// 1 while the picture's top is at or below `top`; then 1 − moved ÷ height (the top stays put), down to `smallest`.
-    nonisolated static func scale(minY: CGFloat, height: CGFloat, top: CGFloat, smallest: CGFloat) -> CGFloat {
-        guard height > 0 else { return 1 }
-        let moved = max(0, top - minY)
-        return max(smallest, min(1, 1 - moved / height))
-    }
 }
