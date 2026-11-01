@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>CapturePlace</key>
+		<string>撮った場所のお店・駅・公園などの名前を正確に記録するため、撮る間だけ正確な位置を使います。</string>
+	</dict>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-5322226492885516~5462163867</string>
 	<key>GADDelayAppMeasurementInit</key>

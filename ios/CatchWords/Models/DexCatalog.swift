@@ -70,7 +70,7 @@ nonisolated enum DexCatalog {
         case 6: L("家具・インテリア")
         case 7: L("家電")
         case 8: L("スマホ・パソコン")
-        case 9: L("文房具・本")
+        case 9: L("文具・本・書類")  // 2026-11-01: 護照・明細表 are 書類 (owner chose the name)
         case 10: L("洗面・日用品")
         case 11: L("服")
         case 12: L("靴・バッグ・小物")

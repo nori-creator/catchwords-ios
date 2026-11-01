@@ -96,6 +96,8 @@ struct CaptureView: View {
         .task { await startCamera() }
         .onAppear {
             LocationService.shared.requestPermissionIfNeeded()
+            // Measuring starts with the camera, so the point is precise by the shutter.
+            LocationService.shared.warmUp()
             syncChrome()
             SoundService.shared.warmTicks()   // the shutter plays from the tick engine
             SoundService.shared.prepareCatchSounds()
@@ -104,6 +106,7 @@ struct CaptureView: View {
             UITestTrace.log("capture.disappear step=\(vm.step)")
             selfieCountdown.cancel()
             camera.stop()
+            LocationService.shared.coolDown()
             router.cameraImmersive = true
             router.tabBarHidden = false
         }
@@ -158,7 +161,11 @@ struct CaptureView: View {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let img = await ImageTools.downsampledInBackground(data) {
                     // A photo that loads after another catch has started is dropped (never replaces it).
-                    if vm.step == .camera { beginAnalyze(img, askSelfie: false) }
+                    if vm.step == .camera {
+                        // Named after where it was taken, not where the phone is now.
+                        vm.photoLocation = LocationService.photoLocation(data)
+                        beginAnalyze(img, askSelfie: false)
+                    }
                 } else {
                     vm.showToast(L("写真を読み込めませんでした。"))
                 }
@@ -594,6 +601,7 @@ struct CaptureView: View {
         }
         Task {
             if let img = await capturePhoto() {
+                vm.photoLocation = nil
                 beginAnalyze(img, askSelfie: selfieMode)
             } else {
                 shooting = false

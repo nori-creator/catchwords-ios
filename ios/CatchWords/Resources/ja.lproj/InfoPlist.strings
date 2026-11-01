@@ -3,3 +3,4 @@
 "NSLocationWhenInUseUsageDescription" = "撮った場所の地名を記録して、思い出と一緒に単語を覚えられるようにします。「場所でリマインド」をオンにすると、単語を撮った場所の近くに来たときに通知でお知らせするためにも使います。";
 "NSPhotoLibraryAddUsageDescription" = "撮った写真をスマホの写真アプリにも保存します。";
 "NSPhotoLibraryUsageDescription" = "写真アプリの画像から単語を探すために使います。";
+"CapturePlace" = "撮った場所のお店・駅・公園などの名前を正確に記録するため、撮る間だけ正確な位置を使います。";
