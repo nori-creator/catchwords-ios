@@ -5,7 +5,7 @@
 	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
 	<dict>
 		<key>CapturePlace</key>
-		<string>撮った場所のお店・駅・公園などの名前を正確に記録するため、撮る間だけ正確な位置を使います。</string>
+		<string>撮った場所の住所（番地まで）を正確に記録するため、撮る間だけ正確な位置を使います。</string>
 	</dict>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-5322226492885516~5462163867</string>

@@ -3,4 +3,4 @@
 "NSLocationWhenInUseUsageDescription" = "CatchWords ghi lại tên nơi bạn chụp ảnh để bạn nhớ từ cùng với khoảnh khắc đó. Khi bật nhắc nhở theo địa điểm, ứng dụng cũng dùng vị trí của bạn để báo cho bạn khi bạn đến gần nơi đã bắt được từ.";
 "NSPhotoLibraryAddUsageDescription" = "CatchWords cũng lưu ảnh bạn chụp vào ứng dụng Ảnh.";
 "NSPhotoLibraryUsageDescription" = "CatchWords dùng hình ảnh trong thư viện ảnh của bạn để tìm từ.";
-"CapturePlace" = "CatchWords chỉ dùng vị trí chính xác khi bạn chụp ảnh, để ghi lại đúng tên cửa hàng, nhà ga hay công viên nơi bạn chụp.";
+"CapturePlace" = "CatchWords chỉ dùng vị trí chính xác khi bạn chụp ảnh, để ghi lại đúng địa chỉ (đến số nhà) nơi bạn chụp.";

@@ -288,7 +288,8 @@
     書くか近くの場所から選ぶ**（`PlaceEditSheet`、今のまま）。カメラロールの写真は写真に入っている位置
     （EXIF）で名付ける（`LocationService.photoLocation`）。**カメラを開いた時から位置を測り始める**（`warmUp` / `coolDown`。
     シャッターの時に精度の高い位置がある）。「正確な位置情報」がオフの人には、起動ごとに1回、撮る間だけオンにする確認を出す
-    （`CapturePlace`、Info.plist の `NSLocationTemporaryUsageDescriptionDictionary`）。
+    （`CapturePlace`、Info.plist の `NSLocationTemporaryUsageDescriptionDictionary`）。その確認の文も**住所（番地まで）を記録するため**
+    （6言語とも。「お店・駅・公園の名前」の文は 11-01 に住所へ戻した動きと合わないので直した）。
   - **図鑑の9番は「文具・本・書類」**（オーナーが3案から選んだ。前は「文房具・本」で、パスポート・明細表が入るのが変に見えた）。
     中身は変えない: 書く道具・紙・本・書類（証明書・明細・レシート・宿題・チケット）。お金・支払いのカード・鍵は「洗面・日用品」。
     カテゴリー全体の作り直しはしない（同日「全てのカテゴリーを見直すんじゃなくて…名前を考え直してほしいだけ」）。

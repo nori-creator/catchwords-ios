@@ -3,4 +3,4 @@
 "NSLocationWhenInUseUsageDescription" = "CatchWords guarda el nombre del lugar donde tomaste una foto para que recuerdes las palabras junto con ese momento. Si activas los recordatorios por lugar, también usa tu ubicación para avisarte cuando estés cerca de un lugar donde atrapaste una palabra.";
 "NSPhotoLibraryAddUsageDescription" = "CatchWords también guarda tus fotos en la app Fotos.";
 "NSPhotoLibraryUsageDescription" = "CatchWords usa las imágenes de tu fototeca para encontrar palabras.";
-"CapturePlace" = "CatchWords usa tu ubicación exacta solo mientras haces una foto, para guardar el nombre exacto de la tienda, estación o parque donde la tomaste.";
+"CapturePlace" = "CatchWords usa tu ubicación exacta solo mientras haces una foto, para guardar la dirección exacta (hasta el número de la calle) donde la tomaste.";
