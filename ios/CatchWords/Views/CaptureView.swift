@@ -158,7 +158,11 @@ struct CaptureView: View {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let img = await ImageTools.downsampledInBackground(data) {
                     // A photo that loads after another catch has started is dropped (never replaces it).
-                    if vm.step == .camera { beginAnalyze(img, askSelfie: false) }
+                    if vm.step == .camera {
+                        // Named after where it was taken, not where the phone is now.
+                        vm.photoLocation = LocationService.photoLocation(data)
+                        beginAnalyze(img, askSelfie: false)
+                    }
                 } else {
                     vm.showToast(L("写真を読み込めませんでした。"))
                 }
@@ -594,6 +598,7 @@ struct CaptureView: View {
         }
         Task {
             if let img = await capturePhoto() {
+                vm.photoLocation = nil
                 beginAnalyze(img, askSelfie: selfieMode)
             } else {
                 shooting = false

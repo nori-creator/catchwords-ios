@@ -52,16 +52,59 @@ struct DexGallery: View {
     var onTargetFrame: ((CGRect) -> Void)? = nil
     let onOpen: (Sticker) -> Void
 
+    @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
+    /// The gallery's width once laid out: every square's height follows from it (`DexSlotSize`).
+    @State private var width: CGFloat = 0
+
     var body: some View {
-        LazyVStack(spacing: 0) {
+        let size = DexSlotSize(galleryWidth: width, pinyin: readingPref == "pinyin")
+        // Every card is laid out from the start (only its squares are lazy), each at the height its rows give: the
+        // page's height never changes while it scrolls. The cards were in a LazyVStack and their squares changed
+        // height after a frame (a reading line or not, a long word shrunk): a card built for the first time — above
+        // the place a catch's landing had scrolled to — came out taller or shorter than estimated and the page
+        // jumped (owner 2026-11-01: 「図鑑をスクロールしてたら、図鑑が飛ぶ、滑らかにスクロールされず、変なところに飛ぶ」).
+        VStack(spacing: 0) {
             ForEach(sections) { sec in
                 DexCategoryCard(section: sec, focus: focus, calm: calm,
                                 marks: marks?.category == sec.category.no ? marks : nil,
-                                onTargetFrame: onTargetFrame, onOpen: onOpen)
+                                size: size, onTargetFrame: onTargetFrame, onOpen: onOpen)
                     .padding(.top, 12)
                     .id("dexcat-\(sec.category.no)")
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in
+            if abs(w - width) > 0.5 { width = w }
+        }
+    }
+}
+
+/// The gallery's squares, all one height: the picture (as wide as its column), 「No.」 and the name under it in boxes
+/// of their own height. A card's grid is then exactly its rows' height before any square is built.
+struct DexSlotSize: Equatable {
+    /// The card's padding (12 each side) and the grid's three gaps (9).
+    static let cardInset: CGFloat = 24
+    static let gap: CGFloat = 9
+    static let noHeight: CGFloat = 12
+    static let spacing: CGFloat = 3
+
+    /// nil until the gallery has been laid out.
+    let column: CGFloat?
+    /// The name's box: the pinyin line over the characters, or the characters with zhuyin beside them.
+    let name: CGFloat
+
+    init(galleryWidth: CGFloat, pinyin: Bool) {
+        let w = (galleryWidth - Self.cardInset - 3 * Self.gap) / 4
+        column = galleryWidth > 0 && w > 0 ? w : nil
+        name = pinyin ? 30 : 22
+    }
+
+    var slot: CGFloat? { column.map { $0 + 2 * Self.spacing + Self.noHeight + name } }
+
+    /// A grid of `count` squares in four columns.
+    func grid(count: Int) -> CGFloat? {
+        guard let slot, count > 0 else { return count == 0 ? 0 : nil }
+        let rows = CGFloat((count + 3) / 4)
+        return rows * slot + (rows - 1) * Self.gap
     }
 }
 
@@ -72,6 +115,7 @@ private struct DexCategoryCard: View {
     let calm: Bool
     /// This category's marks after a landing.
     let marks: DexLandingMarks?
+    let size: DexSlotSize
     let onTargetFrame: ((CGRect) -> Void)?
     let onOpen: (Sticker) -> Void
 
@@ -108,11 +152,13 @@ private struct DexCategoryCard: View {
                     DexSlotView(slot: slot, index: index, focus: focus?.id == slot.id ? focus : nil, calm: calm,
                                 isNew: marks?.again != true && marks?.newId == slot.id,
                                 isAgain: marks?.again == true && marks?.newId == slot.id,
-                                goalSince: goalSlot == slot.id ? marks?.impact : nil,
+                                goalSince: goalSlot == slot.id ? marks?.impact : nil, size: size,
                                 onTargetFrame: focus?.id == slot.id ? onTargetFrame : nil, onOpen: onOpen)
+                        .frame(height: size.slot, alignment: .top)
                         .id(slot.id)
                 }
             }
+            .frame(height: size.grid(count: section.slots.count), alignment: .top)
         }
         .padding(.horizontal, 12)
         .padding(.top, 12)
@@ -173,6 +219,8 @@ private struct DexSlotView: View {
     var isAgain: Bool = false
     /// Film v6: the category's next shadow after a landing (a dashed ring breathes round it from impact + 1 s).
     var goalSince: Double? = nil
+    /// The fixed heights of 「No.」 and the name (`DexSlotSize`).
+    var size: DexSlotSize? = nil
     let onTargetFrame: ((CGRect) -> Void)?
     let onOpen: (Sticker) -> Void
     /// The first tour lights the word it caught (`TourStep.dexOpen`).
@@ -221,7 +269,11 @@ private struct DexSlotView: View {
             .tracking(0.38)
             .foregroundStyle(DexInk.no)
             .lineLimit(1)
+            .frame(height: size.map { _ in DexSlotSize.noHeight })
     }
+
+    /// The name's own box: the same height on every square, a reading line or not.
+    private var nameHeight: CGFloat? { size?.name }
 
     private func column(caught s: Sticker) -> some View {
         VStack(spacing: 3) {
@@ -240,6 +292,7 @@ private struct DexSlotView: View {
                 CCZhuyinWord(headword: s.word?.headword ?? "", zhuyin: s.word?.readingZhuyin ?? "", pinyin: s.word?.pinyin ?? "",
                              size: 13, weight: .heavy, color: Theme.foreground)
             }
+            .frame(height: nameHeight, alignment: .top)
         }
         .contentShape(Rectangle())
     }
@@ -263,6 +316,7 @@ private struct DexSlotView: View {
                 .minimumScaleFactor(0.4)
                 .frame(minWidth: 0, maxWidth: .infinity)
                 .clipped()
+                .frame(height: nameHeight, alignment: .top)
         }
     }
 
@@ -271,6 +325,7 @@ private struct DexSlotView: View {
             sart(caught: false) { Color.clear }
             noText
             Text(" ").font(.system(size: 13, weight: .bold))
+                .frame(height: nameHeight, alignment: .top)
         }
     }
 

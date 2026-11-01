@@ -46,6 +46,9 @@ final class CaptureViewModel {
     /// The spoken one-liner next to the memo (web VoiceCaptionButton).
     var placeName: String?
     var location: CLLocation?
+    /// Where a photo from the library was taken (its EXIF GPS, `LocationService.photoLocation`): used instead of where
+    /// the phone is now. nil for the camera's photos and a library photo without one.
+    var photoLocation: CLLocation?
     let captureType: String = "photo"
     var restoredPendingId: String?
     /// Inline error under "違う単語を入力" (web `input.notTargetLang`).
@@ -187,8 +190,9 @@ final class CaptureViewModel {
         // found are used as they are, and an analysis of this photo running there is joined, not repeated.
         let restoredId = restoredPendingId
 
+        let given = photoLocation
         Task {
-            async let loc = LocationService.shared.current()
+            async let loc = Self.locate(given)
             do {
                 let found: [Candidate]
                 if let restoredId {
@@ -246,6 +250,12 @@ final class CaptureViewModel {
                 placeName = name
             }
         }
+    }
+
+    /// Where the photo was taken: a library photo's own location, else where the phone is now.
+    private static func locate(_ given: CLLocation?) async -> CLLocation? {
+        if let given { return given }
+        return await LocationService.shared.current()
     }
 
     /// "いますぐもう一度試す": same photo, same queue entry.

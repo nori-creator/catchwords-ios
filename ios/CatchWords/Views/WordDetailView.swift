@@ -99,13 +99,12 @@ struct WordDetailView: View {
     @State private var placesOpen: Bool = false
     /// The photo whose place is being put right (`PlaceEditSheet`).
     @State private var editingPlace: Sticker?
-    /// What decides the picture's height (`heroMaxHeight`): the scrolling page's size, the date card, the word's
-    /// card and its meaning under the picture.
+    /// What decides the picture's height (`heroMaxHeight`): the scrolling page's size, the date card and the word's
+    /// card under the picture.
     @State private var viewportSize: CGSize = .zero
     @State private var viewportMinX: CGFloat = 0
     @State private var metaHeight: CGFloat = 0
     @State private var headHeight: CGFloat = 0
-    @State private var meaningHeight: CGFloat = 0
     /// `derived`'s last answer.
     @State private var memo = DerivedMemo()
     @Environment(\.scenePhase) private var scenePhase
@@ -290,9 +289,6 @@ struct WordDetailView: View {
         ForEach(sections) { section in
             if hasContent(section) {
                 sectionView(section)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
-                        if section == .meaning { meaningHeight = h }
-                    }
                     // The first tour goes through the sections one by one (owner 2026-10-28).
                     .tourAnchor(.wordSection, if: router.tour == .wordSection && router.tourSection == section)
                     .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)), removal: .opacity))
@@ -675,19 +671,22 @@ struct WordDetailView: View {
     /// The picture is never smaller than this (a short screen, very large text).
     static let minHeroHeight: CGFloat = 150
 
-    /// The picture is as tall as leaves when and where it was taken, the word with its reading and its meaning on the
-    /// screen when the page opens — on the iPhone and on iPhone Duo's screens alike (owner 2026-10-30/31: 「パッと開いた
-    /// 時に写真しか写ってない…切り抜きの画像と…取った場所の地名、見出しの単語、日本語訳はパッと表示されるように画像の
-    /// 大きさを調整して」; from the iPhone Duo session's e994feb). The meaning counts only where it is the first section
-    /// (a learner who put another first keeps a bigger picture). Until the page is measured, no limit.
+    /// The picture is as tall as leaves when and where it was taken and the word with its reading on the screen when
+    /// the page opens — on the iPhone and on iPhone Duo's screens alike — with the top of the next card just showing
+    /// (there is more below). The meaning is no longer counted: with it the picture came out too small (owner
+    /// 2026-11-01: 「画面上に、切り抜きの画像、撮った場所、単語の見出しが出るようにして。（今までは日本語の意味も入れて
+    /// いたけど、画像が小さすぎるから変更する。）」; it was 2026-10-30/31's 「…見出しの単語、日本語訳はパッと表示される
+    /// ように」). Scrolling down then shrinks it (`HeroShrink`). Until the page is measured, no limit.
     private var heroMaxHeight: CGFloat {
         let viewportHeight = viewportSize.height
         guard viewportHeight > 0, metaHeight > 0, headHeight > 0 else { return .infinity }
-        let meaning = visibleSections.first { hasContent($0) } == .meaning ? meaningHeight + 14 : 0
-        let below = metaHeight + 14 + headHeight + 14 + meaning
+        let below = metaHeight + 14 + headHeight + 14 + Self.nextCardPeek
         let unsaved: CGFloat = isUnsaved ? 80 : 0
         return max(Self.minHeroHeight, viewportHeight - 8 - 14 - below - unsaved)
     }
+
+    /// How much of the card under the word shows at the bottom when the page opens.
+    static let nextCardPeek: CGFloat = 24
 
     /// The first section shown under the word's card (its meaning, normally): on the left page when held sideways.
     private var firstShownSection: CardSection? {
@@ -751,6 +750,10 @@ struct WordDetailView: View {
                 .accessibilityHidden(true)
             }
         }
+        // Scrolling down, the picture shrinks smoothly to half its size, its buttons with it, staying at the top until
+        // it is half as big; scrolled back to the top it grows back (owner 2026-11-01). The selfie is turned on the same
+        // picture: large when the picture is large, small when it is small.
+        .modifier(HeroShrink(top: 8, smallest: Self.shrunkScale, still: reduceMotion))
         .accessibilityAdjustableAction { dir in
             guard !later.isEmpty else { return }
             switch dir {
@@ -787,6 +790,8 @@ struct WordDetailView: View {
 
     /// The space between two photos side by side while one is pulled across.
     static let pageGap: CGFloat = 24
+    /// How small the picture gets as the page scrolls down (of its size when the page opens).
+    static let shrunkScale: CGFloat = 0.5
 
     /// A finger pulling the photo sideways: it follows the finger, with the next (or the previous) photo beside it; at
     /// either end it gives a little and springs back.
@@ -2641,4 +2646,37 @@ struct DerivedContent {
 /// Holds `DerivedContent` across the page's draws (a class: filling it while the page is drawn changes nothing on screen).
 final class DerivedMemo {
     var content: DerivedContent?
+}
+
+/// The word page's picture shrinking as the page scrolls (owner 2026-11-01: 「したにスクロールしたら滑らかに小さくなって
+/// …切り抜きが小さくなった時は、元の画像とタップして自撮りへボタンもそれに合わせて小さく表示して」「スクロールを一番上
+/// まで戻したら、切り抜きを始めに表示していた大きい大きさに滑らかに戻して」).
+///
+/// Once the picture's top passes `top` (where it stands when the page opens), it is drawn smaller by as much as the page
+/// has moved, about its bottom edge: its top stays where it was and its bottom rises with the page, until it is
+/// `smallest` of its size; from there it scrolls away at that size. Only drawn smaller — its place on the page stays
+/// the same, so nothing under it moves and the scroll never jumps. Its buttons are drawn (and tapped) at the same
+/// scale. The scale is kept here, so only the picture is drawn again as the page moves, not the whole page.
+struct HeroShrink: ViewModifier {
+    let top: CGFloat
+    let smallest: CGFloat
+    /// Reduce Motion: the picture keeps its size.
+    var still: Bool = false
+    @State private var scale: CGFloat = 1
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView(axis: .vertical)) } action: { f in
+                let s = still ? 1 : Self.scale(minY: f.minY, height: f.height, top: top, smallest: smallest)
+                if abs(s - scale) > 0.002 || (s == 1 && scale != 1) || (s == smallest && scale != smallest) { scale = s }
+            }
+            .scaleEffect(scale, anchor: .bottom)
+    }
+
+    /// 1 while the picture's top is at or below `top`; then 1 − moved ÷ height (the top stays put), down to `smallest`.
+    nonisolated static func scale(minY: CGFloat, height: CGFloat, top: CGFloat, smallest: CGFloat) -> CGFloat {
+        guard height > 0 else { return 1 }
+        let moved = max(0, top - minY)
+        return max(smallest, min(1, 1 - moved / height))
+    }
 }
