@@ -1098,13 +1098,27 @@ final class DexStore {
             stickers.removeAll { $0.id == ps.provisionalId }
             if let up = ps.uploads {
                 let client = client
+                let catchId = ps.catchId
                 Task {
-                    for path in [up.object, up.cutout, up.selfie].compactMap({ $0 }) {
+                    // The save may have reached the server with its answer lost: then these photos are the saved
+                    // word's (as its own card, or as a re-encounter of a word already owned) and must stay (check
+                    // 2026-11-03 T2). Removed only when the server certainly has nothing with them; unknown keeps them.
+                    let paths = [up.object, up.cutout, up.selfie].compactMap { $0 }
+                    guard let object = up.object ?? paths.first,
+                          let made = try? await client.rest("GET", "stickers?id=eq.\(catchId)&select=id&limit=1"),
+                          let seen = try? await client.rest("GET", "encounters?image_path=eq.\(DexStore.enc(object))&select=id&limit=1"),
+                          Self.isEmptyRows(made), Self.isEmptyRows(seen) else { return }
+                    for path in paths {
                         try? await client.removeObject(path: path, bucket: "stickers")
                     }
                 }
             }
         }
+    }
+
+    /// Whether a REST answer is an empty list (`[]`).
+    nonisolated static func isEmptyRows(_ data: Data) -> Bool {
+        ((try? JSONSerialization.jsonObject(with: data)) as? [Any])?.isEmpty == true
     }
 
     /// The `words` fields `saveSticker` gets for a catch.

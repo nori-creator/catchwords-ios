@@ -241,6 +241,16 @@ export const editEncounter = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<{ saved: boolean; reason?: string }> => {
     const { supabase, userId } = context;
     const patch = encounterPatch(data, userId);
+    // 替える前の絵（替えた後にどこからも指されなければ消す — 2026-11-03 点検 T3）。
+    const replacing = ["image_path", "cutout_path", "selfie_path"].filter((k) => k in patch);
+    const { data: before } = replacing.length
+      ? await supabase
+          .from("encounters")
+          .select(replacing.join(", "))
+          .eq("id", data.encounter_id)
+          .eq("user_id", userId)
+          .maybeSingle()
+      : { data: null };
     const { data: rows, error } = await supabase
       .from("encounters")
       .update(patch as never)
@@ -256,6 +266,13 @@ export const editEncounter = createServerFn({ method: "POST" })
     }
     // 書き換えの決まり（RLS の UPDATE）がまだ無い時は、エラーにならず0行になる。
     if (!rows || rows.length === 0) return { saved: false, reason: "migration" };
+    const old = Object.values((before ?? {}) as unknown as Record<string, string | null>).filter(
+      (p): p is string => !!p && !Object.values(patch).includes(p),
+    );
+    if (old.length) {
+      const { removeUnreferenced } = await import("./stickers.functions");
+      await removeUnreferenced(supabase, userId, old);
+    }
     return { saved: true };
   });
 
