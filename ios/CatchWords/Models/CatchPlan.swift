@@ -170,6 +170,11 @@ nonisolated enum CatchPlan {
             let decision = CutCoverage.decide(chosen: chosen, inBox: inBoxMap, totals: totalMap, boxArea: area, excluding: theirs)
             var ls = [chosen]
             if case .union(let together) = decision { ls = together }
+            // The other pieces of the thing Vision saw apart (a lint roller's roller and handle, an umbrella's canopy and
+            // handle, a fan's head and stand): those lying mostly in the box and next to what is already taken
+            // (`gather`) — by where they lie, not by how much of the box they fill (owner 2026-11-03).
+            let more = gather(ls, box: boxes[i] ?? .zero, mask: mask, totals: totals, excluding: theirs, width: w, height: h)
+            if !more.isEmpty { ls = (ls + more).sorted() }
             // Mostly outside the box (the thing merged with what is behind it, or a box off to one side): kept whole,
             // and Vision looks again at the region (`refine`).
             let share = Double(ls.reduce(0) { $0 + inBox[$1] }) / Double(max(1, ls.reduce(0) { $0 + totals[$1] }))
@@ -650,6 +655,80 @@ nonisolated enum CatchPlan {
         }
         guard Double(count) >= freeShare * Double((g.x1 - g.x0) * (g.y1 - g.y0)) else { return nil }
         return CatchAnchor.anchors(mask: free, width: w, height: h)[1]
+    }
+
+    // MARK: Pieces of one thing
+
+    /// A piece counts as in the box when this share of it lies in the box grown by `gatherMargin` of its size.
+    static let gatherInside = 0.6
+    /// The box grown by this share of its width and height on each side (a box a little small or off to one side).
+    static let gatherMargin: CGFloat = 0.1
+    /// A piece is next to what is taken when it comes this close (share of the box's diagonal; a thin wire Vision left
+    /// out leaves a gap between a roller and its handle).
+    static let gatherReach: CGFloat = 0.06
+    /// Pieces smaller than this share of the box are specks, not parts.
+    static let gatherSpeck = 0.003
+
+    /// The pieces of one thing that Vision saw as several instances, beyond `taken`: each instance (not in `excluding`)
+    /// that lies `gatherInside` in the box grown by `gatherMargin` and comes within `gatherReach` of what is taken,
+    /// taken one after another (a chain: the handle, then the wire, then the roller). Owner 2026-11-03: a lint roller
+    /// came out as its handle alone — the roller, a piece of its own, filled too little of the box to be taken in.
+    static func gather(_ taken: [Int], box: CGRect, mask: [UInt8], totals: [Int], excluding: Set<Int>,
+                       width w: Int, height h: Int) -> [Int] {
+        guard w > 0, h > 0, mask.count >= w * h, box.width > 0, box.height > 0, !taken.isEmpty else { return [] }
+        let grown = box.insetBy(dx: -box.width * gatherMargin, dy: -box.height * gatherMargin)
+        let inside = countsInside(grown, mask: mask, width: w, height: h)
+        let area = Double(max(1, gridArea(box, width: w, height: h)))
+        var open = Set((1..<256).filter { l in
+            totals[l] > 0 && !taken.contains(l) && !excluding.contains(l)
+                && Double(totals[l]) >= gatherSpeck * area
+                && Double(inside[l]) >= gatherInside * Double(totals[l])
+        })
+        guard !open.isEmpty else { return [] }
+        let diagonal = hypot(box.width * CGFloat(w), box.height * CGFloat(h))
+        let reach = max(2, Int((diagonal * gatherReach).rounded()))
+        var have = [Bool](repeating: false, count: 256)
+        for l in taken where l > 0 && l < 256 { have[l] = true }
+        var added: [Int] = []
+        while !open.isEmpty {
+            // Every pixel within `reach` of what is taken (8-neighbour steps), and the open pieces it touches.
+            var dist = [Int16](repeating: -1, count: w * h)
+            var queue: [Int] = []
+            queue.reserveCapacity(w * h / 4)
+            for k in 0..<(w * h) where have[Int(mask[k])] {
+                dist[k] = 0
+                queue.append(k)
+            }
+            var head = 0
+            var touched = Set<Int>()
+            while head < queue.count {
+                let k = queue[head]
+                head += 1
+                let d = Int(dist[k])
+                let l = Int(mask[k])
+                if open.contains(l) { touched.insert(l) }
+                guard d < reach else { continue }
+                let x = k % w, y = k / w
+                for dy in -1...1 {
+                    for dx in -1...1 where dx != 0 || dy != 0 {
+                        let nx = x + dx, ny = y + dy
+                        guard nx >= 0, ny >= 0, nx < w, ny < h else { continue }
+                        let n = ny * w + nx
+                        if dist[n] < 0 {
+                            dist[n] = Int16(d + 1)
+                            queue.append(n)
+                        }
+                    }
+                }
+            }
+            guard !touched.isEmpty else { break }
+            for l in touched.sorted() {
+                have[l] = true
+                open.remove(l)
+                added.append(l)
+            }
+        }
+        return added.sorted()
     }
 
     // MARK: Pieces that reach the box

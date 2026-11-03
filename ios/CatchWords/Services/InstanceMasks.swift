@@ -377,23 +377,30 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                         + (pick.label.map { "instance \($0) whole" } ?? pick.cutLabel.map { "instance \($0) cut by the crop's edge" }
                            ?? "none mostly inside the box"))
             if let label = pick.label {
-                return hit(result, handler, label: label, px: px, m: m, fade: nil)
+                // The thing's other pieces in the crop (a roller beside its handle), when the crop did not cut them.
+                var totals = [Int](repeating: 0, count: 256)
+                for v in m.mask where v != 0 { totals[Int(v)] += 1 }
+                let more = CatchPlan.gather([label], box: inner, mask: m.mask, totals: totals, excluding: [],
+                                            width: m.width, height: m.height)
+                    .filter { !Self.cutByOpenEdge(label: $0, mask: m.mask, width: m.width, height: m.height, open: open) }
+                if !more.isEmpty { Self.trace?("  with its pieces \(more) in the crop") }
+                return hit(result, handler, labels: [label] + more, px: px, m: m, fade: nil)
             }
             if let label = pick.cutLabel, cutOne == nil { cutOne = (result, handler, label, px, open, m) }
             guard pick.cutByEdge else { break }
         }
         if fadeIfCut, let c = cutOne {
-            return hit(c.result, c.handler, label: c.label, px: c.px, m: c.m, fade: c.open)
+            return hit(c.result, c.handler, labels: [c.label], px: c.px, m: c.m, fade: c.open)
         }
         return nil
     }
 
     /// A crop's instance as a `RegionHit` (faded towards `fade`'s open edges when given).
-    private func hit(_ result: VNInstanceMaskObservation, _ handler: VNImageRequestHandler, label: Int, px: CGRect,
+    private func hit(_ result: VNInstanceMaskObservation, _ handler: VNImageRequestHandler, labels: [Int], px: CGRect,
                      m: (mask: [UInt8], width: Int, height: Int),
                      fade: (left: Bool, top: Bool, right: Bool, bottom: Bool)?) -> RegionHit? {
         guard let photo,
-              let masked = try? result.generateMaskedImage(ofInstances: IndexSet(integer: label), from: handler,
+              let masked = try? result.generateMaskedImage(ofInstances: IndexSet(labels), from: handler,
                                                            croppedToInstancesExtent: false) else { return nil }
         let W = CGFloat(photo.width), H = CGFloat(photo.height)
         let ci = CIImage(cvPixelBuffer: masked)
@@ -415,7 +422,7 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                     let x = (CGFloat(gx) + 0.5) / CGFloat(g.width) * W
                     guard x >= px.minX, x < px.maxX else { continue }
                     let rx = min(m.width - 1, Int((x - px.minX) / px.width * CGFloat(m.width)))
-                    if Int(m.mask[ry * m.width + rx]) == label { b[gy * g.width + gx] = 1 }
+                    if labels.contains(Int(m.mask[ry * m.width + rx])) { b[gy * g.width + gx] = 1 }
                 }
             }
             bits = b
@@ -517,6 +524,24 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             if contact[e] > allowed { return true }
         }
         return false
+    }
+
+    /// Whether instance `label` of a crop's mask runs into one of the crop's open edges (`touchesOpenEdge`).
+    static func cutByOpenEdge(label: Int, mask: [UInt8], width w: Int, height h: Int,
+                              open: (left: Bool, top: Bool, right: Bool, bottom: Bool)) -> Bool {
+        var contact = [0, 0, 0, 0], edge = 0
+        var minX = Int.max, maxX = -1, minY = Int.max, maxY = -1
+        for y in 0..<h {
+            for x in 0..<w where Int(mask[y * w + x]) == label {
+                minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+                let touches = [open.left && x == 0, open.top && y == 0, open.right && x == w - 1, open.bottom && y == h - 1]
+                if touches.contains(true) { edge += 1 }
+                for e in 0..<4 where touches[e] { contact[e] += 1 }
+            }
+        }
+        guard maxX >= 0 else { return false }
+        return touchesOpenEdge(contact: contact, total: edge, extent: (width: maxX - minX + 1, height: maxY - minY + 1),
+                               crop: (width: w, height: h), open: open)
     }
 
     /// The share of a thing's own extent along an edge it may touch that edge with and still count as whole.

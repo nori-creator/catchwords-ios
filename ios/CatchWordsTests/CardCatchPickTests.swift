@@ -386,6 +386,25 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(plans[0].cut, .union([3, 4]))
     }
 
+    func testPiecesWithAGapBetweenThemAreGatheredButNotWhatLiesOutsideTheBox() {
+        // Vision left out the thin wire: the roller (4) and the handle (3) do not touch. A cup (5) stands beside the
+        // roller, mostly outside the box: not a piece of the lint roller.
+        let m = mask(120, 90) { x, y in
+            if (30..<90).contains(x) && (15..<27).contains(y) { return 4 }
+            if (55..<63).contains(x) && (32..<80).contains(y) { return 3 }
+            if (94..<120).contains(x) && (10..<40).contains(y) { return 5 }
+            return 0
+        }
+        let plans = CatchPlan.plan(things: [CatchPlan.Thing(point: CGPoint(x: 59.0 / 120, y: 60.0 / 90), box: lintRollerBox, own: true)],
+                                   mask: m, width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .union([3, 4]))
+        // A speck in the box is no piece either (`gatherSpeck`).
+        XCTAssertEqual(CatchPlan.gather([3], box: lintRollerBox, mask: mask(120, 90) { x, y in
+            if (55..<63).contains(x) && (32..<80).contains(y) { return 3 }
+            return x == 64 && y == 40 ? 6 : 0
+        }, totals: { var t = [Int](repeating: 0, count: 256); t[3] = 384; t[6] = 1; return t }(), excluding: [], width: 120, height: 90), [])
+    }
+
     func testAPartNamedOnItsOwnStaysInTheWholeThingsCutOut() {
         // The AI also named the roller on its own (its point on the roller, its box round it): the roller's instance is
         // that thing's, and the lint roller still takes it in — neither cut-out is split.
