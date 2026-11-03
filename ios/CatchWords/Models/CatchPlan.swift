@@ -518,42 +518,13 @@ nonisolated enum CatchPlan {
             }
             barriers[k] = level
         }
-        // Each claimant's colours: a coarse histogram of its seeds (as `colourCheckedSeeds`).
-        let bins = colourBins
-        func bin(_ i: Int) -> Int {
-            let a = i * 3
-            return (Int(px[a]) * bins / 256) * bins * bins + (Int(px[a + 1]) * bins / 256) * bins + Int(px[a + 2]) * bins / 256
-        }
-        var hist: [Int: [Double]] = [:]
-        for k in who {
-            var hk = [Double](repeating: 0, count: bins * bins * bins)
-            var n = 0.0
-            for i in seeds.indices where seeds[i] == k {
-                hk[bin(i)] += 1
-                n += 1
-            }
-            hist[k] = hk.map { $0 / max(1, n) }
-        }
-        func likely(_ i: Int, among ks: [Int]) -> Int? {
-            let b = bin(i)
-            let scored = ks.compactMap { k in hist[k].map { (k, $0[b]) } }.sorted { $0.1 > $1.1 }
-            guard let best = scored.first, best.1 >= colourFloor else { return nil }
-            let next = scored.dropFirst().first?.1 ?? 0
-            return best.1 >= colourLead * next ? best.0 : nil
-        }
         for y in 0..<h {
             for x in 0..<w {
                 let i = y * w + x
                 let l = Int(mask[i])
                 guard l != 0, mine[l], claimants[l].count > 1 else { continue }
                 let reach = claimants[l].compactMap { barriers[$0]?[i] }.filter { $0 != unreached }
-                // The pixel's colour, when it is clearly one claimant's (`colourLead` times as common among its seeds
-                // as among any other's): that claimant's, whatever the barriers — a soft edge between a red can and a
-                // yellow cake no longer lets the can take the cake (the cut-out harness, 2026-11-03), and the line
-                // follows the things' own colours, never a straight cut.
-                if let k = likely(i, among: claimants[l]) {
-                    if k == owner { result[i] = 1 }
-                } else if let low = reach.min() {
+                if let low = reach.min() {
                     if let m = barriers[owner]?[i], m != unreached, m <= low { result[i] = 1 }
                 } else if nearest(of: claimants[l], x: x, y: y, boxes: boxes, width: w, height: h) == owner {
                     result[i] = 1
@@ -596,11 +567,6 @@ nonisolated enum CatchPlan {
         }
         return out
     }
-
-    /// A pixel's colour is clearly one claimant's when it is this many times as common among its seeds as among any
-    /// other's, and at least `colourFloor` of its seeds have it (`barrierSplit`).
-    static let colourLead = 3.0
-    static let colourFloor = 0.01
 
     /// Levels per colour channel of `colourCheckedSeeds`'s histograms.
     static let colourBins = 8
