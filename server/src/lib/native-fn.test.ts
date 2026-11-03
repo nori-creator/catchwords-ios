@@ -23,13 +23,18 @@ describe("native-fn allowlist", () => {
       "getJournalPrompts",
       "listJournal",
       "getMyStats",
-      "extractWordbook",
       "getReaderMeanings",
       "searchImageCandidates",
       "setStickerPlaceholder",
       "storeAppleAuthCode",
     ]) {
       expect(NATIVE_FNS[name]).toBeTypeOf("function");
+    }
+  });
+
+  it("does not expose AI functions the app never calls (check 2026-11-03 S16)", () => {
+    for (const name of ["generatePhraseCard", "detectParts", "lookupHeadwords", "extractWordbook"]) {
+      expect(NATIVE_FNS[name]).toBeUndefined();
     }
   });
 

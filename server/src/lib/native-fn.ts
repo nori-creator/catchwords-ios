@@ -55,6 +55,8 @@ function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
 }
 
+// iOS が一度も呼ばない AI の関数（generatePhraseCard・detectParts・lookupHeadwords・extractWordbook）は
+// 置かない（2026-11-03 点検 S16: 使わないのに外から呼べ、AI の費用がかかった）。Web は自分の道で呼ぶ。
 export const NATIVE_FNS: Record<string, Loader> = {
   // 候補・カード
   suggestWords: from(ai, "suggestWords"),
@@ -64,20 +66,16 @@ export const NATIVE_FNS: Record<string, Loader> = {
   // 候補の何番目を選んだか（モデルごとの候補の当たり。`candidate-pick.functions.ts`）
   logCandidatePick: from(candidatePick, "logCandidatePick"),
   generateCard: from(ai, "generateCard"),
-  generatePhraseCard: from(ai, "generatePhraseCard"),
   // 例文の字ごとの読み（AI は呼ばない。`sentence-readings.functions.ts`）
   readSentences: from(sentenceReadings, "readSentences"),
   regenerateCardSection: from(ai, "regenerateCardSection"),
   reportAndFixSection: from(ai, "reportAndFixSection"),
   // スキャン
   detectScan: from(scan, "detectScan"),
-  detectParts: from(scan, "detectParts"),
-  lookupHeadwords: from(scan, "lookupHeadwords"),
   getScanContext: from(scan, "getScanContext"),
   markScanTap: from(scan, "markScanTap"),
   markScanCaught: from(scan, "markScanCaught"),
   rankScanCandidates: from(jev, "rankScanCandidates"),
-  extractWordbook: from(wordbook, "extractWordbook"),
   // 保存・図鑑
   saveSticker: from(stickers, "saveSticker"),
   getSticker: from(stickers, "getSticker"),
