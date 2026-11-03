@@ -196,8 +196,11 @@ struct CandidatePickerView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            Button { vm.reset() } label: {
-                Label(L("撮り直す"), systemImage: "arrow.counterclockwise")
+            // A photo opened from 「解析待ち」 is not thrown away from here (check 2026-11-03 H2: 撮り直す deleted it with
+            // no question, and it was this screen's only way out): 閉じる leaves it in 「解析待ち」.
+            let fromQueue = vm.restoredPendingId != nil
+            Button { if fromQueue { vm.keepPendingAndReset() } else { vm.reset() } } label: {
+                Label(fromQueue ? L("閉じる") : L("撮り直す"), systemImage: fromQueue ? "xmark" : "arrow.counterclockwise")
                     .scaledFont(size: 14, weight: .semibold)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14)
