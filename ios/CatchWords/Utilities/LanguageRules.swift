@@ -89,7 +89,7 @@ nonisolated enum LanguageRules {
     }
 
     /// Characters only Chinese uses — never in a short Japanese meaning or note (the server's `CHINESE_ONLY`).
-    static let chineseOnly: Set<Character> = Set("的這們很說裡讓沒嗎呢吧嘛麼灣臺會學國體點氣對從與她您妳吃喝")
+    static let chineseOnly: Set<Character> = Set("的這們很說裡讓沒嗎呢吧嘛麼灣臺會學國體點氣對從與她您妳吃喝")  // l10n-ignore (character data)
 
     // MARK: R22 — telling Latin-script languages apart
 
