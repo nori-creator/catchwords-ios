@@ -231,6 +231,62 @@ export function redundantMeasure(sentence: string, headword: string): boolean {
   }
 }
 
+/** 同じ音で書き違えやすい量詞（zhī: 隻・支・枝）。 */
+const MEASURE_HOMOPHONES: ReadonlyArray<ReadonlySet<string>> = [new Set(["隻", "支", "枝"])];
+
+/**
+ * **例文の量詞を量詞の欄の字にそろえる**（オーナー報告 2026-11-03: 滾筒黏毛器 の量詞の欄は「一支」なのに、例文は
+ * 「這隻滾筒黏毛器」— 同じ zhī でも 隻 は動物・対の片方の量詞で、柄の付いた道具は 支）。
+ *
+ * 数・指示詞 ＋ 量詞1字 ＋ 見出し語 の量詞が、量詞の欄に無く、欄にある字と同じ音の書き違い（隻/支/枝）の時だけ、
+ * 欄の字に替える。読み（zhī）は変わらないので、札の読みもそのまま。欄に無い別の量詞（個 など）は触らない。
+ */
+export function alignMeasureHomophone<P extends { text: string }>(
+  sentence: string,
+  chunks: readonly P[],
+  headword: string,
+  measureWords: ReadonlyArray<{ word?: string | null } | null | undefined> | null | undefined,
+): { sentence: string; chunks: P[] } {
+  const head = (headword ?? "").trim();
+  const listed = new Set(
+    (measureWords ?? [])
+      .map((m) => [...(m?.word ?? "").trim()].pop() ?? "")
+      .filter((c) => c.length > 0),
+  );
+  if (!head || listed.size === 0) return { sentence, chunks: [...chunks] };
+  const swap = (measure: string): string | null => {
+    if (listed.has(measure)) return null;
+    const family = MEASURE_HOMOPHONES.find((f) => f.has(measure));
+    return family ? ([...listed].find((c) => family.has(c)) ?? null) : null;
+  };
+  let out = sentence;
+  const fixes: Array<[string, string]> = [];
+  let from = 0;
+  for (;;) {
+    const at = out.indexOf(head, from);
+    if (at < 0) break;
+    const before = [...out.slice(0, at)];
+    const measure = before[before.length - 1];
+    const to = measure ? swap(measure) : null;
+    if (to && MEASURE_LEAD.test(before.slice(0, -1).join(""))) {
+      const lead = before[before.length - 2];
+      fixes.push([lead + measure, lead + to]);
+      out = before.slice(0, -1).join("") + to + out.slice(at);
+    }
+    from = at + head.length;
+  }
+  if (!fixes.length) return { sentence, chunks: [...chunks] };
+  const fixed = chunks.map((c) => {
+    let text = c.text;
+    for (const [a, b] of fixes) text = text.split(a).join(b);
+    if (text === c.text && fixes.some(([a]) => c.text === a.slice(-1))) {
+      text = fixes.find(([a]) => c.text === a.slice(-1))![1].slice(-1);
+    }
+    return text === c.text ? c : { ...c, text };
+  });
+  return { sentence: out, chunks: fixed };
+}
+
 /** 例文1つ（画面に出す形）。 */
 export type PickedExample = {
   sentence: string;
@@ -265,6 +321,8 @@ export function pickExamplePatterns(
     max?: number;
     /** 同じ返事の型。在れば、型を字のまま含む例文を先にする（画面で「チャンク①を使った例文」になる）。 */
     chunks?: Parameters<typeof containsChunk>[1];
+    /** 同じ返事の量詞の欄。在れば、例文の量詞の書き違い（隻/支）を欄の字にそろえる（`alignMeasureHomophone`）。 */
+    measureWords?: Parameters<typeof alignMeasureHomophone>[3];
   },
 ): PickedExample[] {
   const max = Math.max(1, opts.max ?? MAX_EXAMPLE_PATTERNS);
@@ -274,7 +332,8 @@ export function pickExamplePatterns(
   const seen = new Set<string>();
   const ok: Array<PickedExample & { share: number; i: number }> = [];
   (patterns ?? []).forEach((p, i) => {
-    const sentence = (p.sentence ?? "").trim();
+    const aligned = alignMeasureHomophone((p.sentence ?? "").trim(), p.chunks ?? [], head, opts.measureWords);
+    const sentence = aligned.sentence;
     if (!sentence || sentence.length > 160) return;
     if (!looksLikeTargetLanguage(sentence, opts.language)) return;
     // 入っていない文は別の語の例文。英語・日本語は活用で形が変わるので、ここでは見ない。
@@ -294,7 +353,7 @@ export function pickExamplePatterns(
       sentence,
       translation: readerText((p.translation ?? "").trim(), opts.readerLang, sentence).trim(),
       scene,
-      chunks: p.chunks ?? [],
+      chunks: aligned.chunks,
       share: Number.isFinite(p.share) ? p.share : 0,
       i,
     });
@@ -563,6 +622,9 @@ export function examplePatternsRule(opts: {
     `     **重ね言葉にしない。** 見出し語がもう量詞・名詞の字を含む時、同じ字を量詞にして重ねない` +
       `（✗「送了一束花束」「這束花束」→ ○「送了一個花束」「這個花束好漂亮」/ ✗「一杯杯子」→ ○「一個杯子」）。` +
       `ネイティブが言わない言い回し・意味の重なる語の組み合わせを書かない。`,
+    // オーナー報告 2026-11-03: 滾筒黏毛器 の量詞の欄は「一支」なのに例文が「這隻滾筒黏毛器」。
+    `     **量詞は同じ返事の measure_words と同じ字にする。** 同じ音の別の字にしない` +
+      `（✗ 量詞が「一支」なのに「這隻滾筒黏毛器」→ ○「這支滾筒黏毛器」。隻 は動物・対の片方）。`,
     `  5. その一文の**ために** scene を書く: その文がまさに口にされる状況の**短い1行**（${nl}で${sceneMax}字以内。` +
       `誰が・どこで・何が起きて・どんな気持ちか が分かる言葉だけ）。画面で例文のすぐ上に出る。`,
     `     **scene と sentence は食い違ってはいけない。** ✗ sentence「我有鑰匙。」に scene「鍵をなくして困ったとき」` +

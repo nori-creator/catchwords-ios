@@ -81,6 +81,26 @@ PR #36 で、2つの物を Vision が1つの塊（instance）として返す場�
   （`CatchPlan.minBoxCover`。ブランコの中に座った子ども）。範囲のやり直しで見つかった塊にも同じ確かめ。
   計画で切り抜きが無かった物は `liftSubject` で拾い直さない。最後は物の枠の写真を四角で（位置が無ければ写真全体）。
 
+## 1c. 2026-11-03: コロコロ（滾筒黏毛器）が持ち手だけ切り抜かれた
+
+写真: 木の床の上のコロコロ（白い粘着ローラー・細い針金・白い持ち手の T 字）。切り抜きは**持ち手と針金の一部だけ**で、
+ローラーが無かった。本番の `ai_runs`（10:49Z の `capture_suggest`）は「物 2 つ・名前 4 つ・点は 2 か所」。枠そのものは
+記録に残らないので、写真（オーナーのスクショから切り出した `lint-roller.jpg`）で起きうる2つの道を両方直した。
+
+1. **細い物の「もう半分」が小さすぎると見なされた**（`CutCoverage.decide`）。AI の点は枠の真ん中＝持ち手の上なので、
+   持ち手の塊が選ばれる。T 字の枠はほとんど床で、持ち手は枠の数%しか埋めない。ローラーは別の塊で、枠の中にほぼ全部
+   あるのに、足しても「枠の 15% 以上増える」（`pieceGain`）に届かず（枠が少し広いと 11〜13%）、かけら扱いで外れた。
+   → かけらは「枠の 15%」**または**「選んだ塊が枠の中に持つ量の半分以上」（`pieceShare`）なら合わせる。
+2. **部品が別の名前で挙がると、その塊を取られた**（`CatchPlan.plan`）。AI が「滾筒黏毛器」と、ローラーだけ（黏毛紙・
+   滾筒など）を別の物として挙げると、ローラーの塊はローラーの物の物になり、「ほかの物の塊は合わせない」でコロコロから外れた。
+   → 枠が相手の枠の半分以下で 75% 以上その中にある物（`partArea`・`nestedShare`）は**部品**。部品の塊が部品の枠に
+   8 割以上ある時（`partInside`、部品そのもの）は、全体もその塊を合わせ、2つで分け合わない（どちらの切り抜きも欠けない）。
+   カップと受け皿が1つの塊の時（部品の枠に塊の 8 割が入らない）は今までどおり接する所で分ける。
+
+確認: unit `testAThinThingsOtherHalfIsTakenInEvenWhenItFillsLittleOfTheBox`・
+`testAPartNamedOnItsOwnStaysInTheWholeThingsCutOut`（CardCatchPickTests）、MaskCoverageTests の decide、
+harness `lint-roller`・`lint-roller-loose-box`・`lint-roller-roller-named`。
+
 ---
 
 ## 2. 失敗しうるすべての場合

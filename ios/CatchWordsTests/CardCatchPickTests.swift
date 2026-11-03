@@ -368,6 +368,35 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(plans[0].cut, .union([3, 4, 5]))
     }
 
+    /// A lint roller (owner 2026-11-03: 滾筒黏毛器 came out as its handle alone): Vision sees the white roller (4) apart
+    /// from the wire and handle (3, under the AI's point), and the AI's box round the T shape is mostly floor.
+    private func lintRoller() -> [UInt8] {
+        mask(120, 90) { x, y in
+            if (30..<90).contains(x) && (15..<27).contains(y) { return 4 }
+            if (58..<60).contains(x) && (27..<45).contains(y) { return 3 }
+            if (55..<63).contains(x) && (45..<80).contains(y) { return 3 }
+            return 0
+        }
+    }
+    private let lintRollerBox = CGRect(x: 20.0 / 120, y: 8.0 / 90, width: 80.0 / 120, height: 80.0 / 90)
+
+    func testAThinThingsOtherHalfIsTakenInEvenWhenItFillsLittleOfTheBox() {
+        // The roller adds 11% of the box (under `pieceGain`), but more than twice what the handle has there.
+        let plans = CatchPlan.plan(things: [thing(lintRollerBox)], mask: lintRoller(), width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .union([3, 4]))
+    }
+
+    func testAPartNamedOnItsOwnStaysInTheWholeThingsCutOut() {
+        // The AI also named the roller on its own (its point on the roller, its box round it): the roller's instance is
+        // that thing's, and the lint roller still takes it in — neither cut-out is split.
+        let roller = CatchPlan.Thing(point: CGPoint(x: 60.0 / 120, y: 21.0 / 90),
+                                     box: CGRect(x: 29.0 / 120, y: 14.0 / 90, width: 62.0 / 120, height: 14.0 / 90), own: true)
+        let whole = CatchPlan.Thing(point: CGPoint(x: 59.0 / 120, y: 60.0 / 90), box: lintRollerBox, own: true)
+        let plans = CatchPlan.plan(things: [whole, roller], mask: lintRoller(), width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .union([3, 4]))
+        XCTAssertEqual(plans[1].cut, .instance(4))
+    }
+
     func testAPieceOfTheInstanceFarFromTheBoxIsLeftOut() throws {
         // Label 3: the thing, and a far speck of the same instance in the corner (another thing Vision lumped in).
         let m = mask(120, 90) { x, y in

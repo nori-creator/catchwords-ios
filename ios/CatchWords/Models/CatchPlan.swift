@@ -121,6 +121,22 @@ nonisolated enum CatchPlan {
             return countsInside(b, mask: mask, width: w, height: h)
         }
         let areas: [Int] = boxes.map { b in b.map { gridArea($0, width: w, height: h) } ?? 0 }
+        // Thing j is a part of thing i (owner 2026-11-03: the AI named a lint roller's roller apart from the lint roller;
+        // the roller's instance went to the roller and the lint roller's cut-out was its handle alone): j's box is at
+        // most `partArea` of i's and lies (`nestedShare`) inside it. The whole takes in the part's own instance, and the
+        // two never split it between them — each cut-out keeps it whole.
+        func isPart(_ j: Int, of i: Int) -> Bool {
+            guard j != i, let bj = boxes[j], let bi = boxes[i] else { return false }
+            let aj = bj.width * bj.height, ai = bi.width * bi.height
+            guard aj > 0, ai > 0, aj <= partArea * ai else { return false }
+            return cover(bi, of: bj) >= Double(nestedShare)
+        }
+        // … and instance l is that part alone: its own instance, lying (`partInside`) in its box. A cup and its saucer
+        // that Vision saw as one instance are still split where they meet.
+        func isWholePart(_ j: Int, _ l: Int) -> Bool {
+            guard labels[j] == l, l > 0, l < 256, totals[l] > 0, !counts[j].isEmpty else { return false }
+            return Double(counts[j][l]) >= partInside * Double(totals[l])
+        }
 
         // 1. What each boxed thing claims: its instance (or the one most present in its box), with the other pieces of
         //    the thing (`CutCoverage`); whether that instance is far larger than the box.
@@ -146,9 +162,10 @@ nonisolated enum CatchPlan {
                 totalMap[l] = totals[l]
                 if inBox[l] > 0 { inBoxMap[l] = inBox[l] }
             }
-            // Another thing's own instance is never taken in as a piece of this one.
-            let theirs = Set(things.indices.filter { $0 != i }.compactMap { labels[$0] }).subtracting([chosen])
-                .union(barred[i])
+            // Another thing's own instance is never taken in as a piece of this one — unless that thing is a part of this
+            // one (its box small and inside this box: the roller of a lint roller, named on its own).
+            let theirs = Set(things.indices.filter { j in j != i && !(isPart(j, of: i) && labels[j].map { isWholePart(j, $0) } == true) }
+                .compactMap { labels[$0] }).subtracting([chosen]).union(barred[i])
             let note: String? = chosen == labels[i] ? nil : "took the instance most present in its box"
             let decision = CutCoverage.decide(chosen: chosen, inBox: inBoxMap, totals: totalMap, boxArea: area, excluding: theirs)
             var ls = [chosen]
@@ -178,7 +195,10 @@ nonisolated enum CatchPlan {
             guard let c = claims[i] else {
                 return Placement(label: nil, cut: .noMask, anchor: t.point, note: "no Vision mask inside its box")
             }
-            let rivals = Set(c.labels.flatMap { claimants[$0] }).subtracting([i]).sorted()
+            // A part and its whole both keep the part's own instance whole (neither is the other's rival for it).
+            let rivals = Set(c.labels.flatMap { l in
+                claimants[l].filter { j in !((isPart(j, of: i) && isWholePart(j, l)) || (isPart(i, of: j) && isWholePart(i, l))) }
+            }).subtracting([i]).sorted()
             if rivals.isEmpty {
                 // Its own: whole, past the box too — only pieces that do not reach the box at all are left out.
                 let keep = reaching(c.labels, box: box, mask: mask, width: w, height: h)
@@ -503,6 +523,10 @@ nonisolated enum CatchPlan {
     static let barrierScale: Double = 1_000_000
     /// A box this much (or more) inside another's is "in front of" it (a cup's box in its saucer's): its middle is a seed.
     static let nestedShare: CGFloat = 0.75
+    /// A thing whose box is at most this share of another's (and inside it) can be a part of that thing (`plan`).
+    static let partArea: CGFloat = 0.5
+    /// … when its own instance lies at least this much inside its box (it is the part alone, not the two as one).
+    static let partInside = 0.8
     /// A seed keeps this share of another claimant's box size away from that box.
     static let seedMargin: CGFloat = 0.06
 

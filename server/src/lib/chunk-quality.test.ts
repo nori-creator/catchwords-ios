@@ -423,6 +423,22 @@ describe("本番で見つかった失敗の種類（1つずつ）", () => {
     ).toEqual(["kept"]);
   });
 
+  it("学ぶ語＋3字の名詞は1語（滾筒黏毛器＋補充包 — 2026-11-03）。前に付く3字の名詞・動詞の型は通る", () => {
+    const n = (a: string, b: string, pb = "N") => [
+      { text: a, pos: "N" },
+      { text: b, pos: pb },
+    ];
+    expect(reasons([chunk(n("滾筒黏毛器", "補充包"), "コロコロの替えテープ")], { headword: "滾筒黏毛器" })).toEqual([
+      "compound_split",
+    ]);
+    expect(reasons([chunk(n("滾筒黏毛器", "黏一下", "V"), "コロコロでさっと取る")], { headword: "滾筒黏毛器" })).toEqual([
+      "kept",
+    ]);
+    expect(reasons([chunk([{ text: "珍珠奶茶", pos: "N" }, { text: "半糖少冰", pos: "N" }], "微糖・氷少なめ")], { headword: "珍珠奶茶" })).toEqual([
+      "kept",
+    ]);
+  });
+
   it("主語のある文・句点: 這個貓眼很漂亮 / 這間湯咖哩很有名 / 我每天早上都要喝一杯咖啡", () => {
     expect(
       reasons(

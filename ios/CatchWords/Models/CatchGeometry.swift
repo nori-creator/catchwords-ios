@@ -26,6 +26,8 @@ nonisolated enum CutCoverage {
     static let overlaps = 0.15
     /// How much more of the box the pieces must fill together than the instance alone (a speck is no piece).
     static let pieceGain = 0.15
+    /// … or this share of what the instance alone has in the box (a thin thing's other half: a roller and its handle).
+    static let pieceShare = 0.5
 
     /// `inBox`: each label's pixels inside the box; `totals`: each label's pixels in the whole mask; `boxArea`: the
     /// box's pixels (same grid); `excluding`: instances that are other things' own (never taken in here).
@@ -46,7 +48,11 @@ nonisolated enum CutCoverage {
             Double(n) >= CatchPlan.presence * Double(boxArea) && Double(n) / Double(max(1, totals[l] ?? 0)) >= mostlyInside
         }.map(\.key).sorted()
         let withPieces = pieces.reduce(mine) { $0 + (inBox[$1] ?? 0) }
-        if !pieces.isEmpty, Double(withPieces) / Double(boxArea) >= fills + pieceGain { return .union(([chosen] + pieces).sorted()) }
+        let gain = Double(withPieces - mine) / Double(boxArea)
+        // A piece is no speck when it adds `pieceGain` of the box, or — for a thin thing that fills little of its box —
+        // at least `pieceShare` of what the instance itself has there (owner 2026-11-03: a lint roller came out as its
+        // handle alone; the white roller, a piece as large as the handle, added 13% of the long box, under 15%).
+        if !pieces.isEmpty, gain >= pieceGain || gain >= fills * pieceShare { return .union(([chosen] + pieces).sorted()) }
         if inside >= mostlyInside { return .keep }
         return .larger
     }

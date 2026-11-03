@@ -9,7 +9,8 @@
     {"file": "cat.jpg", "licence": "CatchWords' own picture (onboarding art, first_catch_cat.webp); CC0 for this test", "source": "this repository"},
     {"file": "boba.jpg", "licence": "CatchWords' own picture (docs/design/catch-concepts/film/assets/photo_1080.jpg); CC0 for this test", "source": "this repository"},
     {"file": "glasses-bottle.jpg", "licence": "Made for this test (make_photos.py: drawn glasses and the dex's own bottle photo on a drawn table); CC0", "source": "this repository"},
-    {"file": "keys-remote.jpg", "licence": "Made for this test (make_photos.py: the dex's own keys and remote photos on a drawn table); CC0", "source": "this repository"}
+    {"file": "keys-remote.jpg", "licence": "Made for this test (make_photos.py: the dex's own keys and remote photos on a drawn table); CC0", "source": "this repository"},
+    {"file": "lint-roller.jpg", "licence": "The owner's own photo (2026-11-03, the 滾筒黏毛器 whose cut-out was its handle alone), cut from the owner's iPad screenshot; contributed by the owner for this test.", "source": "owner upload 305c2026 (screenshot of the original photo), cropped to the photo"}
   ],
   "cases": [
     {"id": "dorayaki-box-right", "photo": "dorayaki.jpg", "what": "The dorayaki and the carton behind it, both named, boxes right.",
@@ -74,6 +75,16 @@
     {"id": "keys-on-remote", "photo": "keys-remote.jpg", "what": "Keys lying on a remote (touching, overlapping things).",
      "things": [
        {"name": "遙控器", "point": [400, 450], "box_2d": [140, 210, 860, 640], "reference": "keys-remote.remote.png"},
-       {"name": "鑰匙", "point": [600, 640], "box_2d": [420, 430, 840, 760], "reference": "keys-remote.keys.png"}]}
+       {"name": "鑰匙", "point": [600, 640], "box_2d": [420, 430, 840, 760], "reference": "keys-remote.keys.png"}]},
+    {"id": "lint-roller", "photo": "lint-roller.jpg", "what": "A lint roller on a wooden floor (owner 2026-11-03): a white roller, a thin wire and a handle; the box round the T shape is mostly floor.",
+     "things": [
+       {"name": "滾筒黏毛器", "point": [495, 541], "box_2d": [264, 273, 821, 727], "reference": "lint-roller.roller.png"}]},
+    {"id": "lint-roller-loose-box", "photo": "lint-roller.jpg", "what": "The same, the AI's box looser (more floor round it).",
+     "things": [
+       {"name": "滾筒黏毛器", "point": [495, 541], "box_2d": [228, 225, 861, 788], "reference": "lint-roller.roller.png"}]},
+    {"id": "lint-roller-roller-named", "photo": "lint-roller.jpg", "what": "The lint roller and its roller named apart (the roller's own point and box on the roller).",
+     "things": [
+       {"name": "滾筒黏毛器", "point": [495, 541], "box_2d": [264, 273, 821, 727], "reference": "lint-roller.roller.png"},
+       {"name": "黏毛紙", "point": [499, 318], "box_2d": [265, 275, 370, 723], "check": false}]}
   ]
 }

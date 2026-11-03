@@ -480,7 +480,14 @@ export function gateUsageChunks(
       if (
         parts.length === 2 &&
         parts.every((p) => posGroup(p.pos || "N") === "n") &&
-        parts.some((p) => p.text !== head && [...p.text].length <= 2 && !ORDER_PHRASES.has(p.text))
+        parts.some(
+          (p, i) =>
+            p.text !== head &&
+            !ORDER_PHRASES.has(p.text) &&
+            // 学ぶ語の後ろの名詞は3字まで1語（滾筒黏毛器＋補充包 = 「〜の詰め替え」という名詞。使い方ではない。
+            // オーナー報告 2026-11-03）。前に付く名詞は2字まで（楊桃＋汁・門＋口）。
+            [...p.text].length <= (i > 0 && parts[0].text === head ? 3 : 2),
+        )
       ) {
         drop("compound_split");
         continue;

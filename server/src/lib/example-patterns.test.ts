@@ -14,6 +14,7 @@ import {
   guardExampleColumns,
   pickExamplePatterns,
   type ExamplePattern,
+  alignMeasureHomophone,
 } from "./example-patterns";
 import { CardReplySchema } from "./card-schema";
 import { fillEmptySharedExtras } from "./shared-word-guard";
@@ -330,5 +331,24 @@ describe("例文は自然さが先・級は目安（オーナー決定 2026-10-1
       { headword: "防曬乳", language: "zh-TW", readerLang: "ja", max: 4 },
     );
     expect(picked.map((p) => p.sentence)).toEqual(["這款防曬乳質地很清爽，擦起來一點都不黏膩。"]);
+  });
+});
+
+describe("alignMeasureHomophone（2026-11-03 這隻滾筒黏毛器）", () => {
+  const mw = [{ word: "一支" }, { word: "一個" }];
+  it("量詞の欄が 支 なら、例文の 隻 を 支 に（札も）", () => {
+    const got = alignMeasureHomophone(
+      "這隻滾筒黏毛器的黏紙用完了耶。",
+      [{ text: "這隻", pos: "Det" }, { text: "滾筒黏毛器", pos: "N" }],
+      "滾筒黏毛器",
+      mw,
+    );
+    expect(got.sentence).toBe("這支滾筒黏毛器的黏紙用完了耶。");
+    expect(got.chunks[0].text).toBe("這支");
+  });
+  it("欄にある字・欄に無い別の量詞・欄が無い時は触らない", () => {
+    expect(alignMeasureHomophone("這個滾筒黏毛器很好用", [], "滾筒黏毛器", mw).sentence).toBe("這個滾筒黏毛器很好用");
+    expect(alignMeasureHomophone("那隻貓好可愛", [], "貓", [{ word: "一隻" }]).sentence).toBe("那隻貓好可愛");
+    expect(alignMeasureHomophone("這隻滾筒黏毛器", [], "滾筒黏毛器", []).sentence).toBe("這隻滾筒黏毛器");
   });
 });
