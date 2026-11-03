@@ -522,8 +522,12 @@ final class SupabaseClient {
             req.httpBody = payload
             return try await perform(req)
         }
-        guard (200..<300).contains(response.statusCode),
-              let arr = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return [:] }
+        // A refusal or an unreadable answer is an error, not "none of these pictures exist": an empty answer here
+        // marked every asked picture missing and up to 100 squares stayed blank (check 2026-11-03 T36).
+        guard (200..<300).contains(response.statusCode) else { throw APIError.server(response.statusCode, "") }
+        guard let arr = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else {
+            throw APIError.server(response.statusCode, "")
+        }
         var out: [String: URL] = [:]
         for item in arr {
             guard let path = item["path"] as? String,
