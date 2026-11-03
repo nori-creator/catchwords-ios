@@ -51,6 +51,11 @@ final class CaptureViewModel {
     /// Where a photo from the library was taken (its EXIF GPS, `LocationService.photoLocation`): used instead of where
     /// the phone is now. nil for the camera's photos and a library photo without one.
     var photoLocation: CLLocation?
+    /// The photo was not taken here and now (a library photo, a photo opened from 「解析待ち」): without its own
+    /// location it gets none, never where the phone is now (check 2026-11-03 B1・B2).
+    var photoNotHere: Bool = false
+    /// When a photo opened from 「解析待ち」 was taken (nil = now).
+    var photoTakenAt: Date?
     let captureType: String = "photo"
     var restoredPendingId: String?
     /// Inline error under "違う単語を入力" (web `input.notTargetLang`).
@@ -193,8 +198,9 @@ final class CaptureViewModel {
         let restoredId = restoredPendingId
 
         let given = photoLocation
+        let notHere = photoNotHere
         Task {
-            async let loc = Self.locate(given)
+            async let loc = Self.locate(given, notHere: notHere)
             do {
                 let found: [Candidate]
                 if let restoredId {
@@ -246,6 +252,10 @@ final class CaptureViewModel {
             let here = await loc
             guard token == runToken else { return }
             location = here
+            // Kept with the queued photo: opened later, it is named after where it was taken.
+            if let here, let pid = pendingId {
+                PendingQueue.shared.updateLocation(id: pid, lat: here.coordinate.latitude, lng: here.coordinate.longitude)
+            }
             if let here {
                 let found = await LocationService.shared.place(for: here)
                 guard token == runToken else { return }
@@ -256,8 +266,9 @@ final class CaptureViewModel {
     }
 
     /// Where the photo was taken: a library photo's own location, else where the phone is now.
-    private static func locate(_ given: CLLocation?) async -> CLLocation? {
+    private static func locate(_ given: CLLocation?, notHere: Bool) async -> CLLocation? {
         if let given { return given }
+        if notHere { return nil }
         return await LocationService.shared.current()
     }
 
@@ -668,7 +679,8 @@ final class CaptureViewModel {
             candidate: picked, details: d, photo: base, cutout: cutout, selfie: selfie,
             caption: caption, location: location, placeName: placeName, captureType: captureType,
             // Only while they are still the very images being saved (else `save` uploads these ones).
-            uploads: uploads.flatMap { $0.matches(photo: base, cutout: cutout, selfie: selfie) ? $0 : nil }
+            uploads: uploads.flatMap { $0.matches(photo: base, cutout: cutout, selfie: selfie) ? $0 : nil },
+            takenAt: photoTakenAt
         )
     }
 
@@ -707,6 +719,10 @@ final class CaptureViewModel {
         }
         restoredPendingId = item.id
         pendingId = item.id
+        // Where and when it was taken, not where the phone is and the time it is opened (check 2026-11-03 B1・M-カ5).
+        photoLocation = item.lat.flatMap { lat in item.lng.map { CLLocation(latitude: lat, longitude: $0) } }
+        photoNotHere = true
+        photoTakenAt = item.createdAt
         analyze(img)
     }
 
@@ -754,6 +770,9 @@ final class CaptureViewModel {
         placeName = nil
         placeArea = nil
         location = nil
+        photoLocation = nil
+        photoNotHere = false
+        photoTakenAt = nil
         restoredPendingId = nil
         detectOutcome = nil
         isLookingUp = false

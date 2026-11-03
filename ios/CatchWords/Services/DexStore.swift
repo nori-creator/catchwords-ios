@@ -22,6 +22,9 @@ struct CatchDraft {
     var uploaded: CatchUploads? = nil
     /// The learning language it was caught in (nil: the current one). A 「保存待ち」 catch keeps its own.
     var language: String? = nil
+    /// When the photo was taken, when that is not now: a 「保存待ち」 catch saved later, a photo opened from 「解析待ち」
+    /// (check 2026-11-03 B1・T35: they were dated the day they were saved). nil = now.
+    var takenAt: Date? = nil
 }
 
 /// A card catch's photos going up while its card is on screen (`DexStore.preupload`). `ts` names the files,
@@ -767,6 +770,7 @@ final class DexStore {
             "location_name": orNull(draft.placeName),
             "lat": orNull(draft.location?.coordinate.latitude),
             "lng": orNull(draft.location?.coordinate.longitude),
+            "taken_at": orNull(draft.takenAt.map { SupabaseDate.string($0) }),
         ]
         struct Saved: Decodable {
             let id: String
@@ -808,7 +812,7 @@ final class DexStore {
             sticker = present([Sticker(
                 id: saved.id, wordId: saved.wordId ?? "", objectImageUrl: obj, cutoutImageUrl: cut,
                 selfieImageUrl: selfieRef, caption: caption.isEmpty ? nil : caption, locationName: draft.placeName,
-                takenAt: Date(), captureType: draft.captureType, word: Self.localWord(word, id: saved.wordId ?? "", language: language),
+                takenAt: draft.takenAt ?? Date(), captureType: draft.captureType, word: Self.localWord(word, id: saved.wordId ?? "", language: language),
                 lat: draft.location?.coordinate.latitude, lng: draft.location?.coordinate.longitude
             )])[0]
         }
@@ -943,7 +947,7 @@ final class DexStore {
         let sticker = Sticker(
             id: Self.provisionalPrefix + UUID().uuidString, wordId: "", objectImageUrl: obj, cutoutImageUrl: cut,
             selfieImageUrl: selfie, caption: caption.isEmpty ? nil : caption, locationName: draft.placeName,
-            takenAt: Date(), captureType: draft.captureType,
+            takenAt: draft.takenAt ?? Date(), captureType: draft.captureType,
             word: Self.localWord(Self.wordFields(draft.candidate, card), id: ""),
             lat: draft.location?.coordinate.latitude, lng: draft.location?.coordinate.longitude
         )
@@ -1060,6 +1064,7 @@ final class DexStore {
         draft.catchId = ps.catchId
         draft.uploaded = ps.uploads?.uploads
         draft.language = ps.language
+        draft.takenAt = ps.takenAt
         let provisional = ps.provisionalId
         do {
             let outcome = try await save(draft, replacing: stickers.contains { $0.id == provisional } ? provisional : nil)

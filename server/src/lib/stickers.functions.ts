@@ -787,9 +787,22 @@ const SaveStickerInput = z.object({
   selfie_path: z.string().max(STORAGE_PATH_MAX).nullable().optional(),
   caption: z.string().max(CAPTION_MAX).nullable().optional(),
   location_name: z.string().max(LOCATION_NAME_MAX).nullable().optional(),
-  lat: z.number().nullable().optional(),
-  lng: z.number().nullable().optional(),
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
+  /**
+   * 撮った時（ISO）。保存が後になった「保存待ち」・「解析待ち」から開いた写真で、保存した時でなく撮った時の日に置く
+   * （2026-11-03 点検 B1・T35）。先の時刻・90日より前・読めない値は無かったことにする（今の時刻）。
+   */
+  taken_at: z.string().max(40).nullable().optional(),
 });
+
+/** 保存に使う撮った時。使えない値は null（列の既定 = 今）。 */
+export function acceptedTakenAt(raw: string | null | undefined, now = Date.now()): string | null {
+  if (!raw) return null;
+  const t = Date.parse(raw);
+  if (!Number.isFinite(t) || t > now + 5 * 60_000 || t < now - 90 * 86_400_000) return null;
+  return new Date(t).toISOString();
+}
 
 export type WordUpsertInput = z.infer<typeof SaveStickerInput>["word"] & {
   entry_type?: "word" | "phrase";
@@ -1414,6 +1427,7 @@ export const saveSticker = createServerFn({ method: "POST" })
       location_name: data.location_name ?? null,
       lat: data.lat ?? null,
       lng: data.lng ?? null,
+      ...(acceptedTakenAt(data.taken_at) ? { taken_at: acceptedTakenAt(data.taken_at) } : {}),
       // 型定義は生成物で、`shelf_key` はそれより新しい列。
       // `current_level` のときと同じで、緩いクライアントとして扱う。
       ...(shelfKey ? { shelf_key: shelfKey } : {}),

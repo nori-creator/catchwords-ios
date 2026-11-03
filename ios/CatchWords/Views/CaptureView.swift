@@ -166,6 +166,9 @@ struct CaptureView: View {
                     if vm.step == .camera {
                         // Named after where it was taken, not where the phone is now.
                         vm.photoLocation = LocationService.photoLocation(data)
+                        // Not taken here: without its own location it gets none (check 2026-11-03 B2).
+                        vm.photoNotHere = true
+                        vm.photoTakenAt = nil
                         beginAnalyze(img, askSelfie: false)
                     }
                 } else {
@@ -612,6 +615,8 @@ struct CaptureView: View {
         Task {
             if let img = await capturePhoto() {
                 vm.photoLocation = nil
+                vm.photoNotHere = false
+                vm.photoTakenAt = nil
                 beginAnalyze(img, askSelfie: selfieMode)
             } else {
                 shooting = false
