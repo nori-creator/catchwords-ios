@@ -1,7 +1,7 @@
 import { pinyin } from "pinyin-pro";
 import { Converter } from "opencc-js/t2cn";
 import { formatPinyin, parsePinyin, syllableToZhuyin, type Syllable } from "./pinyin-zhuyin";
-import { taiwanPositions } from "./tw-reading.server";
+import { ownReading, taiwanAt, taiwanPositions } from "./tw-reading.server";
 
 /**
  * **例文の漢字すべてに読み（拼音・注音）を付ける**（2026-10-22 オーナー「例文の漢字にピンインまたは注音をすべて
@@ -53,12 +53,13 @@ export function readSentence(
     whole.length === chars.length
       ? whole.map((r) => (r.isZh ? r.pinyin : ""))
       : simp.map((c) => pinyin(c, { type: "all" })[0]?.pinyin ?? "");
-  const list: Array<Syllable | null> = chars.map((c, i) =>
-    HAN.test(c) ? syllable(byChar[i]) : null,
-  );
+  const list: Array<Syllable | null> = chars.map((c, i) => {
+    const s = HAN.test(c) ? syllable(byChar[i]) : null;
+    return s ? ownReading(c, s) : null;
+  });
 
   // 台湾の読み。
-  for (const [i, s] of taiwanPositions(chars)) if (HAN.test(chars[i])) list[i] = s;
+  for (const [i, s] of taiwanPositions(chars)) if (HAN.test(chars[i])) list[i] = taiwanAt(list[i], s, i);
 
   // その単語のカードが持つ読み（見出し・型の札）。短い語から当てて、長い語で上書きする（長い語の読みが勝つ）。
   const text = chars.join("");

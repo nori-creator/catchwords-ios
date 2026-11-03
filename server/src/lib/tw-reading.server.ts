@@ -48,6 +48,12 @@ export const TW_WORDS: Readonly<Record<string, string>> = {
   意識: "yì shì",
   品質: "pǐn zhí",
   性質: "xìng zhí",
+  阿嬤: "ā mà",
+  傍晚: "bāng wǎn",
+  角色: "jiǎo sè",
+  骰子: "tóu zi",
+  曝光: "pù guāng",
+  從容: "cōng róng",
 };
 
 /**
@@ -64,7 +70,56 @@ export const TW_CHARS: Readonly<Record<string, string>> = {
   擁: "yǒng",
   帆: "fán",
   綜: "zòng",
+  // 2026-11-03 追加（点検 S4: 辞書が大陸の読みに書き換えていた字）。どれも教育部《重編國語辭典修訂本》の読みが1つだけ。
+  夕: "xì", // 夕陽 xì yáng
+  究: "jiù", // 研究 yán jiù
+  播: "bò", // 廣播 guǎng bò
+  叔: "shú", // 叔叔 shú shu
+  績: "jī", // 成績 chéng jī
+  突: "tú", // 突然 tú rán
+  惜: "xí", // 可惜 kě xí
+  昔: "xí",
+  息: "xí", // 消息 xiāo xí
+  熄: "xí",
+  癌: "yán",
+  寂: "jí", // 寂寞 jí mò
+  跡: "jī",
+  蹟: "jī", // 古蹟 gǔ jī
+  擊: "jí", // 打擊 dǎ jí
+  偽: "wèi",
+  檔: "dàng", // 檔案 dàng àn
+  蝸: "guā", // 蝸牛 guā niú
+  卓: "zhuō",
 };
+
+/**
+ * **台湾でも使う別の読み**（決め打ちにはしない。AI がこの読みを書いても誤りとしない）。
+ * 「和」の ㄏㄢˋ（「と」の意味の語音）、「咖哩」の ㄍㄚ、「阿嬤」の ㄇㄚˋ。
+ */
+export const TW_ALSO: Readonly<Record<string, readonly string[]>> = {
+  和: ["hàn"],
+  咖: ["gā"],
+  嬤: ["mà"],
+};
+
+/**
+ * **簡体字に写すと別の字と一緒になる字**の、その字だけの読み。写した字（乾→干）の読み（gàn ＝ 幹）は使わない。
+ * 辞書がこの外の読みを出したら、最初の読みに直す（乾麵 gàn → gān）。
+ */
+export const OWN_READINGS: Readonly<Record<string, readonly string[]>> = {
+  乾: ["gān", "qián"],
+  幹: ["gàn"],
+  隻: ["zhī"],
+};
+
+/** 字の読みが `OWN_READINGS` の外なら、その字の最初の読みに直す（外でなければそのまま）。 */
+export function ownReading(char: string, s: Syllable): Syllable {
+  const own = OWN_READINGS[char];
+  if (!own) return s;
+  const options = own.map(one).filter((o): o is Syllable => o !== null);
+  if (options.some((o) => o.base === s.base && o.tone === s.tone)) return s;
+  return options[0] ?? s;
+}
 
 const HAN = /[㐀-䶿一-鿿豈-﫿]/u;
 /** 読みを持たない区切り（空白・句読点）。見出しに混ざっていても数えない。 */
@@ -85,11 +140,16 @@ function one(raw: string): Syllable | null {
 
 /** その字のありうる読み（繁体字のまま・簡体字に写した字・台湾の表）。 */
 function readingsOf(char: string, simp: string): Syllable[] {
-  const raw = new Set<string>([
-    ...pinyin(char, { multiple: true, type: "array" }),
-    ...pinyin(simp, { multiple: true, type: "array" }),
-  ]);
+  const raw = new Set<string>(
+    OWN_READINGS[char]
+      ? OWN_READINGS[char]
+      : [
+          ...pinyin(char, { multiple: true, type: "array" }),
+          ...pinyin(simp, { multiple: true, type: "array" }),
+        ],
+  );
   if (TW_CHARS[char]) raw.add(TW_CHARS[char]);
+  for (const r of TW_ALSO[char] ?? []) raw.add(r);
   for (const [word, reading] of Object.entries(TW_WORDS)) {
     const at = [...word].indexOf(char);
     if (at >= 0) raw.add(reading.split(" ")[at]);
@@ -120,7 +180,17 @@ export function taiwanPositions(chars: readonly string[]): Map<number, Syllable>
 }
 
 function applyTaiwan(list: Syllable[], fixed: Map<number, Syllable>): Syllable[] {
-  return list.map((s, i) => fixed.get(i) ?? s);
+  return list.map((s, i) => taiwanAt(s, fixed.get(i), i) ?? s);
+}
+
+/**
+ * その位置の台湾の読み。2字目以降の軽声（叔叔 shú shu）は、同じ音なら軽声のまま残す。
+ * 例文の読みでも使う。
+ */
+export function taiwanAt(current: Syllable | null, taiwan: Syllable | undefined, index: number): Syllable | null {
+  if (!taiwan) return current;
+  if (current && index > 0 && current.tone === 5 && current.base === taiwan.base) return current;
+  return taiwan;
 }
 
 /** 辞書の読み（台湾の表を当てた後）。読めなければ `null`。 */
@@ -129,7 +199,8 @@ function dictionaryReading(chars: readonly string[], simp: readonly string[]): S
   if (raw.length !== chars.length) return null;
   const list = raw.map(one);
   if (list.some((s) => s === null)) return null;
-  return applyTaiwan(list as Syllable[], taiwanPositions(chars));
+  const own = (list as Syllable[]).map((s, i) => ownReading(chars[i], s));
+  return applyTaiwan(own, taiwanPositions(chars));
 }
 
 /** AI の読みが字ごとにありうるか。 */
