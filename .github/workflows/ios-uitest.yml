@@ -129,6 +129,10 @@ jobs:
 
       - name: ci-previews ブランチに置く
         if: always()
+        # Best effort, like ios-check's ci-previews steps: the pictures are in the artifact either way, and five slow,
+        # colliding push attempts once ate an hour of this job's 100 minutes (PR #26, 2026-11-01).
+        timeout-minutes: 12
+        continue-on-error: true
         env:
           HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |

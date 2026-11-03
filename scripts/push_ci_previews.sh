@@ -6,8 +6,13 @@
 # The branch is always ONE commit with no parent: the new files are written over the last tree and the branch is
 # force-moved to it. Keeping every run in history grew the old repository past GitHub's size quota (about 100 GB
 # of screenshots and recordings, 2026-10-23) and stopped every push. Recordings (.mp4/.mov) never go here; they
-# stay in the run's artifact. Only the trees of the last commit are fetched (no images), so this takes seconds.
+# stay in the run's artifact. Only the trees of the last commit are fetched (no images), so this takes seconds —
+# as long as nothing asks for the missing pictures: `git write-tree` checks that every blob in the index exists and,
+# in a blobless clone, fetched the branch's ~13,000 pictures one by one (about 10 minutes per attempt; the branch
+# moved meanwhile and the push was rejected as stale — PR #26, 2026-11-01). So: no lazy fetch anywhere in here, and
+# `write-tree --missing-ok`.
 set -uo pipefail
+export GIT_NO_LAZY_FETCH=1
 url="$1"; dest="$2"; msg="$3"; shift 3
 files=()
 for f in "$@"; do
@@ -33,13 +38,12 @@ for attempt in 1 2 3 4 5; do
       blob="$(git hash-object -w -- "$f")" || exit 1
       git update-index --add --cacheinfo "100644,$blob,$dest/$(basename "$f")" || exit 1
     done
-    tree="$(git write-tree)" || exit 1
+    tree="$(git write-tree --missing-ok)" || exit 1
     if [ -n "$old" ] && [ "$tree" = "$(git rev-parse "$old^{tree}")" ]; then exit 0; fi   # nothing changed
     commit="$(git -c user.name="ci-previews" -c user.email="ci-previews@users.noreply.github.com" commit-tree "$tree" -m "$msg")" || exit 1
     # The push must not go looking for the branch's old pictures (none are in this clone): with delta compression
     # git fetched them one by one as delta bases and GitHub cut the request off with HTTP 408 (PR #3, 2026-10-23).
-    # No lazy fetch, no deltas, no thin pack: only this run's files are sent, as they are.
-    export GIT_NO_LAZY_FETCH=1
+    # No deltas, no thin pack (and no lazy fetch, exported above): only this run's files are sent, as they are.
     pushcfg=(-c pack.window=0 -c pack.depth=0 -c http.postBuffer=524288000)
     if [ -n "$old" ]; then
       git "${pushcfg[@]}" push --quiet --no-thin --force-with-lease="refs/heads/ci-previews:$old" origin "$commit:refs/heads/ci-previews"
