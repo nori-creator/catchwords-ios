@@ -986,7 +986,15 @@ export function chunksWithoutExample(
   chunks: readonly ChunkLike[] | null | undefined,
   sentences: readonly string[],
 ): number[] {
-  return (chunks ?? []).flatMap((c, i) => (sentences.some((s) => containsChunk(s, [c])) ? [] : [i]));
+  // 1つの文は1つの型だけが受け持つ（型の順に、まだ使っていない文から）。端末も文を最初の型に付けるので、
+  // 2つの型を含む文が1つしか無いと2つ目の型には例文が出なかった（2026-11-03 点検 M-単1）。
+  const used = new Set<number>();
+  return (chunks ?? []).flatMap((c, i) => {
+    const at = sentences.findIndex((s, k) => !used.has(k) && containsChunk(s, [c]));
+    if (at < 0) return [i];
+    used.add(at);
+    return [];
+  });
 }
 
 /**
