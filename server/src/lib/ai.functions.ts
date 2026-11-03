@@ -2969,7 +2969,7 @@ async function runSectionRegen(
       schema: z.object({ meaning_ja: z.string().min(1) }),
     },
     measure_words: {
-      prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n**note は必ず${NL}で書く。中国語で書かない**(word/zhuyin/pinyin だけが中国語)。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧˋ ㄓㄤ","pinyin":"yí zhàng","note":"平らな物に"}]}`,
+      prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n**note は必ず${NL}で書く。中国語で書かない**(word/zhuyin/pinyin だけが中国語)。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧ ㄓㄤ","pinyin":"yī zhāng","note":"平らな物に"}]}`,
       schema: z.object({
         measure_words: z
           .array(
