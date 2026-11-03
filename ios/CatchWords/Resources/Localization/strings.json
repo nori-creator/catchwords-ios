@@ -3324,12 +3324,12 @@
   "ko": "촬영한 사진을 휴대폰의 사진 앱에도 저장해요",
   "vi": "Lưu cả ảnh đã chụp vào ứng dụng Ảnh trên điện thoại"
  },
- "撮った写真・図鑑・復習の記録がすべて消え、元に戻せません。Web版のデータも同じく消えます。": {
-  "en": "All your photos, collection and review history will be erased and can't be restored. Your web app data will be erased too.",
-  "zh-TW": "所有照片、圖鑑和複習紀錄都會刪除且無法復原。網頁版的資料也會一併刪除。",
-  "es": "Se borrarán todas tus fotos, tu colección y tu historial de repasos, y no se podrán recuperar. También se borrarán los datos de la versión web.",
-  "ko": "촬영한 사진, 도감, 복습 기록이 모두 삭제되며 되돌릴 수 없어요. 웹 버전의 데이터도 함께 삭제돼요.",
-  "vi": "Toàn bộ ảnh đã chụp, bộ sưu tập và lịch sử ôn tập sẽ bị xóa và không thể khôi phục. Dữ liệu trên bản web cũng sẽ bị xóa."
+ "撮った写真・図鑑・復習の記録がすべて消え、元に戻せません。": {
+  "en": "All your photos, collection and review history will be erased and can't be restored.",
+  "zh-TW": "所有照片、圖鑑和複習紀錄都會刪除且無法復原。",
+  "es": "Se borrarán todas tus fotos, tu colección y tu historial de repasos, y no se podrán recuperar.",
+  "ko": "촬영한 사진, 도감, 복습 기록이 모두 삭제되며 되돌릴 수 없어요.",
+  "vi": "Toàn bộ ảnh đã chụp, bộ sưu tập và lịch sử ôn tập sẽ bị xóa và không thể khôi phục."
  },
  "撮り直す": {
   "en": "Retake",
@@ -9552,7 +9552,7 @@
   "zh-TW": "自己拍的東西比較容易想起來。",
   "es": "Lo que fotografías tú mismo se recuerda mejor.",
   "ko": "직접 찍은 건 떠올리기 쉬워요.",
-  "vi": "Thứ tự mình chụp sẽ dễ nhớ lại hơn."
+  "vi": "Những thứ bạn tự chụp sẽ dễ nhớ lại hơn."
  },
  "単語が、思い出の場所と結びつく": {
   "en": "Words tied to the places you were",
