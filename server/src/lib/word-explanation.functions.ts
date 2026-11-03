@@ -471,7 +471,8 @@ export const getReaderMeanings = createServerFn({ method: "POST" })
     const best = new Map<string, Record<string, unknown>>();
     for (const r of rows ?? []) {
       const id = String(r.word_id ?? "");
-      const m = readerText(String(r.meaning ?? ""), data.explain_lang).trim();
+      // 意味（短い語句）の判定: 漢字だけの正しい和文（自動販売機）を落とさない（2026-11-03 点検 T43）。
+      const m = readerMeaning(String(r.meaning ?? ""), data.explain_lang).trim();
       if (!id || !m) continue;
       const have = best.get(id);
       if (!have || rank(r.source) > rank(have.source)) best.set(id, { ...r, meaning: m });

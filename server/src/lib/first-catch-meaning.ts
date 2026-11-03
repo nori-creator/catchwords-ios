@@ -1,3 +1,4 @@
+import { CHINESE_ONLY } from "./note-language";
 import { explainScript, latinLanguageOf, type ExplainLang } from "./explain-languages";
 import { fitsReaderLanguage } from "./meaning-language";
 
@@ -48,7 +49,12 @@ export function fitsReaderMeaning(
 ): boolean {
   const s = (text ?? "").replace(/\s+/g, "");
   if (!s) return true;
-  if (reader === "ja") return HAN.test(s) || KANA.test(s) || !LATIN.test(s);
+  if (reader === "ja") {
+    // ハングル（韓国語）・中文にしか出ない字のある漢字だけの意味は日本語でない（2026-11-03 点検 T44）。
+    if (/[가-힯ᄀ-ᇿ]/.test(s)) return false;
+    if (!KANA.test(s) && CHINESE_ONLY.test(s)) return false;
+    return HAN.test(s) || KANA.test(s) || !LATIN.test(s);
+  }
   // 空白を残して渡す（欧文の言語の見分けは語の切れ目で数える）。
   return fitsReaderLanguage(text, reader);
 }

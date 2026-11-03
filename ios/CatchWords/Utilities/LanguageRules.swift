@@ -57,6 +57,12 @@ nonisolated enum LanguageRules {
         switch DisplayLanguages.find(reader)?.script {
         case .kana:
             if !hanOnlyOk, judged.count >= 5, c.kana == 0, c.latin == 0, c.hangul == 0, c.han > 0 { return true }
+            // Chinese with a shop or product name in Latin letters (很多人用LINE傳訊息, check 2026-11-03 T42): the
+            // letters are left out when there are fewer of them than Han.
+            if !hanOnlyOk, c.kana == 0, c.hangul == 0, c.latin > 0, c.latin < c.han, c.han >= 4 { return true }
+            // A Han-only meaning with characters only Chinese uses (一種台灣的手搖飲料, T44) is Chinese even where Han-only
+            // meanings are allowed (自動販売機 stays).
+            if c.kana == 0, c.hangul == 0, c.han > 0, judged.contains(where: { chineseOnly.contains($0) }) { return true }
             if c.han == 0, c.kana == 0, c.latin >= 5 { return true }
             if c.hangul > 0, c.hangul >= c.kana + c.han { return true }
             return mostlyLatin
@@ -81,6 +87,9 @@ nonisolated enum LanguageRules {
             return false
         }
     }
+
+    /// Characters only Chinese uses — never in a short Japanese meaning or note (the server's `CHINESE_ONLY`).
+    static let chineseOnly: Set<Character> = Set("的這們很說裡讓沒嗎呢吧嘛麼灣臺會學國體點氣對從與她您妳吃喝")
 
     // MARK: R22 — telling Latin-script languages apart
 
