@@ -138,6 +138,7 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                 mayBePerson: [Bool]? = nil) -> [(cut: Cut?, note: String?)] {
         let n = plans.count
         let people = (mayBePerson ?? []).contains(false) ? personGrid() : nil
+        let gridSize = labelMaskCopy().map { (w: $0.width, h: $0.height) }
         func isTheThing(_ h: RegionHit, _ i: Int) -> Bool {
             guard let box = boxes[i] else { return true }
             if CatchPlan.cover(h.cut.box, of: box) < CatchPlan.minBoxCover {
@@ -147,6 +148,18 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             if mayBePerson?[i] == false, let g = h.grid, CatchPlan.isPerson(g, people: people) {
                 Self.trace?("thing \(i + 1): the crop's instance is a person — not used")
                 return false
+            }
+            // A crop's instance that lies much in other named things' boxes (and outside its own) holds another thing
+            // too (keys and the flip-flop under them, one instance again in the crop round the keys): not this thing
+            // alone (the cut-out harness, 2026-11-03).
+            if let g = h.grid, let size = gridSize, g.count == size.w * size.h {
+                let others = boxes.indices.filter { $0 != i }.compactMap { boxes[$0] }
+                let share = Self.share(of: g, outside: box.insetBy(dx: -box.width * 0.05, dy: -box.height * 0.05),
+                                       inAny: others, width: size.w, height: size.h)
+                if share > Self.cropOthersLimit {
+                    Self.trace?(String(format: "thing %d: %.0f%% of the crop's instance lies in other things' boxes — not used", i + 1, share * 100))
+                    return false
+                }
             }
             return true
         }
@@ -226,6 +239,25 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             }
         }
         return out
+    }
+
+    /// Above this share of a crop's instance in other things' boxes (outside its own), it is not the thing (`render`).
+    static let cropOthersLimit = 0.2
+
+    /// The share of `bits` (1 = on, a grid `width` × `height`) outside `own` and inside one of `others` (0–1 boxes).
+    static func share(of bits: [UInt8], outside own: CGRect, inAny others: [CGRect], width w: Int, height h: Int) -> Double {
+        guard !others.isEmpty else { return 0 }
+        var total = 0, theirs = 0
+        for y in 0..<h {
+            let fy = (CGFloat(y) + 0.5) / CGFloat(h)
+            for x in 0..<w where bits[y * w + x] != 0 {
+                total += 1
+                let pt = CGPoint(x: (CGFloat(x) + 0.5) / CGFloat(w), y: fy)
+                if own.contains(pt) { continue }
+                if others.contains(where: { $0.contains(pt) }) { theirs += 1 }
+            }
+        }
+        return total == 0 ? 0 : Double(theirs) / Double(total)
     }
 
     /// `bits` grown by one pixel (8 neighbours).

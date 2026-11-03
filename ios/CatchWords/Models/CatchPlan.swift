@@ -427,8 +427,22 @@ nonisolated enum CatchPlan {
         let hasColour = (colours?.count ?? 0) >= w * h * 3
         if hasColour, let px = colours {
             holder = colourCheckedSeeds(holder, colours: px)
-            return barrierSplit(owner: owner, mine: mine, seeds: holder, claimants: claimants, boxes: boxes, mask: mask,
+            // Both keep what nothing tells apart only when the two are the same colours (a red cup on a red saucer).
+            // Two things of different colours (a red can behind a yellow cake): each pixel goes to the one that
+            // reaches it over the lower colour edge, then the shorter way (the loop below) — never both, which gave
+            // the can's cut-out the whole cake where the edge between them was soft (the cut-out harness, 2026-11-03).
+            if seedColoursAlike(holder, colours: px) {
+                return barrierSplit(owner: owner, mine: mine, seeds: holder, claimants: claimants, boxes: boxes, mask: mask,
                                 width: w, height: h, colours: px, result: result)
+            }
+            heap = MinHeap()
+            for i in holder.indices {
+                cost[i] = .greatestFiniteMagnitude
+                if holder[i] >= 0 {
+                    cost[i] = 0
+                    heap.push(0, Int32(i))
+                }
+            }
         }
         while let top = heap.pop() {
             let (c, idx) = top
@@ -567,6 +581,35 @@ nonisolated enum CatchPlan {
         }
         return out
     }
+
+    /// Whether every two claimants' seeds have alike colours: their colour histograms overlap by `alikeShare` or more.
+    static func seedColoursAlike(_ seeds: [Int], colours px: [UInt8]) -> Bool {
+        let who = Set(seeds.filter { $0 >= 0 }).sorted()
+        guard who.count > 1 else { return true }
+        let bins = colourBins
+        var hist: [Int: [Double]] = [:]
+        for k in who { hist[k] = [Double](repeating: 0, count: bins * bins * bins) }
+        var total: [Int: Double] = [:]
+        for i in seeds.indices where seeds[i] >= 0 {
+            let a = i * 3
+            let b = (Int(px[a]) * bins / 256) * bins * bins + (Int(px[a + 1]) * bins / 256) * bins + Int(px[a + 2]) * bins / 256
+            hist[seeds[i]]![b] += 1
+            total[seeds[i], default: 0] += 1
+        }
+        for (n, a) in who.enumerated() {
+            for b in who[(n + 1)...] {
+                var overlap = 0.0
+                for k in 0..<(bins * bins * bins) {
+                    overlap += min(hist[a]![k] / max(1, total[a]!), hist[b]![k] / max(1, total[b]!))
+                }
+                if overlap < alikeShare { return false }
+            }
+        }
+        return true
+    }
+
+    /// Two claimants' colours are alike when their histograms overlap by this much.
+    static let alikeShare = 0.5
 
     /// Levels per colour channel of `colourCheckedSeeds`'s histograms.
     static let colourBins = 8
