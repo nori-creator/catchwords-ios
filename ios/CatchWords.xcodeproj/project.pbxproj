@@ -529,7 +529,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "身の回りの物を撮って、学んでいる言語の単語として図鑑に集めるため、また単語に添える自撮りを撮るためにカメラを使います。";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "撮った場所の地名を記録して、思い出と一緒に単語を覚えられるようにします。「場所でリマインド」をオンにすると、単語を撮った場所の近くに来たときに通知でお知らせするためにも使います。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "撮った場所の住所（番地まで）を記録して、思い出と一緒に単語を覚えられるようにします。「場所でリマインド」をオンにすると、単語を撮った場所の近くに来たときに通知でお知らせするためにも使います。";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "撮った写真をスマホの写真アプリにも保存します。";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "写真アプリの画像から単語を探すために使います。";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
@@ -570,7 +570,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "身の回りの物を撮って、学んでいる言語の単語として図鑑に集めるため、また単語に添える自撮りを撮るためにカメラを使います。";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "撮った場所の地名を記録して、思い出と一緒に単語を覚えられるようにします。「場所でリマインド」をオンにすると、単語を撮った場所の近くに来たときに通知でお知らせするためにも使います。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "撮った場所の住所（番地まで）を記録して、思い出と一緒に単語を覚えられるようにします。「場所でリマインド」をオンにすると、単語を撮った場所の近くに来たときに通知でお知らせするためにも使います。";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "撮った写真をスマホの写真アプリにも保存します。";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "写真アプリの画像から単語を探すために使います。";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;

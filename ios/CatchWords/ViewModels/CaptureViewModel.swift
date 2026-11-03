@@ -45,6 +45,8 @@ final class CaptureViewModel {
     var caption: String = ""
     /// The spoken one-liner next to the memo (web VoiceCaptionButton).
     var placeName: String?
+    /// The city and district of `placeName` — the only part of where the photo was taken that goes to the AI.
+    var placeArea: String?
     var location: CLLocation?
     /// Where a photo from the library was taken (its EXIF GPS, `LocationService.photoLocation`): used instead of where
     /// the phone is now. nil for the camera's photos and a library photo without one.
@@ -245,9 +247,10 @@ final class CaptureViewModel {
             guard token == runToken else { return }
             location = here
             if let here {
-                let name = await LocationService.shared.placeName(for: here)
+                let found = await LocationService.shared.place(for: here)
                 guard token == runToken else { return }
-                placeName = name
+                placeName = found.name
+                placeArea = found.area
             }
         }
     }
@@ -317,7 +320,7 @@ final class CaptureViewModel {
         Task {
             defer { if token == runToken { isLookingUp = false } }
             do {
-                let raw = try await AIService.shared.candidates(for: text, scene: placeName)
+                let raw = try await AIService.shared.candidates(for: text, scene: placeArea)
                 guard token == runToken else { return }
                 let found = NameRegister.finalized(Self.saveable(raw))
                 guard !found.isEmpty else { throw APIError.message(Self.notTargetWordFound) }
@@ -749,6 +752,7 @@ final class CaptureViewModel {
         cutout = nil
         caption = ""
         placeName = nil
+        placeArea = nil
         location = nil
         restoredPendingId = nil
         detectOutcome = nil

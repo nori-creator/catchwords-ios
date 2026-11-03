@@ -122,10 +122,17 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// - within a block or so: the street without its number;
     /// - a rough point (Precise Location off, or no better fix): the city and district.
     func placeName(for location: CLLocation) async -> String? {
+        await place(for: location).name
+    }
+
+    /// The address (`placeName`) and, apart, just its city and district (「台北市 大安區」). Only the area goes to the AI
+    /// as a hint about where the photo was taken: the street and its number stay on the learner's own card
+    /// (privacy policy 1・4, the AI consent screen).
+    func place(for location: CLLocation) async -> (name: String?, area: String?) {
         let accuracy = location.horizontalAccuracy
         let rough = accuracy < 0 || accuracy > 150
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location, preferredLocale: L10n.locale)
-        guard let p = placemarks?.first else { return nil }
+        guard let p = placemarks?.first else { return (nil, nil) }
         // Apple answers in the display language where the place has a name in it, else in the place's own script (a
         // Taipei district in 中文 on a Spanish screen): shown as it comes — a place's name as it is written there
         // (owner 2026-10-31: 「その地名や具体的な名前はそのまま表記して。英語でも中国語でも」).
@@ -133,7 +140,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         if area.isEmpty, let name = Self.properName(p.name) { area = [name] }
         let street = rough ? nil : Self.street(p, withNumber: accuracy <= 50)
         let parts = area + (street.map { s in area.contains(s) ? [] : [s] } ?? [])
-        return parts.isEmpty ? nil : parts.joined(separator: L10n.current.placeSeparator)
+        let sep = L10n.current.placeSeparator
+        return (parts.isEmpty ? nil : parts.joined(separator: sep), area.isEmpty ? nil : area.joined(separator: sep))
     }
 
     /// The street and its number as the map writes them: 「和平東路一段162號」 where the street is written in Han

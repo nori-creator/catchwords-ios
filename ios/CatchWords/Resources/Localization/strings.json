@@ -7384,12 +7384,12 @@
   "ko": "기록하지 못했어요\n{1}",
   "vi": "Không ghi lại được\n{1}"
  },
- "撮った写真、写真アプリから選んだ画像、「違う単語を入力」で入力した単語、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前は送りません。": {
-  "en": "Photos you take, images you pick from the Photos app, words you type with “Type a different word”, notes you write when reporting a mistake, and settings such as your learning language and level. Your email address and name are not sent.",
-  "zh-TW": "你拍的照片、從照片 App 選的圖片、用「輸入別的單字」輸入的單字、回報錯誤時寫的備註，以及學習語言、程度等設定。不會傳送電子郵件地址和名字。",
-  "es": "Las fotos que tomas, las imágenes que eliges en la app Fotos, las palabras que escribes con “Escribir otra palabra”, las notas que escribes al reportar un error y ajustes como el idioma que aprendes y tu nivel. No se envían tu correo electrónico ni tu nombre.",
-  "ko": "촬영한 사진, 사진 앱에서 고른 이미지, ‘다른 단어 입력’으로 입력한 단어, 오류를 신고할 때 쓴 메모, 학습 언어와 레벨 등의 설정. 이메일 주소와 이름은 보내지 않아요.",
-  "vi": "Ảnh bạn chụp, hình ảnh bạn chọn từ ứng dụng Ảnh, từ bạn nhập bằng “Nhập từ khác”, ghi chú bạn viết khi báo lỗi, và các cài đặt như ngôn ngữ đang học và trình độ. Địa chỉ email và tên của bạn sẽ không được gửi."
+ "撮った写真、写真アプリから選んだ画像、「違う単語を入力」で入力した単語と撮った場所の市・区、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前、番地までの住所は送りません。": {
+  "en": "Photos you take, images you pick from the Photos app, words you type with “Type a different word” together with the city and district where you took the photo, notes you write when reporting a mistake, and settings such as your learning language and level. Your email address, name and street address are not sent.",
+  "zh-TW": "你拍的照片、從照片 App 選的圖片、用「輸入別的單字」輸入的單字和拍照地點的縣市與區、回報錯誤時寫的備註，以及學習語言、程度等設定。不會傳送電子郵件地址、名字和詳細地址（路名與門牌）。",
+  "es": "Las fotos que tomas, las imágenes que eliges en la app Fotos, las palabras que escribes con “Escribir otra palabra” junto con la ciudad y el distrito donde tomaste la foto, las notas que escribes al reportar un error y ajustes como el idioma que aprendes y tu nivel. No se envían tu correo electrónico, tu nombre ni tu dirección exacta.",
+  "ko": "촬영한 사진, 사진 앱에서 고른 이미지, ‘다른 단어 입력’으로 입력한 단어와 사진을 찍은 곳의 시·구, 오류를 신고할 때 쓴 메모, 학습 언어와 레벨 등의 설정. 이메일 주소, 이름, 번지까지의 주소는 보내지 않아요.",
+  "vi": "Ảnh bạn chụp, hình ảnh bạn chọn từ ứng dụng Ảnh, từ bạn nhập bằng “Nhập từ khác” cùng với thành phố và quận nơi bạn chụp ảnh, ghi chú bạn viết khi báo lỗi, và các cài đặt như ngôn ngữ đang học và trình độ. Địa chỉ email, tên và địa chỉ chi tiết (tên đường, số nhà) của bạn sẽ không được gửi."
  },
  "写っている物や入力した単語の判定、単語の解説と例文の作成、報告された誤りの修正のためだけに使います。当社が写真や入力した文章を AI の学習に使うことはありません。": {
   "en": "Only to recognize what is in a photo or the word you typed, to write word explanations and example sentences, and to fix mistakes you report. We never use your photos or the text you enter to train AI.",
