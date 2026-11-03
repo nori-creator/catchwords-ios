@@ -10,6 +10,8 @@ struct CaptureView: View {
     @Environment(PlanStore.self) private var plan
     @Environment(AppRouter.self) private var router
 
+    /// The selfie's shutter has fired and the picture is on its way (a second press is ignored).
+    @State private var selfieShooting = false
     @State private var camera = CameraService()
     @State private var vm = CaptureViewModel()
     @State private var focusPoint: CGPoint?
@@ -579,12 +581,20 @@ struct CaptureView: View {
                 selfieCountdown.cancel()
                 return
             }
+            // A second press while the selfie is being taken is ignored (check 2026-11-03 H8: it took a second picture
+            // at once, which came back empty and replaced the real selfie).
+            guard !selfieShooting else { return }
             compactSelfieChrome()
             selfieCountdown.start(selfieTimer) {
-                guard vm.step == .selfie else { return }
+                guard vm.step == .selfie, !selfieShooting else { return }
+                selfieShooting = true
                 shutterSound()
                 flash()
-                Task { vm.finishSelfie(await capturePhoto()) }
+                Task {
+                    let shot = await capturePhoto()
+                    selfieShooting = false
+                    vm.finishSelfie(shot)
+                }
             }
             return
         }
