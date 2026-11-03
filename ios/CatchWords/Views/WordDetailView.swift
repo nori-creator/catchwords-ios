@@ -2563,6 +2563,9 @@ enum ChunkKind: CaseIterable, Hashable {
         // (`pos.ts`) — they fell through to 名詞 and 状態動詞 (owner 2026-10-22: 「品詞をより高い精度に」).
         else if ["P", "PART", "PREP", "DET", "ART", "PTC", "CONJ", "C"].contains(p)
                     || p.contains("助詞") || p.contains("前置") || p.contains("接続") { self = .particle }  // l10n-ignore (matching server POS)
+        // Vst (喜歡・怕・需要・擔心: a stative verb that takes an object) is a verb, not an adjective — as the chunk
+        // rules already read it (`ChunkRules.isPredicateStative`, check 2026-11-03 H5).
+        else if p.hasPrefix("VST") { self = .verb }
         else if p.hasPrefix("VS") || p == "A" || p.hasPrefix("ADJ") || p.contains("形容") || p.contains("状態") { self = .stative }  // l10n-ignore (matching server POS)
         else if p.hasPrefix("V") || p == "AUX" || p.contains("動") { self = .verb }  // l10n-ignore (matching server POS)
         else { self = .noun }
