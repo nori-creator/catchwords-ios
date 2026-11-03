@@ -8,6 +8,7 @@ import {
   DEFAULT_ANONYMOUS_AI_DAILY_CAP,
   DEFAULT_FREE_AI_DAILY_CAP,
   DEFAULT_GLOBAL_AI_DAILY_CAP,
+  FREE_PERSON_DAILY_TOTAL,
   FREE_AI_BUDGET_ROOT,
   GLOBAL_AI_BUDGET_ROOT,
   GLOBAL_CAP_MESSAGE,
@@ -314,15 +315,42 @@ describe("匿名の人・無料の人の枠（監査 2026-10-03 H4）", () => {
       Array.from({ length: 5 }, (_, i) => reserveAiCall({ ...base, tier: "pro" }, `p${i}`, "card")),
     );
     expect(pro.filter((r) => r.status === "fulfilled")).toHaveLength(3);
-    // 枠で断られた人の行は返してある
-    expect(u.rows).toHaveLength(10);
+    // 枠で断られた人の行は返してある（合計の行 ai_total は数えない）
+    expect(u.rows.filter((r) => r.kind !== "ai_total")).toHaveLength(10);
   });
 
   it("全体の枠で断られた時、その人の1行は返す", async () => {
     const { d, u } = deps({ tier: "free", globalLimit: 1 });
     await reserveAiCall(d, "u1", "card");
     await expect(reserveAiCall(d, "u2", "card")).rejects.toThrow(AI_CAP_CODES.global);
-    expect(u.rows.map((r) => r.userId)).toEqual(["u1"]);
+    expect(u.rows.filter((r) => r.kind !== "ai_total").map((r) => r.userId)).toEqual(["u1"]);
+    expect(u.rows.filter((r) => r.kind === "ai_total").map((r) => r.userId)).toEqual(["u1"]);
+  });
+
+  it("無料の人1人は、全体の枠に数える種類を合わせて FREE_PERSON_DAILY_TOTAL 回まで（点検 S2）", async () => {
+    const { d, u } = deps({ tier: "free", globalLimit: 100_000, freeLimit: 100_000 });
+    const kinds = ["card", "suggest", "scan_detect", "scene_label", "image_sense"];
+    let ok = 0;
+    for (let i = 0; i < FREE_PERSON_DAILY_TOTAL + 50; i++) {
+      try {
+        await reserveAiCall(d, "u1", kinds[i % kinds.length]);
+        ok++;
+      } catch (e) {
+        expect((e as Error).message).toContain(AI_CAP_CODES.daily);
+      }
+    }
+    expect(ok).toBe(FREE_PERSON_DAILY_TOTAL);
+    // 断られた回の種類ごとの行は返してある
+    expect(u.rows.filter((r) => r.kind !== "ai_total")).toHaveLength(FREE_PERSON_DAILY_TOTAL);
+    // 発音（全体の枠に数えない）は合計に数えない
+    await expect(reserveAiCall(d, "u1", "tts")).resolves.toBeDefined();
+    // 別の人は使える
+    await expect(reserveAiCall(d, "u2", "card")).resolves.toBeDefined();
+  });
+
+  it("Pro の人には合計の上限を掛けない", async () => {
+    const { d } = deps({ tier: "pro", globalLimit: 100_000 });
+    for (let i = 0; i < FREE_PERSON_DAILY_TOTAL + 5; i++) await reserveAiCall(d, "p1", i % 2 ? "card" : "suggest");
   });
 
   it("子の枠の上限は環境変数で変えられ、全体より大きくならない", () => {
