@@ -19,9 +19,9 @@ import Foundation
 ///   asks Vision on a crop round each such thing's box, which usually separates them by itself.)
 /// - An instance mostly outside the thing's box that no other thing claims (the dorayaki merged with the carton behind
 ///   it, or a box off to one side): `refine` asks Vision once more on the region round the box, and that answer is used
-///   only when it is a whole thing — not touching the region's edge — that covers the box; otherwise no cut-out: the
-///   photo round the box (`StickerCrop.shaped`, owner 2026-10-26 「別の物を切り抜くくらいなら四角」, check 2026-11-03
-///   S12). A cut-out that lies mostly in other named things' boxes is not used either (`InstanceMasks.render`).
+///   only when it is a whole thing — not touching the region's edge — that covers the box; otherwise the whole instance
+///   stays. A cut-out that lies mostly in other named things' boxes is not used: the photo round the box instead
+///   (`InstanceMasks.render`, `StickerCrop.shaped`; owner 2026-10-26 「別の物を切り抜くくらいなら四角」, check 2026-11-03 S12).
 /// - No mask in the thing's box at all: Vision once more on the region round the box; a thing that still runs into the
 ///   region's edge after the widest try is taken with that edge faded out, never cut with a hard line.
 ///   With nothing there either: no cut-out (never a rectangle of the photo).

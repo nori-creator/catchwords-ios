@@ -194,15 +194,10 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                 kept.append(h.grid.map { $0.map { $0 != 0 } })
                 continue
             }
-            if p.refine != nil {
-                // Mostly outside its box and no crop found it alone: the instance is this thing merged with what is
-                // behind or beside it (the dorayaki with its carton). The photo round its box instead of the two
-                // together (owner 2026-10-26: 「別の物を切り抜くくらいなら四角」, check 2026-11-03 S12).
-                add("no crop found it whole: no cut-out (the photo round its box)")
-                out.append((nil, note))
-                kept.append(nil)
-                continue
-            }
+            // Mostly outside its box and no crop found it alone: the whole instance (a box drawn smaller than the thing is
+            // common — the cut-out harness's box-small cases). When that instance is mostly other named things, the
+            // check after this loop drops it for the photo round the box.
+            if p.refine != nil { add("no crop found it whole: the whole instance") }
             switch p.cut {
             case .instance(let l): kept.append(labelBits([l]))
             case .union(let ls): kept.append(labelBits(ls))
