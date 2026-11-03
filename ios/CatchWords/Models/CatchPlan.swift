@@ -175,6 +175,18 @@ nonisolated enum CatchPlan {
             // (`gather`) — by where they lie, not by how much of the box they fill (owner 2026-11-03).
             let more = gather(ls, box: boxes[i] ?? .zero, mask: mask, totals: totals, excluding: theirs, width: w, height: h)
             if !more.isEmpty { ls = (ls + more).sorted() }
+            // Another thing's instance that also holds a good part of this thing (keys lying on a flip-flop, which
+            // Vision saw as one with the keys): where it lies in this box and well outside that thing's box, it is
+            // this thing too — the two share it and it is split where they meet (`split`), instead of this thing
+            // losing that part to the other.
+            for j in things.indices where j != i && !isPart(j, of: i) && !isPart(i, of: j) {
+                guard let lj = labels[j], !ls.contains(lj), !barred[i].contains(lj), let bj = boxes[j], let bi = boxes[i]
+                else { continue }
+                let away = bj.insetBy(dx: -bj.width * Self.sharedAway, dy: -bj.height * Self.sharedAway)
+                if Double(Self.count(lj, in: bi, outside: away, mask: mask, width: w, height: h)) >= Self.sharedInto * Double(area) {
+                    ls = (ls + [lj]).sorted()
+                }
+            }
             // Mostly outside the box (the thing merged with what is behind it, or a box off to one side): kept whole,
             // and Vision looks again at the region (`refine`).
             let share = Double(ls.reduce(0) { $0 + inBox[$1] }) / Double(max(1, ls.reduce(0) { $0 + totals[$1] }))
@@ -414,6 +426,7 @@ nonisolated enum CatchPlan {
                                           (-1, 1, 1.4142), (0, 1, 1), (1, 1, 1.4142)]
         let hasColour = (colours?.count ?? 0) >= w * h * 3
         if hasColour, let px = colours {
+            holder = colourCheckedSeeds(holder, colours: px)
             return barrierSplit(owner: owner, mine: mine, seeds: holder, claimants: claimants, boxes: boxes, mask: mask,
                                 width: w, height: h, colours: px, result: result)
         }
@@ -520,6 +533,43 @@ nonisolated enum CatchPlan {
         }
         return Keep(width: w, height: h, bits: result)
     }
+
+    /// The seeds of `split` with those dropped whose colour belongs to another claimant (owner 2026-11-03, the cut-out
+    /// harness: a cola can's box, rough as the AI draws it, also covered the edge of the pineapple cake in front of the
+    /// can; those cake pixels were seeds of the can, and the can's cut-out took a slice of the cake). Each claimant's
+    /// colours are a coarse histogram of its seeds (`colourBins` levels per channel); a seed stays when its colour is at
+    /// least as common among its own seeds as among any other claimant's (the same colour on both — a red cup on a red
+    /// saucer — stays a seed of both). A claimant left without seeds keeps its own.
+    static func colourCheckedSeeds(_ seeds: [Int], colours px: [UInt8]) -> [Int] {
+        let who = Set(seeds.filter { $0 >= 0 })
+        guard who.count > 1 else { return seeds }
+        let bins = colourBins
+        func bin(_ i: Int) -> Int {
+            let a = i * 3
+            return (Int(px[a]) * bins / 256) * bins * bins + (Int(px[a + 1]) * bins / 256) * bins + Int(px[a + 2]) * bins / 256
+        }
+        var hist: [Int: [Int]] = [:], total: [Int: Int] = [:]
+        for k in who { hist[k] = [Int](repeating: 0, count: bins * bins * bins); total[k] = 0 }
+        for i in seeds.indices where seeds[i] >= 0 {
+            hist[seeds[i]]![bin(i)] += 1
+            total[seeds[i]]! += 1
+        }
+        var out = seeds
+        var left: [Int: Int] = [:]
+        for i in seeds.indices where seeds[i] >= 0 {
+            let k = seeds[i], b = bin(i)
+            let own = Double(hist[k]![b]) / Double(max(1, total[k]!))
+            let other = who.filter { $0 != k }.map { Double(hist[$0]![b]) / Double(max(1, total[$0]!)) }.max() ?? 0
+            if own < other { out[i] = -1 } else { left[k, default: 0] += 1 }
+        }
+        for k in who where (left[k] ?? 0) == 0 {
+            for i in seeds.indices where seeds[i] == k { out[i] = k }
+        }
+        return out
+    }
+
+    /// Levels per colour channel of `colourCheckedSeeds`'s histograms.
+    static let colourBins = 8
 
     /// The colour change (0–255, the largest of R, G, B between two neighbouring grid pixels) that makes one step of
     /// barrier (`split`): changes smaller than this (shading, noise) are no edge.
@@ -659,6 +709,31 @@ nonisolated enum CatchPlan {
 
     // MARK: Pieces of one thing
 
+    /// Another thing's instance is shared with this one when this share of this thing's box is that instance lying
+    /// outside the other thing's box grown by `sharedAway`.
+    static let sharedInto = 0.1
+    static let sharedAway: CGFloat = 0.05
+
+    /// The pixels of `label` inside `box` and outside `outside` (both 0–1 of the photo).
+    static func count(_ label: Int, in box: CGRect, outside: CGRect, mask: [UInt8], width w: Int, height h: Int) -> Int {
+        let g = grid(box, width: w, height: h), o = grid(outside, width: w, height: h)
+        guard g.x1 > g.x0, g.y1 > g.y0 else { return 0 }
+        var n = 0
+        for y in g.y0..<g.y1 {
+            for x in g.x0..<g.x1 where Int(mask[y * w + x]) == label {
+                if x >= o.x0 && x < o.x1 && y >= o.y0 && y < o.y1 { continue }
+                n += 1
+            }
+        }
+        return n
+    }
+
+    /// A piece touching what is taken (within `touchReach` of the box's diagonal) counts when this share of it lies in
+    /// the box grown by `touchMargin`: a part the AI's box cut off (a lint roller's roller above a box drawn round its
+    /// handle — the owner's photo, 2026-11-03), as long as it is no bigger than the box.
+    static let touchInside = 0.35
+    static let touchMargin: CGFloat = 0.25
+    static let touchReach: CGFloat = 0.015
     /// A piece counts as in the box when this share of it lies in the box grown by `gatherMargin` of its size.
     static let gatherInside = 0.6
     /// The box grown by this share of its width and height on each side (a box a little small or off to one side).
@@ -678,19 +753,25 @@ nonisolated enum CatchPlan {
         guard w > 0, h > 0, mask.count >= w * h, box.width > 0, box.height > 0, !taken.isEmpty else { return [] }
         let grown = box.insetBy(dx: -box.width * gatherMargin, dy: -box.height * gatherMargin)
         let inside = countsInside(grown, mask: mask, width: w, height: h)
+        let wide = countsInside(box.insetBy(dx: -box.width * touchMargin, dy: -box.height * touchMargin),
+                                mask: mask, width: w, height: h)
         let area = Double(max(1, gridArea(box, width: w, height: h)))
-        var open = Set((1..<256).filter { l in
-            totals[l] > 0 && !taken.contains(l) && !excluding.contains(l)
-                && Double(totals[l]) >= gatherSpeck * area
-                && Double(inside[l]) >= gatherInside * Double(totals[l])
+        let candidates = (1..<256).filter { l in
+            totals[l] > 0 && !taken.contains(l) && !excluding.contains(l) && Double(totals[l]) >= gatherSpeck * area
+        }
+        // Near pieces: mostly in the box. Touching pieces: partly in it (cut off by the box), never bigger than it.
+        var open = Set(candidates.filter { Double(inside[$0]) >= gatherInside * Double(totals[$0]) })
+        var touching = Set(candidates.filter {
+            !open.contains($0) && Double(wide[$0]) >= touchInside * Double(totals[$0]) && Double(totals[$0]) <= area
         })
-        guard !open.isEmpty else { return [] }
+        guard !open.isEmpty || !touching.isEmpty else { return [] }
         let diagonal = hypot(box.width * CGFloat(w), box.height * CGFloat(h))
         let reach = max(2, Int((diagonal * gatherReach).rounded()))
+        let touch = max(1, Int((diagonal * touchReach).rounded()))
         var have = [Bool](repeating: false, count: 256)
         for l in taken where l > 0 && l < 256 { have[l] = true }
         var added: [Int] = []
-        while !open.isEmpty {
+        while !open.isEmpty || !touching.isEmpty {
             // Every pixel within `reach` of what is taken (8-neighbour steps), and the open pieces it touches.
             var dist = [Int16](repeating: -1, count: w * h)
             var queue: [Int] = []
@@ -706,7 +787,7 @@ nonisolated enum CatchPlan {
                 head += 1
                 let d = Int(dist[k])
                 let l = Int(mask[k])
-                if open.contains(l) { touched.insert(l) }
+                if open.contains(l) || (d <= touch && touching.contains(l)) { touched.insert(l) }
                 guard d < reach else { continue }
                 let x = k % w, y = k / w
                 for dy in -1...1 {
@@ -725,6 +806,7 @@ nonisolated enum CatchPlan {
             for l in touched.sorted() {
                 have[l] = true
                 open.remove(l)
+                touching.remove(l)
                 added.append(l)
             }
         }

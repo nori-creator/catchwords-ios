@@ -405,6 +405,17 @@ final class CardCatchPickTests: XCTestCase {
         }, totals: { var t = [Int](repeating: 0, count: 256); t[3] = 384; t[6] = 1; return t }(), excluding: [], width: 120, height: 90), [])
     }
 
+    func testASeedOnTheOtherThingsColourIsDropped() {
+        // A red can's seeds (0) took in a strip of the yellow cake (its rough box covered the cake's edge); the cake's
+        // seeds (1) are all yellow. The yellow seeds of the can are dropped, its red ones stay; the cake keeps all.
+        let red: [UInt8] = [200, 30, 30], yellow: [UInt8] = [230, 190, 80]
+        let seeds = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
+        let colours = (0..<10).flatMap { i -> [UInt8] in (i < 4 ? red : yellow) }
+        XCTAssertEqual(CatchPlan.colourCheckedSeeds(seeds, colours: colours), [0, 0, 0, 0, -1, -1, 1, 1, 1, 1])
+        // The same colour on both (a red cup on a red saucer): every seed stays.
+        XCTAssertEqual(CatchPlan.colourCheckedSeeds([0, 0, 1, 1], colours: [UInt8](repeating: 200, count: 12)), [0, 0, 1, 1])
+    }
+
     func testAPartNamedOnItsOwnStaysInTheWholeThingsCutOut() {
         // The AI also named the roller on its own (its point on the roller, its box round it): the roller's instance is
         // that thing's, and the lint roller still takes it in — neither cut-out is split.
