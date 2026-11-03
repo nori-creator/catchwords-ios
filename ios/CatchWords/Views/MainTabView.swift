@@ -440,7 +440,10 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $router.showCatchLimit) {
             CatchLimitSheet()
-                .presentationDetents([.medium])
+                // Half the screen held it on most iPhones; on a small one (SE) or with large text the ad's button was
+                // cut off (check 2026-11-03 B6): it can be pulled up to the whole screen.
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 

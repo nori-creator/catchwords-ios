@@ -197,7 +197,10 @@ struct CatchCelebrationView: View {
         if let c = vm.picked {
             let W = size.width
             let n = max(1, CatchWordPop.units(c).count)
-            let ws = min(W * 150 / 1080, W * 0.66 / (CGFloat(n) * 1.45))
+            // The height counts too, as for the title (`k`): held sideways on iPhone Duo the width alone made the word
+            // about 132 pt and it lay over the cut-out (check 2026-11-03 H10).
+            let k = min(W / 1080, size.height / 2340)
+            let ws = min(150 * k, W * 0.66 / (CGFloat(n) * 1.45))
             let sa = Film6.outCubic(Film6.seg(tc, Film6.voice - 0.1, Film6.voice + 0.15)) * textAlpha(tc)
             HStack(spacing: W * 0.035) {
                 CatchWordPop(candidate: c, size: ws, tc: tc, calm: reduceMotion, alpha: textAlpha(tc))

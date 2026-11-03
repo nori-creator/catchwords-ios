@@ -643,8 +643,22 @@ struct CandidatePickerView: View {
         .animation(.spring(response: 0.42, dampingFraction: 0.88), value: vm.typedCandidates.count)
     }
 
-    /// Several words for what was typed: one row each (never scrolls sideways).
+    /// Several words for what was typed: one row each (never scrolls sideways). More than three scroll in a box about
+    /// three rows high, so the photo keeps its room on a small iPhone (check 2026-11-03 M-カ2: five rows left the SE's
+    /// photo almost nothing).
+    @ViewBuilder
     private var typedList: some View {
+        if vm.typedCandidates.count > 3 {
+            ScrollView { typedRows }
+                .frame(height: 230)
+                .scrollBounceBehavior(.basedOnSize)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        } else {
+            typedRows
+        }
+    }
+
+    private var typedRows: some View {
         VStack(spacing: 0) {
             ForEach(Array(vm.typedCandidates.enumerated()), id: \.offset) { idx, c in
                 Button { vm.choose(c, object: vm.searchObject, typed: true) } label: {
