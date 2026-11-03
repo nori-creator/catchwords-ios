@@ -382,7 +382,18 @@ private struct RuledLabel: UIViewRepresentable {
         return label
     }
 
+    /// The text, size and line height last given to the label.
+    final class Coordinator { var key: String? }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func updateUIView(_ label: UILabel, context: Context) {
+        // Set only when something changed: setting the text again invalidates the label's size, and the page measured
+        // again and redrew this view again — on the word page (display English, learning 中文) that went round without
+        // end and the app stopped answering (UI test test_3_en_zh, 2026-11-03). The light / dark colours follow by
+        // themselves (dynamic UIColors).
+        let key = "\(text)\u{1}\(size)\u{1}\(lineHeight)"
+        guard context.coordinator.key != key else { return }
+        context.coordinator.key = key
         label.attributedText = attributed
     }
 
