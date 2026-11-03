@@ -135,7 +135,7 @@ struct HomeView: View {
                 ScrollView {
                     DexCalendarView(stickers: AlbumDay.onePerWord(dex.albumStickers), selectedDay: $calendarDay, onOpen: { s in
                         calendarOpen = false
-                        router.detailSticker = dex.albumOwner(s)
+                        router.detailEncounterId = dex.albumEncounterId(s); router.detailSticker = dex.albumOwner(s)
                     }) { picked in
                         calendarDay = picked
                         closeCalendar()
@@ -219,7 +219,7 @@ struct HomeView: View {
                             HomeAlbum(
                                 days: AlbumDay.days(from: dex.albumStickers, today: today),
                                 // A re-encounter's page opens its word.
-                                onOpen: { router.detailSticker = dex.albumOwner($0) },
+                                onOpen: { router.detailEncounterId = dex.albumEncounterId($0); router.detailSticker = dex.albumOwner($0) },
                                 onCamera: { router.tab = .camera },
                                 onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
                                 finishRequest: finishEditing,
@@ -284,7 +284,7 @@ struct HomeView: View {
                     BookSpreadView(
                         days: AlbumDay.days(from: dex.albumStickers, today: today),
                         // A re-encounter's page opens its word.
-                        onOpen: { router.detailSticker = dex.albumOwner($0) },
+                        onOpen: { router.detailEncounterId = dex.albumEncounterId($0); router.detailSticker = dex.albumOwner($0) },
                         onCamera: { router.tab = .camera },
                         onEditingChange: { on in withAnimation(.snappy) { albumEditing = on } },
                         finishRequest: finishEditing,

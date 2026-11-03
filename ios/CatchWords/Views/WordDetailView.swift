@@ -808,9 +808,13 @@ struct WordDetailView: View {
         // saved has no photos on the server yet (the list is read once it is saved).
         .task(id: "\(current.id)|\(current.objectImageUrl ?? "")") {
             guard !isLocked else { return }
+            // Opened from a later photo (the album, the map): that photo first (check 2026-11-03 H7: it opened on
+            // the first photo and the later one came only with the slideshow).
+            let opening = router.detailEncounterId
+            router.detailEncounterId = nil
             let all = await StickerPhoto.load(stickerId: current.id)
             laterPhotos = all.filter { !$0.first }
-            heroPage = 0
+            heroPage = opening.flatMap { id in laterFaces.firstIndex { $0.id == id }.map { $0 + 1 } } ?? 0
         }
     }
 

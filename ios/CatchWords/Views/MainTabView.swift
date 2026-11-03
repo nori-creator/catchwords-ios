@@ -62,6 +62,8 @@ final class AppRouter {
     /// A catch landing in progress: the dex opens in ギャラリー and the star flies into the slot.
     var landing: CatchLandingController?
     var detailSticker: Sticker?
+    /// The later photo (`encounters` id) the word page opens on, when it was opened from that photo (check 2026-11-03 H7).
+    var detailEncounterId: String?
     var showPaywall: Bool = false
     /// Today's free catches (`CatchLimitSheet`): opened when they run out, or from the camera's counter.
     var showCatchLimit: Bool = false

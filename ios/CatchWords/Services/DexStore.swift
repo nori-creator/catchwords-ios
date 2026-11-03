@@ -627,6 +627,12 @@ final class DexStore {
                 heroRole: e.heroRole, locationCustom: e.placeCustom)
     }
 
+    /// The re-encounter an album entry stands for (its `encounters` id), or nil for a word's own photo.
+    func albumEncounterId(_ s: Sticker) -> String? {
+        guard Self.isEncounterAlbumEntry(s.id) else { return nil }
+        return String(s.id.dropFirst(Self.encounterAlbumPrefix.count))
+    }
+
     /// The word an album entry opens: a re-encounter's page is its word's own sticker.
     func albumOwner(_ s: Sticker) -> Sticker {
         guard Self.isEncounterAlbumEntry(s.id) else { return s }
