@@ -745,7 +745,17 @@ export const fillReaderMeanings = createServerFn({ method: "POST" })
 
     // 3. AI。**意味だけ**を、学習言語ごとに1回でまとめて書かせる。
     const left = missing.filter((w) => !fresh.has(w.id));
+    // AI に送るのは、同意した人だけ（2026-11-03 点検: この関数は同意を確かめていなかった）。同意が無ければ、
+    // 共有の意味・辞書で決まった物だけを返す。
+    let consented = true;
     if (left.length > 0) {
+      try {
+        await (await import("./ai-consent.server")).assertAiConsent(userId);
+      } catch {
+        consented = false;
+      }
+    }
+    if (left.length > 0 && consented) {
       const ai = await import("./ai-provider.server");
       const { targetProfile } = await import("./target-profile");
       const { generateText } = await import("ai");

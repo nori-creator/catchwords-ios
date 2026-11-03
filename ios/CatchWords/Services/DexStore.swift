@@ -1292,6 +1292,9 @@ final class DexStore {
     }
 
     /// web `getReaderMeanings`: the meanings written in the reader's language, 200 words at a time.
+    /// Words whose meaning was asked to be written in a language (`lang|wordId`), once per launch.
+    @ObservationIgnored private var filledReaderMeanings: Set<String> = []
+
     private func loadReaderMeanings(_ ids: [String], afterLanguageSwitch: Bool = false) async {
         let lang = L10n.lang
         var i = 0
@@ -1302,6 +1305,19 @@ final class DexStore {
                                                       as: [String: String?].self, timeout: 30),
                   lang == L10n.lang else { continue }
             for id in chunk { readerMeanings[id] = (got[id] ?? nil) ?? "" }
+        }
+        guard lang == L10n.lang else { return }
+        // Words with no meaning in this language yet (collected in another display language): written once — from the
+        // shared meaning or the dictionary, else by the AI when the learner agreed to it (`fillReaderMeanings`, check
+        // 2026-11-03 T7: after a language switch their meanings stayed empty in the dex, the review and the widget).
+        let empty = ids.filter { (readerMeanings[$0] ?? "").isEmpty && !filledReaderMeanings.contains("\(lang)|\($0)") }
+        for start in stride(from: 0, to: min(empty.count, 96), by: 24) {
+            let chunk = Array(empty[start..<min(start + 24, empty.count)])
+            for id in chunk { filledReaderMeanings.insert("\(lang)|\(id)") }
+            guard let got = try? await NativeAPI.call("fillReaderMeanings", ["word_ids": chunk, "explain_lang": lang],
+                                                      as: [String: String].self, timeout: 45),
+                  lang == L10n.lang else { break }
+            for (id, m) in got where !m.isEmpty { readerMeanings[id] = m }
         }
         guard lang == L10n.lang else { return }
         stickers = stickers.map(applyReader)

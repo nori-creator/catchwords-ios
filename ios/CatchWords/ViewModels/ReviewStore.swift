@@ -453,7 +453,9 @@ final class ReviewStore {
         if let row = ReviewHistoryRow(stickerId: r.stickerId, reviewedAt: now, intervalDaysAfter: intervalAfter, easeAfter: r.ease) {
             allHistory.insert(row, at: 0)
         }
-        if streak == 0 || !Calendar.current.isDateInToday(now) { streak = max(streak, 1) }
+        // The streak counted again on the same calendar as `loadHistory` (Taipei days, `SRS.taipeiDay`), not the
+        // phone's own "today" (check 2026-11-03 S7: the two calendars were mixed).
+        streak = SRS.streak(days: Set(allHistory.map { SRS.taipeiDay($0.reviewedAt) }))
         await dex.reloadReviews()
         return .saved
     }

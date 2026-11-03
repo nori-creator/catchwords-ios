@@ -134,6 +134,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   deleteMyAccount: from(profile, "deleteMyAccount"),
   getWordExplanation: from(explanation, "getWordExplanation"),
   getReaderMeanings: from(explanation, "getReaderMeanings"),
+  // 表示言語を変えた後、その言語の意味が無い語の意味を埋める（共有の意味・辞書、無ければ同意した人だけ AI。点検 T7）
+  fillReaderMeanings: from(explanation, "fillReaderMeanings"),
   // 外部の AI へ送る同意（`docs/ios-spec/23-ai-consent.md`）
   getAiConsent: from(consent, "getAiConsent"),
   recordAiConsent: from(consent, "recordAiConsent"),
