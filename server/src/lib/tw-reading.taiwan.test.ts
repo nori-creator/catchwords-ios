@@ -67,3 +67,31 @@ describe("軽声は残す", () => {
     expect(readSentence("我叔叔")[2].pinyin).toBe("shu");
   });
 });
+
+describe("例文の読みの直し（点検 S10・S5・M35、決定 10B）", () => {
+  const p = (s: string, known?: Array<{ text: string; pinyin: string }>) =>
+    readSentence(s, known).map((u) => u.pinyin ?? "·").join(" ");
+  const CASES: Array<[string, string]> = [
+    ["他長得很高", "tā zhǎng de hěn gāo"],
+    ["我要包子", "wǒ yào bāo zi"],
+    ["這雙鞋子", "zhè shuāng xié zi"],
+    ["我睡不著", "wǒ shuì bù zháo"],
+    ["慢慢地走", "màn màn de zǒu"],
+    ["我買洗髮精", "wǒ mǎi xǐ fǎ jīng"],
+    ["你幹嘛", "nǐ gàn má"],
+    ["好啦", "hǎo la"],
+    ["我得去上班", "wǒ děi qù shàng bān"],
+    ["他得到獎", "tā dé dào jiǎng"],
+    ["還書", "huán shū"],
+    ["我還沒吃", "wǒ hái méi chī"],
+    ["一個人", "yī gè rén"],
+    ["不要", "bù yào"],
+    ["頭髮", "tóu fǎ"],
+    ["了解", "liǎo jiě"],
+  ];
+  for (const [s, want] of CASES) it(s, () => expect(p(s)).toBe(want));
+  it("1字の見出しの読みを、読みが複数ある字には当てない", () => {
+    expect(p("我還沒吃", [{ text: "還", pinyin: "huán" }])).toBe("wǒ hái méi chī");
+    expect(p("了解", [{ text: "了", pinyin: "le" }])).toBe("liǎo jiě");
+  });
+});

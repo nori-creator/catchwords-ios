@@ -54,6 +54,11 @@ export const TW_WORDS: Readonly<Record<string, string>> = {
   骰子: "tóu zi",
   曝光: "pù guāng",
   從容: "cōng róng",
+  幹嘛: "gàn má",
+  長得: "zhǎng de",
+  睡不著: "shuì bù zháo",
+  找不著: "zhǎo bù zháo",
+  睡著: "shuì zháo",
 };
 
 /**
@@ -90,6 +95,7 @@ export const TW_CHARS: Readonly<Record<string, string>> = {
   檔: "dàng", // 檔案 dàng àn
   蝸: "guā", // 蝸牛 guā niú
   卓: "zhuō",
+  髮: "fǎ", // 頭髮・洗髮精
 };
 
 /**
@@ -159,7 +165,12 @@ function readingsOf(char: string, simp: string): Syllable[] {
 
 /** 台湾の表で決まる位置（位置 → 読み）。語の表を先に、字の表で残りを埋める。例文の読み（`sentence-readings.server.ts`）でも使う。 */
 export function taiwanPositions(chars: readonly string[]): Map<number, Syllable> {
-  const fixed = new Map<number, Syllable>();
+  return new Map([...taiwanFixes(chars)].map(([i, f]) => [i, f.syllable]));
+}
+
+/** `taiwanPositions` と同じ。語の表から決まった位置は `word: true`（語の読みは軽声も含めてそのまま使う）。 */
+export function taiwanFixes(chars: readonly string[]): Map<number, { syllable: Syllable; word: boolean }> {
+  const fixed = new Map<number, { syllable: Syllable; word: boolean }>();
   const text = chars.join("");
   for (const [word, reading] of Object.entries(TW_WORDS)) {
     const syls = parsePinyin(reading, [...word].length);
@@ -167,19 +178,19 @@ export function taiwanPositions(chars: readonly string[]): Map<number, Syllable>
     let from = text.indexOf(word);
     while (from >= 0) {
       const start = [...text.slice(0, from)].length;
-      syls.forEach((s, k) => fixed.set(start + k, s));
+      syls.forEach((s, k) => fixed.set(start + k, { syllable: s, word: true }));
       from = text.indexOf(word, from + word.length);
     }
   }
   chars.forEach((c, i) => {
     const r = TW_CHARS[c];
     const s = r ? one(r) : null;
-    if (s && !fixed.has(i)) fixed.set(i, s);
+    if (s && !fixed.has(i)) fixed.set(i, { syllable: s, word: false });
   });
   return fixed;
 }
 
-function applyTaiwan(list: Syllable[], fixed: Map<number, Syllable>): Syllable[] {
+function applyTaiwan(list: Syllable[], fixed: Map<number, { syllable: Syllable; word: boolean }>): Syllable[] {
   return list.map((s, i) => taiwanAt(s, fixed.get(i), i) ?? s);
 }
 
@@ -187,10 +198,15 @@ function applyTaiwan(list: Syllable[], fixed: Map<number, Syllable>): Syllable[]
  * その位置の台湾の読み。2字目以降の軽声（叔叔 shú shu）は、同じ音なら軽声のまま残す。
  * 例文の読みでも使う。
  */
-export function taiwanAt(current: Syllable | null, taiwan: Syllable | undefined, index: number): Syllable | null {
+export function taiwanAt(
+  current: Syllable | null,
+  taiwan: { syllable: Syllable; word: boolean } | undefined,
+  index: number,
+): Syllable | null {
   if (!taiwan) return current;
-  if (current && index > 0 && current.tone === 5 && current.base === taiwan.base) return current;
-  return taiwan;
+  const t = taiwan.syllable;
+  if (!taiwan.word && current && index > 0 && current.tone === 5 && current.base === t.base) return current;
+  return t;
 }
 
 /** 辞書の読み（台湾の表を当てた後）。読めなければ `null`。 */
@@ -200,7 +216,7 @@ function dictionaryReading(chars: readonly string[], simp: readonly string[]): S
   const list = raw.map(one);
   if (list.some((s) => s === null)) return null;
   const own = (list as Syllable[]).map((s, i) => ownReading(chars[i], s));
-  return applyTaiwan(own, taiwanPositions(chars));
+  return applyTaiwan(own, taiwanFixes(chars));
 }
 
 /** AI の読みが字ごとにありうるか。 */
@@ -248,7 +264,7 @@ export function checkTaiwanReading(
   const chars = all;
   const simp = [...simplified(chars.join(""))];
   const n = chars.length;
-  const fixed = taiwanPositions(chars);
+  const fixed = taiwanFixes(chars);
 
   const fromPinyin = parsePinyin(aiPinyin, n);
   let final: Syllable[] | null = null;
