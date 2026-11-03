@@ -224,6 +224,14 @@ struct ReviewView: View {
             }
         }
         .reviewLiveActivity(store: store, dex: dex, answered: answer != nil, enabled: !router.tour.isReview)
+        // The answer belongs to the round, not to this screen: back from another tab (the screen was built again) the
+        // answered card is shown answered, and a card that changed under the screen never inherits the old answer
+        // (check 2026-11-03 A3・A4).
+        .onAppear { if !router.tour.isReview { answer = store.current.flatMap { store.answered[$0.id] } } }
+        .onChange(of: store.current?.id) { _, id in
+            guard !router.tour.isReview else { return }
+            answer = id.flatMap { store.answered[$0] }
+        }
     }
 
     /// FirstCatchPractice: 撮った1枚で、4択を記録せずに試す（owner 2026-10-28: 「自分が今取ったものを復習」）。Its word
