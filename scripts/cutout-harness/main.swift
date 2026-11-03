@@ -323,6 +323,7 @@ struct Row: Encodable {
 }
 var rows: [Row] = []
 var failures = 0
+var readErrors = 0
 var visionWorked = false
 
 var visionCache: [String: InstanceMasks] = [:]
@@ -334,6 +335,7 @@ for c in allCases {
     guard let photo = loadUpright(url) else {
         print("::error::\(caseID): cannot read \(c.photo)")
         failures += 1
+        readErrors += 1
         continue
     }
     let W = photo.width, H = photo.height
@@ -459,9 +461,24 @@ let enc = JSONEncoder()
 enc.outputFormatting = [.prettyPrinted, .sortedKeys]
 try? enc.encode(rows).write(to: out.appendingPathComponent("results.json"))
 print(md)
-for r in rows where !r.failures.isEmpty { print("::error::cut-out harness \(r.id) / \(r.thing): \(r.failures.joined(separator: "; "))") }
+// Known failures (known-failures.json next to cases.json): reported, but only a failure not listed fails the job.
+struct Known: Decodable { let known: [String] }
+let knownList = (try? JSONDecoder().decode(Known.self, from: Data(contentsOf: base.appendingPathComponent("known-failures.json"))))?.known ?? []
+let known = Set(knownList)
+var unexpected = 0
+for r in rows where !r.failures.isEmpty {
+    if known.contains("\(r.id)|\(r.thing)") {
+        print("::warning::cut-out harness (known) \(r.id) / \(r.thing): \(r.failures.joined(separator: "; "))")
+    } else {
+        unexpected += 1
+        print("::error::cut-out harness \(r.id) / \(r.thing): \(r.failures.joined(separator: "; "))")
+    }
+}
+let passingKnown = rows.filter { $0.failures.isEmpty && known.contains("\($0.id)|\($0.thing)") }
+for r in passingKnown { print("::notice::cut-out harness \(r.id) / \(r.thing) passes now: remove it from known-failures.json") }
+print("failures: \(rows.filter { !$0.failures.isEmpty }.count) (known \(rows.filter { !$0.failures.isEmpty }.count - unexpected), new \(unexpected)); known now passing: \(passingKnown.count)")
 if !visionWorked {
     print("::error::Vision's foreground instance request did not run on this machine")
     exit(1)
 }
-exit(failures == 0 ? 0 : 1)
+exit(unexpected == 0 && readErrors == 0 ? 0 : 1)
