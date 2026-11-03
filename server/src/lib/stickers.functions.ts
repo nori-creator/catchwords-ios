@@ -1227,6 +1227,18 @@ export async function reuseOwnedSticker(
       .limit(1)
       .maybeSingle();
     if (error || !owned?.id) return null;
+    // 同じ保存の送り直し（同じ写真の道）は、もう書いた再会をそのまま使う（再会を二重に書かない）。
+    if (enc.image_path) {
+      const { data: same } = await supabase
+        .from("encounters")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("sticker_id", owned.id)
+        .eq("image_path", enc.image_path)
+        .limit(1)
+        .maybeSingle();
+      if (same?.id) return owned.id as string;
+    }
     const ins = await supabase.from("encounters").insert({
       user_id: userId,
       sticker_id: owned.id,
@@ -1253,13 +1265,16 @@ export async function reuseOwnedSticker(
  * 再会の行（`encounters`）にはひと言・自撮りの列が無い。再会にすると、書いたひと言は
  * 捨てられ、アップロード済みの自撮りはどこからも指されないまま残っていた。
  * 同じ語の札が2枚になる方が、書いた物が消えるよりずっと軽い（図鑑は言葉ごとにまとめる）。
- * 初めてのキャッチの引き継ぎ（`client_catch_id`）も、決めた id の札を作るので再会にしない。
+ * 送り直し（同じ `client_catch_id` の札がもう在る）は、呼ぶ側がその札を返してから来る。
  */
 export function mayReuseOwnedSticker(
   data: { client_catch_id?: string | null; caption?: string | null; selfie_path?: string | null },
   userId: string,
 ): boolean {
-  if (data.client_catch_id) return false;
+  // iOS は毎回 `client_catch_id` を送る（送り直しで札が2枚にならないように）。前はそれで再会を一度も使わず、
+  // 見出し語が保存の前に直された（猫 → 貓）時・「もう持っているか」の確かめが失敗した時に同じ語の札が2枚できた
+  // （2026-11-03 点検 S19）。その id の札がもう在る送り直しは、呼ぶ側が先にその札を返す。
+  void data.client_catch_id;
   if (data.caption?.trim()) return false;
   // 自分のフォルダの自撮りだけが保存される（`ownPath`）。それ以外は元々捨てる物。
   if (data.selfie_path && data.selfie_path.startsWith(`${userId}/`)) return false;
@@ -1362,6 +1377,16 @@ export const saveSticker = createServerFn({ method: "POST" })
      * `(language, headword)` で1つなので、**その人の同じ語の札**をここで見つけて使う。
      * 再会の記録が書けない環境（表・列がまだ無い）では、今までどおり新しい札を作る。
      */
+    // 送り直し: この `client_catch_id` の札がもう在れば、それが答え（再会にも新しい札にもしない）。
+    if (data.client_catch_id) {
+      const { data: existing } = await supabase
+        .from("stickers")
+        .select("id, word_id")
+        .eq("id", data.client_catch_id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (existing) return { id: existing.id, word_id: existing.word_id, first_catch: false };
+    }
     // ひと言・自撮りがある回は再会にしない（`mayReuseOwnedSticker`）。
     if (mayReuseOwnedSticker(data, userId)) {
       const reused = await reuseOwnedSticker(supabase, userId, wordId, {
