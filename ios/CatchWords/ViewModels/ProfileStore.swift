@@ -210,7 +210,7 @@ final class ProfileStore {
     /// login still exists (`verifyLoginDeleted`). If Auth still knows this user, the deletion is reported as
     /// failed and the user stays signed in to retry (the server's steps are safe to run again).
     func deleteAccount() async throws {
-        _ = try await NativeAPI.call("deleteMyAccount", ["confirm": "削除"], timeout: 60)  // l10n-ignore (server keyword)
+        _ = try await NativeAPI.call("deleteMyAccount", ["confirm": "削除"], timeout: 180)  // l10n-ignore (server keyword)
         if await client.verifyLoginDeleted() == false {
             throw APIError.message(L("アカウントのログイン情報を削除できませんでした。もう一度お試しください。"))
         }
