@@ -118,20 +118,16 @@ export function withChunkReadingsInExtras<T extends Partial<WordExtrasDTO> | nul
 ): T {
   if (!extras || !normalizeTargetLanguage(language).startsWith("zh")) return extras;
   try {
-    const usage = (extras.usage_chunks ?? []).map((c) =>
-      chunkReadingsComplete(c, language)
-        ? c
-        : { ...c, parts: (c.parts ?? []).map((p) => withPartReadings(p, language)) },
-    );
+    // 読みがそろっている札も検める（2026-11-03 点検 S11: AI が「雨傘 yǔ sān」のように誤った読みを書くと、
+    // そろっているので素通りしていた）。検めは辞書だけで AI は呼ばず、合っている読みはそのまま残る。
+    const usage = (extras.usage_chunks ?? []).map((c) => ({
+      ...c,
+      parts: (c.parts ?? []).map((p) => withPartReadings(p, language)),
+    }));
     const example = (extras.example_chunks ?? []).map((p) =>
-      HAN.test(p.text ?? "") && (!p.pinyin?.trim() || !p.zhuyin?.trim())
-        ? withPartReadings(p, language)
-        : p,
+      HAN.test(p.text ?? "") ? withPartReadings(p, language) : p,
     );
-    const fill = (p: ChunkPart) =>
-      HAN.test(p.text ?? "") && (!p.pinyin?.trim() || !p.zhuyin?.trim())
-        ? withPartReadings(p, language)
-        : p;
+    const fill = (p: ChunkPart) => (HAN.test(p.text ?? "") ? withPartReadings(p, language) : p);
     const extra = (extras.examples_extra ?? []).map((e) => ({
       ...e,
       chunks: (e.chunks ?? []).map(fill),
