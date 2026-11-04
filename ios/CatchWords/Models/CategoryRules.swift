@@ -77,6 +77,18 @@ nonisolated enum CategoryRules {
     /// Looked at before the word endings: names with 草・花・葉・鍋・燈 in them that are not plants, kitchen tools or
     /// furniture, and the foods and shows the endings miss.
     private static let beforeSuffix: [(NSRegularExpression, String)] = rules([
+        // 2026-11-03 点検 M38・T46: 規則が AI の正しい分類を上書きしていた物（咖啡店→飲み物、火車站→乗り物、信用卡→書類、汽車鑰匙→乗り物、刮鬍刀→台所、咖啡機→飲み物、麻花→花、地瓜→果物）
+        ("(店|商店|專賣店|小吃店|鋪|舖|攤|攤販|餐廳|咖啡廳)$", "shop"),  // l10n-ignore (headword rules)
+        ("(車站|捷運站|火車站|公車站|高鐵站|加油站|休息站)$", "building"),  // l10n-ignore (headword rules)
+        ("(信用卡|金融卡|提款卡|簽帳卡|銀行卡|悠遊卡|一卡通|儲值卡)$", "money"),  // l10n-ignore (headword rules)
+        ("(鑰匙|鎖匙|鑰匙圈)$", "tool"),  // l10n-ignore (headword rules)
+        ("(刮鬍刀|剃刀|電動刮鬍刀|修眉刀)$", "medicine"),  // l10n-ignore (headword rules)
+        ("美工刀$", "stationery"),  // l10n-ignore (headword rules)
+        ("(咖啡機|果汁機|豆漿機|飲水機|電熱水壺|快煮壺|熱水瓶)$", "appliance"),  // l10n-ignore (headword rules)
+        ("^麻花(捲)?$", "dessert"),  // l10n-ignore (headword rules)
+        ("(地瓜|番薯|蕃薯|芋頭|山藥|南瓜|冬瓜|絲瓜|苦瓜|小黃瓜|黃瓜)$", "vegetable"),  // l10n-ignore (headword rules)
+        ("(除臭噴霧|噴霧|除臭劑|芳香劑|消臭劑)$", "medicine"),  // l10n-ignore (headword rules)
+        ("^天燈$", "street"),  // l10n-ignore (headword rules)
         ("^(\(fruitNames))(汁|原汁|牛奶|奶昔|冰沙|茶|綠茶|紅茶|多多|氣泡水|酒|醋)$", "drink"),  // l10n-ignore (headword rules)
         ("^(\(fruitNames))(冰|雪花冰|刨冰|蛋糕|派|塔|乾|酥|果醬|糖|布丁|果凍|冰淇淋|聖代|大福)$", "dessert"),  // l10n-ignore (headword rules)
         ("^(小|大|青|白|黃|愛文|金煌|水)?(\(fruitNames))子?$", "fruit"),  // l10n-ignore (headword rules)

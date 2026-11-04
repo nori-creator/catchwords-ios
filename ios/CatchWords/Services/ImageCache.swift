@@ -122,6 +122,18 @@ final class ImageCache {
     /// The memory key of the small copy of `key` at `maxPixel`.
     nonisolated static func smallKey(_ key: String, maxPixel: Int) -> String { "\(key)#\(maxPixel)" }
 
+    /// Any copy of `key` in memory — the picture itself or one of its small copies — for its shape (width ÷ height
+    /// is the same at every size). The album reads its photos' shapes this way: it draws small copies, and reading only
+    /// the full picture made it lay out with a guessed shape, then move once a word page had read the full one (check
+    /// 2026-11-03 B12).
+    func anyCopy(for key: String) -> UIImage? {
+        if let full = image(for: key) { return full }
+        for px in [256, 384, 512, 768, 1024] {
+            if let small = image(for: Self.smallKey(key, maxPixel: px)) { return small }
+        }
+        return nil
+    }
+
     /// The picture in memory for a drawing at `maxPixel` (its small copy, or the picture itself), or for full size.
     func image(for key: String, maxPixel: Int?) -> UIImage? {
         if let maxPixel, let small = image(for: Self.smallKey(key, maxPixel: maxPixel)) { return small }

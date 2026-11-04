@@ -101,7 +101,7 @@ struct CollageBoard: View {
         }
         var ratios: [String: Double] = [:]
         for s in items {
-            if let path = AlbumPhoto.path(for: s), let img = ImageCache.shared.image(for: path), img.size.width > 0 {
+            if let path = AlbumPhoto.path(for: s), let img = ImageCache.shared.anyCopy(for: path), img.size.width > 0 {
                 ratios[s.id] = img.size.height / img.size.width
             }
         }

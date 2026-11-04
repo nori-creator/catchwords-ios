@@ -22,6 +22,9 @@ struct CatchDraft {
     var uploaded: CatchUploads? = nil
     /// The learning language it was caught in (nil: the current one). A 「保存待ち」 catch keeps its own.
     var language: String? = nil
+    /// When the photo was taken, when that is not now: a 「保存待ち」 catch saved later, a photo opened from 「解析待ち」
+    /// (check 2026-11-03 B1・T35: they were dated the day they were saved). nil = now.
+    var takenAt: Date? = nil
 }
 
 /// A card catch's photos going up while its card is on screen (`DexStore.preupload`). `ts` names the files,
@@ -627,6 +630,12 @@ final class DexStore {
                 heroRole: e.heroRole, locationCustom: e.placeCustom)
     }
 
+    /// The re-encounter an album entry stands for (its `encounters` id), or nil for a word's own photo.
+    func albumEncounterId(_ s: Sticker) -> String? {
+        guard Self.isEncounterAlbumEntry(s.id) else { return nil }
+        return String(s.id.dropFirst(Self.encounterAlbumPrefix.count))
+    }
+
     /// The word an album entry opens: a re-encounter's page is its word's own sticker.
     func albumOwner(_ s: Sticker) -> Sticker {
         guard Self.isEncounterAlbumEntry(s.id) else { return s }
@@ -761,6 +770,7 @@ final class DexStore {
             "location_name": orNull(draft.placeName),
             "lat": orNull(draft.location?.coordinate.latitude),
             "lng": orNull(draft.location?.coordinate.longitude),
+            "taken_at": orNull(draft.takenAt.map { SupabaseDate.string($0) }),
         ]
         struct Saved: Decodable {
             let id: String
@@ -802,7 +812,7 @@ final class DexStore {
             sticker = present([Sticker(
                 id: saved.id, wordId: saved.wordId ?? "", objectImageUrl: obj, cutoutImageUrl: cut,
                 selfieImageUrl: selfieRef, caption: caption.isEmpty ? nil : caption, locationName: draft.placeName,
-                takenAt: Date(), captureType: draft.captureType, word: Self.localWord(word, id: saved.wordId ?? "", language: language),
+                takenAt: draft.takenAt ?? Date(), captureType: draft.captureType, word: Self.localWord(word, id: saved.wordId ?? "", language: language),
                 lat: draft.location?.coordinate.latitude, lng: draft.location?.coordinate.longitude
             )])[0]
         }
@@ -937,7 +947,7 @@ final class DexStore {
         let sticker = Sticker(
             id: Self.provisionalPrefix + UUID().uuidString, wordId: "", objectImageUrl: obj, cutoutImageUrl: cut,
             selfieImageUrl: selfie, caption: caption.isEmpty ? nil : caption, locationName: draft.placeName,
-            takenAt: Date(), captureType: draft.captureType,
+            takenAt: draft.takenAt ?? Date(), captureType: draft.captureType,
             word: Self.localWord(Self.wordFields(draft.candidate, card), id: ""),
             lat: draft.location?.coordinate.latitude, lng: draft.location?.coordinate.longitude
         )
@@ -1054,6 +1064,7 @@ final class DexStore {
         draft.catchId = ps.catchId
         draft.uploaded = ps.uploads?.uploads
         draft.language = ps.language
+        draft.takenAt = ps.takenAt
         let provisional = ps.provisionalId
         do {
             let outcome = try await save(draft, replacing: stickers.contains { $0.id == provisional } ? provisional : nil)
@@ -1098,13 +1109,27 @@ final class DexStore {
             stickers.removeAll { $0.id == ps.provisionalId }
             if let up = ps.uploads {
                 let client = client
+                let catchId = ps.catchId
                 Task {
-                    for path in [up.object, up.cutout, up.selfie].compactMap({ $0 }) {
+                    // The save may have reached the server with its answer lost: then these photos are the saved
+                    // word's (as its own card, or as a re-encounter of a word already owned) and must stay (check
+                    // 2026-11-03 T2). Removed only when the server certainly has nothing with them; unknown keeps them.
+                    let paths = [up.object, up.cutout, up.selfie].compactMap { $0 }
+                    guard let object = up.object ?? paths.first,
+                          let made = try? await client.rest("GET", "stickers?id=eq.\(catchId)&select=id&limit=1"),
+                          let seen = try? await client.rest("GET", "encounters?image_path=eq.\(DexStore.enc(object))&select=id&limit=1"),
+                          Self.isEmptyRows(made), Self.isEmptyRows(seen) else { return }
+                    for path in paths {
                         try? await client.removeObject(path: path, bucket: "stickers")
                     }
                 }
             }
         }
+    }
+
+    /// Whether a REST answer is an empty list (`[]`).
+    nonisolated static func isEmptyRows(_ data: Data) -> Bool {
+        ((try? JSONSerialization.jsonObject(with: data)) as? [Any])?.isEmpty == true
     }
 
     /// The `words` fields `saveSticker` gets for a catch.
@@ -1267,6 +1292,9 @@ final class DexStore {
     }
 
     /// web `getReaderMeanings`: the meanings written in the reader's language, 200 words at a time.
+    /// Words whose meaning was asked to be written in a language (`lang|wordId`), once per launch.
+    @ObservationIgnored private var filledReaderMeanings: Set<String> = []
+
     private func loadReaderMeanings(_ ids: [String], afterLanguageSwitch: Bool = false) async {
         let lang = L10n.lang
         var i = 0
@@ -1277,6 +1305,19 @@ final class DexStore {
                                                       as: [String: String?].self, timeout: 30),
                   lang == L10n.lang else { continue }
             for id in chunk { readerMeanings[id] = (got[id] ?? nil) ?? "" }
+        }
+        guard lang == L10n.lang else { return }
+        // Words with no meaning in this language yet (collected in another display language): written once — from the
+        // shared meaning or the dictionary, else by the AI when the learner agreed to it (`fillReaderMeanings`, check
+        // 2026-11-03 T7: after a language switch their meanings stayed empty in the dex, the review and the widget).
+        let empty = ids.filter { (readerMeanings[$0] ?? "").isEmpty && !filledReaderMeanings.contains("\(lang)|\($0)") }
+        for start in stride(from: 0, to: min(empty.count, 96), by: 24) {
+            let chunk = Array(empty[start..<min(start + 24, empty.count)])
+            for id in chunk { filledReaderMeanings.insert("\(lang)|\(id)") }
+            guard let got = try? await NativeAPI.call("fillReaderMeanings", ["word_ids": chunk, "explain_lang": lang],
+                                                      as: [String: String].self, timeout: 45),
+                  lang == L10n.lang else { break }
+            for (id, m) in got where !m.isEmpty { readerMeanings[id] = m }
         }
         guard lang == L10n.lang else { return }
         stickers = stickers.map(applyReader)

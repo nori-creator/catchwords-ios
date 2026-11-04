@@ -808,9 +808,13 @@ struct WordDetailView: View {
         // saved has no photos on the server yet (the list is read once it is saved).
         .task(id: "\(current.id)|\(current.objectImageUrl ?? "")") {
             guard !isLocked else { return }
+            // Opened from a later photo (the album, the map): that photo first (check 2026-11-03 H7: it opened on
+            // the first photo and the later one came only with the slideshow).
+            let opening = router.detailEncounterId
+            router.detailEncounterId = nil
             let all = await StickerPhoto.load(stickerId: current.id)
             laterPhotos = all.filter { !$0.first }
-            heroPage = 0
+            heroPage = opening.flatMap { id in laterFaces.firstIndex { $0.id == id }.map { $0 + 1 } } ?? 0
         }
     }
 
@@ -2559,6 +2563,9 @@ enum ChunkKind: CaseIterable, Hashable {
         // (`pos.ts`) — they fell through to 名詞 and 状態動詞 (owner 2026-10-22: 「品詞をより高い精度に」).
         else if ["P", "PART", "PREP", "DET", "ART", "PTC", "CONJ", "C"].contains(p)
                     || p.contains("助詞") || p.contains("前置") || p.contains("接続") { self = .particle }  // l10n-ignore (matching server POS)
+        // Vst (喜歡・怕・需要・擔心: a stative verb that takes an object) is a verb, not an adjective — as the chunk
+        // rules already read it (`ChunkRules.isPredicateStative`, check 2026-11-03 H5).
+        else if p.hasPrefix("VST") { self = .verb }
         else if p.hasPrefix("VS") || p == "A" || p.hasPrefix("ADJ") || p.contains("形容") || p.contains("状態") { self = .stative }  // l10n-ignore (matching server POS)
         else if p.hasPrefix("V") || p == "AUX" || p.contains("動") { self = .verb }  // l10n-ignore (matching server POS)
         else { self = .noun }

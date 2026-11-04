@@ -196,8 +196,11 @@ struct CandidatePickerView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            Button { vm.reset() } label: {
-                Label(L("撮り直す"), systemImage: "arrow.counterclockwise")
+            // A photo opened from 「解析待ち」 is not thrown away from here (check 2026-11-03 H2: 撮り直す deleted it with
+            // no question, and it was this screen's only way out): 閉じる leaves it in 「解析待ち」.
+            let fromQueue = vm.restoredPendingId != nil
+            Button { if fromQueue { vm.keepPendingAndReset() } else { vm.reset() } } label: {
+                Label(fromQueue ? L("閉じる") : L("撮り直す"), systemImage: fromQueue ? "xmark" : "arrow.counterclockwise")
                     .scaledFont(size: 14, weight: .semibold)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14)
@@ -640,8 +643,22 @@ struct CandidatePickerView: View {
         .animation(.spring(response: 0.42, dampingFraction: 0.88), value: vm.typedCandidates.count)
     }
 
-    /// Several words for what was typed: one row each (never scrolls sideways).
+    /// Several words for what was typed: one row each (never scrolls sideways). More than three scroll in a box about
+    /// three rows high, so the photo keeps its room on a small iPhone (check 2026-11-03 M-カ2: five rows left the SE's
+    /// photo almost nothing).
+    @ViewBuilder
     private var typedList: some View {
+        if vm.typedCandidates.count > 3 {
+            ScrollView { typedRows }
+                .frame(height: 230)
+                .scrollBounceBehavior(.basedOnSize)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        } else {
+            typedRows
+        }
+    }
+
+    private var typedRows: some View {
         VStack(spacing: 0) {
             ForEach(Array(vm.typedCandidates.enumerated()), id: \.offset) { idx, c in
                 Button { vm.choose(c, object: vm.searchObject, typed: true) } label: {

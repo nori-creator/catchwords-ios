@@ -11,7 +11,7 @@ import {
   type UsageChunk,
 } from "./extras";
 import { isBrokenUsageChunk, withoutSeparatorParts, DEGREE_CHOICES } from "./chunk-grammar";
-import { isGenericChunk, isWeakPartnerChunk } from "./generic-chunks";
+import { isGenericChunk, isWeakPartnerChunk, WEAK_FRAME } from "./generic-chunks";
 import { readerText } from "./note-language";
 import { posGroup } from "./pos";
 import { normalizeTargetLanguage } from "./target-lang";
@@ -542,7 +542,22 @@ export function gateUsageChunks(
     kept.push(tidyForStorage({ ...c, parts }, ctx));
   }
   // 弱い相手（喝＋〜・〜＋很＋甜・拿＋〜）: 強い型が2つ以上あれば落とし、無ければ最後へ（並びは頻度順のまま保つ）。
-  const weak = kept.map((k) => !ctx.allowSimplePartners && isWeakPartnerChunk(k.parts, head, ctx.language));
+  // 目標 1・2 級の人（`allowSimplePartners`）には簡単な動詞の型（吃＋小籠包）を**1つまで**通す。程度の語の型
+  // （芒果＋很＋甜）は誰にも通さない（2026-11-03 点検 S14: 1・2級では弱い型が全部残り、很＋甜 も数の上限も外れていた。
+  // 指示文の「簡単な動詞の型は1つまで」「很＋甜 は書かない」に門を合わせる）。
+  let simpleLeft = ctx.allowSimplePartners ? 1 : 0;
+  const weak = kept.map((k) => {
+    if (!isWeakPartnerChunk(k.parts, head, ctx.language)) return false;
+    const degree = (k.parts ?? []).some((p) => {
+      const t = (p?.text ?? "").trim();
+      return WEAK_FRAME.has(t) || [...WEAK_FRAME].some((d) => t.startsWith(d) && t.length > d.length);
+    });
+    if (!degree && simpleLeft > 0) {
+      simpleLeft -= 1;
+      return false;
+    }
+    return true;
+  });
   const strong = kept.filter((_, i) => !weak[i]);
   let ordered: UsageChunk[];
   if (strong.length >= 2) {

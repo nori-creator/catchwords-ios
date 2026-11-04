@@ -787,9 +787,22 @@ const SaveStickerInput = z.object({
   selfie_path: z.string().max(STORAGE_PATH_MAX).nullable().optional(),
   caption: z.string().max(CAPTION_MAX).nullable().optional(),
   location_name: z.string().max(LOCATION_NAME_MAX).nullable().optional(),
-  lat: z.number().nullable().optional(),
-  lng: z.number().nullable().optional(),
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
+  /**
+   * 撮った時（ISO）。保存が後になった「保存待ち」・「解析待ち」から開いた写真で、保存した時でなく撮った時の日に置く
+   * （2026-11-03 点検 B1・T35）。先の時刻・90日より前・読めない値は無かったことにする（今の時刻）。
+   */
+  taken_at: z.string().max(40).nullable().optional(),
 });
+
+/** 保存に使う撮った時。使えない値は null（列の既定 = 今）。 */
+export function acceptedTakenAt(raw: string | null | undefined, now = Date.now()): string | null {
+  if (!raw) return null;
+  const t = Date.parse(raw);
+  if (!Number.isFinite(t) || t > now + 5 * 60_000 || t < now - 90 * 86_400_000) return null;
+  return new Date(t).toISOString();
+}
 
 export type WordUpsertInput = z.infer<typeof SaveStickerInput>["word"] & {
   entry_type?: "word" | "phrase";
@@ -1227,6 +1240,18 @@ export async function reuseOwnedSticker(
       .limit(1)
       .maybeSingle();
     if (error || !owned?.id) return null;
+    // 同じ保存の送り直し（同じ写真の道）は、もう書いた再会をそのまま使う（再会を二重に書かない）。
+    if (enc.image_path) {
+      const { data: same } = await supabase
+        .from("encounters")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("sticker_id", owned.id)
+        .eq("image_path", enc.image_path)
+        .limit(1)
+        .maybeSingle();
+      if (same?.id) return owned.id as string;
+    }
     const ins = await supabase.from("encounters").insert({
       user_id: userId,
       sticker_id: owned.id,
@@ -1253,13 +1278,16 @@ export async function reuseOwnedSticker(
  * 再会の行（`encounters`）にはひと言・自撮りの列が無い。再会にすると、書いたひと言は
  * 捨てられ、アップロード済みの自撮りはどこからも指されないまま残っていた。
  * 同じ語の札が2枚になる方が、書いた物が消えるよりずっと軽い（図鑑は言葉ごとにまとめる）。
- * 初めてのキャッチの引き継ぎ（`client_catch_id`）も、決めた id の札を作るので再会にしない。
+ * 送り直し（同じ `client_catch_id` の札がもう在る）は、呼ぶ側がその札を返してから来る。
  */
 export function mayReuseOwnedSticker(
   data: { client_catch_id?: string | null; caption?: string | null; selfie_path?: string | null },
   userId: string,
 ): boolean {
-  if (data.client_catch_id) return false;
+  // iOS は毎回 `client_catch_id` を送る（送り直しで札が2枚にならないように）。前はそれで再会を一度も使わず、
+  // 見出し語が保存の前に直された（猫 → 貓）時・「もう持っているか」の確かめが失敗した時に同じ語の札が2枚できた
+  // （2026-11-03 点検 S19）。その id の札がもう在る送り直しは、呼ぶ側が先にその札を返す。
+  void data.client_catch_id;
   if (data.caption?.trim()) return false;
   // 自分のフォルダの自撮りだけが保存される（`ownPath`）。それ以外は元々捨てる物。
   if (data.selfie_path && data.selfie_path.startsWith(`${userId}/`)) return false;
@@ -1362,6 +1390,16 @@ export const saveSticker = createServerFn({ method: "POST" })
      * `(language, headword)` で1つなので、**その人の同じ語の札**をここで見つけて使う。
      * 再会の記録が書けない環境（表・列がまだ無い）では、今までどおり新しい札を作る。
      */
+    // 送り直し: この `client_catch_id` の札がもう在れば、それが答え（再会にも新しい札にもしない）。
+    if (data.client_catch_id) {
+      const { data: existing } = await supabase
+        .from("stickers")
+        .select("id, word_id")
+        .eq("id", data.client_catch_id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (existing) return { id: existing.id, word_id: existing.word_id, first_catch: false };
+    }
     // ひと言・自撮りがある回は再会にしない（`mayReuseOwnedSticker`）。
     if (mayReuseOwnedSticker(data, userId)) {
       const reused = await reuseOwnedSticker(supabase, userId, wordId, {
@@ -1389,6 +1427,7 @@ export const saveSticker = createServerFn({ method: "POST" })
       location_name: data.location_name ?? null,
       lat: data.lat ?? null,
       lng: data.lng ?? null,
+      ...(acceptedTakenAt(data.taken_at) ? { taken_at: acceptedTakenAt(data.taken_at) } : {}),
       // 型定義は生成物で、`shelf_key` はそれより新しい列。
       // `current_level` のときと同じで、緩いクライアントとして扱う。
       ...(shelfKey ? { shelf_key: shelfKey } : {}),
@@ -1841,6 +1880,13 @@ export const deleteSticker = createServerFn({ method: "POST" })
      * いたので、行の削除が失敗すると「写真の無い札」が残った。逆なら、写真の掃除が
      * 失敗しても残るのは誰からも指されない写真だけで、札はきちんと消えている。
      */
+    // 2回目以降に撮った写真（`encounters`）も一緒に消す（行は札と一緒に消えるので先に読む — 2026-11-03 点検 T3:
+    // 札の3枚だけを消し、再会の写真はどこからも指されないまま残っていた）。読めなくても札の削除は続ける。
+    const { data: encRows } = await supabase
+      .from("encounters")
+      .select("image_path, cutout_path, selfie_path")
+      .eq("sticker_id", data.sticker_id)
+      .eq("user_id", userId);
     const { error } = await supabase
       .from("stickers")
       .delete()
@@ -1849,14 +1895,22 @@ export const deleteSticker = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     // Storage cleanup: only paths under the caller's own folder.
-    const paths = stickerStoragePaths(
-      st as {
-        object_image_url: string | null;
-        cutout_image_url: string | null;
-        selfie_image_url: string | null;
-      },
-      userId,
-    );
+    const paths = [
+      ...stickerStoragePaths(
+        st as {
+          object_image_url: string | null;
+          cutout_image_url: string | null;
+          selfie_image_url: string | null;
+        },
+        userId,
+      ),
+      ...((encRows ?? []) as unknown as Array<Record<string, string | null>>).flatMap((e) =>
+        stickerStoragePaths(
+          { object_image_url: e.image_path ?? null, cutout_image_url: e.cutout_path ?? null, selfie_image_url: e.selfie_path ?? null },
+          userId,
+        ),
+      ),
+    ];
     if (paths.length === 0) return { ok: true, storage_cleaned: true };
     /**
      * 写真が消せなくても札の削除は成功として返す（札はもう無い）。ただし**黙って捨てない** —
@@ -1923,6 +1977,13 @@ export const replaceStickerPhoto = createServerFn({ method: "POST" })
     // 出会った日」を変える操作ではない。以前は今の時刻で上書きして
     // いたので、写真を1枚替えただけで**士林で撮った日が今日になった**。
     // 図鑑のカレンダーも地図も日付順の並びも、全部そこを見ている。
+    // 替える前の写真と切り抜き（替えた後にどこからも指されなければ消す — 2026-11-03 点検 T3）。
+    const { data: before } = await supabase
+      .from("stickers")
+      .select("object_image_url, cutout_image_url")
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId)
+      .maybeSingle();
     const patch = {
       object_image_url: data.object_path,
       cutout_image_url: null,
@@ -1945,8 +2006,53 @@ export const replaceStickerPhoto = createServerFn({ method: "POST" })
         .eq("user_id", userId);
     }
     if (res.error) throw new Error(res.error.message);
+    const old = [before?.object_image_url, before?.cutout_image_url].filter(
+      (p): p is string => !!p && p !== data.object_path,
+    );
+    await removeUnreferenced(supabase, userId, old);
     return { ok: true };
   });
+
+/**
+ * 自分のフォルダの写真のうち、札にも再会にも指されていない物を消す（縮小版も）。失敗しても投げない（写真が
+ * 残るだけ）。札・再会のどちらかが指していれば消さない（「表示する写真」で選び直せる写真を消さない）。
+ */
+export async function removeUnreferenced(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: { from: (table: string) => any },
+  userId: string,
+  paths: string[],
+): Promise<void> {
+  const own = [...new Set(paths.filter((p) => p.startsWith(`${userId}/`)))];
+  if (own.length === 0) return;
+  try {
+    const list = own.map((p) => `"${p.replace(/"/g, '\\"')}"`).join(",");
+    const [st, en] = await Promise.all([
+      supabase
+        .from("stickers")
+        .select("object_image_url, cutout_image_url, selfie_image_url")
+        .eq("user_id", userId)
+        .or(`object_image_url.in.(${list}),cutout_image_url.in.(${list}),selfie_image_url.in.(${list})`),
+      supabase
+        .from("encounters")
+        .select("image_path, cutout_path, selfie_path")
+        .eq("user_id", userId)
+        .or(`image_path.in.(${list}),cutout_path.in.(${list}),selfie_path.in.(${list})`),
+    ]);
+    if (st.error || en.error) return; // 確かめられない時は消さない
+    const used = new Set<string>(
+      [...(st.data ?? []), ...(en.data ?? [])].flatMap((r: Record<string, string | null>) =>
+        Object.values(r).filter((v): v is string => !!v),
+      ),
+    );
+    const gone = own.filter((p) => !used.has(p));
+    if (gone.length === 0) return;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.storage.from("stickers").remove(gone.flatMap((p) => [p, `${p}.thumb.webp`]));
+  } catch (e) {
+    console.warn("removeUnreferenced: 古い写真を消せない", (e as Error)?.message);
+  }
+}
 
 // --- 画像なしカードへの仮画像の自動添付 (2026-07-27) -------------------------
 // 段ボール絵(絵文字)のカードを無くす: 詳細を開いた時に画像が1枚も無ければ、

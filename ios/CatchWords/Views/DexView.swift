@@ -476,7 +476,7 @@ struct DexView: View {
                 DexCoverFlow(stickers: filtered.map(\.forCards)) { router.detailSticker = dex.sticker(id: $0.id) ?? $0 }
                     .padding(.top, headerHeight)
             // A photo taken again opens its word's page.
-            case .map: DexMapView(stickers: mapStickers, topCover: headerHeight) { router.detailSticker = dex.albumOwner($0) }
+            case .map: DexMapView(stickers: mapStickers, topCover: headerHeight) { router.detailEncounterId = dex.albumEncounterId($0); router.detailSticker = dex.albumOwner($0) }
             case .grid: gallery
             case .list: list
             }

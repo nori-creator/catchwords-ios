@@ -475,16 +475,19 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             if deleteOpen {
-                Text(L("撮った写真・図鑑・復習の記録がすべて消え、元に戻せません。Web版のデータも同じく消えます。"))
+                Text(L("撮った写真・図鑑・復習の記録がすべて消え、元に戻せません。"))
                     .scaledFont(size: 13).foregroundStyle(Theme.muted)
                 // Apple's account-deletion guidance: an App Store subscription keeps billing until it is cancelled
-                // in the Apple ID settings. Always shown (whether this person has one is not known here).
-                Text(L("App Store で購入したサブスクリプションは、アカウントを削除しても自動では解約されません。先に iPhone の「設定」→ Apple ID →「サブスクリプション」から解約してください。"))
-                    .scaledFont(size: 13).foregroundStyle(Theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                Link(L("サブスクリプションを管理"), destination: AppConfig.manageSubscriptionsURL)
-                    .scaledFont(size: 14, weight: .medium).foregroundStyle(Theme.primaryInk)
-                    .frame(minHeight: 44)
+                // in the Apple ID settings. Shown only while the app sells one (check 2026-11-03 M25: it showed with
+                // nothing on sale).
+                if PlanStore.inAppPurchaseAvailable {
+                    Text(L("App Store で購入したサブスクリプションは、アカウントを削除しても自動では解約されません。先に iPhone の「設定」→ Apple ID →「サブスクリプション」から解約してください。"))
+                        .scaledFont(size: 13).foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Link(L("サブスクリプションを管理"), destination: AppConfig.manageSubscriptionsURL)
+                        .scaledFont(size: 14, weight: .medium).foregroundStyle(Theme.primaryInk)
+                        .frame(minHeight: 44)
+                }
                 Text(L("確認のため「削除」と入力してください")).scaledFont(size: 14, weight: .semibold).foregroundStyle(Theme.foreground)
                 TextField(L10n.current.script == .latin ? L("削除").uppercased() : L("削除"), text: $deleteText)  // the confirm word itself
                     .textInputAutocapitalization(.never).autocorrectionDisabled()

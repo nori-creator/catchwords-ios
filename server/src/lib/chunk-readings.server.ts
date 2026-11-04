@@ -1,5 +1,6 @@
 import type { ChunkPart, UsageChunk, WordExtrasDTO } from "./extras";
 import { checkTaiwanReading } from "./tw-reading.server";
+import { parsePinyin, syllablesToPinyin, syllablesToZhuyin } from "./pinyin-zhuyin";
 import { normalizeTargetLanguage } from "./target-lang";
 
 /**
@@ -77,6 +78,37 @@ export function chunkReadingsComplete(
 }
 
 /**
+ * **量詞の読み**（「一張」）。見出し語と同じ検め方を通し、「一」「不」は変調しない辞書の形（yī・bù）にする
+ * （2026-11-03 決定 10B、点検 T24・M36: 量詞の読みはどこでも検めておらず、指示の見本も「ㄧˋ / yí」と食い違っていた）。
+ */
+export function measureWordReading(
+  word: string,
+  pinyin: string,
+  zhuyin: string,
+): { pinyin: string; zhuyin: string } {
+  const text = (word ?? "").trim();
+  if (!HAN.test(text)) return { pinyin, zhuyin };
+  const r = checkTaiwanReading(text, pinyin, zhuyin);
+  const chars = [...text].filter((c) => HAN.test(c));
+  const syls = parsePinyin(r.pinyin, chars.length);
+  if (!syls || syls.length !== chars.length) return { pinyin: r.pinyin, zhuyin: r.zhuyin };
+  let changed = false;
+  const fixed = syls.map((s, i) => {
+    if (chars[i] === "一" && s.base === "yi" && s.tone !== 1 && s.tone !== 5) {
+      changed = true;
+      return { ...s, tone: 1 as const };
+    }
+    if (chars[i] === "不" && s.base === "bu" && s.tone !== 4 && s.tone !== 5) {
+      changed = true;
+      return { ...s, tone: 4 as const };
+    }
+    return s;
+  });
+  if (!changed) return { pinyin: r.pinyin, zhuyin: r.zhuyin };
+  return { pinyin: syllablesToPinyin(fixed), zhuyin: syllablesToZhuyin(fixed) ?? r.zhuyin };
+}
+
+/**
  * 読む所で使う: `usage_chunks` と `example_chunks` の札に読みを付けた extras を返す。
  * 読みがもうそろっている型は触らない。失敗しても元の物を返す（読みが無いだけで、カードは出る）。
  */
@@ -86,27 +118,29 @@ export function withChunkReadingsInExtras<T extends Partial<WordExtrasDTO> | nul
 ): T {
   if (!extras || !normalizeTargetLanguage(language).startsWith("zh")) return extras;
   try {
-    const usage = (extras.usage_chunks ?? []).map((c) =>
-      chunkReadingsComplete(c, language)
-        ? c
-        : { ...c, parts: (c.parts ?? []).map((p) => withPartReadings(p, language)) },
-    );
+    // 読みがそろっている札も検める（2026-11-03 点検 S11: AI が「雨傘 yǔ sān」のように誤った読みを書くと、
+    // そろっているので素通りしていた）。検めは辞書だけで AI は呼ばず、合っている読みはそのまま残る。
+    const usage = (extras.usage_chunks ?? []).map((c) => ({
+      ...c,
+      parts: (c.parts ?? []).map((p) => withPartReadings(p, language)),
+    }));
     const example = (extras.example_chunks ?? []).map((p) =>
-      HAN.test(p.text ?? "") && (!p.pinyin?.trim() || !p.zhuyin?.trim())
-        ? withPartReadings(p, language)
-        : p,
+      HAN.test(p.text ?? "") ? withPartReadings(p, language) : p,
     );
-    const fill = (p: ChunkPart) =>
-      HAN.test(p.text ?? "") && (!p.pinyin?.trim() || !p.zhuyin?.trim())
-        ? withPartReadings(p, language)
-        : p;
+    const fill = (p: ChunkPart) => (HAN.test(p.text ?? "") ? withPartReadings(p, language) : p);
     const extra = (extras.examples_extra ?? []).map((e) => ({
       ...e,
       chunks: (e.chunks ?? []).map(fill),
     }));
+    const measures = (extras.measure_words ?? []).map((m) => {
+      if (!m || !HAN.test(m.word ?? "")) return m;
+      const r = measureWordReading(m.word, m.pinyin ?? "", m.zhuyin ?? "");
+      return r.pinyin === m.pinyin && r.zhuyin === m.zhuyin ? m : { ...m, pinyin: r.pinyin, zhuyin: r.zhuyin };
+    });
     // 入っていた欄だけを返す（無い欄を空の配列で足さない — 作り直しの差分に混ざる）。
     return {
       ...extras,
+      ...("measure_words" in extras ? { measure_words: measures } : {}),
       ...("usage_chunks" in extras ? { usage_chunks: usage } : {}),
       ...("example_chunks" in extras ? { example_chunks: example } : {}),
       ...("examples_extra" in extras ? { examples_extra: extra } : {}),

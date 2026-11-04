@@ -229,7 +229,7 @@ export function allowsSimplePartners(levelGoal: string | null | undefined): bool
 }
 
 /** 程度の語。弱い相手かを数える時は骨組みとして外に置く（很＋甜 の 很）。 */
-const WEAK_FRAME = new Set(["很", "超", "非常", "有點", "蠻", "好", "太", "真", "最"]);
+export const WEAK_FRAME: ReadonlySet<string> = new Set(["很", "超", "非常", "有點", "蠻", "好", "太", "真", "最"]);
 
 /**
  * 見出し語・骨組み・程度の語を外して残った物が、全部「弱い相手」なら真（喝＋珍珠奶茶、珍珠奶茶＋很＋好喝、拿＋夾子）。

@@ -224,6 +224,14 @@ struct ReviewView: View {
             }
         }
         .reviewLiveActivity(store: store, dex: dex, answered: answer != nil, enabled: !router.tour.isReview)
+        // The answer belongs to the round, not to this screen: back from another tab (the screen was built again) the
+        // answered card is shown answered, and a card that changed under the screen never inherits the old answer
+        // (check 2026-11-03 A3・A4).
+        .onAppear { if !router.tour.isReview { answer = store.current.flatMap { store.answered[$0.id] } } }
+        .onChange(of: store.current?.id) { _, id in
+            guard !router.tour.isReview else { return }
+            answer = id.flatMap { store.answered[$0] }
+        }
     }
 
     /// FirstCatchPractice: 撮った1枚で、4択を記録せずに試す（owner 2026-10-28: 「自分が今取ったものを復習」）。Its word
@@ -622,6 +630,34 @@ struct QuizCard: View {
     /// The meaning as it is now (read in the reader's language after the card was made).
     /// A short gloss: a sentence-long meaning made the question unreadable (the answer panel keeps it whole).
     private var liveMeaning: String { ReaderLanguage.gloss((dex.sticker(id: card.sticker.id) ?? card.sticker).word?.meaningJa ?? "") }
+    /// The question's meaning, or "" when it would give the answer away: a meaning written with the answer's own
+    /// characters (日本語の「豆腐」「夜市」「公園」, nearly every meaning on the 中文 screen) asked 「豆腐」はどれ？ over the
+    /// choice 豆腐 (check 2026-11-03 H12). The photo alone asks then (この写真の物はどれ？).
+    private var questionMeaning: String {
+        let m = liveMeaning
+        return Self.givesAway(meaning: m, headword: correctHead) ? "" : m
+    }
+
+    /// Whether `meaning` shows any Han character of `headword` (as written, in its simplified form, or the Japanese
+    /// form of a few everyday characters: 雞 鶏, 麵 麺 …).
+    static func givesAway(meaning: String, headword: String) -> Bool {
+        let han = { (c: Character) in c.unicodeScalars.allSatisfy { $0.properties.isIdeographic } }
+        func forms(_ c: Character) -> Set<Character> {
+            var out: Set<Character> = [c]
+            if let s = String(c).applyingTransform(StringTransform("Hant-Hans"), reverse: false), s.count == 1 { out.insert(Character(s)) }
+            if let j = japaneseForm[c] { out.insert(j) }
+            return out
+        }
+        let answer = Set(headword.filter(han).flatMap(forms))
+        guard !answer.isEmpty else { return false }
+        return meaning.filter(han).contains { !forms($0).isDisjoint(with: answer) }
+    }
+
+    private static let japaneseForm: [Character: Character] = [
+        "雞": "鶏", "麵": "麺", "豬": "猪", "醬": "醤", "鹽": "塩", "圖": "図", "髮": "髪", "團": "団",  // l10n-ignore (character data)
+        "櫻": "桜", "藥": "薬", "鐵": "鉄", "錢": "銭", "傳": "伝", "樂": "楽", "燈": "灯",  // l10n-ignore (character data)
+        "龜": "亀", "鹼": "鹸", "壺": "壷", "廣": "広", "實": "実", "畫": "画", "單": "単", "顏": "顔",  // l10n-ignore (character data)
+    ]
 
     var body: some View {
         // Side by side, the right page starts at the top like a book's page: the question and the choices stay clear
@@ -670,7 +706,7 @@ struct QuizCard: View {
             }
 
             VStack(spacing: Self.gap) {
-                Text(liveMeaning.isEmpty ? L("この写真の物はどれ？") : L("「\(liveMeaning)」はどれ？"))
+                Text(questionMeaning.isEmpty ? L("この写真の物はどれ？") : L("「\(questionMeaning)」はどれ？"))
                     .scaledFont(size: 17, weight: .bold)
                     .foregroundStyle(Theme.foreground)
                     .multilineTextAlignment(.center)

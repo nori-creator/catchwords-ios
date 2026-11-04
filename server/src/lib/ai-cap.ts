@@ -127,6 +127,25 @@ export function dailyCapFor(kind: string, tier: AiCallerTier): number | undefine
   return ANONYMOUS_DAILY_CAPS[kind] ?? 0;
 }
 
+/**
+ * **無料の人1人の、全体の枠に数える種類を合わせた 24 時間の上限**（2026-11-03 点検 S2）。種類ごとの上限
+ * （`DAILY_CAPS`）を足すと 1 人で 2,600 回を超え、無料の人みんなの枠（2,500）を 1 人で使い切れた。
+ * 無料の撮影は 1 日 5〜10 枚（広告で増える）、1 枚あたり AI は数回なので、普通に使って届く数ではない。
+ * 数えるのは `usage_events` の `ai_total`（種類ごとの行と一緒に入れ、断られたら両方返す）。
+ */
+export const FREE_PERSON_DAILY_TOTAL = 150;
+/** 匿名の人1人の合計の上限（チュートリアルの AI は届かない数）。 */
+export const ANONYMOUS_PERSON_DAILY_TOTAL = 60;
+/** 合計を数える `usage_events` の種類。 */
+export const AI_TOTAL_KIND = "ai_total";
+
+/** その人の合計の上限（Pro は無し）。 */
+export function personTotalFor(tier: AiCallerTier): number | undefined {
+  if (tier === "free") return FREE_PERSON_DAILY_TOTAL;
+  if (tier === "anonymous") return ANONYMOUS_PERSON_DAILY_TOTAL;
+  return undefined;
+}
+
 /** 全員を合わせた 1 日の上限の既定。 */
 export const DEFAULT_GLOBAL_AI_DAILY_CAP = 5_000;
 /** Pro でない（無料の）人だけを合わせた 1 日の上限の既定（全体にも数える）。 */
@@ -264,6 +283,24 @@ export async function reserveAiCall(
   }
   if (usageId === null) throw new Error(dailyCapMessage(limit));
 
+  // 無料・匿名の人は、全体の枠に数える種類を合わせた回数にも上限を掛ける（1人で全員の枠を使い切らない）。
+  let totalId: number | null = null;
+  const total = personTotalFor(tier);
+  if (total !== undefined && !GLOBAL_CAP_EXEMPT_KINDS.has(kind)) {
+    const since = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    try {
+      totalId = await deps.reserveUsage(userId, AI_TOTAL_KIND, total, since);
+    } catch (e) {
+      warn("[usage] total check failed", { kind, message: (e as Error)?.message ?? String(e) });
+      if (deps.releaseUsage) await deps.releaseUsage(usageId).catch(() => undefined);
+      throw new Error(USAGE_CHECK_FAILED_MESSAGE);
+    }
+    if (totalId === null) {
+      if (deps.releaseUsage) await deps.releaseUsage(usageId).catch(() => undefined);
+      throw new Error(dailyCapMessage(total));
+    }
+  }
+
   if (!GLOBAL_CAP_EXEMPT_KINDS.has(kind)) {
     const day = taipeiDay(now);
     const buckets: Array<{ root: string; limit: number }> = [];
@@ -300,8 +337,11 @@ export async function reserveAiCall(
         } else {
           warn("[usage] global budget check failed", { kind, bucket: bucket.root });
         }
-        // 呼ばなかった回は、その人の回数に数えない。
-        if (deps.releaseUsage) await deps.releaseUsage(usageId).catch(() => undefined);
+        // 呼ばなかった回は、その人の回数に数えない（種類ごとの行も合計の行も返す）。
+        if (deps.releaseUsage) {
+          await deps.releaseUsage(usageId).catch(() => undefined);
+          if (totalId !== null) await deps.releaseUsage(totalId).catch(() => undefined);
+        }
         throw e;
       }
       if (shouldPruneAfter(slot)) await pruneBudgetRows(deps.budgetDb, bucket.root, now);

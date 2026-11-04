@@ -45,9 +45,17 @@ final class PlanStore {
     var products: [Product] = []
     var isStorePro: Bool = false
     var isServerPro: Bool = false
-    var usedToday: Int = 0
+    /// Catches used on `usageDay`. Read through `usedToday`, which is 0 once the Taipei day has changed — the app
+    /// often stays open across midnight, and the limit came back only after it was quit (check 2026-11-03 A1).
+    private var usedCount: Int = 0
+    /// Catches earned on `usageDay` (rewarded ads), at most `maxBonusPerDay`.
+    private var bonusCount: Int = 0
+    /// The Taipei day the two counts above belong to.
+    private var usageDay: String = ""
+    /// Catches used today.
+    var usedToday: Int { usageDay == Self.dayKey() ? usedCount : 0 }
     /// Catches earned today (rewarded ads), at most `maxBonusPerDay`.
-    var bonusToday: Int = 0
+    var bonusToday: Int { usageDay == Self.dayKey() ? bonusCount : 0 }
     var isPurchasing: Bool = false
     var message: String?
 
@@ -172,14 +180,14 @@ final class PlanStore {
 
     func recordCatch() {
         loadUsage()
-        usedToday += 1
+        usedCount += 1
         saveUsage()
     }
 
     /// A catch counted at the flick whose background save then failed: it does not use up a catch.
     func undoCatch() {
         loadUsage()
-        usedToday = max(0, usedToday - 1)
+        usedCount = max(0, usedCount - 1)
         saveUsage()
     }
 
@@ -188,7 +196,7 @@ final class PlanStore {
     func grantBonusCatch() -> Bool {
         loadUsage()
         guard canEarnBonus else { return false }
-        bonusToday += 1
+        bonusCount += 1
         saveUsage()
         return true
     }
@@ -196,14 +204,15 @@ final class PlanStore {
     private func loadUsage() {
         let d = UserDefaults.standard
         let today = d.string(forKey: "plan.day") == Self.dayKey()
-        usedToday = today ? d.integer(forKey: "plan.used") : 0
-        bonusToday = today ? d.integer(forKey: "plan.bonus") : 0
+        usedCount = today ? d.integer(forKey: "plan.used") : 0
+        bonusCount = today ? d.integer(forKey: "plan.bonus") : 0
+        usageDay = Self.dayKey()
     }
 
     private func saveUsage() {
         let d = UserDefaults.standard
-        d.set(usedToday, forKey: "plan.used")
-        d.set(bonusToday, forKey: "plan.bonus")
+        d.set(usedCount, forKey: "plan.used")
+        d.set(bonusCount, forKey: "plan.bonus")
         d.set(Self.dayKey(), forKey: "plan.day")
     }
 
