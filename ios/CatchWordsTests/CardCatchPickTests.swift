@@ -11,6 +11,39 @@ final class CardCatchPickTests: XCTestCase {
                   point: point, confidence: 0.9, alternatives: [], group: group)
     }
 
+    // MARK: The only thing, without a place from the AI
+
+    func testTheOnlyThingWithoutABoxTakesThePhotosOnlyInstance() {
+        // 理膚寶水 (owner 2026-11-04): one tube on a grey table, no box from the AI, one Vision instance — the tube.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 8..<13 { for x in 2..<19 { mask[y * w + x] = 1 } }
+        let thing = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false)
+        let plans = CatchPlan.plan(things: [thing], mask: mask, width: w, height: h)
+        XCTAssertEqual(plans[0].label, 1)
+        XCTAssertEqual(plans[0].cut, .instance(1))
+    }
+
+    func testTheOnlyThingWithoutABoxTakesNoneOfSeveralInstances() {
+        // Two things in the photo and no box: which one it is cannot be told — no cut-out (the photo as it is).
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 2..<8 { for x in 2..<8 { mask[y * w + x] = 1 } }
+        for y in 12..<18 { for x in 12..<18 { mask[y * w + x] = 2 } }
+        let thing = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false)
+        XCTAssertNil(CatchPlan.plan(things: [thing], mask: mask, width: w, height: h)[0].label)
+    }
+
+    func testTheOnlyThingWithoutABoxNeverTakesAPerson() {
+        // The swing (owner 2026-10-26): the photo's one instance is the man beside it.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 2..<18 { for x in 6..<12 { mask[y * w + x] = 1 } }
+        let people = mask.map { $0 != 0 ? UInt8(1) : 0 }
+        let thing = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false, mayBePerson: false)
+        XCTAssertNil(CatchPlan.plan(things: [thing], mask: mask, width: w, height: h, people: people)[0].label)
+    }
+
     // MARK: 囲んで切り抜き直す (LassoCut)
 
     /// A square loop from (x0,y0) to (x1,y1), 0–1, with points along its sides.

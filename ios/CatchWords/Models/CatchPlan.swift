@@ -109,11 +109,19 @@ nonisolated enum CatchPlan {
         // A thing without a place of its own takes none (owner 2026-10-26: with no position from the AI, the swing took
         // "the largest free instance" — the man beside it — and its cut-out was the man). Its tag goes to a spot of its
         // own (`spreadSpots`) and its sticker is the photo (`CatchObject`), never another thing.
-        let labels: [Int?] = hasMask
+        var labels: [Int?] = hasMask
             ? assignInstances(things.indices.map { i in
                 things[i].own ? ranked(mask: mask, width: w, height: h, to: things[i].point).filter { !barred[i].contains($0.label) } : []
             })
             : Array(repeating: nil, count: things.count)
+        // … except the only thing in the photo when Vision sees only one thing there (owner 2026-11-04: a tube of
+        // 理膚寶水 alone on a grey table, the AI gave no box, and its sticker was the whole photo though Vision's one
+        // instance was the tube exactly). With no other named thing and no other instance there is nothing it could be
+        // confused with; a person is still never taken for a thing that cannot be one (the swing).
+        if hasMask, things.count == 1, !things[0].own, labels[0] == nil,
+           let only = Self.soleInstance(totals: totals, barred: barred[0], area: w * h) {
+            labels[0] = only
+        }
         let anchors = hasMask ? CatchAnchor.anchors(mask: mask, width: w, height: h) : [:]
         // Each placed thing's box on the mask grid, and how much of every instance lies inside it.
         let boxes: [CGRect?] = things.map { $0.own ? $0.box : nil }
@@ -332,6 +340,18 @@ nonisolated enum CatchPlan {
         guard area > 0 else { return 1 }
         let o = rect.intersection(box)
         return o.isNull ? 0 : Double(o.width * o.height / area)
+    }
+
+    /// An instance below this share of the photo is a speck, not a thing (`soleInstance`).
+    static let soleMinShare = 0.01
+
+    /// The photo's one instance that is not a speck, when there is exactly one and it is not barred (a person for a
+    /// thing that cannot be one); nil when there are none or several.
+    static func soleInstance(totals: [Int], barred: Set<Int>, area: Int) -> Int? {
+        guard area > 0 else { return nil }
+        let real = (1..<min(256, totals.count)).filter { Double(totals[$0]) >= soleMinShare * Double(area) }
+        guard real.count == 1, let only = real.first, !barred.contains(only) else { return nil }
+        return only
     }
 
     /// The labels of the instances that are mostly people (`personShare` of their pixels on `people`).
