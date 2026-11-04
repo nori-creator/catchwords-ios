@@ -240,40 +240,67 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         }
         // A cut-out that is likely wrong is not used: the photo round the thing's box, as a rectangle, instead (owner
         // 2026-11-04: 「失敗するなら切り抜かず四角のまま表示して」; the caller falls back to `StickerCrop.shaped`).
+        let w = 96, h = 96
+        let grids: [[UInt8]?] = out.map { $0.cut.flatMap { Self.alphaGrid($0, width: w, height: h) } }
+        let reasons: [String?] = (0..<n).map { i in
+            guard let c = out[i].cut, let g = grids[i] else { return nil }
+            return Self.doubtful(c, g, i, plans: plans, boxes: boxes, grids: grids, width: w, height: h)
+        }
         for i in 0..<n {
-            guard let c = out[i].cut, let why = Self.doubtful(c, i, plans: plans, boxes: boxes) else { continue }
+            guard let why = reasons[i] else { continue }
             out[i] = (nil, (out[i].note.map { $0 + "; " } ?? "") + why + ": the photo round its box instead")
             Self.trace?("thing \(i + 1): \(why) — no cut-out")
         }
         return out
     }
 
-    /// Why a cut-out is likely wrong, nil when it is not (`render`). Only where two named things meet — a thing alone in
-    /// its box keeps its cut-out (the cut-out harness: the single things pass):
-    /// - another thing in it: this share of it lies outside its own box (grown 5%) and inside another named thing's box
-    ///   (a can's cut-out that holds the cake in front of it, keys with the flip-flop under them);
-    /// - a part of it missing: it shared one Vision instance with another thing and its outline covers less than
-    ///   `doubtCover` of its box (one flip-flop of a pair).
-    static func doubtful(_ c: Cut, _ i: Int, plans: [CatchPlan.Placement], boxes: [CGRect?]) -> String? {
+    /// Why a cut-out is likely wrong, nil when it is not (`render`; `mine` is the cut-out on a `width` × `height` grid of
+    /// the photo, `grids` every thing's). Only where two named things are in the photo — a thing alone keeps its
+    /// cut-out (the cut-out harness: the single things pass):
+    /// - another thing in it: more than `doubtOthers` of it lies outside its own box (grown 5%) and inside another
+    ///   thing's box (a can's cut-out with the cake in front of it), or is also in another thing's cut-out (both kept
+    ///   what lies between them). A box that holds this box (a saucer's round its cup's) does not count;
+    /// - a part of it missing: when it was split from an instance shared with another thing, or found by Vision again
+    ///   on a crop, its outline spans less than `doubtSpan` of its box's width or height (one flip-flop of a pair).
+    static func doubtful(_ c: Cut, _ mine: [UInt8], _ i: Int, plans: [CatchPlan.Placement], boxes: [CGRect?],
+                         grids: [[UInt8]?], width w: Int, height h: Int) -> String? {
         guard let own = boxes[i] else { return nil }
-        let others = boxes.indices.filter { $0 != i }.compactMap { boxes[$0] }
-        guard !others.isEmpty else { return nil }
-        let w = 96, h = 96
-        guard let bits = alphaGrid(c, width: w, height: h) else { return nil }
-        let share = Self.share(of: bits, outside: own.insetBy(dx: -own.width * 0.05, dy: -own.height * 0.05),
-                               inAny: others, width: w, height: h)
+        // Other things' boxes, without those this box lies in (`nestedShare`).
+        let others = boxes.indices.filter { $0 != i }.filter { j in
+            guard let b = boxes[j] else { return false }
+            return CatchPlan.cover(b, of: own) < Double(CatchPlan.nestedShare)
+        }
+        guard boxes.indices.contains(where: { $0 != i && boxes[$0] != nil }) else { return nil }
+        let share = Self.share(of: mine, outside: own.insetBy(dx: -own.width * 0.05, dy: -own.height * 0.05),
+                               inAny: others.compactMap { boxes[$0] }, width: w, height: h)
         if share > doubtOthers { return String(format: "%.0f%% of the cut-out lies in other things' boxes", share * 100) }
-        if !plans[i].sharedWith.isEmpty || plans[i].note?.contains("split where they meet") == true {
-            let cover = CatchPlan.cover(c.box, of: own)
-            if cover < doubtCover { return String(format: "the cut-out covers only %.0f%% of its box", cover * 100) }
+        let total = mine.reduce(0) { $0 + Int($1) }
+        if total > 0 {
+            for j in others {
+                guard let g = grids[j], g.count == mine.count else { continue }
+                var both = 0
+                for k in mine.indices where mine[k] != 0 && g[k] != 0 { both += 1 }
+                let s = Double(both) / Double(total)
+                if s > doubtOthers { return String(format: "%.0f%% of the cut-out is thing %d's too", s * 100, j + 1) }
+            }
+        }
+        let split = !plans[i].sharedWith.isEmpty || plans[i].note?.contains("split where they meet") == true
+        let cropped = plans[i].refine != nil || plans[i].cut == .noMask
+        if split || cropped {
+            let o = c.box.intersection(own)
+            let spanW = o.isNull ? 0 : o.width / max(own.width, 1e-6), spanH = o.isNull ? 0 : o.height / max(own.height, 1e-6)
+            if min(spanW, spanH) < doubtSpan {
+                return String(format: "the cut-out spans only %.0f%% × %.0f%% of its box", spanW * 100, spanH * 100)
+            }
         }
         return nil
     }
 
     /// Above this share of a cut-out in other things' boxes (outside its own), it is not used (`doubtful`).
     static let doubtOthers = 0.15
-    /// A cut-out split from a shared instance that covers less than this share of its box is missing a part.
-    static let doubtCover = 0.45
+    /// A cut-out split from a shared instance (or found on a crop) that spans less than this share of its box's width or
+    /// height is missing a part.
+    static let doubtSpan: CGFloat = 0.6
 
     /// The cut-out's opaque pixels on a `width` × `height` grid of the whole photo (1 = opaque).
     static func alphaGrid(_ c: Cut, width w: Int, height h: Int) -> [UInt8]? {
