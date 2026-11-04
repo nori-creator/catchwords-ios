@@ -33,6 +33,7 @@ jobs:
           "$RUNNER_TEMP/h" "$RUNNER_TEMP/d/cases.json" "$RUNNER_TEMP/d/harness" | tee "$RUNNER_TEMP/d/harness.txt" || true
           for f in "$RUNNER_TEMP"/d/harness/*.png; do [ -f "$f" ] && cp "$f" "$RUNNER_TEMP/d/h-$(basename "$f")"; done
           cp "$RUNNER_TEMP"/d/pot/*.png "$RUNNER_TEMP/d/" 2>/dev/null; for f in "$RUNNER_TEMP"/d/pot/mask-*.png; do cp "$f" "$RUNNER_TEMP/d/pot-$(basename "$f")"; done
+          swift scripts/debug/crop_refine.swift "$RUNNER_TEMP/d/1793791542974-object.jpg" 0.130 0.942 0.333 0.738 "$RUNNER_TEMP/d/pot-crop-mask.png" | tee "$RUNNER_TEMP/d/pot-crop.txt"
           sips -g pixelWidth -g pixelHeight "$RUNNER_TEMP/d"/*.png "$RUNNER_TEMP/d"/*.jpg | tee "$RUNNER_TEMP/d/sizes.txt"
       - if: always()
         run: |
