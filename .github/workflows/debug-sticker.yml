@@ -1,0 +1,31 @@
+# 一度だけの調べ物（オーナー 2026-11-04「元のデータにアクセスして許可をする」）: 理膚寶水 の元の写真と保存された
+# 切り抜きを取り出し、Vision の塊を数え、ci-previews の runs/debug-sticker/ に置く。調べ終わったら消す。
+name: Debug sticker cut-out
+on:
+  push:
+    branches: [claude/debug-sticker-cutout]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -u
+          mkdir -p "$RUNNER_TEMP/d"
+          for p in 1793800224002-object.jpg 1793800224002-cutout.png 1793791542974-cutout.png; do
+            curl -sS -f -H "Authorization: Bearer $KEY" -H "apikey: $KEY" \
+              "$SUPABASE_URL/storage/v1/object/stickers/21b1c42a-9456-4a58-8624-46aa3abb632f/$p" -o "$RUNNER_TEMP/d/$p" || echo "failed $p"
+          done
+          ls -la "$RUNNER_TEMP/d"
+          swift scripts/debug/instances.swift "$RUNNER_TEMP/d/1793800224002-object.jpg" "$RUNNER_TEMP/d" | tee "$RUNNER_TEMP/d/instances.txt"
+          sips -g pixelWidth -g pixelHeight "$RUNNER_TEMP/d"/*.png "$RUNNER_TEMP/d"/*.jpg | tee "$RUNNER_TEMP/d/sizes.txt"
+      - if: always()
+        run: |
+          bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            runs/debug-sticker "debug sticker" "$RUNNER_TEMP"/d/*

@@ -1,0 +1,1323 @@
+{
+ "photos": [
+  {
+   "file": "scenes/*",
+   "licence": "Made for this test (make_scenes.py) from this repository's own pictures (server/public/ai-test/photos, CatchWords' test photos) and the owner's lint-roller photo; CC0 for this test",
+   "source": "this repository"
+  }
+ ],
+ "cases": [
+  {
+   "id": "stool-on-floor",
+   "photo": "../scenes/stool-on-floor.jpg",
+   "what": "stool on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "塑膠椅",
+     "box_2d": [
+      245,
+      204,
+      795,
+      794
+     ],
+     "reference": "../scenes/stool-on-floor.stool.png"
+    }
+   ]
+  },
+  {
+   "id": "keys-on-floor",
+   "photo": "../scenes/keys-on-floor.jpg",
+   "what": "keys on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "鑰匙",
+     "box_2d": [
+      256,
+      100,
+      784,
+      900
+     ],
+     "reference": "../scenes/keys-on-floor.keys.png"
+    }
+   ]
+  },
+  {
+   "id": "umbrella-on-floor",
+   "photo": "../scenes/umbrella-on-floor.jpg",
+   "what": "umbrella on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "雨傘",
+     "box_2d": [
+      245,
+      338,
+      795,
+      661
+     ],
+     "reference": "../scenes/umbrella-on-floor.umbrella.png"
+    }
+   ]
+  },
+  {
+   "id": "slippers-on-floor",
+   "photo": "../scenes/slippers-on-floor.jpg",
+   "what": "slippers on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "拖鞋",
+     "box_2d": [
+      245,
+      191,
+      795,
+      809
+     ],
+     "reference": "../scenes/slippers-on-floor.slippers.png"
+    }
+   ]
+  },
+  {
+   "id": "lantern-on-floor",
+   "photo": "../scenes/lantern-on-floor.jpg",
+   "what": "lantern on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "燈籠",
+     "box_2d": [
+      245,
+      142,
+      795,
+      858
+     ],
+     "reference": "../scenes/lantern-on-floor.lantern.png"
+    }
+   ]
+  },
+  {
+   "id": "banana-on-floor",
+   "photo": "../scenes/banana-on-floor.jpg",
+   "what": "banana on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "香蕉",
+     "box_2d": [
+      282,
+      100,
+      758,
+      900
+     ],
+     "reference": "../scenes/banana-on-floor.banana.png"
+    }
+   ]
+  },
+  {
+   "id": "bubble-tea-cup-on-floor",
+   "photo": "../scenes/bubble-tea-cup-on-floor.jpg",
+   "what": "bubble-tea-cup on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "珍珠奶茶",
+     "box_2d": [
+      245,
+      321,
+      795,
+      679
+     ],
+     "reference": "../scenes/bubble-tea-cup-on-floor.bubble-tea-cup.png"
+    }
+   ]
+  },
+  {
+   "id": "succulent-on-floor",
+   "photo": "../scenes/succulent-on-floor.jpg",
+   "what": "succulent on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "多肉植物",
+     "box_2d": [
+      245,
+      203,
+      795,
+      796
+     ],
+     "reference": "../scenes/succulent-on-floor.succulent.png"
+    }
+   ]
+  },
+  {
+   "id": "cola-on-floor",
+   "photo": "../scenes/cola-on-floor.jpg",
+   "what": "cola on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "可樂",
+     "box_2d": [
+      245,
+      299,
+      795,
+      700
+     ],
+     "reference": "../scenes/cola-on-floor.cola.png"
+    }
+   ]
+  },
+  {
+   "id": "juice-on-floor",
+   "photo": "../scenes/juice-on-floor.jpg",
+   "what": "juice on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "果汁",
+     "box_2d": [
+      245,
+      287,
+      795,
+      713
+     ],
+     "reference": "../scenes/juice-on-floor.juice.png"
+    }
+   ]
+  },
+  {
+   "id": "oolong-on-floor",
+   "photo": "../scenes/oolong-on-floor.jpg",
+   "what": "oolong on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "烏龍茶",
+     "box_2d": [
+      245,
+      390,
+      795,
+      609
+     ],
+     "reference": "../scenes/oolong-on-floor.oolong.png"
+    }
+   ]
+  },
+  {
+   "id": "mango-on-floor",
+   "photo": "../scenes/mango-on-floor.jpg",
+   "what": "mango on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "芒果",
+     "box_2d": [
+      245,
+      262,
+      795,
+      738
+     ],
+     "reference": "../scenes/mango-on-floor.mango.png"
+    }
+   ]
+  },
+  {
+   "id": "pineapple-cake-on-floor",
+   "photo": "../scenes/pineapple-cake-on-floor.jpg",
+   "what": "pineapple-cake on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "鳳梨酥",
+     "box_2d": [
+      272,
+      100,
+      768,
+      900
+     ],
+     "reference": "../scenes/pineapple-cake-on-floor.pineapple-cake.png"
+    }
+   ]
+  },
+  {
+   "id": "xiaolongbao-on-floor",
+   "photo": "../scenes/xiaolongbao-on-floor.jpg",
+   "what": "xiaolongbao on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "小籠包",
+     "box_2d": [
+      273,
+      100,
+      767,
+      900
+     ],
+     "reference": "../scenes/xiaolongbao-on-floor.xiaolongbao.png"
+    }
+   ]
+  },
+  {
+   "id": "pomelo-on-floor",
+   "photo": "../scenes/pomelo-on-floor.jpg",
+   "what": "pomelo on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "柚子",
+     "box_2d": [
+      245,
+      158,
+      795,
+      842
+     ],
+     "reference": "../scenes/pomelo-on-floor.pomelo.png"
+    }
+   ]
+  },
+  {
+   "id": "lint-roller-on-floor",
+   "photo": "../scenes/lint-roller-on-floor.jpg",
+   "what": "lint-roller on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "滾筒黏毛器",
+     "box_2d": [
+      245,
+      272,
+      795,
+      727
+     ],
+     "reference": "../scenes/lint-roller-on-floor.lint-roller.png"
+    }
+   ]
+  },
+  {
+   "id": "stool-on-cafe",
+   "photo": "../scenes/stool-on-cafe.jpg",
+   "what": "stool on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "塑膠椅",
+     "box_2d": [
+      410,
+      194,
+      830,
+      644
+     ],
+     "reference": "../scenes/stool-on-cafe.stool.png"
+    }
+   ]
+  },
+  {
+   "id": "keys-on-cafe",
+   "photo": "../scenes/keys-on-cafe.jpg",
+   "what": "keys on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "鑰匙",
+     "box_2d": [
+      410,
+      102,
+      830,
+      738
+     ],
+     "reference": "../scenes/keys-on-cafe.keys.png"
+    }
+   ]
+  },
+  {
+   "id": "umbrella-on-cafe",
+   "photo": "../scenes/umbrella-on-cafe.jpg",
+   "what": "umbrella on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "雨傘",
+     "box_2d": [
+      410,
+      297,
+      830,
+      543
+     ],
+     "reference": "../scenes/umbrella-on-cafe.umbrella.png"
+    }
+   ]
+  },
+  {
+   "id": "slippers-on-cafe",
+   "photo": "../scenes/slippers-on-cafe.jpg",
+   "what": "slippers on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "拖鞋",
+     "box_2d": [
+      410,
+      184,
+      830,
+      656
+     ],
+     "reference": "../scenes/slippers-on-cafe.slippers.png"
+    }
+   ]
+  },
+  {
+   "id": "lantern-on-cafe",
+   "photo": "../scenes/lantern-on-cafe.jpg",
+   "what": "lantern on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "燈籠",
+     "box_2d": [
+      410,
+      147,
+      830,
+      692
+     ],
+     "reference": "../scenes/lantern-on-cafe.lantern.png"
+    }
+   ]
+  },
+  {
+   "id": "banana-on-cafe",
+   "photo": "../scenes/banana-on-cafe.jpg",
+   "what": "banana on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "香蕉",
+     "box_2d": [
+      410,
+      68,
+      830,
+      772
+     ],
+     "reference": "../scenes/banana-on-cafe.banana.png"
+    }
+   ]
+  },
+  {
+   "id": "bubble-tea-cup-on-cafe",
+   "photo": "../scenes/bubble-tea-cup-on-cafe.jpg",
+   "what": "bubble-tea-cup on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "珍珠奶茶",
+     "box_2d": [
+      410,
+      283,
+      830,
+      557
+     ],
+     "reference": "../scenes/bubble-tea-cup-on-cafe.bubble-tea-cup.png"
+    }
+   ]
+  },
+  {
+   "id": "succulent-on-cafe",
+   "photo": "../scenes/succulent-on-cafe.jpg",
+   "what": "succulent on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "多肉植物",
+     "box_2d": [
+      410,
+      193,
+      830,
+      646
+     ],
+     "reference": "../scenes/succulent-on-cafe.succulent.png"
+    }
+   ]
+  },
+  {
+   "id": "cola-on-cafe",
+   "photo": "../scenes/cola-on-cafe.jpg",
+   "what": "cola on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "可樂",
+     "box_2d": [
+      410,
+      267,
+      830,
+      572
+     ],
+     "reference": "../scenes/cola-on-cafe.cola.png"
+    }
+   ]
+  },
+  {
+   "id": "juice-on-cafe",
+   "photo": "../scenes/juice-on-cafe.jpg",
+   "what": "juice on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "果汁",
+     "box_2d": [
+      410,
+      257,
+      830,
+      582
+     ],
+     "reference": "../scenes/juice-on-cafe.juice.png"
+    }
+   ]
+  },
+  {
+   "id": "oolong-on-cafe",
+   "photo": "../scenes/oolong-on-cafe.jpg",
+   "what": "oolong on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "烏龍茶",
+     "box_2d": [
+      410,
+      337,
+      830,
+      503
+     ],
+     "reference": "../scenes/oolong-on-cafe.oolong.png"
+    }
+   ]
+  },
+  {
+   "id": "mango-on-cafe",
+   "photo": "../scenes/mango-on-cafe.jpg",
+   "what": "mango on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "芒果",
+     "box_2d": [
+      410,
+      238,
+      830,
+      601
+     ],
+     "reference": "../scenes/mango-on-cafe.mango.png"
+    }
+   ]
+  },
+  {
+   "id": "pineapple-cake-on-cafe",
+   "photo": "../scenes/pineapple-cake-on-cafe.jpg",
+   "what": "pineapple-cake on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "鳳梨酥",
+     "box_2d": [
+      410,
+      82,
+      830,
+      758
+     ],
+     "reference": "../scenes/pineapple-cake-on-cafe.pineapple-cake.png"
+    }
+   ]
+  },
+  {
+   "id": "xiaolongbao-on-cafe",
+   "photo": "../scenes/xiaolongbao-on-cafe.jpg",
+   "what": "xiaolongbao on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "小籠包",
+     "box_2d": [
+      410,
+      80,
+      830,
+      760
+     ],
+     "reference": "../scenes/xiaolongbao-on-cafe.xiaolongbao.png"
+    }
+   ]
+  },
+  {
+   "id": "pomelo-on-cafe",
+   "photo": "../scenes/pomelo-on-cafe.jpg",
+   "what": "pomelo on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "柚子",
+     "box_2d": [
+      410,
+      158,
+      830,
+      681
+     ],
+     "reference": "../scenes/pomelo-on-cafe.pomelo.png"
+    }
+   ]
+  },
+  {
+   "id": "lint-roller-on-cafe",
+   "photo": "../scenes/lint-roller-on-cafe.jpg",
+   "what": "lint-roller on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "滾筒黏毛器",
+     "box_2d": [
+      410,
+      247,
+      830,
+      593
+     ],
+     "reference": "../scenes/lint-roller-on-cafe.lint-roller.png"
+    }
+   ]
+  },
+  {
+   "id": "stool-on-street",
+   "photo": "../scenes/stool-on-street.jpg",
+   "what": "stool on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "塑膠椅",
+     "box_2d": [
+      410,
+      376,
+      790,
+      783
+     ],
+     "reference": "../scenes/stool-on-street.stool.png"
+    }
+   ]
+  },
+  {
+   "id": "keys-on-street",
+   "photo": "../scenes/keys-on-street.jpg",
+   "what": "keys on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "鑰匙",
+     "box_2d": [
+      410,
+      292,
+      790,
+      867
+     ],
+     "reference": "../scenes/keys-on-street.keys.png"
+    }
+   ]
+  },
+  {
+   "id": "umbrella-on-street",
+   "photo": "../scenes/umbrella-on-street.jpg",
+   "what": "umbrella on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "雨傘",
+     "box_2d": [
+      410,
+      468,
+      790,
+      691
+     ],
+     "reference": "../scenes/umbrella-on-street.umbrella.png"
+    }
+   ]
+  },
+  {
+   "id": "slippers-on-street",
+   "photo": "../scenes/slippers-on-street.jpg",
+   "what": "slippers on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "拖鞋",
+     "box_2d": [
+      410,
+      367,
+      790,
+      793
+     ],
+     "reference": "../scenes/slippers-on-street.slippers.png"
+    }
+   ]
+  },
+  {
+   "id": "lantern-on-street",
+   "photo": "../scenes/lantern-on-street.jpg",
+   "what": "lantern on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "燈籠",
+     "box_2d": [
+      410,
+      332,
+      790,
+      827
+     ],
+     "reference": "../scenes/lantern-on-street.lantern.png"
+    }
+   ]
+  },
+  {
+   "id": "banana-on-street",
+   "photo": "../scenes/banana-on-street.jpg",
+   "what": "banana on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "香蕉",
+     "box_2d": [
+      410,
+      261,
+      790,
+      899
+     ],
+     "reference": "../scenes/banana-on-street.banana.png"
+    }
+   ]
+  },
+  {
+   "id": "bubble-tea-cup-on-street",
+   "photo": "../scenes/bubble-tea-cup-on-street.jpg",
+   "what": "bubble-tea-cup on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "珍珠奶茶",
+     "box_2d": [
+      410,
+      457,
+      790,
+      703
+     ],
+     "reference": "../scenes/bubble-tea-cup-on-street.bubble-tea-cup.png"
+    }
+   ]
+  },
+  {
+   "id": "succulent-on-street",
+   "photo": "../scenes/succulent-on-street.jpg",
+   "what": "succulent on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "多肉植物",
+     "box_2d": [
+      410,
+      376,
+      790,
+      784
+     ],
+     "reference": "../scenes/succulent-on-street.succulent.png"
+    }
+   ]
+  },
+  {
+   "id": "cola-on-street",
+   "photo": "../scenes/cola-on-street.jpg",
+   "what": "cola on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "可樂",
+     "box_2d": [
+      410,
+      441,
+      790,
+      718
+     ],
+     "reference": "../scenes/cola-on-street.cola.png"
+    }
+   ]
+  },
+  {
+   "id": "juice-on-street",
+   "photo": "../scenes/juice-on-street.jpg",
+   "what": "juice on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "果汁",
+     "box_2d": [
+      410,
+      432,
+      790,
+      727
+     ],
+     "reference": "../scenes/juice-on-street.juice.png"
+    }
+   ]
+  },
+  {
+   "id": "oolong-on-street",
+   "photo": "../scenes/oolong-on-street.jpg",
+   "what": "oolong on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "烏龍茶",
+     "box_2d": [
+      410,
+      504,
+      790,
+      656
+     ],
+     "reference": "../scenes/oolong-on-street.oolong.png"
+    }
+   ]
+  },
+  {
+   "id": "mango-on-street",
+   "photo": "../scenes/mango-on-street.jpg",
+   "what": "mango on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "芒果",
+     "box_2d": [
+      410,
+      416,
+      790,
+      744
+     ],
+     "reference": "../scenes/mango-on-street.mango.png"
+    }
+   ]
+  },
+  {
+   "id": "pineapple-cake-on-street",
+   "photo": "../scenes/pineapple-cake-on-street.jpg",
+   "what": "pineapple-cake on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "鳳梨酥",
+     "box_2d": [
+      410,
+      274,
+      790,
+      886
+     ],
+     "reference": "../scenes/pineapple-cake-on-street.pineapple-cake.png"
+    }
+   ]
+  },
+  {
+   "id": "xiaolongbao-on-street",
+   "photo": "../scenes/xiaolongbao-on-street.jpg",
+   "what": "xiaolongbao on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "小籠包",
+     "box_2d": [
+      410,
+      272,
+      790,
+      888
+     ],
+     "reference": "../scenes/xiaolongbao-on-street.xiaolongbao.png"
+    }
+   ]
+  },
+  {
+   "id": "pomelo-on-street",
+   "photo": "../scenes/pomelo-on-street.jpg",
+   "what": "pomelo on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "柚子",
+     "box_2d": [
+      410,
+      343,
+      790,
+      817
+     ],
+     "reference": "../scenes/pomelo-on-street.pomelo.png"
+    }
+   ]
+  },
+  {
+   "id": "lint-roller-on-street",
+   "photo": "../scenes/lint-roller-on-street.jpg",
+   "what": "lint-roller on the street.",
+   "variants": true,
+   "things": [
+    {
+     "name": "滾筒黏毛器",
+     "box_2d": [
+      410,
+      422,
+      790,
+      737
+     ],
+     "reference": "../scenes/lint-roller-on-street.lint-roller.png"
+    }
+   ]
+  },
+  {
+   "id": "cola+pineapple-cake-on-floor",
+   "photo": "../scenes/cola+pineapple-cake-on-floor.jpg",
+   "what": "cola and pineapple-cake touching, on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "可樂",
+     "box_2d": [
+      340,
+      177,
+      760,
+      482
+     ],
+     "reference": "../scenes/cola+pineapple-cake-on-floor.cola.png"
+    },
+    {
+     "name": "鳳梨酥",
+     "box_2d": [
+      420,
+      299,
+      780,
+      878
+     ],
+     "reference": "../scenes/cola+pineapple-cake-on-floor.pineapple-cake.png"
+    }
+   ]
+  },
+  {
+   "id": "cola+pineapple-cake-on-cafe",
+   "photo": "../scenes/cola+pineapple-cake-on-cafe.jpg",
+   "what": "cola and pineapple-cake touching, on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "可樂",
+     "box_2d": [
+      340,
+      177,
+      760,
+      482
+     ],
+     "reference": "../scenes/cola+pineapple-cake-on-cafe.cola.png"
+    },
+    {
+     "name": "鳳梨酥",
+     "box_2d": [
+      420,
+      299,
+      780,
+      878
+     ],
+     "reference": "../scenes/cola+pineapple-cake-on-cafe.pineapple-cake.png"
+    }
+   ]
+  },
+  {
+   "id": "banana+mango-on-floor",
+   "photo": "../scenes/banana+mango-on-floor.jpg",
+   "what": "banana and mango touching, on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "香蕉",
+     "box_2d": [
+      340,
+      0,
+      760,
+      704
+     ],
+     "reference": "../scenes/banana+mango-on-floor.banana.png"
+    },
+    {
+     "name": "芒果",
+     "box_2d": [
+      420,
+      689,
+      780,
+      1000
+     ],
+     "reference": "../scenes/banana+mango-on-floor.mango.png"
+    }
+   ]
+  },
+  {
+   "id": "banana+mango-on-cafe",
+   "photo": "../scenes/banana+mango-on-cafe.jpg",
+   "what": "banana and mango touching, on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "香蕉",
+     "box_2d": [
+      340,
+      0,
+      760,
+      704
+     ],
+     "reference": "../scenes/banana+mango-on-cafe.banana.png"
+    },
+    {
+     "name": "芒果",
+     "box_2d": [
+      420,
+      689,
+      780,
+      1000
+     ],
+     "reference": "../scenes/banana+mango-on-cafe.mango.png"
+    }
+   ]
+  },
+  {
+   "id": "keys+slippers-on-floor",
+   "photo": "../scenes/keys+slippers-on-floor.jpg",
+   "what": "keys and slippers touching, on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "鑰匙",
+     "box_2d": [
+      340,
+      12,
+      760,
+      648
+     ],
+     "reference": "../scenes/keys+slippers-on-floor.keys.png"
+    },
+    {
+     "name": "拖鞋",
+     "box_2d": [
+      420,
+      596,
+      780,
+      1000
+     ],
+     "reference": "../scenes/keys+slippers-on-floor.slippers.png"
+    }
+   ]
+  },
+  {
+   "id": "keys+slippers-on-cafe",
+   "photo": "../scenes/keys+slippers-on-cafe.jpg",
+   "what": "keys and slippers touching, on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "鑰匙",
+     "box_2d": [
+      340,
+      12,
+      760,
+      648
+     ],
+     "reference": "../scenes/keys+slippers-on-cafe.keys.png"
+    },
+    {
+     "name": "拖鞋",
+     "box_2d": [
+      420,
+      596,
+      780,
+      1000
+     ],
+     "reference": "../scenes/keys+slippers-on-cafe.slippers.png"
+    }
+   ]
+  },
+  {
+   "id": "bubble-tea-cup+xiaolongbao-on-floor",
+   "photo": "../scenes/bubble-tea-cup+xiaolongbao-on-floor.jpg",
+   "what": "bubble-tea-cup and xiaolongbao touching, on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "珍珠奶茶",
+     "box_2d": [
+      340,
+      193,
+      760,
+      467
+     ],
+     "reference": "../scenes/bubble-tea-cup+xiaolongbao-on-floor.bubble-tea-cup.png"
+    },
+    {
+     "name": "小籠包",
+     "box_2d": [
+      420,
+      270,
+      780,
+      853
+     ],
+     "reference": "../scenes/bubble-tea-cup+xiaolongbao-on-floor.xiaolongbao.png"
+    }
+   ]
+  },
+  {
+   "id": "bubble-tea-cup+xiaolongbao-on-cafe",
+   "photo": "../scenes/bubble-tea-cup+xiaolongbao-on-cafe.jpg",
+   "what": "bubble-tea-cup and xiaolongbao touching, on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "珍珠奶茶",
+     "box_2d": [
+      340,
+      193,
+      760,
+      467
+     ],
+     "reference": "../scenes/bubble-tea-cup+xiaolongbao-on-cafe.bubble-tea-cup.png"
+    },
+    {
+     "name": "小籠包",
+     "box_2d": [
+      420,
+      270,
+      780,
+      853
+     ],
+     "reference": "../scenes/bubble-tea-cup+xiaolongbao-on-cafe.xiaolongbao.png"
+    }
+   ]
+  },
+  {
+   "id": "lint-roller+keys-on-floor",
+   "photo": "../scenes/lint-roller+keys-on-floor.jpg",
+   "what": "lint-roller and keys touching, on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "滾筒黏毛器",
+     "box_2d": [
+      340,
+      157,
+      760,
+      503
+     ],
+     "reference": "../scenes/lint-roller+keys-on-floor.lint-roller.png"
+    },
+    {
+     "name": "鑰匙",
+     "box_2d": [
+      420,
+      352,
+      780,
+      897
+     ],
+     "reference": "../scenes/lint-roller+keys-on-floor.keys.png"
+    }
+   ]
+  },
+  {
+   "id": "lint-roller+keys-on-cafe",
+   "photo": "../scenes/lint-roller+keys-on-cafe.jpg",
+   "what": "lint-roller and keys touching, on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "滾筒黏毛器",
+     "box_2d": [
+      340,
+      157,
+      760,
+      503
+     ],
+     "reference": "../scenes/lint-roller+keys-on-cafe.lint-roller.png"
+    },
+    {
+     "name": "鑰匙",
+     "box_2d": [
+      420,
+      352,
+      780,
+      897
+     ],
+     "reference": "../scenes/lint-roller+keys-on-cafe.keys.png"
+    }
+   ]
+  },
+  {
+   "id": "umbrella+lantern-on-floor",
+   "photo": "../scenes/umbrella+lantern-on-floor.jpg",
+   "what": "umbrella and lantern touching, on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "雨傘",
+     "box_2d": [
+      340,
+      207,
+      760,
+      453
+     ],
+     "reference": "../scenes/umbrella+lantern-on-floor.umbrella.png"
+    },
+    {
+     "name": "燈籠",
+     "box_2d": [
+      420,
+      306,
+      780,
+      773
+     ],
+     "reference": "../scenes/umbrella+lantern-on-floor.lantern.png"
+    }
+   ]
+  },
+  {
+   "id": "umbrella+lantern-on-cafe",
+   "photo": "../scenes/umbrella+lantern-on-cafe.jpg",
+   "what": "umbrella and lantern touching, on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "雨傘",
+     "box_2d": [
+      340,
+      207,
+      760,
+      453
+     ],
+     "reference": "../scenes/umbrella+lantern-on-cafe.umbrella.png"
+    },
+    {
+     "name": "燈籠",
+     "box_2d": [
+      420,
+      306,
+      780,
+      773
+     ],
+     "reference": "../scenes/umbrella+lantern-on-cafe.lantern.png"
+    }
+   ]
+  },
+  {
+   "id": "succulent+juice-on-floor",
+   "photo": "../scenes/succulent+juice-on-floor.jpg",
+   "what": "succulent and juice touching, on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "多肉植物",
+     "box_2d": [
+      340,
+      103,
+      760,
+      556
+     ],
+     "reference": "../scenes/succulent+juice-on-floor.succulent.png"
+    },
+    {
+     "name": "果汁",
+     "box_2d": [
+      420,
+      573,
+      780,
+      852
+     ],
+     "reference": "../scenes/succulent+juice-on-floor.juice.png"
+    }
+   ]
+  },
+  {
+   "id": "succulent+juice-on-cafe",
+   "photo": "../scenes/succulent+juice-on-cafe.jpg",
+   "what": "succulent and juice touching, on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "多肉植物",
+     "box_2d": [
+      340,
+      103,
+      760,
+      556
+     ],
+     "reference": "../scenes/succulent+juice-on-cafe.succulent.png"
+    },
+    {
+     "name": "果汁",
+     "box_2d": [
+      420,
+      573,
+      780,
+      852
+     ],
+     "reference": "../scenes/succulent+juice-on-cafe.juice.png"
+    }
+   ]
+  },
+  {
+   "id": "stool+pomelo-on-floor",
+   "photo": "../scenes/stool+pomelo-on-floor.jpg",
+   "what": "stool and pomelo touching, on the floor.",
+   "variants": true,
+   "things": [
+    {
+     "name": "塑膠椅",
+     "box_2d": [
+      340,
+      104,
+      760,
+      554
+     ],
+     "reference": "../scenes/stool+pomelo-on-floor.stool.png"
+    },
+    {
+     "name": "柚子",
+     "box_2d": [
+      420,
+      488,
+      780,
+      936
+     ],
+     "reference": "../scenes/stool+pomelo-on-floor.pomelo.png"
+    }
+   ]
+  },
+  {
+   "id": "stool+pomelo-on-cafe",
+   "photo": "../scenes/stool+pomelo-on-cafe.jpg",
+   "what": "stool and pomelo touching, on the cafe.",
+   "variants": true,
+   "things": [
+    {
+     "name": "塑膠椅",
+     "box_2d": [
+      340,
+      104,
+      760,
+      554
+     ],
+     "reference": "../scenes/stool+pomelo-on-cafe.stool.png"
+    },
+    {
+     "name": "柚子",
+     "box_2d": [
+      420,
+      488,
+      780,
+      936
+     ],
+     "reference": "../scenes/stool+pomelo-on-cafe.pomelo.png"
+    }
+   ]
+  }
+ ]
+}
