@@ -9819,5 +9819,61 @@
   "es": "Mueve el mapa para poner el pin donde tomaste la foto",
   "ko": "지도를 움직여 찍은 곳에 핀을 맞춰 주세요",
   "vi": "Di chuyển bản đồ để đặt ghim vào nơi bạn đã chụp"
+ },
+ "囲んで切り抜き直す": {
+  "en": "Circle to re-cut",
+  "zh-TW": "圈選重新去背",
+  "es": "Rodear para recortar de nuevo",
+  "ko": "동그라미로 다시 오려내기",
+  "vi": "Khoanh để cắt lại"
+ },
+ "切り抜きたい物を指で囲んでください": {
+  "en": "Draw a circle around the thing with your finger",
+  "zh-TW": "用手指把要去背的東西圈起來",
+  "es": "Rodea con el dedo lo que quieres recortar",
+  "ko": "오려낼 물건을 손가락으로 둘러 주세요",
+  "vi": "Dùng ngón tay khoanh quanh vật muốn cắt"
+ },
+ "切り抜いています…": {
+  "en": "Cutting out…",
+  "zh-TW": "正在去背…",
+  "es": "Recortando…",
+  "ko": "오려내는 중…",
+  "vi": "Đang cắt…"
+ },
+ "もう一度囲む": {
+  "en": "Draw again",
+  "zh-TW": "重新圈選",
+  "es": "Rodear de nuevo",
+  "ko": "다시 둘러싸기",
+  "vi": "Khoanh lại"
+ },
+ "この切り抜きにする": {
+  "en": "Use this cut-out",
+  "zh-TW": "使用這張去背圖",
+  "es": "Usar este recorte",
+  "ko": "이 컷아웃 사용",
+  "vi": "Dùng ảnh tách nền này"
+ },
+ "切り抜きを直しました": {
+  "en": "Cut-out updated",
+  "zh-TW": "已更新去背圖",
+  "es": "Recorte actualizado",
+  "ko": "컷아웃을 바꿨어요",
+  "vi": "Đã cập nhật ảnh tách nền"
+ },
+ "もう少し大きく囲んでください": {
+  "en": "Please draw a bigger circle",
+  "zh-TW": "請圈大一點",
+  "es": "Rodea un área más grande",
+  "ko": "조금 더 크게 둘러 주세요",
+  "vi": "Hãy khoanh rộng hơn một chút"
+ },
+ "元の写真を読み込めませんでした": {
+  "en": "Couldn't load the original photo",
+  "zh-TW": "無法載入原始照片",
+  "es": "No se pudo cargar la foto original",
+  "ko": "원본 사진을 불러오지 못했어요",
+  "vi": "Không tải được ảnh gốc"
  }
 }
