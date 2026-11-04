@@ -285,7 +285,80 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             out[i] = (nil, (out[i].note.map { $0 + "; " } ?? "") + why + ": the photo round its box instead")
             Self.trace?("thing \(i + 1): \(why) — no cut-out")
         }
+        // A whole instance's edge, made again on a crop round it (owner 2026-11-04: the pot's handles came out lumpy —
+        // Vision's mask of the whole photo is coarse at thin parts; on a crop round the pot both handles were exact).
+        for i in 0..<n where hits[i] == nil {
+            guard let c = out[i].cut else { continue }
+            switch plans[i].cut {
+            case .instance, .union:
+                if let better = refined(c) {
+                    out[i] = (better, (out[i].note.map { $0 + "; " } ?? "") + "edge made again on a crop round it")
+                    Self.trace?("thing \(i + 1): edge made again on a crop round it")
+                }
+            default: break
+            }
+        }
         return out
+    }
+
+    /// The crop round a cut-out is this much bigger on every side (`refined`).
+    static let refineMargin: CGFloat = 0.06
+    /// The crop's cut-out is used only when it is the same thing: this much overlap (intersection over union) with the
+    /// first one …
+    static let refineMinOverlap = 0.8
+    /// … from crop instances that lie at least this much inside the first one.
+    static let refineInside = 0.5
+
+    /// `c` cut again from Vision on a crop round it: the same thing at a finer resolution, so thin parts (handles,
+    /// straps) follow the photo. nil when the crop is not much smaller than the photo, Vision finds nothing there, or what
+    /// it finds is not the same thing (`refineMinOverlap`). Heavy: call off the main thread.
+    func refined(_ c: Cut) -> Cut? {
+        guard let photo else { return nil }
+        let W = CGFloat(photo.width), H = CGFloat(photo.height)
+        let b = c.box
+        let mx = b.width * Self.refineMargin, my = b.height * Self.refineMargin
+        let r = CGRect(x: (b.minX - mx) * W, y: (b.minY - my) * H, width: (b.width + 2 * mx) * W, height: (b.height + 2 * my) * H)
+            .integral.intersection(CGRect(x: 0, y: 0, width: W, height: H))
+        // Only a crop clearly smaller than the photo is finer.
+        guard r.width >= 32, r.height >= 32, r.width * r.height < 0.7 * W * H,
+              let crop = photo.cropping(to: r), let masks = InstanceMasks.make(from: crop), let g = masks.labelMaskCopy()
+        else { return nil }
+        let gw = g.width, gh = g.height
+        // The first cut-out on the crop's grid.
+        var first = [UInt8](repeating: 0, count: gw * gh)
+        let drawn: Bool = first.withUnsafeMutableBytes { raw -> Bool in
+            guard let ctx = CGContext(data: raw.baseAddress, width: gw, height: gh, bitsPerComponent: 8, bytesPerRow: gw,
+                                      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue)
+            else { return false }
+            let x = (b.minX * W - r.minX) / r.width * CGFloat(gw), top = (b.minY * H - r.minY) / r.height * CGFloat(gh)
+            let bw = b.width * W / r.width * CGFloat(gw), bh = b.height * H / r.height * CGFloat(gh)
+            ctx.draw(c.cg, in: CGRect(x: x, y: CGFloat(gh) - top - bh, width: bw, height: bh))
+            return true
+        }
+        guard drawn else { return nil }
+        var total = [Int](repeating: 0, count: 256), inside = [Int](repeating: 0, count: 256)
+        for k in 0..<(gw * gh) {
+            let l = Int(g.mask[k])
+            guard l != 0 else { continue }
+            total[l] += 1
+            if first[k] > 127 { inside[l] += 1 }
+        }
+        let labels = (1..<256).filter { total[$0] > 0 && Double(inside[$0]) >= Self.refineInside * Double(total[$0]) }
+        guard !labels.isEmpty else { return nil }
+        var on = [Bool](repeating: false, count: 256)
+        for l in labels { on[l] = true }
+        var both = 0, either = 0
+        for k in 0..<(gw * gh) {
+            let a = on[Int(g.mask[k])], f = first[k] > 127
+            if a && f { both += 1 }
+            if a || f { either += 1 }
+        }
+        guard either > 0, Double(both) >= Self.refineMinOverlap * Double(either),
+              let made = masks.cut(instances: IndexSet(labels)) else { return nil }
+        let mb = made.box
+        let box = CGRect(x: (r.minX + mb.minX * r.width) / W, y: (r.minY + mb.minY * r.height) / H,
+                         width: mb.width * r.width / W, height: mb.height * r.height / H)
+        return Cut(cg: made.cg, box: box)
     }
 
     /// Why a cut-out is likely wrong, nil when it is not (`render`; `mine` is the cut-out on a `width` × `height` grid of
