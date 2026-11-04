@@ -128,6 +128,9 @@ final class ReviewStore {
         isRetry = false
         moreAvailable = false
         gradeFailures = []
+        answered = [:]
+        roundEndedAt = nil
+        loadError = nil
     }
 
     /// Go over this round's wrong answers once more. Practice only: the schedule was already updated
@@ -138,6 +141,8 @@ final class ReviewStore {
         queue = missed.shuffled()
         missed = []
         index = 0
+        answered = [:]
+        roundEndedAt = nil
         correctCount = 0
         isRetry = true
         gradeFailures = []
@@ -168,7 +173,22 @@ final class ReviewStore {
 
     /// True when reading the queue again now would not pull a card from under the learner: nothing answered in this
     /// round yet (or the round is over), and not a retry of missed words.
-    var canRefresh: Bool { !isRetry && (index == 0 || current == nil) }
+    ///
+    /// The first card already answered is not "nothing answered" (check 2026-11-03 A4: back after 60 s, the queue was
+    /// read again without the answered card and the next one came up under the old answer). At the end of a round the
+    /// results and 「もう一度」 stay for 30 minutes (T38: leaving the app for a moment wiped them).
+    var canRefresh: Bool {
+        if isRetry { return false }
+        if let c = current { return index == 0 && answered[c.id] == nil }
+        guard let ended = roundEndedAt else { return true }
+        return Date().timeIntervalSince(ended) > 30 * 60
+    }
+
+    /// This round's answers by card (kept here, not on the screen: switching tabs rebuilt the screen and the answered
+    /// card came up unanswered, to be answered and counted twice — check 2026-11-03 A3).
+    private(set) var answered: [String: Bool] = [:]
+    /// When the last card of the round was answered and passed.
+    @ObservationIgnored private var roundEndedAt: Date?
 
     /// Reads today's queue ahead of time (right after the dex is read at launch, and when the app comes back), then
     /// puts the next cards' pictures and voices on the phone, so the review shows its first card at once.
@@ -259,6 +279,8 @@ final class ReviewStore {
             gradeFailures = []
             loadedTarget = NativeAPI.targetLanguage
             index = 0
+            answered = [:]
+            roundEndedAt = nil
             correctCount = 0
             loadError = nil
             hasLoaded = true
@@ -359,6 +381,8 @@ final class ReviewStore {
     @discardableResult
     func grade(_ card: ReviewCard, correct: Bool, responseMs: Int, dex: DexStore) async -> GradeOutcome {
         if isRetry {
+            if answered[card.id] != nil { return .saved }
+            answered[card.id] = correct
             if correct { correctCount += 1 } else if !missed.contains(where: { $0.id == card.id }) { missed.append(card) }
             return .saved
         }
@@ -377,12 +401,16 @@ final class ReviewStore {
             return .saved
         }
         guard let rid = r.id else { return .saved }
+        // Already answered in this round (the screen was rebuilt under the learner): not sent or counted again.
+        if answered[card.id] != nil { return .saved }
         // Counted at once: the learner moves on to the next card without waiting for the server (owner 2026-10-15
         // 「次へを押してもすぐに次の問題にならない」). Taken back below if the grade cannot be saved.
         let wasMissed = missed.contains(where: { $0.id == card.id })
         if correct { correctCount += 1 } else if !wasMissed { missed.append(card) }
+        answered[card.id] = correct
         func takeBack() {
             if correct { correctCount = max(0, correctCount - 1) } else if !wasMissed { missed.removeAll { $0.id == card.id } }
+            answered[card.id] = nil
         }
         let graded: Graded
         do {
@@ -395,6 +423,9 @@ final class ReviewStore {
         } catch {
             takeBack()
             let again = Self.isWorthRetrying(error)
+            // Asked again: drawn afresh, so the four buttons are not where the learner has just seen the answer
+            // (check 2026-11-03 H1: the same choices came back in the same order).
+            if again { choiceCache[card.sticker.id] = nil }
             let reason = (error as? LocalizedError)?.errorDescription ?? ""
             let message = again
                 ? (reason.isEmpty ? L("採点を保存できませんでした。もう一度答えてください。") : L("採点を保存できませんでした。もう一度答えてください。\n\(reason)"))
@@ -403,6 +434,13 @@ final class ReviewStore {
             return again ? .retry : .refused
         }
         noteGradeFailure(nil, card: card.id)
+        if graded.duplicate == true {
+            // The server had this answer already (sent twice): counted once.
+            takeBack()
+            answered[card.id] = correct
+            if correct { correctCount += 1 } else if !wasMissed { missed.append(card) }
+            return .saved
+        }
         if graded.gone == true {
             // Its review row is gone (the word was deleted while the round was on): nothing was saved, so nothing is
             // counted, and the card is not asked again.
@@ -415,7 +453,9 @@ final class ReviewStore {
         if let row = ReviewHistoryRow(stickerId: r.stickerId, reviewedAt: now, intervalDaysAfter: intervalAfter, easeAfter: r.ease) {
             allHistory.insert(row, at: 0)
         }
-        if streak == 0 || !Calendar.current.isDateInToday(now) { streak = max(streak, 1) }
+        // The streak counted again on the same calendar as `loadHistory` (Taipei days, `SRS.taipeiDay`), not the
+        // phone's own "today" (check 2026-11-03 S7: the two calendars were mixed).
+        streak = SRS.streak(days: Set(allHistory.map { SRS.taipeiDay($0.reviewedAt) }))
         await dex.reloadReviews()
         return .saved
     }
@@ -425,7 +465,9 @@ final class ReviewStore {
         let score: Int?
         let intervalDays: Double?
         let gone: Bool?
-        enum CodingKeys: String, CodingKey { case score, gone, intervalDays = "interval_days" }
+        /// The server had already graded this answer (the same answer sent twice): nothing new was saved.
+        let duplicate: Bool?
+        enum CodingKeys: String, CodingKey { case score, gone, duplicate, intervalDays = "interval_days" }
     }
 
     /// A grade worth sending again: no network, a dropped connection, too slow, or the server failed (5xx, 503
@@ -484,6 +526,7 @@ final class ReviewStore {
         // A refusal has been read on the card it came with: it does not follow the learner to the next one.
         gradeFailures.removeAll { !$0.comesBack }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { index += 1 }
+        if index >= queue.count, roundEndedAt == nil { roundEndedAt = Date() }
         // The card after next is made ready while this one is answered.
         guard let dex = prefetchDex else { return }
         Task { await prefetchUpcoming(dex: dex, count: 3) }

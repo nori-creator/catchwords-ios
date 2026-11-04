@@ -1042,10 +1042,18 @@ export const adminTestPhotoCandidates = createServerFn({ method: "POST" })
     };
   });
 
-const CardInput = z.object({
+export const CardInput = z.object({
   headword: z.string().min(1),
   targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
-  hintCategory: z.string().optional(),
+  /**
+   * 写真の候補の分類（`CATEGORY_KEYS` の鍵）。**決まった鍵だけ**を指示に入れる（2026-11-03 点検 A8: 自由な
+   * 文字のまま指示に入り、その結果が共有の語に広がった）。鍵でない値は無かったことにする。
+   */
+  hintCategory: z
+    .string()
+    .max(40)
+    .optional()
+    .transform((v) => (v && (CATEGORY_KEYS as readonly string[]).includes(v) ? v : undefined)),
   /**
    * 画面でいま見えている節（`lib/card-prefs.ts`）。見えない節の欄は
    * 書かせない — 返事が短くなり、詳細が早くそろう（`lib/card-request.ts`）。
@@ -2962,7 +2970,7 @@ async function runSectionRegen(
       schema: z.object({ meaning_ja: z.string().min(1) }),
     },
     measure_words: {
-      prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n**note は必ず${NL}で書く。中国語で書かない**(word/zhuyin/pinyin だけが中国語)。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧˋ ㄓㄤ","pinyin":"yí zhàng","note":"平らな物に"}]}`,
+      prompt: `${base}\nこの名詞に使う量詞を1〜3個。複数ある場合は使い分けを note に書く。\n**note は必ず${NL}で書く。中国語で書かない**(word/zhuyin/pinyin だけが中国語)。\n{"measure_words":[{"word":"一張","zhuyin":"ㄧ ㄓㄤ","pinyin":"yī zhāng","note":"平らな物に"}]}`,
       schema: z.object({
         measure_words: z
           .array(

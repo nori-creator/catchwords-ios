@@ -38,9 +38,9 @@ describe("looksLikeTargetNote — 落とさない", () => {
     expect(looksLikeTargetNote("紙類", "ja")).toBe(false);
   });
 
-  it("欧文が混じるものは判定しない", () => {
+  it("欧文が混じる和文は残し、英字を除くと中文の注記は落とす（2026-11-03 点検 T42）", () => {
     expect(looksLikeTargetNote("A4の紙に使う", "ja")).toBe(false);
-    expect(looksLikeTargetNote("MRT的車票", "ja")).toBe(false);
+    expect(looksLikeTargetNote("MRT的車票", "ja")).toBe(true);
   });
 
   it("空・null・undefined は落とさない(そもそも中身が無い)", () => {

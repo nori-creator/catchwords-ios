@@ -298,6 +298,10 @@ final class PendingRetry {
     func noteFailedSave(_ id: String, error: Error) {
         loadRecords()
         var r = records[id] ?? Record()
+        // A photo analyzed here before its word was picked: its record still said 「analyzed」, which stops every
+        // automatic try (`isDue`) — the save was never tried again (check 2026-11-03 T34). Saving is a new job: its
+        // own count of tries.
+        if r.analyzed { r = Record() }
         if SaveFailure.classify(error) == .offline {
             r.nextAt = nil
         } else {

@@ -3324,12 +3324,12 @@
   "ko": "촬영한 사진을 휴대폰의 사진 앱에도 저장해요",
   "vi": "Lưu cả ảnh đã chụp vào ứng dụng Ảnh trên điện thoại"
  },
- "撮った写真・図鑑・復習の記録がすべて消え、元に戻せません。Web版のデータも同じく消えます。": {
-  "en": "All your photos, collection and review history will be erased and can't be restored. Your web app data will be erased too.",
-  "zh-TW": "所有照片、圖鑑和複習紀錄都會刪除且無法復原。網頁版的資料也會一併刪除。",
-  "es": "Se borrarán todas tus fotos, tu colección y tu historial de repasos, y no se podrán recuperar. También se borrarán los datos de la versión web.",
-  "ko": "촬영한 사진, 도감, 복습 기록이 모두 삭제되며 되돌릴 수 없어요. 웹 버전의 데이터도 함께 삭제돼요.",
-  "vi": "Toàn bộ ảnh đã chụp, bộ sưu tập và lịch sử ôn tập sẽ bị xóa và không thể khôi phục. Dữ liệu trên bản web cũng sẽ bị xóa."
+ "撮った写真・図鑑・復習の記録がすべて消え、元に戻せません。": {
+  "en": "All your photos, collection and review history will be erased and can't be restored.",
+  "zh-TW": "所有照片、圖鑑和複習紀錄都會刪除且無法復原。",
+  "es": "Se borrarán todas tus fotos, tu colección y tu historial de repasos, y no se podrán recuperar.",
+  "ko": "촬영한 사진, 도감, 복습 기록이 모두 삭제되며 되돌릴 수 없어요.",
+  "vi": "Toàn bộ ảnh đã chụp, bộ sưu tập và lịch sử ôn tập sẽ bị xóa và không thể khôi phục."
  },
  "撮り直す": {
   "en": "Retake",
@@ -7384,12 +7384,12 @@
   "ko": "기록하지 못했어요\n{1}",
   "vi": "Không ghi lại được\n{1}"
  },
- "撮った写真、写真アプリから選んだ画像、「違う単語を入力」で入力した単語、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前は送りません。": {
-  "en": "Photos you take, images you pick from the Photos app, words you type with “Type a different word”, notes you write when reporting a mistake, and settings such as your learning language and level. Your email address and name are not sent.",
-  "zh-TW": "你拍的照片、從照片 App 選的圖片、用「輸入別的單字」輸入的單字、回報錯誤時寫的備註，以及學習語言、程度等設定。不會傳送電子郵件地址和名字。",
-  "es": "Las fotos que tomas, las imágenes que eliges en la app Fotos, las palabras que escribes con “Escribir otra palabra”, las notas que escribes al reportar un error y ajustes como el idioma que aprendes y tu nivel. No se envían tu correo electrónico ni tu nombre.",
-  "ko": "촬영한 사진, 사진 앱에서 고른 이미지, ‘다른 단어 입력’으로 입력한 단어, 오류를 신고할 때 쓴 메모, 학습 언어와 레벨 등의 설정. 이메일 주소와 이름은 보내지 않아요.",
-  "vi": "Ảnh bạn chụp, hình ảnh bạn chọn từ ứng dụng Ảnh, từ bạn nhập bằng “Nhập từ khác”, ghi chú bạn viết khi báo lỗi, và các cài đặt như ngôn ngữ đang học và trình độ. Địa chỉ email và tên của bạn sẽ không được gửi."
+ "撮った写真、写真アプリから選んだ画像、「違う単語を入力」で入力した単語と撮った場所の市・区、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前、番地までの住所は送りません。": {
+  "en": "Photos you take, images you pick from the Photos app, words you type with “Type a different word” together with the city and district where you took the photo, notes you write when reporting a mistake, and settings such as your learning language and level. Your email address, name and street address are not sent.",
+  "zh-TW": "你拍的照片、從照片 App 選的圖片、用「輸入別的單字」輸入的單字和拍照地點的縣市與區、回報錯誤時寫的備註，以及學習語言、程度等設定。不會傳送電子郵件地址、名字和詳細地址（路名與門牌）。",
+  "es": "Las fotos que tomas, las imágenes que eliges en la app Fotos, las palabras que escribes con “Escribir otra palabra” junto con la ciudad y el distrito donde tomaste la foto, las notas que escribes al reportar un error y ajustes como el idioma que aprendes y tu nivel. No se envían tu correo electrónico, tu nombre ni tu dirección exacta.",
+  "ko": "촬영한 사진, 사진 앱에서 고른 이미지, ‘다른 단어 입력’으로 입력한 단어와 사진을 찍은 곳의 시·구, 오류를 신고할 때 쓴 메모, 학습 언어와 레벨 등의 설정. 이메일 주소, 이름, 번지까지의 주소는 보내지 않아요.",
+  "vi": "Ảnh bạn chụp, hình ảnh bạn chọn từ ứng dụng Ảnh, từ bạn nhập bằng “Nhập từ khác” cùng với thành phố và quận nơi bạn chụp ảnh, ghi chú bạn viết khi báo lỗi, và các cài đặt như ngôn ngữ đang học và trình độ. Địa chỉ email, tên và địa chỉ chi tiết (tên đường, số nhà) của bạn sẽ không được gửi."
  },
  "写っている物や入力した単語の判定、単語の解説と例文の作成、報告された誤りの修正のためだけに使います。当社が写真や入力した文章を AI の学習に使うことはありません。": {
   "en": "Only to recognize what is in a photo or the word you typed, to write word explanations and example sentences, and to fix mistakes you report. We never use your photos or the text you enter to train AI.",
@@ -9552,7 +9552,7 @@
   "zh-TW": "自己拍的東西比較容易想起來。",
   "es": "Lo que fotografías tú mismo se recuerda mejor.",
   "ko": "직접 찍은 건 떠올리기 쉬워요.",
-  "vi": "Thứ tự mình chụp sẽ dễ nhớ lại hơn."
+  "vi": "Những thứ bạn tự chụp sẽ dễ nhớ lại hơn."
  },
  "単語が、思い出の場所と結びつく": {
   "en": "Words tied to the places you were",

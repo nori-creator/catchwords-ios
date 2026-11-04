@@ -291,24 +291,7 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     const { userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // 1) Uploaded photos (stickers bucket, everything under `${userId}/`, **every
-    //    level** — first-catch transfers live in sub-folders) and the profile
-    //    photo (public avatars bucket, `${userId}/avatar-*`). 監査 2026-10-03:
-    //    前は stickers の一番上の階層だけで、avatars は残っていた。
-    //    The tts bucket is a shared pronunciation cache — never touched.
-    for (const bucket of ["stickers", "avatars"] as const) {
-      try {
-        await removeAllUnder(
-          supabaseAdmin.storage.from(bucket) as unknown as StorageBucket,
-          userId,
-          { missingOk: true }, // bucket missing in a fresh env — nothing to clean
-        );
-      } catch (e) {
-        throw internalFailure("account-delete", e, "写真の削除に失敗しました");
-      }
-    }
-
-    // 2) Detach shared words the user contributed (kept for other learners).
+    // 1) Detach shared words the user contributed (kept for other learners).
     {
       const { error } = await supabaseAdmin
         .from("words")
@@ -317,7 +300,7 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
       if (error) throw internalFailure("account-delete", error, "退会処理に失敗しました");
     }
 
-    // 3) Row deletes, children before parents (FK order verified against the
+    // 2) Row deletes, children before parents (FK order verified against the
     //    live schema: posts cascade likes/comments/notifications; stickers
     //    cascade encounters/reviews/review_history).
     const steps: Array<[table: string, column: string]> = [
@@ -347,7 +330,25 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
         .eq(column, userId);
       // Tables from not-yet-applied migrations simply don't exist — skip them.
       if (error && !/does not exist|relation .* not/i.test(error.message)) {
-        throw new Error(`${table} の削除に失敗しました: ${error.message}`);
+        throw internalFailure("account-delete", error, "退会処理に失敗しました");
+      }
+    }
+
+    // 3) Uploaded photos — **after the rows** (2026-11-03 点検 S18: 写真を先に消すと、行の削除が途中で
+    //    止まった時に「写真の無い単語」のアカウントが残った。行を先に消せば、止まってもやり直せる) (stickers bucket, everything under `${userId}/`, **every
+    //    level** — first-catch transfers live in sub-folders) and the profile
+    //    photo (public avatars bucket, `${userId}/avatar-*`). 監査 2026-10-03:
+    //    前は stickers の一番上の階層だけで、avatars は残っていた。
+    //    The tts bucket is a shared pronunciation cache — never touched.
+    for (const bucket of ["stickers", "avatars"] as const) {
+      try {
+        await removeAllUnder(
+          supabaseAdmin.storage.from(bucket) as unknown as StorageBucket,
+          userId,
+          { missingOk: true }, // bucket missing in a fresh env — nothing to clean
+        );
+      } catch (e) {
+        throw internalFailure("account-delete", e, "写真の削除に失敗しました");
       }
     }
 

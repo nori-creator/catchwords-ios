@@ -62,6 +62,8 @@ final class AppRouter {
     /// A catch landing in progress: the dex opens in ギャラリー and the star flies into the slot.
     var landing: CatchLandingController?
     var detailSticker: Sticker?
+    /// The later photo (`encounters` id) the word page opens on, when it was opened from that photo (check 2026-11-03 H7).
+    var detailEncounterId: String?
     var showPaywall: Bool = false
     /// Today's free catches (`CatchLimitSheet`): opened when they run out, or from the camera's counter.
     var showCatchLimit: Bool = false
@@ -438,7 +440,10 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $router.showCatchLimit) {
             CatchLimitSheet()
-                .presentationDetents([.medium])
+                // Half the screen held it on most iPhones; on a small one (SE) or with large text the ad's button was
+                // cut off (check 2026-11-03 B6): it can be pulled up to the whole screen.
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 

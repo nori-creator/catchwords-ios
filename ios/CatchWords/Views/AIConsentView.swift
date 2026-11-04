@@ -18,7 +18,7 @@ struct AIConsentView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         header
                         point(icon: "photo.on.rectangle", title: L("送るもの"),
-                              text: L("撮った写真、写真アプリから選んだ画像、「違う単語を入力」で入力した単語、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前は送りません。"))
+                              text: L("撮った写真、写真アプリから選んだ画像、「違う単語を入力」で入力した単語と撮った場所の市・区、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前、番地までの住所は送りません。"))
                         point(icon: "network", title: L("送り先"),
                               text: L("当社のサーバを通して、外部のAIサービス（Google など）に送ります。送り先の会社と国は、プライバシーポリシーに書いてあります。"))
                         point(icon: "lightbulb", title: L("使い道"),

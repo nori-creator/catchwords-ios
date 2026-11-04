@@ -89,4 +89,16 @@ final class ReviewHeadwordTests: XCTestCase {
         XCTAssertEqual(store.queue.map { $0.sticker.word?.headword }, ["門", "門"], "nothing leaves the round")
         XCTAssertEqual(store.missed.first?.sticker.word?.headword, "門")
     }
+
+    /// The question never shows the answer's own characters (check 2026-11-03 H12).
+    func test_questionHidesAMeaningWrittenWithTheAnswer() {
+        XCTAssertTrue(QuizCard.givesAway(meaning: "豆腐", headword: "豆腐"))
+        XCTAssertTrue(QuizCard.givesAway(meaning: "夜市", headword: "夜市"))
+        XCTAssertTrue(QuizCard.givesAway(meaning: "鶏肉", headword: "雞肉"))
+        XCTAssertTrue(QuizCard.givesAway(meaning: "ラーメン（麺）", headword: "拉麵"))
+        XCTAssertTrue(QuizCard.givesAway(meaning: "珍珠奶茶", headword: "珍珠奶茶"))
+        XCTAssertFalse(QuizCard.givesAway(meaning: "ほうき", headword: "掃把"))
+        XCTAssertFalse(QuizCard.givesAway(meaning: "umbrella", headword: "雨傘"))
+        XCTAssertTrue(QuizCard.givesAway(meaning: "自転車", headword: "腳踏車"), "車 は同じ字")
+    }
 }

@@ -500,8 +500,8 @@
   "target": null,
   "source": null,
   "hanOnlyOk": false,
-  "expect": false,
-  "why": "欧文混じりは判定しない"
+  "expect": true,
+  "why": "欧文（MRT）が混じっても、英字を除けば中文の注記（的・車票）。日本語の読者に出さない（2026-11-03 点検 T42 で改めた。前は「欧文混じりは判定しない」）"
  },
  {
   "id": "W-I8-a",
@@ -2571,5 +2571,77 @@
   "why": "パーツの間が5字以上離れていればそのチャンクとは見ない",
   "expected": "-",
   "chunk": "小籠包:N+配:V+薑絲:N"
+ },
+ {
+  "id": "L-mix-1",
+  "rule": "R4",
+  "fn": "looksWrong",
+  "text": "很多人用LINE傳訊息給朋友",
+  "reader": "ja",
+  "target": null,
+  "source": null,
+  "hanOnlyOk": false,
+  "expect": true,
+  "why": "英字（店・商品の名前）が混じる中文の注記は日本語の読者に出さない（点検 T42）"
+ },
+ {
+  "id": "L-mix-2",
+  "rule": "R4",
+  "fn": "looksWrong",
+  "text": "在7-ELEVEN也買得到這種飲料",
+  "reader": "ja",
+  "target": null,
+  "source": null,
+  "hanOnlyOk": false,
+  "expect": true,
+  "why": "同上（T42）"
+ },
+ {
+  "id": "L-mix-3",
+  "rule": "R4",
+  "fn": "looksWrong",
+  "text": "LINEでメッセージを送る",
+  "reader": "ja",
+  "target": null,
+  "source": null,
+  "hanOnlyOk": false,
+  "expect": false,
+  "why": "英字の混じる和文は残す"
+ },
+ {
+  "id": "L-mix-4",
+  "rule": "R4",
+  "fn": "looksWrong",
+  "text": "一種台灣的手搖飲料",
+  "reader": "ja",
+  "target": null,
+  "source": null,
+  "hanOnlyOk": true,
+  "expect": true,
+  "why": "中文にしか出ない字のある漢字だけの意味は中文（T44）"
+ },
+ {
+  "id": "L-mix-5",
+  "rule": "R4",
+  "fn": "looksWrong",
+  "text": "自動販売機",
+  "reader": "ja",
+  "target": null,
+  "source": null,
+  "hanOnlyOk": true,
+  "expect": false,
+  "why": "漢字だけの正しい和文の意味は残す（T43）"
+ },
+ {
+  "id": "L-mix-6",
+  "rule": "R4",
+  "fn": "looksWrong",
+  "text": "台湾高速鉄道",
+  "reader": "ja",
+  "target": null,
+  "source": null,
+  "hanOnlyOk": true,
+  "expect": false,
+  "why": "同上"
  }
 ]

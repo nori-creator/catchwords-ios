@@ -373,8 +373,8 @@ private struct RuledLabel: UIViewRepresentable {
     let size: CGFloat
     let lineHeight: CGFloat
 
-    func makeUIView(context: Context) -> UILabel {
-        let label = UILabel()
+    func makeUIView(context: Context) -> SilentLabel {
+        let label = SilentLabel()
         label.numberOfLines = 0
         label.lineBreakMode = .byWordWrapping
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -382,14 +382,45 @@ private struct RuledLabel: UIViewRepresentable {
         return label
     }
 
-    func updateUIView(_ label: UILabel, context: Context) {
-        label.attributedText = attributed
+    /// The text, size and line height last built, the string built from them, and the key last given to the label.
+    final class Coordinator {
+        var key: String?
+        var text = NSAttributedString()
+        var shown: String?
+    }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    private var key: String { "\(text)\u{1}\(size)\u{1}\(lineHeight)" }
+
+    /// The string for the current text, built once per change and kept on the coordinator.
+    private func current(_ coordinator: Coordinator) -> NSAttributedString {
+        if coordinator.key != key {
+            coordinator.key = key
+            coordinator.text = attributed
+        }
+        return coordinator.text
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UILabel, context: Context) -> CGSize? {
+    func updateUIView(_ label: SilentLabel, context: Context) {
+        // Set only when something changed. The light / dark colours follow by themselves (dynamic UIColors).
+        let string = current(context.coordinator)
+        guard context.coordinator.shown != key else { return }
+        context.coordinator.shown = key
+        label.attributedText = string
+    }
+
+    /// The height comes from the text alone (the same width always gives the same height), never from the label's
+    /// own state: on the word page (display English, learning 中文) the label's size moved each time SwiftUI placed
+    /// it, the page measured again, and it went round without end — the app stopped answering after a scroll to the
+    /// 台湾メモ (UI test test_3_en_zh, 2026-11-03, twice).
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: SilentLabel, context: Context) -> CGSize? {
         guard let width = proposal.width, width > 0, width.isFinite else { return nil }
-        let fit = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        let lines = max(1, (fit.height / lineHeight).rounded())
+        let box = current(context.coordinator).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+        let lines = max(1, (ceil(box.height) / lineHeight).rounded())
         return CGSize(width: width, height: lines * lineHeight)
     }
 
@@ -427,6 +458,13 @@ private struct RuledLabel: UIViewRepresentable {
         }
         return out
     }
+}
+
+/// A UILabel that never asks to be measured again: no size of its own (SwiftUI's `sizeThatFits` gives it), and a
+/// new width or text does not tell the layout above it that its size moved.
+final class SilentLabel: UILabel {
+    override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric) }
+    override func invalidateIntrinsicContentSize() {}
 }
 
 /// The 台湾メモ's phrases to remember (版25 §7, owner 2026-10-26「入れる」): the server wraps one or two of them in `**`.

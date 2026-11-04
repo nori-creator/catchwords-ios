@@ -188,6 +188,14 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         }
         let grid = labelMaskCopy()
         var out: [(cut: Cut?, note: String?)] = []
+        /// The grid pixels each thing's cut keeps (for `takesOthers`), when known.
+        var kept: [[Bool]?] = []
+        func labelBits(_ labels: [Int]) -> [Bool]? {
+            guard let g = grid else { return nil }
+            var on = [Bool](repeating: false, count: 256)
+            for l in labels where l > 0 && l < 256 { on[l] = true }
+            return g.mask.map { on[Int($0)] }
+        }
         for i in 0..<n {
             let p = plans[i]
             var note = p.note
@@ -196,9 +204,19 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             if let h = hits[i] {
                 add("Vision on a crop round its box found it whole")
                 out.append((h.cut, note))
+                kept.append(h.grid.map { $0.map { $0 != 0 } })
                 continue
             }
+            // Mostly outside its box and no crop found it alone: the whole instance (a box drawn smaller than the thing is
+            // common — the cut-out harness's box-small cases). When that instance is mostly other named things, the
+            // check after this loop drops it for the photo round the box.
             if p.refine != nil { add("no crop found it whole: the whole instance") }
+            switch p.cut {
+            case .instance(let l): kept.append(labelBits([l]))
+            case .union(let ls): kept.append(labelBits(ls))
+            case .part(_, let keep): kept.append(keep.bits.map { $0 != 0 })
+            case .noMask: kept.append(nil)
+            }
             switch p.cut {
             case .instance(let l):
                 out.append((cut(instance: l), note))
@@ -236,6 +254,22 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                 let h = regionHit(box, point: points[i], fadeIfCut: true).flatMap { isTheThing($0, i) ? $0 : nil }
                 add(h == nil ? "no cut-out (no crop round its box found it either)" : "cut from a crop round its box")
                 out.append((h?.cut, note))
+                kept[kept.count - 1] = h?.grid.map { $0.map { $0 != 0 } }
+            }
+        }
+        // A cut-out that is mostly other named things (the spoon's cut that was the cup, the saucer and the spoon) is
+        // not this thing: the photo round its box instead (owner 2026-10-26: 「別の物を切り抜くくらいなら四角」, check
+        // 2026-11-03 S12). The caller falls back to `StickerCrop.shaped` for a thing without a cut-out.
+        if let g = grid {
+            for i in 0..<n {
+                guard out[i].cut != nil, let own = boxes[i], let mine = kept[i], mine.count == g.width * g.height else { continue }
+                let others = boxes.indices.filter { $0 != i }.compactMap { boxes[$0] }
+                let share = Self.othersShare(mine, own: own, others: others, width: g.width, height: g.height)
+                if share > Self.othersLimit {
+                    let why = String(format: "%.0f%% of it lies in other things' boxes: no cut-out (the photo round its box)", share * 100)
+                    out[i] = (nil, (out[i].note.map { $0 + "; " } ?? "") + why)
+                    Self.trace?("thing \(i + 1): \(why)")
+                }
             }
         }
         // A cut-out that is likely wrong is not used: the photo round the thing's box, as a rectangle, instead (owner
@@ -336,6 +370,15 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             }
         }
         return total == 0 ? 0 : Double(theirs) / Double(total)
+    }
+
+    /// Above this share of a cut-out lying in other things' boxes (and not in its own), it is not used (`render`). Half: a
+    /// cup with its saucer stays the cup; the spoon whose cut-out was the cup, the saucer and the spoon does not.
+    static let othersLimit = 0.5
+
+    /// The share of `mine`'s pixels that lie outside `own` and inside one of `others` (boxes 0–1 of the photo).
+    static func othersShare(_ mine: [Bool], own: CGRect, others: [CGRect], width w: Int, height h: Int) -> Double {
+        share(of: mine.map { $0 ? 1 : 0 }, outside: own, inAny: others, width: w, height: h)
     }
 
     /// `bits` grown by one pixel (8 neighbours).

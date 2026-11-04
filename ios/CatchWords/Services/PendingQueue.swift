@@ -6,8 +6,8 @@ nonisolated struct PendingCatch: Codable, Identifiable, Sendable, Hashable {
     let id: String
     let createdAt: Date
     var reason: String
-    let lat: Double?
-    let lng: Double?
+    var lat: Double?
+    var lng: Double?
     /// The account that took the photo. Another account signed in on this device never sees it (or
     /// saves it into its own dex); the file stays until its owner comes back. nil = taken before
     /// photos were kept per account, or as a local guest — the next account that signs in adopts it.
@@ -180,6 +180,16 @@ final class PendingQueue {
         try? FileManager.default.removeItem(at: fileURL(id))
         try? FileManager.default.removeItem(at: extraURL(id, .cutout))
         try? FileManager.default.removeItem(at: extraURL(id, .selfie))
+    }
+
+    /// Where the photo was taken, once it is known (the shutter does not wait for the location): a photo opened from
+    /// here later is named after where it was taken, not where the phone is then (check 2026-11-03 B1).
+    func updateLocation(id: String, lat: Double, lng: Double) {
+        var all = readIndex()
+        guard let i = all.firstIndex(where: { $0.id == id }), all[i].lat == nil else { return }
+        all[i].lat = lat
+        all[i].lng = lng
+        save(all)
     }
 
     func updateReason(id: String, reason: String) {

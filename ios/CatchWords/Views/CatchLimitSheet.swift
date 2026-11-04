@@ -11,6 +11,8 @@ struct CatchLimitSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        // Scrolls when it does not fit (a small iPhone, large text, check 2026-11-03 B6); otherwise it sits still.
+        ScrollView {
         VStack(spacing: 18) {
             Image(systemName: plan.remainingToday == 0 ? "moon.stars.fill" : "camera.fill")
                 .font(.system(size: 34, weight: .semibold))
@@ -60,6 +62,8 @@ struct CatchLimitSheet: View {
         .padding(.horizontal, 24)
         .padding(.top, 28)
         .padding(.bottom, 12)
+        }
+        .scrollBounceBehavior(.basedOnSize)
         .task { if offersAd { ads.prepare() } }
     }
 

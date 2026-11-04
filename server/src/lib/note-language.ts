@@ -32,6 +32,13 @@ const NON_CJK_LETTER = /[A-Za-zЀ-ӿ가-힯]/;
 /** 漢字。 */
 const HAN = /[㐀-䶿一-鿿々]/;
 
+/**
+ * **中文にしか出ない字**（日本語の短い語句・説明には出ない）。漢字だけの意味でも、これを含めば中文とみなす
+ * （2026-11-03 点検 T44: 「一種台灣的手搖飲料」が日本語の読者の意味として通っていた）。日本語でも使う字
+ * （個・給・還・種・誰…）は入れない。iOS の `LanguageRules.chineseOnly` と同じ字。
+ */
+export const CHINESE_ONLY = /[的這們很說裡讓沒嗎呢吧嘛麼灣臺會學國體點氣對從與她您妳吃喝]/;
+
 /** これ以下の長さなら落とさない(「書類用」のような短い和文を守る)。 */
 export const MIN_SUSPECT_CHARS = 5;
 
@@ -50,8 +57,16 @@ export function looksLikeTargetNote(text: string | null | undefined, explanation
   const s = core(text ?? "");
   if (s.length < MIN_SUSPECT_CHARS) return false;
   if (KANA.test(s)) return false; // かながあれば日本語
-  if (NON_CJK_LETTER.test(s)) return false; // 欧文が混じるなら判定しない
-  return HAN.test(s); // 漢字だけのまとまった文 = 中国語とみなす
+  // キリル文字・ハングルが混じるなら判定しない。英字は店・商品の名前（LINE・7-ELEVEN）がよく入るので、
+  // 漢字より少なければ外して見る（2026-11-03 点検 T42: 英字が1つあるだけで中文の注記が通っていた）。
+  if (/[Ѐ-ӿ가-힯]/.test(s)) return false;
+  const latin = (s.match(/[A-Za-z]/g) ?? []).length;
+  const han = (s.match(/[㐀-䶿一-鿿々]/g) ?? []).length;
+  // 中文にしか出ない字があれば中文（「MRT的車票」）。iOS の LanguageRules と同じ。
+  if (han > 0 && CHINESE_ONLY.test(s)) return true;
+  if (latin > 0 && latin >= han) return false;
+  // 漢字だけのまとまった文 = 中国語とみなす。英字の混じる文は、英字を除いた漢字が 4 字以上の時だけ。
+  return latin === 0 ? han > 0 : han >= MIN_SUSPECT_CHARS - 1;
 }
 
 /** 学ぶ言語で書かれていた注記を空にする。**書き換えず、落とすだけ。** */
@@ -154,6 +169,8 @@ export function looksWrongForReader(
   if (lang.startsWith("zh") && hangulCount > 0 && hangulCount >= hanCount) return true;
   if (lang === "ja") {
     if (!opts.hanOnlyOk && looksLikeTargetNote(s, "ja")) return true;
+    // 漢字だけの意味でも、中文にしか出ない字があれば中文（「一種台灣的手搖飲料」）。
+    if (opts.hanOnlyOk && !KANA.test(s) && hangulCount === 0 && CHINESE_ONLY.test(s)) return true;
     if (!HAN.test(s) && !KANA.test(s) && latin >= 5) return true;
     return mostlyLatin;
   }

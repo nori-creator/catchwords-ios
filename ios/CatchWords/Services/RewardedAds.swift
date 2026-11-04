@@ -63,6 +63,8 @@ final class RewardedAds: NSObject {
                 }
                 if !self.started {
                     self.started = true
+                    // The app is rated 4+ on the App Store: ads rated for general audiences only (check 2026-11-03 T17).
+                    MobileAds.shared.requestConfiguration.maxAdContentRating = .general
                     _ = await MobileAds.shared.start()
                 }
                 self.load()

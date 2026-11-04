@@ -237,9 +237,18 @@ export function nextSrs(
   if (memory && rating > 1 && (opts.evidence ?? "choice") === "choice") {
     stability = memory.stability + (next.stability - memory.stability) * CHOICE_GAIN;
   }
+  // 正解（Hard を含む）は間隔を必ず伸ばす（2026-11-03 点検 S17）。安定度は整数の日で持つので、伸びが 0.5 日に
+  // 届かない苦手な語（難しさ D が高い・4択で伸びが半分）は四捨五入で毎回 1 日に戻り、正解し続けても抜けなかった。
+  // 正解の時は前の間隔より 1 日以上長くする。
+  // 同じ日の二度目の答え（予定の半分も経っていない）は今までどおり伸ばさない。
+  const onTime = elapsed >= prev.interval_days / 2;
+  const interval =
+    memory && rating > 1 && onTime
+      ? clamp(Math.max(storedStability(stability), prev.interval_days + 1), MIN_INTERVAL_DAYS, MAX_INTERVAL_DAYS)
+      : storedStability(stability);
   return {
     ease: difficultyToEase(next.difficulty),
-    interval_days: storedStability(stability),
+    interval_days: interval,
     repetitions: rating === 1 ? 0 : prev.repetitions + 1,
   };
 }

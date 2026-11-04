@@ -50,6 +50,10 @@ final class ReadingAndCategoryTests: XCTestCase {
             ("桃花", "flower"), ("插座", "home"), ("抹布", "tool"), ("燒仙草", "dessert"),
             // 2026-10-15: a bouquet caught before its card came sat in その他.
             ("花束", "flower"), ("花籃", "flower"), ("捧花", "flower"), ("花圈", "flower"),
+            // 2026-11-03 (check M38・T46): rules had overridden the AI's right category.
+            ("咖啡店", "shop"), ("麵包店", "shop"), ("手機店", "shop"), ("火車站", "building"),
+            ("信用卡", "money"), ("悠遊卡", "money"), ("汽車鑰匙", "tool"), ("刮鬍刀", "medicine"),
+            ("咖啡機", "appliance"), ("麻花", "dessert"), ("地瓜", "vegetable"), ("天燈", "street"),
         ]
         for (headword, key) in cases {
             XCTAssertEqual(CategoryRules.rule(for: headword), key, headword)

@@ -471,7 +471,8 @@ export const getReaderMeanings = createServerFn({ method: "POST" })
     const best = new Map<string, Record<string, unknown>>();
     for (const r of rows ?? []) {
       const id = String(r.word_id ?? "");
-      const m = readerText(String(r.meaning ?? ""), data.explain_lang).trim();
+      // 意味（短い語句）の判定: 漢字だけの正しい和文（自動販売機）を落とさない（2026-11-03 点検 T43）。
+      const m = readerMeaning(String(r.meaning ?? ""), data.explain_lang).trim();
       if (!id || !m) continue;
       const have = best.get(id);
       if (!have || rank(r.source) > rank(have.source)) best.set(id, { ...r, meaning: m });
@@ -744,7 +745,17 @@ export const fillReaderMeanings = createServerFn({ method: "POST" })
 
     // 3. AI。**意味だけ**を、学習言語ごとに1回でまとめて書かせる。
     const left = missing.filter((w) => !fresh.has(w.id));
+    // AI に送るのは、同意した人だけ（2026-11-03 点検: この関数は同意を確かめていなかった）。同意が無ければ、
+    // 共有の意味・辞書で決まった物だけを返す。
+    let consented = true;
     if (left.length > 0) {
+      try {
+        await (await import("./ai-consent.server")).assertAiConsent(userId);
+      } catch {
+        consented = false;
+      }
+    }
+    if (left.length > 0 && consented) {
       const ai = await import("./ai-provider.server");
       const { targetProfile } = await import("./target-profile");
       const { generateText } = await import("ai");

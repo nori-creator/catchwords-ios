@@ -144,7 +144,7 @@ final class ChunkReadingTests: XCTestCase {
         XCTAssertEqual(ChunkKind(pos: "Vaux"), .verb)
         XCTAssertEqual(ChunkKind(pos: "Vs"), .stative)
         XCTAssertEqual(ChunkKind(pos: "Vs-attr"), .stative)
-        XCTAssertEqual(ChunkKind(pos: "Vst"), .stative)
+        XCTAssertEqual(ChunkKind(pos: "Vst"), .verb, "喜歡・怕・需要 take an object: a verb, not an adjective (H5, 2026-11-03)")
         XCTAssertEqual(ChunkKind(pos: "Adv"), .adverb)
         XCTAssertEqual(ChunkKind(pos: "N"), .noun)
         XCTAssertEqual(ChunkKind(pos: "S"), .noun, "the old role code 主語")
