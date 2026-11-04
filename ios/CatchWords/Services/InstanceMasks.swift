@@ -311,11 +311,22 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         let total = mine.reduce(0) { $0 + Int($1) }
         if total > 0 {
             for j in others {
-                guard let g = grids[j], g.count == mine.count else { continue }
-                var both = 0
-                for k in mine.indices where mine[k] != 0 && g[k] != 0 { both += 1 }
+                guard let g = grids[j], g.count == mine.count, let bj = boxes[j] else { continue }
+                // A part of this thing named on its own (its box inside this one): sharing its pixels is right.
+                if CatchPlan.cover(own, of: bj) >= Double(CatchPlan.nestedShare) { continue }
+                // Where the two cut-outs overlap: on this thing's side (its box, not the other's) the other one took
+                // this thing — this one is right; on the other's side this one took the other thing.
+                var both = 0, mineSide = 0, theirSide = 0
+                for k in mine.indices where mine[k] != 0 && g[k] != 0 {
+                    both += 1
+                    let pt = CGPoint(x: (CGFloat(k % w) + 0.5) / CGFloat(w), y: (CGFloat(k / w) + 0.5) / CGFloat(h))
+                    let inMine = own.contains(pt), inTheirs = bj.contains(pt)
+                    if inMine && !inTheirs { mineSide += 1 }
+                    if inTheirs && !inMine { theirSide += 1 }
+                }
                 let s = Double(both) / Double(total)
-                if s > doubtOthers { return String(format: "%.0f%% of the cut-out is thing %d's too", s * 100, j + 1) }
+                guard s > doubtOthers, theirSide > mineSide else { continue }
+                return String(format: "%.0f%% of the cut-out is thing %d's too, on its side", s * 100, j + 1)
             }
         }
         let split = !plans[i].sharedWith.isEmpty || plans[i].note?.contains("split where they meet") == true
