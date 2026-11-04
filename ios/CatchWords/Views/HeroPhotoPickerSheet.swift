@@ -15,6 +15,9 @@ struct HeroPhotoPickerSheet: View {
     /// 自撮りを撮る, under 写真を替える (owner 2026-10-14: moved here from the bottom of the word page). The word page
     /// saves it; nil = not offered (no front camera, or the word is still being saved).
     var onSelfie: ((UIImage) async -> Void)? = nil
+    /// 囲んで切り抜き直す (owner 2026-11-04): the word page opens `LassoCutoutView` on the original photo; nil = not offered
+    /// (no original photo, or the word is still being saved).
+    var onRecut: (() -> Void)? = nil
 
     @State private var takingSelfie = false
     @State private var savingSelfie = false
@@ -114,6 +117,23 @@ struct HeroPhotoPickerSheet: View {
                     .scaledFont(size: 13, weight: .medium)
                     .foregroundStyle(Theme.primary)
                     .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            if onRecut != nil, sticker.objectImageUrl != nil {
+                Button {
+                    dismiss()
+                    onRecut?()
+                } label: {
+                    Label(L("囲んで切り抜き直す"), systemImage: "lasso")
+                        .scaledFont(size: 16, weight: .semibold)
+                        .foregroundStyle(Theme.foreground)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Theme.card, in: .rect(cornerRadius: 18, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Theme.border, lineWidth: 1))
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(saving != nil)
+                .accessibilityIdentifier("hero.recut")
+                .padding(.top, 4)
             }
             if onReplace != nil {
                 PhotosPicker(selection: $newPhoto, matching: .images) {

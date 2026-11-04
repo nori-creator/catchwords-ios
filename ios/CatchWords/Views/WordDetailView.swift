@@ -61,6 +61,8 @@ struct WordDetailView: View {
     @State private var selfieRatio: CGFloat?
     @State private var selfieCutRatio: CGFloat?
     @State private var pickingHero: Bool = false
+    /// 囲んで切り抜き直す (owner 2026-11-04): the original photo whose cut-out is being made again (`LassoCutoutView`).
+    @State private var recutting: RecutTarget?
     @State private var refreshing: Set<CardSection> = []
     @State private var editingCaption: Bool = false
     @State private var captionDraft: String = ""
@@ -142,6 +144,19 @@ struct WordDetailView: View {
 
     /// A selfie can be taken for this photo (its own photo, a front camera, already saved).
     private var canTakeSelfie: Bool { shown.hasOwnPhoto && SelfieCamera.isAvailable && shownEditable }
+
+    /// 囲んで切り抜き直す, offered when the photo on screen is saved and has its original.
+    private var recutHandler: (() -> Void)? {
+        guard shownEditable, let path = shown.objectImageUrl else { return nil }
+        let target = RecutTarget(path: path, encounter: dex.savedEncounterId(shown))
+        return {
+            // After the sheet has gone down: a cover cannot come up while it is still going.
+            Task {
+                try? await Task.sleep(for: .milliseconds(450))
+                recutting = target
+            }
+        }
+    }
 
     /// 自撮りを撮る in the long-press photo sheet, under 写真を替える (owner 2026-10-14); nil = not offered.
     private var selfieHandler: ((UIImage) async -> Void)? {
@@ -387,6 +402,11 @@ struct WordDetailView: View {
         .onAppear { pageAppeared() }
         .aiConsentSheet(isPresented: $askAIConsent)
         .sheet(item: $editingPlace) { s in placeSheet(s) }
+        .fullScreenCover(item: $recutting) { target in
+            LassoCutoutView(photoPath: target.path) { image in
+                try await saveRecut(image, encounter: target.encounter)
+            }
+        }
         .sheet(isPresented: $pickingHero) {
             HeroPhotoPickerSheet(sticker: shown, onPick: { role in
                 if let eid = dex.savedEncounterId(shown) {
@@ -398,7 +418,7 @@ struct WordDetailView: View {
             }, onReplace: { item in
                 // 写真を替える sits at the bottom of this sheet now (owner 2026-10-11).
                 Task { await replacePhoto(item) }
-            }, onSelfie: selfieHandler)
+            }, onSelfie: selfieHandler, onRecut: recutHandler)
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(32)
@@ -2291,6 +2311,19 @@ struct WordDetailView: View {
         .padding(.top, 6)
     }
 
+    /// 囲んで切り抜き直す: the new cut-out replaces the old one, and the page shows it (表示する写真 = 切り抜き).
+    private func saveRecut(_ image: UIImage, encounter eid: String?) async throws {
+        if let eid {
+            try await dex.addEncounterCutout(eid, image: image)
+            try? await dex.setEncounterHeroRole(eid, role: "cutout")
+        } else {
+            try await dex.addCutout(to: current, image: image)
+            try? await dex.setHeroRole(current, role: "cutout")
+        }
+        applyHeroRole(animated: true)
+        showToast(L("切り抜きを直しました"))
+    }
+
     /// 写真を替える (from the long-press photo sheet): upload + web replaceStickerPhoto; the new photo is cut out too.
     private func replacePhoto(_ item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self),
@@ -2653,4 +2686,11 @@ struct DerivedContent {
 /// Holds `DerivedContent` across the page's draws (a class: filling it while the page is drawn changes nothing on screen).
 final class DerivedMemo {
     var content: DerivedContent?
+}
+
+/// The photo `LassoCutoutView` makes a cut-out again from: the first photo's (`encounter` nil) or a later one's.
+private struct RecutTarget: Identifiable {
+    let path: String
+    let encounter: String?
+    var id: String { path }
 }

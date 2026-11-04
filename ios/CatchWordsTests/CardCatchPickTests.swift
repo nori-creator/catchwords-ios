@@ -11,6 +11,66 @@ final class CardCatchPickTests: XCTestCase {
                   point: point, confidence: 0.9, alternatives: [], group: group)
     }
 
+    // MARK: 囲んで切り抜き直す (LassoCut)
+
+    /// A square loop from (x0,y0) to (x1,y1), 0–1, with points along its sides.
+    private func squareLoop(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat) -> [CGPoint] {
+        var pts: [CGPoint] = []
+        for i in 0..<5 { pts.append(CGPoint(x: x0 + (x1 - x0) * CGFloat(i) / 5, y: y0)) }
+        for i in 0..<5 { pts.append(CGPoint(x: x1, y: y0 + (y1 - y0) * CGFloat(i) / 5)) }
+        for i in 0..<5 { pts.append(CGPoint(x: x1 - (x1 - x0) * CGFloat(i) / 5, y: y1)) }
+        for i in 0..<5 { pts.append(CGPoint(x: x0, y: y1 - (y1 - y0) * CGFloat(i) / 5)) }
+        return pts
+    }
+
+    func testALassoMarksTheGridInsideIt() {
+        let loop = squareLoop(0.25, 0.25, 0.75, 0.75)
+        XCTAssertEqual(LassoCut.area(loop), 0.25, accuracy: 0.001)
+        XCTAssertTrue(LassoCut.isLoop(loop))
+        let bits = LassoCut.inside(loop, width: 20, height: 20)
+        XCTAssertEqual(bits.reduce(0) { $0 + Int($1) }, 100)
+        XCTAssertEqual(bits[10 * 20 + 10], 1)
+        XCTAssertEqual(bits[2 * 20 + 2], 0)
+    }
+
+    func testATapOrAShortStrokeIsNoLoop() {
+        XCTAssertFalse(LassoCut.isLoop([CGPoint(x: 0.5, y: 0.5)]))
+        let line = (0..<20).map { CGPoint(x: 0.1 + CGFloat($0) * 0.02, y: 0.5) }
+        XCTAssertFalse(LassoCut.isLoop(line))
+        XCTAssertFalse(LassoCut.isLoop(squareLoop(0.5, 0.5, 0.52, 0.52)))
+    }
+
+    func testTheLassoKeepsTheThingInItWholeAndLeavesTheNeighbourItGrazes() {
+        // 20×20: the thing in two pieces (labels 1 and 2, a roller and its handle) inside the loop; a neighbour
+        // (label 3) on the right that the loop only touches.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 6..<14 { for x in 6..<10 { mask[y * w + x] = 1 } }
+        for y in 6..<14 { for x in 10..<13 { mask[y * w + x] = 2 } }
+        for y in 4..<16 { for x in 14..<20 { mask[y * w + x] = 3 } }
+        let loop = squareLoop(0.25, 0.25, 0.75, 0.75)   // x, y 5–14
+        let inside = LassoCut.inside(loop, width: w, height: h)
+        let picked = LassoCut.pick(mask: mask, inside: inside, width: w, height: h)
+        XCTAssertEqual(picked, [1, 2])
+        let keep = LassoCut.keep(mask: mask, labels: picked, inside: inside, width: w, height: h)
+        XCTAssertEqual(keep.reduce(0) { $0 + Int($1) }, 8 * 4 + 8 * 3)
+        XCTAssertEqual(keep[10 * w + 15], 0)
+    }
+
+    func testTheLassoCutsOffWhatOfTheThingLiesOutsideIt() {
+        // One instance runs well past the loop (Vision joined the thing to the table edge): only its part in the loop
+        // (and `slack` round it) is kept.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 6..<14 { for x in 2..<14 { mask[y * w + x] = 1 } }
+        let loop = squareLoop(0.25, 0.25, 0.75, 0.75)
+        let inside = LassoCut.inside(loop, width: w, height: h)
+        XCTAssertEqual(LassoCut.pick(mask: mask, inside: inside, width: w, height: h), [1])
+        let keep = LassoCut.keep(mask: mask, labels: [1], inside: inside, width: w, height: h)
+        XCTAssertEqual(keep[10 * w + 2], 0)
+        XCTAssertEqual(keep[10 * w + 8], 1)
+    }
+
     // MARK: Instances
 
     func testTwoObjectsNeverShareAnInstance() {
