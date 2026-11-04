@@ -61,8 +61,6 @@ struct WordDetailView: View {
     @State private var selfieRatio: CGFloat?
     @State private var selfieCutRatio: CGFloat?
     @State private var pickingHero: Bool = false
-    /// 囲んで切り抜き直す (owner 2026-11-04): the original photo whose cut-out is being made again (`LassoCutoutView`).
-    @State private var recutting: RecutTarget?
     @State private var refreshing: Set<CardSection> = []
     @State private var editingCaption: Bool = false
     @State private var captionDraft: String = ""
@@ -145,17 +143,13 @@ struct WordDetailView: View {
     /// A selfie can be taken for this photo (its own photo, a front camera, already saved).
     private var canTakeSelfie: Bool { shown.hasOwnPhoto && SelfieCamera.isAvailable && shownEditable }
 
-    /// 囲んで切り抜き直す, offered when the photo on screen is saved and has its original.
-    private var recutHandler: (() -> Void)? {
-        guard shownEditable, let path = shown.objectImageUrl else { return nil }
-        let target = RecutTarget(path: path, encounter: dex.savedEncounterId(shown))
-        return {
-            // After the sheet has gone down: a cover cannot come up while it is still going.
-            Task {
-                try? await Task.sleep(for: .milliseconds(450))
-                recutting = target
-            }
-        }
+    /// 囲んで切り抜き直す (owner 2026-11-04), offered in the long-press photo sheet when the photo on screen is saved
+    /// and has its original. The sheet opens `LassoCutoutView` itself, so the word page holds no presentation of its
+    /// own for it (one on the page made SwiftUI's update loop run without end on scrolling, UI test en/zh 2026-11-04).
+    private var recutHandler: ((UIImage) async throws -> Void)? {
+        guard shownEditable, shown.objectImageUrl != nil else { return nil }
+        let eid = dex.savedEncounterId(shown)
+        return { image in try await saveRecut(image, encounter: eid) }
     }
 
     /// 自撮りを撮る in the long-press photo sheet, under 写真を替える (owner 2026-10-14); nil = not offered.
@@ -402,11 +396,6 @@ struct WordDetailView: View {
         .onAppear { pageAppeared() }
         .aiConsentSheet(isPresented: $askAIConsent)
         .sheet(item: $editingPlace) { s in placeSheet(s) }
-        .fullScreenCover(item: $recutting) { target in
-            LassoCutoutView(photoPath: target.path) { image in
-                try await saveRecut(image, encounter: target.encounter)
-            }
-        }
         .sheet(isPresented: $pickingHero) {
             HeroPhotoPickerSheet(sticker: shown, onPick: { role in
                 if let eid = dex.savedEncounterId(shown) {
@@ -2686,11 +2675,4 @@ struct DerivedContent {
 /// Holds `DerivedContent` across the page's draws (a class: filling it while the page is drawn changes nothing on screen).
 final class DerivedMemo {
     var content: DerivedContent?
-}
-
-/// The photo `LassoCutoutView` makes a cut-out again from: the first photo's (`encounter` nil) or a later one's.
-private struct RecutTarget: Identifiable {
-    let path: String
-    let encounter: String?
-    var id: String { path }
 }
