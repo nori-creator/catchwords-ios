@@ -353,8 +353,15 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             if a && f { both += 1 }
             if a || f { either += 1 }
         }
-        guard either > 0, Double(both) >= Self.refineMinOverlap * Double(either),
-              let made = masks.cut(instances: IndexSet(labels)) else { return nil }
+        guard either > 0, Double(both) >= Self.refineMinOverlap * Double(either) else { return nil }
+        // A thing that runs on past the crop would come out cut straight along the crop's edge: kept as it was.
+        let left = r.minX > 0.5, right = r.maxX < W - 0.5, top = r.minY > 0.5, bottom = r.maxY < H - 0.5
+        for y in 0..<gh {
+            for x in 0..<gw where on[Int(g.mask[y * gw + x])] {
+                if (left && x == 0) || (right && x == gw - 1) || (top && y == 0) || (bottom && y == gh - 1) { return nil }
+            }
+        }
+        guard let made = masks.cut(instances: IndexSet(labels)) else { return nil }
         let mb = made.box
         let box = CGRect(x: (r.minX + mb.minX * r.width) / W, y: (r.minY + mb.minY * r.height) / H,
                          width: mb.width * r.width / W, height: mb.height * r.height / H)
