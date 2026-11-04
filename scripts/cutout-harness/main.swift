@@ -324,6 +324,8 @@ struct Row: Encodable {
 var rows: [Row] = []
 var failures = 0
 var readErrors = 0
+var rectangles = 0
+var variantRects: [String: Int] = [:]
 var visionWorked = false
 
 var visionCache: [String: InstanceMasks] = [:]
@@ -414,8 +416,14 @@ for c in allCases {
             }
             m = measure(onCanvas(made.cut), ref: ref, others: others, box: boxes[i], cut: made.cut, width: W, height: H)
             om = measure(onCanvas(old), ref: ref, others: others, box: boxes[i], cut: old, width: W, height: H)
-            if t.expect == "none", made.cut == nil {
-                // Expected: no cut-out (cases.json `why`).
+            if made.cut == nil {
+                // No cut-out: the app shows the photo round the box as a rectangle (owner 2026-11-04: 「失敗するなら
+                // 切り抜かず四角のまま表示して」). Not a wrong cut-out — counted apart (`rectangles`), so a change that
+                // gives up on things it used to cut out shows in the summary.
+                rectangles += 1
+                var r = variantRects[v.name] ?? 0
+                r += 1
+                variantRects[v.name] = r
             } else if t.check ?? true, let m {
                 if m.coverage < minCoverage { fails.append(String(format: "covers %.0f%% of the thing (< %.0f%%)", m.coverage * 100, minCoverage * 100)) }
                 if m.straight > maxStraight { fails.append(String(format: "a straight cut through the thing along %.0f%% of a line (%@)", m.straight * 100, m.straightAt)) }
@@ -453,8 +461,8 @@ for r in rows {
     md += "\(pct(r.oldMeasure?.straight)) → \(pct(r.measure?.straight)) | \(r.oldMeasure.map { $0.rectangle ? "yes" : "no" } ?? "-") → \(r.measure.map { $0.rectangle ? "yes" : "no" } ?? "-") | "
     md += "\(pct(r.measure?.leak)) | \(r.failures.isEmpty ? "ok" : "FAIL: " + r.failures.joined(separator: "; ")) |\n"
 }
-var rates = "\n| box | runs | failed |\n|---|---|---|\n"
-for v in boxVariants { if let t = variantTotals[v.name] { rates += "| \(v.name) | \(t.runs) | \(t.fails) |\n" } }
+var rates = "\n| box | runs | failed | rectangle (no cut-out) |\n|---|---|---|---|\n"
+for v in boxVariants { if let t = variantTotals[v.name] { rates += "| \(v.name) | \(t.runs) | \(t.fails) | \(variantRects[v.name] ?? 0) |\n" } }
 md = rates + "\n" + md
 try? md.write(to: out.appendingPathComponent("summary.md"), atomically: true, encoding: .utf8)
 let enc = JSONEncoder()
@@ -476,7 +484,7 @@ for r in rows where !r.failures.isEmpty {
 }
 let passingKnown = rows.filter { $0.failures.isEmpty && known.contains("\($0.id)|\($0.thing)") }
 for r in passingKnown { print("::notice::cut-out harness \(r.id) / \(r.thing) passes now: remove it from known-failures.json") }
-print("failures: \(rows.filter { !$0.failures.isEmpty }.count) (known \(rows.filter { !$0.failures.isEmpty }.count - unexpected), new \(unexpected)); known now passing: \(passingKnown.count)")
+print("failures: \(rows.filter { !$0.failures.isEmpty }.count) (known \(rows.filter { !$0.failures.isEmpty }.count - unexpected), new \(unexpected)); known now passing: \(passingKnown.count); rectangles (no cut-out): \(rectangles)")
 if !visionWorked {
     print("::error::Vision's foreground instance request did not run on this machine")
     exit(1)

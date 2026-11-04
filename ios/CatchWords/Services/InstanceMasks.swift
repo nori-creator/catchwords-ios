@@ -238,6 +238,57 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                 out.append((h?.cut, note))
             }
         }
+        // A cut-out that is likely wrong is not used: the photo round the thing's box, as a rectangle, instead (owner
+        // 2026-11-04: 「失敗するなら切り抜かず四角のまま表示して」; the caller falls back to `StickerCrop.shaped`).
+        for i in 0..<n {
+            guard let c = out[i].cut, let why = Self.doubtful(c, i, plans: plans, boxes: boxes) else { continue }
+            out[i] = (nil, (out[i].note.map { $0 + "; " } ?? "") + why + ": the photo round its box instead")
+            Self.trace?("thing \(i + 1): \(why) — no cut-out")
+        }
+        return out
+    }
+
+    /// Why a cut-out is likely wrong, nil when it is not (`render`). Only where two named things meet — a thing alone in
+    /// its box keeps its cut-out (the cut-out harness: the single things pass):
+    /// - another thing in it: this share of it lies outside its own box (grown 5%) and inside another named thing's box
+    ///   (a can's cut-out that holds the cake in front of it, keys with the flip-flop under them);
+    /// - a part of it missing: it shared one Vision instance with another thing and its outline covers less than
+    ///   `doubtCover` of its box (one flip-flop of a pair).
+    static func doubtful(_ c: Cut, _ i: Int, plans: [CatchPlan.Placement], boxes: [CGRect?]) -> String? {
+        guard let own = boxes[i] else { return nil }
+        let others = boxes.indices.filter { $0 != i }.compactMap { boxes[$0] }
+        guard !others.isEmpty else { return nil }
+        let w = 96, h = 96
+        guard let bits = alphaGrid(c, width: w, height: h) else { return nil }
+        let share = Self.share(of: bits, outside: own.insetBy(dx: -own.width * 0.05, dy: -own.height * 0.05),
+                               inAny: others, width: w, height: h)
+        if share > doubtOthers { return String(format: "%.0f%% of the cut-out lies in other things' boxes", share * 100) }
+        if !plans[i].sharedWith.isEmpty || plans[i].note?.contains("split where they meet") == true {
+            let cover = CatchPlan.cover(c.box, of: own)
+            if cover < doubtCover { return String(format: "the cut-out covers only %.0f%% of its box", cover * 100) }
+        }
+        return nil
+    }
+
+    /// Above this share of a cut-out in other things' boxes (outside its own), it is not used (`doubtful`).
+    static let doubtOthers = 0.15
+    /// A cut-out split from a shared instance that covers less than this share of its box is missing a part.
+    static let doubtCover = 0.45
+
+    /// The cut-out's opaque pixels on a `width` × `height` grid of the whole photo (1 = opaque).
+    static func alphaGrid(_ c: Cut, width w: Int, height h: Int) -> [UInt8]? {
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let data = ctx.data else { return nil }
+        let b = c.box
+        // CG's origin is the bottom left.
+        ctx.draw(c.cg, in: CGRect(x: b.minX * CGFloat(w), y: (1 - b.maxY) * CGFloat(h), width: b.width * CGFloat(w), height: b.height * CGFloat(h)))
+        let p = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        var out = [UInt8](repeating: 0, count: w * h)
+        for y in 0..<h {
+            for x in 0..<w where p[(y * w + x) * 4 + 3] > 127 { out[y * w + x] = 1 }
+        }
         return out
     }
 
