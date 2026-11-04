@@ -15,9 +15,6 @@ struct HeroPhotoPickerSheet: View {
     /// 自撮りを撮る, under 写真を替える (owner 2026-10-14: moved here from the bottom of the word page). The word page
     /// saves it; nil = not offered (no front camera, or the word is still being saved).
     var onSelfie: ((UIImage) async -> Void)? = nil
-    /// 囲んで切り抜き直す (owner 2026-11-04): saves the cut-out made again on the original photo (`LassoCutoutView`,
-    /// opened from this sheet); nil = not offered (no original photo, or the word is still being saved).
-    var onRecut: ((UIImage) async throws -> Void)? = nil
 
     @State private var takingSelfie = false
     @State private var recutting = false
@@ -55,6 +52,23 @@ struct HeroPhotoPickerSheet: View {
         return options.first { $0.id == "cutout" }?.id ?? "object"
     }
 
+    /// 囲んで切り抜き直す (owner 2026-11-04): on the original photo of a saved word (not the bundled sample). The sheet
+    /// opens `LassoCutoutView` and saves the cut-out itself; the word page is not changed for it (wiring it through the
+    /// page made the page's SwiftUI updates run without end on scrolling, UI test zh 2026-11-04).
+    private var canRecut: Bool { sticker.objectImageUrl != nil && !sticker.id.hasPrefix(SampleSticker.prefix) }
+
+    /// The new cut-out replaces the old one (the first photo's or a later one's), and the page shows it
+    /// (表示する写真 = 切り抜き, through `onPick`, which the page answers by showing the cut-out).
+    private func saveRecut(_ image: UIImage) async throws {
+        if let eid = dex.savedEncounterId(sticker) {
+            try await dex.addEncounterCutout(eid, image: image)
+        } else {
+            try await dex.addCutout(to: sticker, image: image)
+        }
+        chosen = "cutout"
+        try? await onPick("cutout")
+    }
+
     var body: some View {
         // Scrolls when it is taller than the sheet: at the half-height detent the tiles and buttons ran off the bottom
         // (owner 2026-10-14: 「表示する写真が見切れている」).
@@ -71,10 +85,10 @@ struct HeroPhotoPickerSheet: View {
             onReplace?(item)
         }
         .fullScreenCover(isPresented: $recutting) {
-            if let path = sticker.objectImageUrl, let onRecut {
+            if let path = sticker.objectImageUrl {
                 LassoCutoutView(photoPath: path) { image in
                     // The cover closes itself; this sheet stays, with the new cut-out among the pictures.
-                    try await onRecut(image)
+                    try await saveRecut(image)
                 }
             }
         }
@@ -127,7 +141,7 @@ struct HeroPhotoPickerSheet: View {
                     .foregroundStyle(Theme.primary)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            if onRecut != nil, sticker.objectImageUrl != nil {
+            if canRecut {
                 Button { recutting = true } label: {
                     Label(L("囲んで切り抜き直す"), systemImage: "lasso")
                         .scaledFont(size: 16, weight: .semibold)

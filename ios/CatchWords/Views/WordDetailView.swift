@@ -143,15 +143,6 @@ struct WordDetailView: View {
     /// A selfie can be taken for this photo (its own photo, a front camera, already saved).
     private var canTakeSelfie: Bool { shown.hasOwnPhoto && SelfieCamera.isAvailable && shownEditable }
 
-    /// 囲んで切り抜き直す (owner 2026-11-04), offered in the long-press photo sheet when the photo on screen is saved
-    /// and has its original. The sheet opens `LassoCutoutView` itself, so the word page holds no presentation of its
-    /// own for it (one on the page made SwiftUI's update loop run without end on scrolling, UI test en/zh 2026-11-04).
-    private var recutHandler: ((UIImage) async throws -> Void)? {
-        guard shownEditable, shown.objectImageUrl != nil else { return nil }
-        let eid = dex.savedEncounterId(shown)
-        return { image in try await saveRecut(image, encounter: eid) }
-    }
-
     /// 自撮りを撮る in the long-press photo sheet, under 写真を替える (owner 2026-10-14); nil = not offered.
     private var selfieHandler: ((UIImage) async -> Void)? {
         guard canTakeSelfie else { return nil }
@@ -407,7 +398,7 @@ struct WordDetailView: View {
             }, onReplace: { item in
                 // 写真を替える sits at the bottom of this sheet now (owner 2026-10-11).
                 Task { await replacePhoto(item) }
-            }, onSelfie: selfieHandler, onRecut: recutHandler)
+            }, onSelfie: selfieHandler)
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(32)
@@ -2298,19 +2289,6 @@ struct WordDetailView: View {
             }
         }
         .padding(.top, 6)
-    }
-
-    /// 囲んで切り抜き直す: the new cut-out replaces the old one, and the page shows it (表示する写真 = 切り抜き).
-    private func saveRecut(_ image: UIImage, encounter eid: String?) async throws {
-        if let eid {
-            try await dex.addEncounterCutout(eid, image: image)
-            try? await dex.setEncounterHeroRole(eid, role: "cutout")
-        } else {
-            try await dex.addCutout(to: current, image: image)
-            try? await dex.setHeroRole(current, role: "cutout")
-        }
-        applyHeroRole(animated: true)
-        showToast(L("切り抜きを直しました"))
     }
 
     /// 写真を替える (from the long-press photo sheet): upload + web replaceStickerPhoto; the new photo is cut out too.
