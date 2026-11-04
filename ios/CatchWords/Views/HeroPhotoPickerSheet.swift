@@ -17,6 +17,7 @@ struct HeroPhotoPickerSheet: View {
     var onSelfie: ((UIImage) async -> Void)? = nil
 
     @State private var takingSelfie = false
+    @State private var recutting = false
     @State private var savingSelfie = false
 
     @Environment(DexStore.self) private var dex
@@ -51,6 +52,23 @@ struct HeroPhotoPickerSheet: View {
         return options.first { $0.id == "cutout" }?.id ?? "object"
     }
 
+    /// 囲んで切り抜き直す (owner 2026-11-04): on the original photo of a saved word (not the bundled sample). The sheet
+    /// opens `LassoCutoutView` and saves the cut-out itself; the word page is not changed for it (wiring it through the
+    /// page made the page's SwiftUI updates run without end on scrolling, UI test zh 2026-11-04).
+    private var canRecut: Bool { sticker.objectImageUrl != nil && !sticker.id.hasPrefix(SampleSticker.prefix) }
+
+    /// The new cut-out replaces the old one (the first photo's or a later one's), and the page shows it
+    /// (表示する写真 = 切り抜き, through `onPick`, which the page answers by showing the cut-out).
+    private func saveRecut(_ image: UIImage) async throws {
+        if let eid = dex.savedEncounterId(sticker) {
+            try await dex.addEncounterCutout(eid, image: image)
+        } else {
+            try await dex.addCutout(to: sticker, image: image)
+        }
+        chosen = "cutout"
+        try? await onPick("cutout")
+    }
+
     var body: some View {
         // Scrolls when it is taller than the sheet: at the half-height detent the tiles and buttons ran off the bottom
         // (owner 2026-10-14: 「表示する写真が見切れている」).
@@ -65,6 +83,14 @@ struct HeroPhotoPickerSheet: View {
             newPhoto = nil
             dismiss()
             onReplace?(item)
+        }
+        .fullScreenCover(isPresented: $recutting) {
+            if let path = sticker.objectImageUrl {
+                LassoCutoutView(photoPath: path) { image in
+                    // The cover closes itself; this sheet stays, with the new cut-out among the pictures.
+                    try await saveRecut(image)
+                }
+            }
         }
         .fullScreenCover(isPresented: $takingSelfie) {
             SelfieCamera { image in
@@ -114,6 +140,20 @@ struct HeroPhotoPickerSheet: View {
                     .scaledFont(size: 13, weight: .medium)
                     .foregroundStyle(Theme.primary)
                     .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            if canRecut {
+                Button { recutting = true } label: {
+                    Label(L("囲んで切り抜き直す"), systemImage: "lasso")
+                        .scaledFont(size: 16, weight: .semibold)
+                        .foregroundStyle(Theme.foreground)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Theme.card, in: .rect(cornerRadius: 18, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Theme.border, lineWidth: 1))
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(saving != nil)
+                .accessibilityIdentifier("hero.recut")
+                .padding(.top, 4)
             }
             if onReplace != nil {
                 PhotosPicker(selection: $newPhoto, matching: .images) {

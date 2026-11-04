@@ -138,6 +138,7 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                 mayBePerson: [Bool]? = nil) -> [(cut: Cut?, note: String?)] {
         let n = plans.count
         let people = (mayBePerson ?? []).contains(false) ? personGrid() : nil
+        let gridSize = labelMaskCopy().map { (w: $0.width, h: $0.height) }
         func isTheThing(_ h: RegionHit, _ i: Int) -> Bool {
             guard let box = boxes[i] else { return true }
             if CatchPlan.cover(h.cut.box, of: box) < CatchPlan.minBoxCover {
@@ -147,6 +148,18 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             if mayBePerson?[i] == false, let g = h.grid, CatchPlan.isPerson(g, people: people) {
                 Self.trace?("thing \(i + 1): the crop's instance is a person — not used")
                 return false
+            }
+            // A crop's instance that lies much in other named things' boxes (and outside its own) holds another thing
+            // too (keys and the flip-flop under them, one instance again in the crop round the keys): not this thing
+            // alone (the cut-out harness, 2026-11-03).
+            if let g = h.grid, let size = gridSize, g.count == size.w * size.h {
+                let others = boxes.indices.filter { $0 != i }.compactMap { boxes[$0] }
+                let share = Self.share(of: g, outside: box.insetBy(dx: -box.width * 0.05, dy: -box.height * 0.05),
+                                       inAny: others, width: size.w, height: size.h)
+                if share > Self.cropOthersLimit {
+                    Self.trace?(String(format: "thing %d: %.0f%% of the crop's instance lies in other things' boxes — not used", i + 1, share * 100))
+                    return false
+                }
             }
             return true
         }
@@ -259,7 +272,115 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                 }
             }
         }
+        // A cut-out that is likely wrong is not used: the photo round the thing's box, as a rectangle, instead (owner
+        // 2026-11-04: 「失敗するなら切り抜かず四角のまま表示して」; the caller falls back to `StickerCrop.shaped`).
+        let w = 96, h = 96
+        let grids: [[UInt8]?] = out.map { $0.cut.flatMap { Self.alphaGrid($0, width: w, height: h) } }
+        let reasons: [String?] = (0..<n).map { i in
+            guard let c = out[i].cut, let g = grids[i] else { return nil }
+            return Self.doubtful(c, g, i, plans: plans, boxes: boxes, grids: grids, width: w, height: h)
+        }
+        for i in 0..<n {
+            guard let why = reasons[i] else { continue }
+            out[i] = (nil, (out[i].note.map { $0 + "; " } ?? "") + why + ": the photo round its box instead")
+            Self.trace?("thing \(i + 1): \(why) — no cut-out")
+        }
         return out
+    }
+
+    /// Why a cut-out is likely wrong, nil when it is not (`render`; `mine` is the cut-out on a `width` × `height` grid of
+    /// the photo, `grids` every thing's). Only where two named things are in the photo — a thing alone keeps its
+    /// cut-out (the cut-out harness: the single things pass):
+    /// - another thing in it: more than `doubtOthers` of it lies outside its own box (grown 5%) and inside another
+    ///   thing's box (a can's cut-out with the cake in front of it), or is also in another thing's cut-out (both kept
+    ///   what lies between them). A box that holds this box (a saucer's round its cup's) does not count;
+    /// - a part of it missing: when it was split from an instance shared with another thing, or found by Vision again
+    ///   on a crop, its outline spans less than `doubtSpan` of its box's width or height (one flip-flop of a pair).
+    static func doubtful(_ c: Cut, _ mine: [UInt8], _ i: Int, plans: [CatchPlan.Placement], boxes: [CGRect?],
+                         grids: [[UInt8]?], width w: Int, height h: Int) -> String? {
+        guard let own = boxes[i] else { return nil }
+        // Other things' boxes, without those this box lies in (`nestedShare`).
+        let others = boxes.indices.filter { $0 != i }.filter { j in
+            guard let b = boxes[j] else { return false }
+            return CatchPlan.cover(b, of: own) < Double(CatchPlan.nestedShare)
+        }
+        guard boxes.indices.contains(where: { $0 != i && boxes[$0] != nil }) else { return nil }
+        let share = Self.share(of: mine, outside: own.insetBy(dx: -own.width * 0.05, dy: -own.height * 0.05),
+                               inAny: others.compactMap { boxes[$0] }, width: w, height: h)
+        if share > doubtOthers { return String(format: "%.0f%% of the cut-out lies in other things' boxes", share * 100) }
+        let total = mine.reduce(0) { $0 + Int($1) }
+        if total > 0 {
+            for j in others {
+                guard let g = grids[j], g.count == mine.count, let bj = boxes[j] else { continue }
+                // A part of this thing named on its own (its box inside this one): sharing its pixels is right.
+                if CatchPlan.cover(own, of: bj) >= Double(CatchPlan.nestedShare) { continue }
+                // Where the two cut-outs overlap: on this thing's side (its box, not the other's) the other one took
+                // this thing — this one is right; on the other's side this one took the other thing.
+                var both = 0, mineSide = 0, theirSide = 0
+                for k in mine.indices where mine[k] != 0 && g[k] != 0 {
+                    both += 1
+                    let pt = CGPoint(x: (CGFloat(k % w) + 0.5) / CGFloat(w), y: (CGFloat(k / w) + 0.5) / CGFloat(h))
+                    let inMine = own.contains(pt), inTheirs = bj.contains(pt)
+                    if inMine && !inTheirs { mineSide += 1 }
+                    if inTheirs && !inMine { theirSide += 1 }
+                }
+                let s = Double(both) / Double(total)
+                guard s > doubtOthers, theirSide > mineSide else { continue }
+                return String(format: "%.0f%% of the cut-out is thing %d's too, on its side", s * 100, j + 1)
+            }
+        }
+        let split = !plans[i].sharedWith.isEmpty || plans[i].note?.contains("split where they meet") == true
+        let cropped = plans[i].refine != nil || plans[i].cut == .noMask
+        if split || cropped {
+            let o = c.box.intersection(own)
+            let spanW = o.isNull ? 0 : o.width / max(own.width, 1e-6), spanH = o.isNull ? 0 : o.height / max(own.height, 1e-6)
+            if min(spanW, spanH) < doubtSpan {
+                return String(format: "the cut-out spans only %.0f%% × %.0f%% of its box", spanW * 100, spanH * 100)
+            }
+        }
+        return nil
+    }
+
+    /// Above this share of a cut-out in other things' boxes (outside its own), it is not used (`doubtful`).
+    static let doubtOthers = 0.15
+    /// A cut-out split from a shared instance (or found on a crop) that spans less than this share of its box's width or
+    /// height is missing a part.
+    static let doubtSpan: CGFloat = 0.6
+
+    /// The cut-out's opaque pixels on a `width` × `height` grid of the whole photo (1 = opaque).
+    static func alphaGrid(_ c: Cut, width w: Int, height h: Int) -> [UInt8]? {
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let data = ctx.data else { return nil }
+        let b = c.box
+        // CG's origin is the bottom left.
+        ctx.draw(c.cg, in: CGRect(x: b.minX * CGFloat(w), y: (1 - b.maxY) * CGFloat(h), width: b.width * CGFloat(w), height: b.height * CGFloat(h)))
+        let p = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        var out = [UInt8](repeating: 0, count: w * h)
+        for y in 0..<h {
+            for x in 0..<w where p[(y * w + x) * 4 + 3] > 127 { out[y * w + x] = 1 }
+        }
+        return out
+    }
+
+    /// Above this share of a crop's instance in other things' boxes (outside its own), it is not the thing (`render`).
+    static let cropOthersLimit = 0.2
+
+    /// The share of `bits` (1 = on, a grid `width` × `height`) outside `own` and inside one of `others` (0–1 boxes).
+    static func share(of bits: [UInt8], outside own: CGRect, inAny others: [CGRect], width w: Int, height h: Int) -> Double {
+        guard !others.isEmpty else { return 0 }
+        var total = 0, theirs = 0
+        for y in 0..<h {
+            let fy = (CGFloat(y) + 0.5) / CGFloat(h)
+            for x in 0..<w where bits[y * w + x] != 0 {
+                total += 1
+                let pt = CGPoint(x: (CGFloat(x) + 0.5) / CGFloat(w), y: fy)
+                if own.contains(pt) { continue }
+                if others.contains(where: { $0.contains(pt) }) { theirs += 1 }
+            }
+        }
+        return total == 0 ? 0 : Double(theirs) / Double(total)
     }
 
     /// Above this share of a cut-out lying in other things' boxes (and not in its own), it is not used (`render`). Half: a
@@ -268,18 +389,7 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
 
     /// The share of `mine`'s pixels that lie outside `own` and inside one of `others` (boxes 0–1 of the photo).
     static func othersShare(_ mine: [Bool], own: CGRect, others: [CGRect], width w: Int, height h: Int) -> Double {
-        guard !others.isEmpty else { return 0 }
-        var total = 0, theirs = 0
-        for y in 0..<h {
-            let fy = (CGFloat(y) + 0.5) / CGFloat(h)
-            for x in 0..<w where mine[y * w + x] {
-                total += 1
-                let pt = CGPoint(x: (CGFloat(x) + 0.5) / CGFloat(w), y: fy)
-                if own.contains(pt) { continue }
-                if others.contains(where: { $0.contains(pt) }) { theirs += 1 }
-            }
-        }
-        return total == 0 ? 0 : Double(theirs) / Double(total)
+        share(of: mine.map { $0 ? 1 : 0 }, outside: own, inAny: others, width: w, height: h)
     }
 
     /// `bits` grown by one pixel (8 neighbours).
@@ -431,23 +541,30 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                         + (pick.label.map { "instance \($0) whole" } ?? pick.cutLabel.map { "instance \($0) cut by the crop's edge" }
                            ?? "none mostly inside the box"))
             if let label = pick.label {
-                return hit(result, handler, label: label, px: px, m: m, fade: nil)
+                // The thing's other pieces in the crop (a roller beside its handle), when the crop did not cut them.
+                var totals = [Int](repeating: 0, count: 256)
+                for v in m.mask where v != 0 { totals[Int(v)] += 1 }
+                let more = CatchPlan.gather([label], box: inner, mask: m.mask, totals: totals, excluding: [],
+                                            width: m.width, height: m.height)
+                    .filter { !Self.cutByOpenEdge(label: $0, mask: m.mask, width: m.width, height: m.height, open: open) }
+                if !more.isEmpty { Self.trace?("  with its pieces \(more) in the crop") }
+                return hit(result, handler, labels: [label] + more, px: px, m: m, fade: nil)
             }
             if let label = pick.cutLabel, cutOne == nil { cutOne = (result, handler, label, px, open, m) }
             guard pick.cutByEdge else { break }
         }
         if fadeIfCut, let c = cutOne {
-            return hit(c.result, c.handler, label: c.label, px: c.px, m: c.m, fade: c.open)
+            return hit(c.result, c.handler, labels: [c.label], px: c.px, m: c.m, fade: c.open)
         }
         return nil
     }
 
     /// A crop's instance as a `RegionHit` (faded towards `fade`'s open edges when given).
-    private func hit(_ result: VNInstanceMaskObservation, _ handler: VNImageRequestHandler, label: Int, px: CGRect,
+    private func hit(_ result: VNInstanceMaskObservation, _ handler: VNImageRequestHandler, labels: [Int], px: CGRect,
                      m: (mask: [UInt8], width: Int, height: Int),
                      fade: (left: Bool, top: Bool, right: Bool, bottom: Bool)?) -> RegionHit? {
         guard let photo,
-              let masked = try? result.generateMaskedImage(ofInstances: IndexSet(integer: label), from: handler,
+              let masked = try? result.generateMaskedImage(ofInstances: IndexSet(labels), from: handler,
                                                            croppedToInstancesExtent: false) else { return nil }
         let W = CGFloat(photo.width), H = CGFloat(photo.height)
         let ci = CIImage(cvPixelBuffer: masked)
@@ -469,7 +586,7 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                     let x = (CGFloat(gx) + 0.5) / CGFloat(g.width) * W
                     guard x >= px.minX, x < px.maxX else { continue }
                     let rx = min(m.width - 1, Int((x - px.minX) / px.width * CGFloat(m.width)))
-                    if Int(m.mask[ry * m.width + rx]) == label { b[gy * g.width + gx] = 1 }
+                    if labels.contains(Int(m.mask[ry * m.width + rx])) { b[gy * g.width + gx] = 1 }
                 }
             }
             bits = b
@@ -571,6 +688,24 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             if contact[e] > allowed { return true }
         }
         return false
+    }
+
+    /// Whether instance `label` of a crop's mask runs into one of the crop's open edges (`touchesOpenEdge`).
+    static func cutByOpenEdge(label: Int, mask: [UInt8], width w: Int, height h: Int,
+                              open: (left: Bool, top: Bool, right: Bool, bottom: Bool)) -> Bool {
+        var contact = [0, 0, 0, 0], edge = 0
+        var minX = Int.max, maxX = -1, minY = Int.max, maxY = -1
+        for y in 0..<h {
+            for x in 0..<w where Int(mask[y * w + x]) == label {
+                minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+                let touches = [open.left && x == 0, open.top && y == 0, open.right && x == w - 1, open.bottom && y == h - 1]
+                if touches.contains(true) { edge += 1 }
+                for e in 0..<4 where touches[e] { contact[e] += 1 }
+            }
+        }
+        guard maxX >= 0 else { return false }
+        return touchesOpenEdge(contact: contact, total: edge, extent: (width: maxX - minX + 1, height: maxY - minY + 1),
+                               crop: (width: w, height: h), open: open)
     }
 
     /// The share of a thing's own extent along an edge it may touch that edge with and still count as whole.

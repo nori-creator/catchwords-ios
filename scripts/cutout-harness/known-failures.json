@@ -1,0 +1,24 @@
+{
+ "why": "Failures the cut-out harness knew of on 2026-11-04 (commit 2927b7e, with the rectangle fallback): two things lying on each other that Vision saw as one instance, where the split is still wrong for some of the AI's boxes. The harness fails only on a failure not listed here, and says when a listed one passes (then remove it). Do not add a failure here to make CI green: fix it, or say in the PR why it cannot be fixed.",
+ "known": [
+  "cola+pineapple-cake-on-cafe/loose|鳳梨酥",
+  "cola+pineapple-cake-on-cafe/right|鳳梨酥",
+  "cola+pineapple-cake-on-floor/loose|鳳梨酥",
+  "cola+pineapple-cake-on-floor/right|鳳梨酥",
+  "keys+slippers-on-cafe/loose|鑰匙",
+  "keys+slippers-on-cafe/right|鑰匙",
+  "keys+slippers-on-floor/loose|拖鞋",
+  "keys+slippers-on-floor/loose|鑰匙",
+  "keys+slippers-on-floor/right|拖鞋",
+  "keys+slippers-on-floor/right|鑰匙",
+  "lint-roller+keys-on-cafe/loose|鑰匙",
+  "lint-roller+keys-on-cafe/right|鑰匙",
+  "lint-roller+keys-on-floor/left|滾筒黏毛器",
+  "lint-roller+keys-on-floor/loose|滾筒黏毛器",
+  "lint-roller+keys-on-floor/right|鑰匙",
+  "lint-roller+keys-on-floor/small|鑰匙",
+  "slippers-on-street/small|拖鞋",
+  "umbrella+lantern-on-cafe/loose|燈籠",
+  "umbrella+lantern-on-floor/loose|燈籠"
+ ]
+}

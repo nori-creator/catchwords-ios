@@ -50,6 +50,9 @@ struct CaseFile: Decodable {
         let photo: String
         let what: String
         let things: [Thing]
+        /// Run the case once for each of `boxVariants` (the AI's box tight, loose, small, shifted; its point off the
+        /// thing) — a cut-out must hold however the box falls on a given try (owner 2026-11-03).
+        let variants: Bool?
     }
     let photos: [Photo]
     let cases: [Case]
@@ -281,14 +284,31 @@ func sheet(photo: CGImage, boxes: [CGRect?], refs: [[UInt8]?], before: [Instance
 
 let args = CommandLine.arguments
 guard args.count >= 3 else {
-    print("usage: harness cases.json out-dir")
+    print("usage: harness cases.json [scenes.json …] out-dir")
     exit(2)
 }
 let casesURL = URL(fileURLWithPath: args[1])
 let base = casesURL.deletingLastPathComponent()
-let out = URL(fileURLWithPath: args[2], isDirectory: true)
+let out = URL(fileURLWithPath: args[args.count - 1], isDirectory: true)
 try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-let file = try JSONDecoder().decode(CaseFile.self, from: Data(contentsOf: casesURL))
+var allCases: [CaseFile.Case] = []
+for path in args[1..<(args.count - 1)] {
+    let f = try JSONDecoder().decode(CaseFile.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
+    allCases += f.cases
+}
+
+/// The AI's box as it may fall on another try: (name, box from the tight box, point from the box).
+let boxVariants: [(name: String, box: (CGRect) -> CGRect, point: (CGRect) -> CGPoint)] = [
+    ("tight", { $0 }, { CGPoint(x: $0.midX, y: $0.midY) }),
+    ("loose", { $0.insetBy(dx: -$0.width * 0.15, dy: -$0.height * 0.15) }, { CGPoint(x: $0.midX, y: $0.midY) }),
+    ("small", { $0.insetBy(dx: $0.width * 0.12, dy: $0.height * 0.12) }, { CGPoint(x: $0.midX, y: $0.midY) }),
+    ("right", { $0.offsetBy(dx: $0.width * 0.12, dy: 0) }, { CGPoint(x: $0.midX, y: $0.midY) }),
+    ("left", { $0.offsetBy(dx: -$0.width * 0.12, dy: 0) }, { CGPoint(x: $0.midX, y: $0.midY) }),
+    ("down", { $0.offsetBy(dx: 0, dy: $0.height * 0.12) }, { CGPoint(x: $0.midX, y: $0.midY) }),
+    ("up", { $0.offsetBy(dx: 0, dy: -$0.height * 0.12) }, { CGPoint(x: $0.midX, y: $0.midY) }),
+    ("point-off", { $0 }, { CGPoint(x: $0.minX + $0.width * 0.3, y: $0.minY + $0.height * 0.3) }),
+]
+func clamp(_ r: CGRect) -> CGRect { r.intersection(CGRect(x: 0, y: 0, width: 1, height: 1)) }
 InstanceMasks.trace = { print("    " + $0) }
 
 struct Row: Encodable {
@@ -303,20 +323,32 @@ struct Row: Encodable {
 }
 var rows: [Row] = []
 var failures = 0
+var readErrors = 0
+var rectangles = 0
+var variantRects: [String: Int] = [:]
 var visionWorked = false
 
-for c in file.cases {
+var visionCache: [String: InstanceMasks] = [:]
+var variantTotals: [String: (runs: Int, fails: Int)] = [:]
+for c in allCases {
+  for v in (c.variants == true ? boxVariants : [boxVariants[0]]) {
+    let caseID = c.variants == true ? "\(c.id)/\(v.name)" : c.id
     let url = base.appendingPathComponent("photos").appendingPathComponent(c.photo)
     guard let photo = loadUpright(url) else {
-        print("::error::\(c.id): cannot read \(c.photo)")
+        print("::error::\(caseID): cannot read \(c.photo)")
         failures += 1
+        readErrors += 1
         continue
     }
     let W = photo.width, H = photo.height
-    let rawPoints: [CGPoint?] = c.things.map { t in t.point.map { CGPoint(x: $0[0] / 1000, y: $0[1] / 1000) } }
-    let boxes: [CGRect?] = c.things.map { t in
+    let given: [CGRect?] = c.things.map { t in
         guard let b = t.box_2d, b.count == 4, b[2] > b[0], b[3] > b[1] else { return nil }
         return CGRect(x: b[1] / 1000, y: b[0] / 1000, width: (b[3] - b[1]) / 1000, height: (b[2] - b[0]) / 1000)
+    }
+    let boxes: [CGRect?] = given.map { $0.map { clamp(v.box($0)) } }
+    let rawPoints: [CGPoint?] = c.things.indices.map { i in
+        if c.variants == true, let g = given[i] { return v.point(clamp(v.box(g))) }
+        return c.things[i].point.map { CGPoint(x: $0[0] / 1000, y: $0[1] / 1000) }
     }
     // As `CatchObject.plannedThings`: the point (the box's middle when only a box came), own when not a repeat.
     let points: [CGPoint?] = c.things.indices.map { i in rawPoints[i] ?? boxes[i].map { CGPoint(x: $0.midX, y: $0.midY) } }
@@ -331,16 +363,39 @@ for c in file.cases {
         return alpha(of: img, in: CGRect(x: 0, y: 0, width: W, height: H), width: W, height: H, grey: true)
     }
     let started = Date()
-    print("\(c.id):")
-    guard let masks = InstanceMasks.make(from: photo), let grid = masks.labelMaskCopy() else {
-        print("::warning::\(c.id): Vision found no foreground instance")
-        rows.append(Row(id: c.id, thing: "-", before: "no Vision instance", after: "no Vision instance", note: nil,
+    print("\(caseID):")
+    guard let masks = visionCache[c.photo] ?? InstanceMasks.make(from: photo), let grid = masks.labelMaskCopy() else {
+        print("::warning::\(caseID): Vision found no foreground instance")
+        rows.append(Row(id: caseID, thing: "-", before: "no Vision instance", after: "no Vision instance", note: nil,
                         measure: nil, oldMeasure: nil, failures: ["Vision found nothing"]))
         failures += 1
         continue
     }
+    visionCache[c.photo] = masks
     visionWorked = true
     let labelsFound = Set(grid.mask.filter { $0 != 0 }).sorted()
+    // How Vision split each thing: the instances on its reference and the share of the thing each covers.
+    if v.name == "tight" {
+        for (i, t) in c.things.enumerated() {
+            guard let ref = refs[i] else { continue }
+            var on = [Int](repeating: 0, count: 256), refN = 0, total = [Int](repeating: 0, count: 256)
+            for gy in 0..<grid.height {
+                for gx in 0..<grid.width {
+                    let l = Int(grid.mask[gy * grid.width + gx])
+                    if l != 0 { total[l] += 1 }
+                    let x = min(W - 1, gx * W / grid.width), y = min(H - 1, gy * H / grid.height)
+                    guard ref[y * W + x] > 127 else { continue }
+                    refN += 1
+                    if l != 0 { on[l] += 1 }
+                }
+            }
+            let parts = (1..<256).filter { on[$0] * 50 >= max(1, refN) }.map {
+                String(format: "%d: %.0f%% of the thing, %.0f%% of it on the thing", $0, Double(on[$0]) / Double(max(1, refN)) * 100,
+                       Double(on[$0]) / Double(max(1, total[$0])) * 100)
+            }
+            print("    vision split of \(t.name): " + (parts.isEmpty ? "no instance on it" : parts.joined(separator: "; ")))
+        }
+    }
     let plans = CatchPlan.plan(things: things, mask: grid.mask, width: grid.width, height: grid.height, colours: masks.colourGrid())
     let oldPlans = OldCatchPlan.plan(things: oldThings, mask: grid.mask, width: grid.width, height: grid.height)
     var befores: [InstanceMasks.Cut?] = [], afters: [InstanceMasks.Cut?] = []
@@ -361,8 +416,14 @@ for c in file.cases {
             }
             m = measure(onCanvas(made.cut), ref: ref, others: others, box: boxes[i], cut: made.cut, width: W, height: H)
             om = measure(onCanvas(old), ref: ref, others: others, box: boxes[i], cut: old, width: W, height: H)
-            if t.expect == "none", made.cut == nil {
-                // Expected: no cut-out (cases.json `why`).
+            if made.cut == nil {
+                // No cut-out: the app shows the photo round the box as a rectangle (owner 2026-11-04: 「失敗するなら
+                // 切り抜かず四角のまま表示して」). Not a wrong cut-out — counted apart (`rectangles`), so a change that
+                // gives up on things it used to cut out shows in the summary.
+                rectangles += 1
+                var r = variantRects[v.name] ?? 0
+                r += 1
+                variantRects[v.name] = r
             } else if t.check ?? true, let m {
                 if m.coverage < minCoverage { fails.append(String(format: "covers %.0f%% of the thing (< %.0f%%)", m.coverage * 100, minCoverage * 100)) }
                 if m.straight > maxStraight { fails.append(String(format: "a straight cut through the thing along %.0f%% of a line (%@)", m.straight * 100, m.straightAt)) }
@@ -371,13 +432,24 @@ for c in file.cases {
             }
         }
         failures += fails.isEmpty ? 0 : 1
+        if t.check ?? true, refs[i] != nil {
+            var tally = variantTotals[v.name] ?? (0, 0)
+            tally.runs += 1
+            tally.fails += fails.isEmpty ? 0 : 1
+            variantTotals[v.name] = tally
+        }
         let expected = t.expect == "none" ? " (expected: none — \(t.why ?? ""))" : ""
-        rows.append(Row(id: c.id, thing: t.name, before: describe(oldPlans[i].cut), after: describe(plans[i].cut) + (plans[i].refine != nil ? " + region" : "") + (made.cut == nil ? ", no cut-out" : "") + expected,
+        rows.append(Row(id: caseID, thing: t.name, before: describe(oldPlans[i].cut), after: describe(plans[i].cut) + (plans[i].refine != nil ? " + region" : "") + (made.cut == nil ? ", no cut-out" : "") + expected,
                         note: made.note, measure: m, oldMeasure: om, failures: fails))
     }
-    let img = sheet(photo: photo, boxes: boxes, refs: refs, before: befores, after: afters)
-    savePNG(img, out.appendingPathComponent("\(c.id).png"))
-    print("\(c.id): \(W)×\(H), Vision instances \(labelsFound), \(String(format: "%.2f", Date().timeIntervalSince(started))) s")
+    // A sheet for every plain case, and for a variant only when it failed (hundreds of variants).
+    let failedHere = rows.suffix(c.things.count).contains { !$0.failures.isEmpty }
+    if c.variants != true || failedHere {
+        let img = sheet(photo: photo, boxes: boxes, refs: refs, before: befores, after: afters)
+        savePNG(img, out.appendingPathComponent(caseID.replacingOccurrences(of: "/", with: "_") + ".png"))
+    }
+    print("\(caseID): \(W)×\(H), Vision instances \(labelsFound), \(String(format: "%.2f", Date().timeIntervalSince(started))) s")
+  }
 }
 
 // The summary: a Markdown table (also the job's summary on GitHub) and the rows as JSON.
@@ -389,14 +461,32 @@ for r in rows {
     md += "\(pct(r.oldMeasure?.straight)) → \(pct(r.measure?.straight)) | \(r.oldMeasure.map { $0.rectangle ? "yes" : "no" } ?? "-") → \(r.measure.map { $0.rectangle ? "yes" : "no" } ?? "-") | "
     md += "\(pct(r.measure?.leak)) | \(r.failures.isEmpty ? "ok" : "FAIL: " + r.failures.joined(separator: "; ")) |\n"
 }
+var rates = "\n| box | runs | failed | rectangle (no cut-out) |\n|---|---|---|---|\n"
+for v in boxVariants { if let t = variantTotals[v.name] { rates += "| \(v.name) | \(t.runs) | \(t.fails) | \(variantRects[v.name] ?? 0) |\n" } }
+md = rates + "\n" + md
 try? md.write(to: out.appendingPathComponent("summary.md"), atomically: true, encoding: .utf8)
 let enc = JSONEncoder()
 enc.outputFormatting = [.prettyPrinted, .sortedKeys]
 try? enc.encode(rows).write(to: out.appendingPathComponent("results.json"))
 print(md)
-for r in rows where !r.failures.isEmpty { print("::error::cut-out harness \(r.id) / \(r.thing): \(r.failures.joined(separator: "; "))") }
+// Known failures (known-failures.json next to cases.json): reported, but only a failure not listed fails the job.
+struct Known: Decodable { let known: [String] }
+let knownList = (try? JSONDecoder().decode(Known.self, from: Data(contentsOf: base.appendingPathComponent("known-failures.json"))))?.known ?? []
+let known = Set(knownList)
+var unexpected = 0
+for r in rows where !r.failures.isEmpty {
+    if known.contains("\(r.id)|\(r.thing)") {
+        print("::warning::cut-out harness (known) \(r.id) / \(r.thing): \(r.failures.joined(separator: "; "))")
+    } else {
+        unexpected += 1
+        print("::error::cut-out harness \(r.id) / \(r.thing): \(r.failures.joined(separator: "; "))")
+    }
+}
+let passingKnown = rows.filter { $0.failures.isEmpty && known.contains("\($0.id)|\($0.thing)") }
+for r in passingKnown { print("::notice::cut-out harness \(r.id) / \(r.thing) passes now: remove it from known-failures.json") }
+print("failures: \(rows.filter { !$0.failures.isEmpty }.count) (known \(rows.filter { !$0.failures.isEmpty }.count - unexpected), new \(unexpected)); known now passing: \(passingKnown.count); rectangles (no cut-out): \(rectangles)")
 if !visionWorked {
     print("::error::Vision's foreground instance request did not run on this machine")
     exit(1)
 }
-exit(failures == 0 ? 0 : 1)
+exit(unexpected == 0 && readErrors == 0 ? 0 : 1)

@@ -45,6 +45,10 @@ final class MaskCoverageTests: XCTestCase {
                                           boxArea: boxArea, excluding: [6]), .union([2, 5]))
         // A speck in the box is no piece: the instance stays as it is.
         XCTAssertEqual(CutCoverage.decide(chosen: 2, inBox: [2: 130, 7: 10], totals: [2: 140, 7: 10], boxArea: boxArea), .keep)
+        // A thin thing's other half (a lint roller's handle 20, its roller 45 of a 400 box mostly floor): under
+        // `pieceGain` of the box, but no speck next to what the handle has there (owner 2026-11-03).
+        XCTAssertEqual(CutCoverage.decide(chosen: 2, inBox: [2: 20, 8: 45], totals: [2: 20, 8: 45], boxArea: boxArea),
+                       .union([2, 8]))
     }
 
     func testNoBoxOrNoCountsKeepsTheInstance() {
