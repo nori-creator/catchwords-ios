@@ -104,6 +104,53 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(keep[10 * w + 8], 1)
     }
 
+    // MARK: No holes where a thing lay on another
+
+    func testAThingLyingOnAnotherLeavesNoHoleInIt() {
+        // 咖哩飯 (owner 2026-11-05): the bowl, its cutlet named too, one Vision instance — the bowl's cut-out had a hole
+        // where the cutlet lay. The bowl keeps it all; the cutlet still gets its own share.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 3..<17 { for x in 3..<17 { mask[y * w + x] = 1 } }
+        let bowl = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.8), box: CGRect(x: 0.15, y: 0.15, width: 0.7, height: 0.7), own: true)
+        let cutlet = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.45), box: CGRect(x: 0.35, y: 0.3, width: 0.3, height: 0.3), own: true)
+        let plans = CatchPlan.plan(things: [bowl, cutlet], mask: mask, width: w, height: h)
+        let bowlKeep = CatchPlan.pixels(of: plans[0].cut, mask: mask, width: w, height: h)
+        XCTAssertEqual(bowlKeep.count, 14 * 14, "the bowl's cut-out has no hole")
+        let cutletKeep = CatchPlan.pixels(of: plans[1].cut, mask: mask, width: w, height: h)
+        XCTAssertGreaterThan(cutletKeep.count, 0)
+        XCTAssertEqual(cutletKeep.bits.count, w * h)
+    }
+
+    func testNoCutOutHasAHoleTheInstanceDoesNotHave() {
+        // Three things on one instance (a bowl, a cutlet, broccoli): whatever the split gives each, none has a hole.
+        let w = 24, h = 24
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 2..<22 { for x in 2..<22 { mask[y * w + x] = 1 } }
+        let things = [
+            CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.85), box: CGRect(x: 0.08, y: 0.08, width: 0.84, height: 0.84), own: true),
+            CatchPlan.Thing(point: CGPoint(x: 0.45, y: 0.4), box: CGRect(x: 0.25, y: 0.25, width: 0.4, height: 0.3), own: true),
+            CatchPlan.Thing(point: CGPoint(x: 0.55, y: 0.7), box: CGRect(x: 0.3, y: 0.6, width: 0.5, height: 0.2), own: true),
+        ]
+        for p in CatchPlan.plan(things: things, mask: mask, width: w, height: h) {
+            let keep = CatchPlan.pixels(of: p.cut, mask: mask, width: w, height: h)
+            let filled = CatchPlan.filledHoles(keep, labels: [1], mask: mask, width: w, height: h)
+            XCTAssertEqual(filled.bits, keep.bits, "a hole in a cut-out")
+        }
+    }
+
+    func testFilledHolesLeavesWhatReachesTheEdge() {
+        // A notch open to the outside is where the thing ends, not a hole.
+        let w = 10, h = 10
+        let mask = [UInt8](repeating: 1, count: w * h)
+        var bits = [UInt8](repeating: 1, count: w * h)
+        for y in 0..<5 { bits[y * w + 5] = 0 }          // a notch from the top edge
+        for y in 6..<8 { for x in 2..<4 { bits[y * w + x] = 0 } }   // an enclosed hole
+        let out = CatchPlan.filledHoles(CatchPlan.Keep(width: w, height: h, bits: bits), labels: [1], mask: mask, width: w, height: h)
+        XCTAssertEqual(out.bits[2 * w + 5], 0)
+        XCTAssertEqual(out.bits[6 * w + 2], 1)
+    }
+
     // MARK: Instances
 
     func testTwoObjectsNeverShareAnInstance() {

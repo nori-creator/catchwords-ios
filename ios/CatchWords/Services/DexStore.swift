@@ -846,7 +846,6 @@ final class DexStore {
         // The photos are already in the local cache under these paths (`cacheLocal` above): signing never holds
         // the landing or the caller.
         Task { await signPaths(for: [sticker]) }
-        saveToPhotosIfEnabled(draft.photo)
         return .created(shown)
     }
 
@@ -1526,9 +1525,16 @@ final class DexStore {
         ImageCache.shared.store(image, for: path, maxSide: path.hasSuffix(".png") ? 1024 : 1600)
     }
 
-    private func saveToPhotosIfEnabled(_ image: UIImage) {
+    /// 設定の「カメラロールに保存」: the camera's photo into the phone's Photos, at the shutter (`CaptureView`), so every photo
+    /// taken is kept — a word already in the dex taken again (its later photo, `recordEncounter`), a catch not saved or
+    /// left for later, too. It used to be saved only with a new word (owner 2026-11-05: the curry taken again was not in
+    /// Photos with the setting on). A photo from the library is never saved again; nothing under the UI tests.
+    static func saveToPhotosIfEnabled(_ image: UIImage) {
         let enabled = UserDefaults.standard.object(forKey: "photos.sync") as? Bool ?? true
         guard enabled else { return }
+        #if DEBUG
+        if DemoBackend.isOn { return }
+        #endif
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
             guard status == .authorized || status == .limited else { return }
             PHPhotoLibrary.shared().performChanges {

@@ -237,14 +237,21 @@ nonisolated enum CatchPlan {
                     return Placement(label: c.chosen, cut: cut, anchor: inBoxAnchor ?? anchors[c.chosen] ?? t.point,
                                      note: c.note, refine: c.larger ? box : nil)
                 }
-                let anchor = inBoxAnchor ?? CatchAnchor.anchors(mask: keep.bits, width: w, height: h)[1] ?? anchors[c.chosen] ?? t.point
-                return Placement(label: c.chosen, cut: .part(c.labels, keep), anchor: anchor,
+                // Leaving out pieces away from the box never leaves a hole inside the thing.
+                let whole = filledHoles(keep, labels: c.labels, mask: mask, width: w, height: h)
+                let anchor = inBoxAnchor ?? CatchAnchor.anchors(mask: whole.bits, width: w, height: h)[1] ?? anchors[c.chosen] ?? t.point
+                return Placement(label: c.chosen, cut: .part(c.labels, whole), anchor: anchor,
                                  note: [c.note, "pieces of the instance away from its box left out"].compactMap { $0 }.joined(separator: "; "),
                                  refine: c.larger ? box : nil)
             }
             // Shared with other things: split where they meet (`split`), then only the pieces that reach its box.
-            let side = split(owner: i, labels: c.labels, claimants: claimants, boxes: boxes, mask: mask, width: w, height: h,
+            var side = split(owner: i, labels: c.labels, claimants: claimants, boxes: boxes, mask: mask, width: w, height: h,
                              colours: colours)
+            // A cut-out never has a hole that Vision's own outline does not have (owner 2026-11-05: the curry rice and the
+            // pork-cutlet rice, named with what lay on them, came out with holes where those lay — "Vision cut it out
+            // right and the app spoilt it"). What the split took from inside its own outline is given back, for every
+            // thing: a thing on another keeps its own share and whatever of the instance its share encloses.
+            side = filledHoles(side, labels: c.labels, mask: mask, width: w, height: h)
             let keep = reaching(side, box: box, width: w, height: h)
             guard keep.count > 0 else {
                 return Placement(label: nil, cut: .noMask, anchor: t.point, note: "its share of a shared instance was empty")
@@ -352,6 +359,35 @@ nonisolated enum CatchPlan {
         let real = (1..<min(256, totals.count)).filter { Double(totals[$0]) >= soleMinShare * Double(area) }
         guard real.count == 1, let only = real.first, !barred.contains(only) else { return nil }
         return only
+    }
+
+    /// `keep` with the pixels of `labels` that it encloses put back: those of the instance that cannot be reached from the
+    /// grid's edge without crossing `keep` (8 neighbours). A thing that lies on another, inside its outline (a cutlet on
+    /// curry rice, broccoli in the bowl), keeps its own share, and the other's cut-out has no hole where it lay.
+    static func filledHoles(_ keep: Keep, labels: [Int], mask: [UInt8], width w: Int, height h: Int) -> Keep {
+        guard w > 0, h > 0, keep.width == w, keep.height == h, mask.count >= w * h else { return keep }
+        var on = [Bool](repeating: false, count: 256)
+        for l in labels where l > 0 && l < 256 { on[l] = true }
+        // Outside: every pixel not kept that is reached from the edge through pixels not kept.
+        var outside = [Bool](repeating: false, count: w * h)
+        var stack: [Int] = []
+        func push(_ k: Int) {
+            if !outside[k] && keep.bits[k] == 0 { outside[k] = true; stack.append(k) }
+        }
+        for x in 0..<w { push(x); push((h - 1) * w + x) }
+        for y in 0..<h { push(y * w); push(y * w + w - 1) }
+        while let k = stack.popLast() {
+            let x = k % w, y = k / w
+            for dy in -1...1 {
+                for dx in -1...1 where dx != 0 || dy != 0 {
+                    let nx = x + dx, ny = y + dy
+                    if nx >= 0, ny >= 0, nx < w, ny < h { push(ny * w + nx) }
+                }
+            }
+        }
+        var out = keep
+        for k in 0..<(w * h) where keep.bits[k] == 0 && !outside[k] && on[Int(mask[k])] { out.bits[k] = 1 }
+        return out
     }
 
     /// The labels of the instances that are mostly people (`personShare` of their pixels on `people`).
