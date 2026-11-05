@@ -47,6 +47,7 @@ const candidatePick = () => import("./candidate-pick.functions");
 const adminUsers = () => import("./admin-users.functions");
 const metrics = () => import("./metrics.functions");
 const betaMetrics = () => import("./beta-metrics.functions");
+const analytics = () => import("./analytics.functions");
 const reports = () => import("./reports.functions");
 const sentenceReadings = () => import("./sentence-readings.functions");
 const standing = () => import("./standing.functions");
@@ -66,6 +67,10 @@ export const NATIVE_FNS: Record<string, Loader> = {
   // 候補の何番目を選んだか（モデルごとの候補の当たり。`candidate-pick.functions.ts`）
   logCandidatePick: from(candidatePick, "logCandidatePick"),
   generateCard: from(ai, "generateCard"),
+  // アプリの使い方の記録（開いた・画面・質問とチュートリアルの段・上限と広告・通知とウィジェット。
+  // 1.0.5 から。種類と許可した小さな情報だけ — `metrics.functions.ts` の APP_EVENTS / AppEventMeta）。
+  // 入力 { kind, ms?, meta? } → { ok: true }
+  logAppEvent: from(metrics, "logAppEvent"),
   // 例文の字ごとの読み（AI は呼ばない。`sentence-readings.functions.ts`）
   readSentences: from(sentenceReadings, "readSentences"),
   regenerateCardSection: from(ai, "regenerateCardSection"),
@@ -164,6 +169,11 @@ export const NATIVE_FNS: Record<string, Loader> = {
   adminGetOverview: from(adminUsers, "getAdminOverview"),
   adminGetDashboard: from(metrics, "getAdminDashboard"),
   adminGetBetaMetrics: from(betaMetrics, "getBetaMetrics"),
+  // 開発者の「分析」（2026-11-05。上の3つ（利用者・KPI・ベータ）を1つにまとめた物。数え方は `analytics.ts`）。
+  // 入力 { range: 7 | 30 | 90 } → `AnalyticsReport`。上の3つは 1.0.4 までのアプリが呼ぶので残す。
+  adminGetAnalytics: from(analytics, "getAdminAnalytics"),
+  // 入力 { userId, excluded } → { ok, excluded }（試験用の自分の別アカウントなどを数から外す）
+  adminSetAnalyticsExcluded: from(analytics, "setAnalyticsExcluded"),
   // 開発者の「エラー報告」（管理者だけ。利用者の「内容の誤りを報告」の一覧と、状態の変更。2026-10-15）
   // 入力 { status?: "open" | "all", limit?: number } → [{ id, headword, kind, item, note, status, outcome,
   // reporter_lang, word_id, created_at, outcome_at }]。status は open / fixed / needs_review / resolved / dismissed。
@@ -192,6 +202,8 @@ export const NATIVE_ADMIN_FNS = [
   "adminGetOverview",
   "adminGetDashboard",
   "adminGetBetaMetrics",
+  "adminGetAnalytics",
+  "adminSetAnalyticsExcluded",
   "adminListEntryReports",
   "adminSetEntryReportStatus",
 ] as const;

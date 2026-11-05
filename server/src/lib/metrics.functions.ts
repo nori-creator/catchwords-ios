@@ -53,8 +53,45 @@ export const APP_EVENTS = [
   // ベータの計測（2026-10-03、ロードマップ Phase 9.4）: 撮る・復習・課金の段
   // （`funnel-events.ts`）。種類と時刻だけで、写真・語・答えは送らない。
   ...MEMBER_FUNNEL_EVENTS,
+  // 開発者の「分析」（2026-11-05、決定 D: アプリから送るのは 1.0.5 から）。種類と下の小さな情報だけ。
+  "screen_view",
+  "onboarding_step",
+  "tutorial_step",
+  "tutorial_skip",
+  "limit_hit",
+  "ad_offered",
+  "ad_watched",
+  "ad_failed",
+  "notification_open",
+  "widget_open",
 ] as const;
 export type AppEventKind = (typeof APP_EVENTS)[number];
+
+/**
+ * 記録に添えてよい物（`usage_events.meta`、移行 `20261105120000_analytics.sql`）。**鍵も形もここで決めた物だけ**
+ * — 写真・単語・答え・場所・広告の識別子・自由な文は受け取らない（プライバシーポリシー第2条・第3条の範囲）。
+ */
+export const AppEventMeta = z
+  .object({
+    /** アプリの版（"1.0.5" / "1.0.5 (42)"）。 */
+    app_version: z.string().regex(/^\d{1,3}(\.\d{1,3}){0,3}( \(\d{1,6}\))?$/).optional(),
+    /** 機種の種類。 */
+    device: z.enum(["iphone", "ipad", "duo", "mac", "other"]).optional(),
+    /** iOS の版（"26.1"）。 */
+    os: z.string().regex(/^\d{1,3}(\.\d{1,3}){0,2}$/).optional(),
+    /** 表示言語（"ja" / "zh-TW"）。 */
+    lang: z.string().regex(/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/).optional(),
+    /** 画面の名前（screen_view）。 */
+    screen: z
+      .enum(["home", "dex", "word", "camera", "review", "memory", "settings", "onboarding", "other"])
+      .optional(),
+    /** 段の名前（onboarding_step / tutorial_step / 通知の種類 / 上限の種類）。英小文字と _ だけ。 */
+    step: z.string().regex(/^[a-z0-9_]{1,40}$/).optional(),
+    /** 段の番号・数。 */
+    n: z.number().int().min(0).max(1000).optional(),
+  })
+  .strict();
+export type AppEventMeta = z.infer<typeof AppEventMeta>;
 
 /**
  * 受け取る形。`ms`（待ち時間）は `LATENCY_EVENTS` の段だけが付けられる
@@ -64,6 +101,7 @@ export const AppEventInput = z
   .object({
     kind: z.enum(APP_EVENTS),
     ms: z.number().int().min(0).max(MAX_FUNNEL_LATENCY_MS).optional(),
+    meta: AppEventMeta.optional(),
   })
   .refine(
     (v) => v.ms === undefined || (LATENCY_EVENTS as readonly string[]).includes(v.kind),
@@ -75,7 +113,13 @@ export const logAppEvent = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => AppEventInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    await supabase.from("usage_events").insert({ user_id: userId, kind: data.kind });
+    const meta = data.meta && Object.keys(data.meta).length ? data.meta : undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const events = supabase.from("usage_events") as any;
+    const { error } = await events.insert({ user_id: userId, kind: data.kind, ...(meta ? { meta } : {}) });
+    // `meta` の列が無い環境（移行の前）は、種類と時刻だけで残す。
+    if (error && meta && /meta/.test(error.message ?? ""))
+      await supabase.from("usage_events").insert({ user_id: userId, kind: data.kind });
     // 待ち時間は `usage_events` に列が無いので、本人の `ai_runs` に1行（表を足さない）。
     // 中身は段の名前と ms だけ。
     if (data.ms !== undefined)
