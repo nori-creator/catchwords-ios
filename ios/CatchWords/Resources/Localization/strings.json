@@ -10806,5 +10806,12 @@
   "es": "Fallos de anuncios",
   "ko": "광고 실패",
   "vi": "Lỗi quảng cáo"
+ },
+ "この期間にアカウントを作った人": {
+  "en": "Created an account in this period",
+  "zh-TW": "這段期間建立帳號的人",
+  "es": "Crearon una cuenta en este periodo",
+  "ko": "이 기간에 계정을 만든 사람",
+  "vi": "Đã tạo tài khoản trong khoảng này"
  }
 }

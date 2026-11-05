@@ -111,9 +111,10 @@ struct AdminAnalyticsView: View {
                             Haptics.selection()
                             withAnimation(.snappy(duration: 0.25)) { tab = t }
                         } label: {
-                            Label(t.title, systemImage: t.icon)
+                            Text(t.title)
                                 .scaledFont(size: 14, weight: .semibold)
-                                .padding(.horizontal, 14)
+                                .lineLimit(1)
+                                .padding(.horizontal, 12)
                                 .frame(minHeight: 38)
                                 .foregroundStyle(tab == t ? Color.white : Theme.foreground)
                                 .background(tab == t ? Theme.primary : Theme.secondary, in: Capsule())
@@ -158,20 +159,26 @@ struct AdminAnalyticsView: View {
     @ViewBuilder
     private func overview(_ r: AnalyticsReport) -> some View {
         let o = r.overview
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            KpiTile(title: L("学習者"), hint: L("撮ったか復習した人"), metric: o.learners, unit: .people) {
-                show(L("学習者"), o.learners.users)
+        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+            GridRow {
+                KpiTile(title: L("学習者"), hint: L("撮ったか復習した人"), metric: o.learners, unit: .people) {
+                    show(L("学習者"), o.learners.users)
+                }
+                KpiTile(title: L("新しい登録"), hint: L("この期間にアカウントを作った人"), metric: o.newUsers, unit: .people) {
+                    show(L("新しい登録"), o.newUsers.users)
+                }
             }
-            KpiTile(title: L("新しい登録"), hint: nil, metric: o.newUsers, unit: .people) {
-                show(L("新しい登録"), o.newUsers.users)
+            GridRow {
+                KpiTile(title: L("撮った数"), hint: L("新しい語と再会"), metric: o.catches, unit: .count, action: nil)
+                KpiTile(title: L("復習した数"), hint: L("答えた問題"), metric: o.reviews, unit: .count, action: nil)
             }
-            KpiTile(title: L("撮った数"), hint: L("新しい語と再会"), metric: o.catches, unit: .count, action: nil)
-            KpiTile(title: L("復習した数"), hint: L("答えた問題"), metric: o.reviews, unit: .count, action: nil)
-            KpiTile(title: L("登録した日に撮った"), hint: L("新しく登録した人のうち"), metric: o.firstDayCatch, unit: .rate) {
-                show(L("登録した日に撮った"), o.firstDayCatch.users)
-            }
-            KpiTile(title: L("7日以内に戻った"), hint: L("登録の次の日〜7日後に学習"), metric: o.weekReturn, unit: .rate) {
-                show(L("7日以内に戻った"), o.weekReturn.users)
+            GridRow {
+                KpiTile(title: L("登録した日に撮った"), hint: L("新しく登録した人のうち"), metric: o.firstDayCatch, unit: .rate) {
+                    show(L("登録した日に撮った"), o.firstDayCatch.users)
+                }
+                KpiTile(title: L("7日以内に戻った"), hint: L("登録の次の日〜7日後に学習"), metric: o.weekReturn, unit: .rate) {
+                    show(L("7日以内に戻った"), o.weekReturn.users)
+                }
             }
         }
         ForEach(r.insights(for: "kpis"), id: \.code) { InsightLine(insight: $0) }
@@ -309,12 +316,14 @@ struct AdminAnalyticsView: View {
             }
             ForEach(r.insights(for: "cohorts"), id: \.code) { InsightLine(insight: $0) }
         }
-        HStack(spacing: 10) {
-            KpiTile(title: L("7日以内に戻った"), hint: L("登録の次の日〜7日後に学習"), metric: r.overview.weekReturn, unit: .rate) {
-                show(L("7日以内に戻った"), r.overview.weekReturn.users)
-            }
-            KpiTile(title: L("学習者"), hint: L("撮ったか復習した人"), metric: r.overview.learners, unit: .people) {
-                show(L("学習者"), r.overview.learners.users)
+        Grid(horizontalSpacing: 10) {
+            GridRow {
+                KpiTile(title: L("7日以内に戻った"), hint: L("登録の次の日〜7日後に学習"), metric: r.overview.weekReturn, unit: .rate) {
+                    show(L("7日以内に戻った"), r.overview.weekReturn.users)
+                }
+                KpiTile(title: L("学習者"), hint: L("撮ったか復習した人"), metric: r.overview.learners, unit: .people) {
+                    show(L("学習者"), r.overview.learners.users)
+                }
             }
         }
     }
@@ -461,15 +470,6 @@ enum AnalyticsTab: String, CaseIterable, Identifiable {
         case .retention: L("続ける")
         case .users: L("利用者")
         case .quality: L("品質")
-        }
-    }
-    var icon: String {
-        switch self {
-        case .overview: "gauge.with.dots.needle.33percent"
-        case .first: "flag.checkered"
-        case .retention: "arrow.triangle.2.circlepath"
-        case .users: "person.2"
-        case .quality: "speedometer"
         }
     }
 }
@@ -763,33 +763,42 @@ private struct KpiTile: View {
         self.action = action
     }
 
+    /// Who is in the number can be shown.
+    private var opens: Bool { action != nil && !(metric.users ?? []).isEmpty }
+
     var body: some View {
-        Button { action?() } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(title).scaledFont(size: 12, weight: .semibold).foregroundStyle(Theme.muted).lineLimit(1)
-                    Spacer(minLength: 2)
-                    if action != nil, !(metric.users ?? []).isEmpty {
-                        Image(systemName: "person.crop.circle.badge.questionmark").font(.system(size: 12))
-                            .foregroundStyle(Theme.primaryInk)
-                    }
-                }
-                Text(valueText).scaledFont(size: 28, weight: .heavy, monospacedDigit: true)
-                    .foregroundStyle(Theme.foreground).lineLimit(1).minimumScaleFactor(0.6)
-                delta
-                if let hint {
-                    Text(hint).scaledFont(size: 10).foregroundStyle(Theme.muted).lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+        if opens, let action {
+            Button(action: action) { tile }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+        } else {
+            tile.accessibilityElement(children: .combine)
+        }
+    }
+
+    private var tile: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).scaledFont(size: 12, weight: .semibold).foregroundStyle(Theme.muted).lineLimit(1)
+                Spacer(minLength: 2)
+                if opens {
+                    Image(systemName: "person.crop.circle.badge.questionmark").font(.system(size: 12))
+                        .foregroundStyle(Theme.primaryInk)
                 }
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.card, in: .rect(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.border, lineWidth: 1))
+            Text(valueText).scaledFont(size: 28, weight: .heavy, monospacedDigit: true)
+                .foregroundStyle(Theme.foreground).lineLimit(1).minimumScaleFactor(0.6)
+            delta
+            if let hint {
+                Text(hint).scaledFont(size: 10).foregroundStyle(Theme.muted).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(action == nil || (metric.users ?? []).isEmpty)
-        .accessibilityElement(children: .combine)
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Theme.card, in: .rect(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.border, lineWidth: 1))
     }
 
     private static func deltaColor(up: Bool, down: Bool) -> Color {
@@ -998,13 +1007,13 @@ private struct CohortGrid: View {
     private func cell(_ c: AnalyticsReport.Cohort, _ k: Int) -> some View {
         if k < c.cells.count, let cell = c.cells[k] {
             Button { onTap(c, k, cell) } label: {
-                let alpha: Double = 0.08 + 0.85 * min(1.0, cell.pct / 100.0)
-                let ink: Color = cell.pct >= 50 ? Color.white : Theme.foreground
+                let alpha: Double = 0.06 + 0.9 * min(1.0, cell.pct / 100.0)
+                let ink: Color = cell.pct >= 75 ? Color.white : Theme.foreground
                 Text("\(Int(cell.pct.rounded()))")
                     .scaledFont(size: 11, weight: .bold, monospacedDigit: true)
                     .foregroundStyle(ink)
                     .frame(width: 40, height: 28)
-                    .background(Theme.primary.opacity(alpha), in: .rect(cornerRadius: 6, style: .continuous))
+                    .background(Theme.primaryBright.opacity(alpha), in: .rect(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(cell.users.isEmpty)
