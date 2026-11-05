@@ -1893,6 +1893,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
         language: cardLanguage,
         readerLang: explainLang,
         chunks: card.extras?.usage_chunks,
+        measureWords: card.extras?.measure_words,
         // メインが決まっている時は、メインと似た物を落としてから上限まで詰めるので、多めに受け取る。
         max: fixedMain ? MAX_EXAMPLE_PATTERNS : maxPatterns,
       });

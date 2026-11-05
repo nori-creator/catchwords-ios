@@ -109,11 +109,19 @@ nonisolated enum CatchPlan {
         // A thing without a place of its own takes none (owner 2026-10-26: with no position from the AI, the swing took
         // "the largest free instance" — the man beside it — and its cut-out was the man). Its tag goes to a spot of its
         // own (`spreadSpots`) and its sticker is the photo (`CatchObject`), never another thing.
-        let labels: [Int?] = hasMask
+        var labels: [Int?] = hasMask
             ? assignInstances(things.indices.map { i in
                 things[i].own ? ranked(mask: mask, width: w, height: h, to: things[i].point).filter { !barred[i].contains($0.label) } : []
             })
             : Array(repeating: nil, count: things.count)
+        // … except the only thing in the photo when Vision sees only one thing there (owner 2026-11-04: a tube of
+        // 理膚寶水 alone on a grey table, the AI gave no box, and its sticker was the whole photo though Vision's one
+        // instance was the tube exactly). With no other named thing and no other instance there is nothing it could be
+        // confused with; a person is still never taken for a thing that cannot be one (the swing).
+        if hasMask, things.count == 1, !things[0].own, labels[0] == nil,
+           let only = Self.soleInstance(totals: totals, barred: barred[0], area: w * h) {
+            labels[0] = only
+        }
         let anchors = hasMask ? CatchAnchor.anchors(mask: mask, width: w, height: h) : [:]
         // Each placed thing's box on the mask grid, and how much of every instance lies inside it.
         let boxes: [CGRect?] = things.map { $0.own ? $0.box : nil }
@@ -122,6 +130,22 @@ nonisolated enum CatchPlan {
             return countsInside(b, mask: mask, width: w, height: h)
         }
         let areas: [Int] = boxes.map { b in b.map { gridArea($0, width: w, height: h) } ?? 0 }
+        // Thing j is a part of thing i (owner 2026-11-03: the AI named a lint roller's roller apart from the lint roller;
+        // the roller's instance went to the roller and the lint roller's cut-out was its handle alone): j's box is at
+        // most `partArea` of i's and lies (`nestedShare`) inside it. The whole takes in the part's own instance, and the
+        // two never split it between them — each cut-out keeps it whole.
+        func isPart(_ j: Int, of i: Int) -> Bool {
+            guard j != i, let bj = boxes[j], let bi = boxes[i] else { return false }
+            let aj = bj.width * bj.height, ai = bi.width * bi.height
+            guard aj > 0, ai > 0, aj <= partArea * ai else { return false }
+            return cover(bi, of: bj) >= Double(nestedShare)
+        }
+        // … and instance l is that part alone: its own instance, lying (`partInside`) in its box. A cup and its saucer
+        // that Vision saw as one instance are still split where they meet.
+        func isWholePart(_ j: Int, _ l: Int) -> Bool {
+            guard labels[j] == l, l > 0, l < 256, totals[l] > 0, !counts[j].isEmpty else { return false }
+            return Double(counts[j][l]) >= partInside * Double(totals[l])
+        }
 
         // 1. What each boxed thing claims: its instance (or the one most present in its box), with the other pieces of
         //    the thing (`CutCoverage`); whether that instance is far larger than the box.
@@ -147,13 +171,31 @@ nonisolated enum CatchPlan {
                 totalMap[l] = totals[l]
                 if inBox[l] > 0 { inBoxMap[l] = inBox[l] }
             }
-            // Another thing's own instance is never taken in as a piece of this one.
-            let theirs = Set(things.indices.filter { $0 != i }.compactMap { labels[$0] }).subtracting([chosen])
-                .union(barred[i])
+            // Another thing's own instance is never taken in as a piece of this one — unless that thing is a part of this
+            // one (its box small and inside this box: the roller of a lint roller, named on its own).
+            let theirs = Set(things.indices.filter { j in j != i && !(isPart(j, of: i) && labels[j].map { isWholePart(j, $0) } == true) }
+                .compactMap { labels[$0] }).subtracting([chosen]).union(barred[i])
             let note: String? = chosen == labels[i] ? nil : "took the instance most present in its box"
             let decision = CutCoverage.decide(chosen: chosen, inBox: inBoxMap, totals: totalMap, boxArea: area, excluding: theirs)
             var ls = [chosen]
             if case .union(let together) = decision { ls = together }
+            // The other pieces of the thing Vision saw apart (a lint roller's roller and handle, an umbrella's canopy and
+            // handle, a fan's head and stand): those lying mostly in the box and next to what is already taken
+            // (`gather`) — by where they lie, not by how much of the box they fill (owner 2026-11-03).
+            let more = gather(ls, box: boxes[i] ?? .zero, mask: mask, totals: totals, excluding: theirs, width: w, height: h)
+            if !more.isEmpty { ls = (ls + more).sorted() }
+            // Another thing's instance that also holds a good part of this thing (keys lying on a flip-flop, which
+            // Vision saw as one with the keys): where it lies in this box and well outside that thing's box, it is
+            // this thing too — the two share it and it is split where they meet (`split`), instead of this thing
+            // losing that part to the other.
+            for j in things.indices where j != i && !isPart(j, of: i) && !isPart(i, of: j) {
+                guard let lj = labels[j], !ls.contains(lj), !barred[i].contains(lj), let bj = boxes[j], let bi = boxes[i]
+                else { continue }
+                let away = bj.insetBy(dx: -bj.width * Self.sharedAway, dy: -bj.height * Self.sharedAway)
+                if Double(Self.count(lj, in: bi, outside: away, mask: mask, width: w, height: h)) >= Self.sharedInto * Double(area) {
+                    ls = (ls + [lj]).sorted()
+                }
+            }
             // Mostly outside the box (the thing merged with what is behind it, or a box off to one side): kept whole,
             // and Vision looks again at the region (`refine`).
             let share = Double(ls.reduce(0) { $0 + inBox[$1] }) / Double(max(1, ls.reduce(0) { $0 + totals[$1] }))
@@ -179,7 +221,10 @@ nonisolated enum CatchPlan {
             guard let c = claims[i] else {
                 return Placement(label: nil, cut: .noMask, anchor: t.point, note: "no Vision mask inside its box")
             }
-            let rivals = Set(c.labels.flatMap { claimants[$0] }).subtracting([i]).sorted()
+            // A part and its whole both keep the part's own instance whole (neither is the other's rival for it).
+            let rivals = Set(c.labels.flatMap { l in
+                claimants[l].filter { j in !((isPart(j, of: i) && isWholePart(j, l)) || (isPart(i, of: j) && isWholePart(i, l))) }
+            }).subtracting([i]).sorted()
             if rivals.isEmpty {
                 // Its own: whole, past the box too — only pieces that do not reach the box at all are left out.
                 let keep = reaching(c.labels, box: box, mask: mask, width: w, height: h)
@@ -297,6 +342,18 @@ nonisolated enum CatchPlan {
         return o.isNull ? 0 : Double(o.width * o.height / area)
     }
 
+    /// An instance below this share of the photo is a speck, not a thing (`soleInstance`).
+    static let soleMinShare = 0.01
+
+    /// The photo's one instance that is not a speck, when there is exactly one and it is not barred (a person for a
+    /// thing that cannot be one); nil when there are none or several.
+    static func soleInstance(totals: [Int], barred: Set<Int>, area: Int) -> Int? {
+        guard area > 0 else { return nil }
+        let real = (1..<min(256, totals.count)).filter { Double(totals[$0]) >= soleMinShare * Double(area) }
+        guard real.count == 1, let only = real.first, !barred.contains(only) else { return nil }
+        return only
+    }
+
     /// The labels of the instances that are mostly people (`personShare` of their pixels on `people`).
     static func personLabels(mask: [UInt8], people: [UInt8]?, totals: [Int], width w: Int, height h: Int) -> Set<Int> {
         guard let people, people.count >= w * h else { return [] }
@@ -390,6 +447,7 @@ nonisolated enum CatchPlan {
                                           (-1, 1, 1.4142), (0, 1, 1), (1, 1, 1.4142)]
         let hasColour = (colours?.count ?? 0) >= w * h * 3
         if hasColour, let px = colours {
+            holder = colourCheckedSeeds(holder, colours: px)
             return barrierSplit(owner: owner, mine: mine, seeds: holder, claimants: claimants, boxes: boxes, mask: mask,
                                 width: w, height: h, colours: px, result: result)
         }
@@ -497,6 +555,43 @@ nonisolated enum CatchPlan {
         return Keep(width: w, height: h, bits: result)
     }
 
+    /// The seeds of `split` with those dropped whose colour belongs to another claimant (owner 2026-11-03, the cut-out
+    /// harness: a cola can's box, rough as the AI draws it, also covered the edge of the pineapple cake in front of the
+    /// can; those cake pixels were seeds of the can, and the can's cut-out took a slice of the cake). Each claimant's
+    /// colours are a coarse histogram of its seeds (`colourBins` levels per channel); a seed stays when its colour is at
+    /// least as common among its own seeds as among any other claimant's (the same colour on both — a red cup on a red
+    /// saucer — stays a seed of both). A claimant left without seeds keeps its own.
+    static func colourCheckedSeeds(_ seeds: [Int], colours px: [UInt8]) -> [Int] {
+        let who = Set(seeds.filter { $0 >= 0 })
+        guard who.count > 1 else { return seeds }
+        let bins = colourBins
+        func bin(_ i: Int) -> Int {
+            let a = i * 3
+            return (Int(px[a]) * bins / 256) * bins * bins + (Int(px[a + 1]) * bins / 256) * bins + Int(px[a + 2]) * bins / 256
+        }
+        var hist: [Int: [Int]] = [:], total: [Int: Int] = [:]
+        for k in who { hist[k] = [Int](repeating: 0, count: bins * bins * bins); total[k] = 0 }
+        for i in seeds.indices where seeds[i] >= 0 {
+            hist[seeds[i]]![bin(i)] += 1
+            total[seeds[i]]! += 1
+        }
+        var out = seeds
+        var left: [Int: Int] = [:]
+        for i in seeds.indices where seeds[i] >= 0 {
+            let k = seeds[i], b = bin(i)
+            let own = Double(hist[k]![b]) / Double(max(1, total[k]!))
+            let other = who.filter { $0 != k }.map { Double(hist[$0]![b]) / Double(max(1, total[$0]!)) }.max() ?? 0
+            if own < other { out[i] = -1 } else { left[k, default: 0] += 1 }
+        }
+        for k in who where (left[k] ?? 0) == 0 {
+            for i in seeds.indices where seeds[i] == k { out[i] = k }
+        }
+        return out
+    }
+
+    /// Levels per colour channel of `colourCheckedSeeds`'s histograms.
+    static let colourBins = 8
+
     /// The colour change (0–255, the largest of R, G, B between two neighbouring grid pixels) that makes one step of
     /// barrier (`split`): changes smaller than this (shading, noise) are no edge.
     static let edgeStep = 12
@@ -504,6 +599,10 @@ nonisolated enum CatchPlan {
     static let barrierScale: Double = 1_000_000
     /// A box this much (or more) inside another's is "in front of" it (a cup's box in its saucer's): its middle is a seed.
     static let nestedShare: CGFloat = 0.75
+    /// A thing whose box is at most this share of another's (and inside it) can be a part of that thing (`plan`).
+    static let partArea: CGFloat = 0.5
+    /// … when its own instance lies at least this much inside its box (it is the part alone, not the two as one).
+    static let partInside = 0.8
     /// A seed keeps this share of another claimant's box size away from that box.
     static let seedMargin: CGFloat = 0.06
 
@@ -627,6 +726,112 @@ nonisolated enum CatchPlan {
         }
         guard Double(count) >= freeShare * Double((g.x1 - g.x0) * (g.y1 - g.y0)) else { return nil }
         return CatchAnchor.anchors(mask: free, width: w, height: h)[1]
+    }
+
+    // MARK: Pieces of one thing
+
+    /// Another thing's instance is shared with this one when this share of this thing's box is that instance lying
+    /// outside the other thing's box grown by `sharedAway`.
+    static let sharedInto = 0.1
+    static let sharedAway: CGFloat = 0.05
+
+    /// The pixels of `label` inside `box` and outside `outside` (both 0–1 of the photo).
+    static func count(_ label: Int, in box: CGRect, outside: CGRect, mask: [UInt8], width w: Int, height h: Int) -> Int {
+        let g = grid(box, width: w, height: h), o = grid(outside, width: w, height: h)
+        guard g.x1 > g.x0, g.y1 > g.y0 else { return 0 }
+        var n = 0
+        for y in g.y0..<g.y1 {
+            for x in g.x0..<g.x1 where Int(mask[y * w + x]) == label {
+                if x >= o.x0 && x < o.x1 && y >= o.y0 && y < o.y1 { continue }
+                n += 1
+            }
+        }
+        return n
+    }
+
+    /// A piece touching what is taken (within `touchReach` of the box's diagonal) counts when this share of it lies in
+    /// the box grown by `touchMargin`: a part the AI's box cut off (a lint roller's roller above a box drawn round its
+    /// handle — the owner's photo, 2026-11-03), as long as it is no bigger than the box.
+    static let touchInside = 0.35
+    static let touchMargin: CGFloat = 0.25
+    static let touchReach: CGFloat = 0.015
+    /// A piece counts as in the box when this share of it lies in the box grown by `gatherMargin` of its size.
+    static let gatherInside = 0.6
+    /// The box grown by this share of its width and height on each side (a box a little small or off to one side).
+    static let gatherMargin: CGFloat = 0.1
+    /// A piece is next to what is taken when it comes this close (share of the box's diagonal; a thin wire Vision left
+    /// out leaves a gap between a roller and its handle).
+    static let gatherReach: CGFloat = 0.06
+    /// Pieces smaller than this share of the box are specks, not parts.
+    static let gatherSpeck = 0.003
+
+    /// The pieces of one thing that Vision saw as several instances, beyond `taken`: each instance (not in `excluding`)
+    /// that lies `gatherInside` in the box grown by `gatherMargin` and comes within `gatherReach` of what is taken,
+    /// taken one after another (a chain: the handle, then the wire, then the roller). Owner 2026-11-03: a lint roller
+    /// came out as its handle alone — the roller, a piece of its own, filled too little of the box to be taken in.
+    static func gather(_ taken: [Int], box: CGRect, mask: [UInt8], totals: [Int], excluding: Set<Int>,
+                       width w: Int, height h: Int) -> [Int] {
+        guard w > 0, h > 0, mask.count >= w * h, box.width > 0, box.height > 0, !taken.isEmpty else { return [] }
+        let grown = box.insetBy(dx: -box.width * gatherMargin, dy: -box.height * gatherMargin)
+        let inside = countsInside(grown, mask: mask, width: w, height: h)
+        let wide = countsInside(box.insetBy(dx: -box.width * touchMargin, dy: -box.height * touchMargin),
+                                mask: mask, width: w, height: h)
+        let area = Double(max(1, gridArea(box, width: w, height: h)))
+        let candidates = (1..<256).filter { l in
+            totals[l] > 0 && !taken.contains(l) && !excluding.contains(l) && Double(totals[l]) >= gatherSpeck * area
+        }
+        // Near pieces: mostly in the box. Touching pieces: partly in it (cut off by the box), never bigger than it.
+        var open = Set(candidates.filter { Double(inside[$0]) >= gatherInside * Double(totals[$0]) })
+        var touching = Set(candidates.filter {
+            !open.contains($0) && Double(wide[$0]) >= touchInside * Double(totals[$0]) && Double(totals[$0]) <= area
+        })
+        guard !open.isEmpty || !touching.isEmpty else { return [] }
+        let diagonal = hypot(box.width * CGFloat(w), box.height * CGFloat(h))
+        let reach = max(2, Int((diagonal * gatherReach).rounded()))
+        let touch = max(1, Int((diagonal * touchReach).rounded()))
+        var have = [Bool](repeating: false, count: 256)
+        for l in taken where l > 0 && l < 256 { have[l] = true }
+        var added: [Int] = []
+        while !open.isEmpty || !touching.isEmpty {
+            // Every pixel within `reach` of what is taken (8-neighbour steps), and the open pieces it touches.
+            var dist = [Int16](repeating: -1, count: w * h)
+            var queue: [Int] = []
+            queue.reserveCapacity(w * h / 4)
+            for k in 0..<(w * h) where have[Int(mask[k])] {
+                dist[k] = 0
+                queue.append(k)
+            }
+            var head = 0
+            var touched = Set<Int>()
+            while head < queue.count {
+                let k = queue[head]
+                head += 1
+                let d = Int(dist[k])
+                let l = Int(mask[k])
+                if open.contains(l) || (d <= touch && touching.contains(l)) { touched.insert(l) }
+                guard d < reach else { continue }
+                let x = k % w, y = k / w
+                for dy in -1...1 {
+                    for dx in -1...1 where dx != 0 || dy != 0 {
+                        let nx = x + dx, ny = y + dy
+                        guard nx >= 0, ny >= 0, nx < w, ny < h else { continue }
+                        let n = ny * w + nx
+                        if dist[n] < 0 {
+                            dist[n] = Int16(d + 1)
+                            queue.append(n)
+                        }
+                    }
+                }
+            }
+            guard !touched.isEmpty else { break }
+            for l in touched.sorted() {
+                have[l] = true
+                open.remove(l)
+                touching.remove(l)
+                added.append(l)
+            }
+        }
+        return added.sorted()
     }
 
     // MARK: Pieces that reach the box

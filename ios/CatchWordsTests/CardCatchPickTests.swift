@@ -11,6 +11,99 @@ final class CardCatchPickTests: XCTestCase {
                   point: point, confidence: 0.9, alternatives: [], group: group)
     }
 
+    // MARK: The only thing, without a place from the AI
+
+    func testTheOnlyThingWithoutABoxTakesThePhotosOnlyInstance() {
+        // 理膚寶水 (owner 2026-11-04): one tube on a grey table, no box from the AI, one Vision instance — the tube.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 8..<13 { for x in 2..<19 { mask[y * w + x] = 1 } }
+        let thing = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false)
+        let plans = CatchPlan.plan(things: [thing], mask: mask, width: w, height: h)
+        XCTAssertEqual(plans[0].label, 1)
+        XCTAssertEqual(plans[0].cut, .instance(1))
+    }
+
+    func testTheOnlyThingWithoutABoxTakesNoneOfSeveralInstances() {
+        // Two things in the photo and no box: which one it is cannot be told — no cut-out (the photo as it is).
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 2..<8 { for x in 2..<8 { mask[y * w + x] = 1 } }
+        for y in 12..<18 { for x in 12..<18 { mask[y * w + x] = 2 } }
+        let thing = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false)
+        XCTAssertNil(CatchPlan.plan(things: [thing], mask: mask, width: w, height: h)[0].label)
+    }
+
+    func testTheOnlyThingWithoutABoxNeverTakesAPerson() {
+        // The swing (owner 2026-10-26): the photo's one instance is the man beside it.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 2..<18 { for x in 6..<12 { mask[y * w + x] = 1 } }
+        let people = mask.map { $0 != 0 ? UInt8(1) : 0 }
+        let thing = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false, mayBePerson: false)
+        XCTAssertNil(CatchPlan.plan(things: [thing], mask: mask, width: w, height: h, people: people)[0].label)
+    }
+
+    // MARK: 囲んで切り抜き直す (LassoCut)
+
+    /// A square loop from (x0,y0) to (x1,y1), 0–1, with points along its sides.
+    private func squareLoop(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat) -> [CGPoint] {
+        var pts: [CGPoint] = []
+        for i in 0..<5 { pts.append(CGPoint(x: x0 + (x1 - x0) * CGFloat(i) / 5, y: y0)) }
+        for i in 0..<5 { pts.append(CGPoint(x: x1, y: y0 + (y1 - y0) * CGFloat(i) / 5)) }
+        for i in 0..<5 { pts.append(CGPoint(x: x1 - (x1 - x0) * CGFloat(i) / 5, y: y1)) }
+        for i in 0..<5 { pts.append(CGPoint(x: x0, y: y1 - (y1 - y0) * CGFloat(i) / 5)) }
+        return pts
+    }
+
+    func testALassoMarksTheGridInsideIt() {
+        let loop = squareLoop(0.25, 0.25, 0.75, 0.75)
+        XCTAssertEqual(LassoCut.area(loop), 0.25, accuracy: 0.001)
+        XCTAssertTrue(LassoCut.isLoop(loop))
+        let bits = LassoCut.inside(loop, width: 20, height: 20)
+        XCTAssertEqual(bits.reduce(0) { $0 + Int($1) }, 100)
+        XCTAssertEqual(bits[10 * 20 + 10], 1)
+        XCTAssertEqual(bits[2 * 20 + 2], 0)
+    }
+
+    func testATapOrAShortStrokeIsNoLoop() {
+        XCTAssertFalse(LassoCut.isLoop([CGPoint(x: 0.5, y: 0.5)]))
+        let line = (0..<20).map { CGPoint(x: 0.1 + CGFloat($0) * 0.02, y: 0.5) }
+        XCTAssertFalse(LassoCut.isLoop(line))
+        XCTAssertFalse(LassoCut.isLoop(squareLoop(0.5, 0.5, 0.52, 0.52)))
+    }
+
+    func testTheLassoKeepsTheThingInItWholeAndLeavesTheNeighbourItGrazes() {
+        // 20×20: the thing in two pieces (labels 1 and 2, a roller and its handle) inside the loop; a neighbour
+        // (label 3) on the right that the loop only touches.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 6..<14 { for x in 6..<10 { mask[y * w + x] = 1 } }
+        for y in 6..<14 { for x in 10..<13 { mask[y * w + x] = 2 } }
+        for y in 4..<16 { for x in 14..<20 { mask[y * w + x] = 3 } }
+        let loop = squareLoop(0.25, 0.25, 0.75, 0.75)   // x, y 5–14
+        let inside = LassoCut.inside(loop, width: w, height: h)
+        let picked = LassoCut.pick(mask: mask, inside: inside, width: w, height: h)
+        XCTAssertEqual(picked, [1, 2])
+        let keep = LassoCut.keep(mask: mask, labels: picked, inside: inside, width: w, height: h)
+        XCTAssertEqual(keep.reduce(0) { $0 + Int($1) }, 8 * 4 + 8 * 3)
+        XCTAssertEqual(keep[10 * w + 15], 0)
+    }
+
+    func testTheLassoCutsOffWhatOfTheThingLiesOutsideIt() {
+        // One instance runs well past the loop (Vision joined the thing to the table edge): only its part in the loop
+        // (and `slack` round it) is kept.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 6..<14 { for x in 2..<14 { mask[y * w + x] = 1 } }
+        let loop = squareLoop(0.25, 0.25, 0.75, 0.75)
+        let inside = LassoCut.inside(loop, width: w, height: h)
+        XCTAssertEqual(LassoCut.pick(mask: mask, inside: inside, width: w, height: h), [1])
+        let keep = LassoCut.keep(mask: mask, labels: [1], inside: inside, width: w, height: h)
+        XCTAssertEqual(keep[10 * w + 2], 0)
+        XCTAssertEqual(keep[10 * w + 8], 1)
+    }
+
     // MARK: Instances
 
     func testTwoObjectsNeverShareAnInstance() {
@@ -366,6 +459,65 @@ final class CardCatchPickTests: XCTestCase {
         let box = CGRect(x: 0.2, y: 15.0 / 90, width: 0.6, height: 60.0 / 90)
         let plans = CatchPlan.plan(things: [thing(box)], mask: stack, width: 120, height: 90)
         XCTAssertEqual(plans[0].cut, .union([3, 4, 5]))
+    }
+
+    /// A lint roller (owner 2026-11-03: 滾筒黏毛器 came out as its handle alone): Vision sees the white roller (4) apart
+    /// from the wire and handle (3, under the AI's point), and the AI's box round the T shape is mostly floor.
+    private func lintRoller() -> [UInt8] {
+        mask(120, 90) { x, y in
+            if (30..<90).contains(x) && (15..<27).contains(y) { return 4 }
+            if (58..<60).contains(x) && (27..<45).contains(y) { return 3 }
+            if (55..<63).contains(x) && (45..<80).contains(y) { return 3 }
+            return 0
+        }
+    }
+    private let lintRollerBox = CGRect(x: 20.0 / 120, y: 8.0 / 90, width: 80.0 / 120, height: 80.0 / 90)
+
+    func testAThinThingsOtherHalfIsTakenInEvenWhenItFillsLittleOfTheBox() {
+        // The roller adds 11% of the box (under `pieceGain`), but more than twice what the handle has there.
+        let plans = CatchPlan.plan(things: [thing(lintRollerBox)], mask: lintRoller(), width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .union([3, 4]))
+    }
+
+    func testPiecesWithAGapBetweenThemAreGatheredButNotWhatLiesOutsideTheBox() {
+        // Vision left out the thin wire: the roller (4) and the handle (3) do not touch. A cup (5) stands beside the
+        // roller, mostly outside the box: not a piece of the lint roller.
+        let m = mask(120, 90) { x, y in
+            if (30..<90).contains(x) && (15..<27).contains(y) { return 4 }
+            if (55..<63).contains(x) && (32..<80).contains(y) { return 3 }
+            if (94..<120).contains(x) && (10..<40).contains(y) { return 5 }
+            return 0
+        }
+        let plans = CatchPlan.plan(things: [CatchPlan.Thing(point: CGPoint(x: 59.0 / 120, y: 60.0 / 90), box: lintRollerBox, own: true)],
+                                   mask: m, width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .union([3, 4]))
+        // A speck in the box is no piece either (`gatherSpeck`).
+        XCTAssertEqual(CatchPlan.gather([3], box: lintRollerBox, mask: mask(120, 90) { x, y in
+            if (55..<63).contains(x) && (32..<80).contains(y) { return 3 }
+            return x == 64 && y == 40 ? 6 : 0
+        }, totals: { var t = [Int](repeating: 0, count: 256); t[3] = 384; t[6] = 1; return t }(), excluding: [], width: 120, height: 90), [])
+    }
+
+    func testASeedOnTheOtherThingsColourIsDropped() {
+        // A red can's seeds (0) took in a strip of the yellow cake (its rough box covered the cake's edge); the cake's
+        // seeds (1) are all yellow. The yellow seeds of the can are dropped, its red ones stay; the cake keeps all.
+        let red: [UInt8] = [200, 30, 30], yellow: [UInt8] = [230, 190, 80]
+        let seeds = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
+        let colours = (0..<10).flatMap { i -> [UInt8] in (i < 4 ? red : yellow) }
+        XCTAssertEqual(CatchPlan.colourCheckedSeeds(seeds, colours: colours), [0, 0, 0, 0, -1, -1, 1, 1, 1, 1])
+        // The same colour on both (a red cup on a red saucer): every seed stays.
+        XCTAssertEqual(CatchPlan.colourCheckedSeeds([0, 0, 1, 1], colours: [UInt8](repeating: 200, count: 12)), [0, 0, 1, 1])
+    }
+
+    func testAPartNamedOnItsOwnStaysInTheWholeThingsCutOut() {
+        // The AI also named the roller on its own (its point on the roller, its box round it): the roller's instance is
+        // that thing's, and the lint roller still takes it in — neither cut-out is split.
+        let roller = CatchPlan.Thing(point: CGPoint(x: 60.0 / 120, y: 21.0 / 90),
+                                     box: CGRect(x: 29.0 / 120, y: 14.0 / 90, width: 62.0 / 120, height: 14.0 / 90), own: true)
+        let whole = CatchPlan.Thing(point: CGPoint(x: 59.0 / 120, y: 60.0 / 90), box: lintRollerBox, own: true)
+        let plans = CatchPlan.plan(things: [whole, roller], mask: lintRoller(), width: 120, height: 90)
+        XCTAssertEqual(plans[0].cut, .union([3, 4]))
+        XCTAssertEqual(plans[1].cut, .instance(4))
     }
 
     func testAPieceOfTheInstanceFarFromTheBoxIsLeftOut() throws {
