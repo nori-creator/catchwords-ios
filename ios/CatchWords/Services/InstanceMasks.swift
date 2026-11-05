@@ -242,8 +242,8 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                     if bits[k] == 0 && left.isEmpty { bits[k] = 1 }
                 }
                 // What a rival took from inside its outline is given back (no hole where the cutlet lay on the curry).
-                let whole = CatchPlan.filledHoles(CatchPlan.Keep(width: g.width, height: g.height, bits: bits), labels: ls,
-                                                  mask: g.mask, width: g.width, height: g.height)
+                let taken = CatchPlan.Keep(width: g.width, height: g.height, bits: bits)
+                let whole = p.fillsHoles ? CatchPlan.filledHoles(taken, labels: ls, mask: g.mask, width: g.width, height: g.height) : taken
                 let mine = CatchPlan.reaching(whole, box: box, width: g.width, height: g.height)
                 add("the instance without what a crop found for thing \(rivals.map { String($0 + 1) }.joined(separator: ", "))")
                 out.append((mine.count > 0 ? cut(instances: IndexSet(ls), keep: mine) : nil, note))

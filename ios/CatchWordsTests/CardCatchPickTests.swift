@@ -119,7 +119,7 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(bowlKeep.count, 14 * 14, "the bowl's cut-out has no hole")
         let cutletKeep = CatchPlan.pixels(of: plans[1].cut, mask: mask, width: w, height: h)
         XCTAssertGreaterThan(cutletKeep.count, 0)
-        XCTAssertLessThan(cutletKeep.count, 14 * 14)
+        XCTAssertLessThan(cutletKeep.count, 14 * 14 / 2, "the cutlet keeps its own share, not the bowl")
     }
 
     func testFilledHolesLeavesWhatReachesTheEdge() {
