@@ -1531,7 +1531,10 @@ final class DexStore {
     /// Photos with the setting on). A photo from the library is never saved again; nothing under the UI tests.
     static func saveToPhotosIfEnabled(_ image: UIImage) {
         let enabled = UserDefaults.standard.object(forKey: "photos.sync") as? Bool ?? true
-        guard enabled, !DemoBackend.isOn else { return }
+        guard enabled else { return }
+        #if DEBUG
+        if DemoBackend.isOn { return }
+        #endif
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
             guard status == .authorized || status == .limited else { return }
             PHPhotoLibrary.shared().performChanges {
