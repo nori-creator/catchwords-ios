@@ -1,14 +1,17 @@
 import SwiftUI
 
 /// 囲んで切り抜き直す (owner 2026-11-04: 「切り抜いたあとの画像を、指でその物体をサークルで囲うと切り抜きをその部分やり直す
-/// 機能をつけて」). The original photo, full screen: the learner draws a loop round the thing with a finger, the cut-out is
-/// made again from what lies in it (`LassoCutout`), shown on a checkerboard, and kept with 「この切り抜きにする」
-/// (`onSave`) or drawn again. Opened from the long-press photo sheet (`HeroPhotoPickerSheet`).
+/// 機能をつけて」). The original photo, full screen: the learner draws a loop round the thing with a finger — in the catch
+/// scan's own glowing blue-white light (`ScanGlow`, owner 2026-11-05) — the cut-out is made again from what lies in it
+/// (`LassoCutout`), shown on a checkerboard, and kept with 「この切り抜きにする」 (`onSave`) or drawn again. Opened from the
+/// long-press photo sheet (`HeroPhotoPickerSheet`) and from the choose screen right after the shot (`CandidatePickerView`,
+/// owner 2026-11-05: 「単語の候補をタップするとき、つまり切り抜きが表示されるときに、丸で囲って切り抜きを直すボタンをつけて」).
 struct LassoCutoutView: View {
-    /// The original photo's path (`Sticker.objectImageUrl`, or a later photo's own).
-    let photoPath: String
-    /// Saves the new cut-out (the word page uploads it and shows it); throws when it could not be saved.
-    let onSave: (UIImage) async throws -> Void
+    /// The original photo's path (`Sticker.objectImageUrl`, or a later photo's own); nil when `photo` is given.
+    var photoPath: String? = nil
+    /// Saves the new cut-out (the word page uploads it and shows it; the choose screen takes it as the sticker); throws
+    /// when it could not be saved. `box`: the loop's bounds, 0–1 of the photo.
+    let onSave: (UIImage, CGRect) async throws -> Void
 
     @Environment(DexStore.self) private var dex
     @Environment(\.dismiss) private var dismiss
@@ -21,6 +24,18 @@ struct LassoCutoutView: View {
     @State private var result: UIImage?
     @State private var saving = false
     @State private var note: String?
+
+    /// From a stored photo (the word page).
+    init(photoPath: String, onSave: @escaping (UIImage, CGRect) async throws -> Void) {
+        self.photoPath = photoPath
+        self.onSave = onSave
+    }
+
+    /// From the photo just taken (the choose screen): no loading.
+    init(photo: UIImage, onSave: @escaping (UIImage, CGRect) async throws -> Void) {
+        self.onSave = onSave
+        _photo = State(initialValue: photo)
+    }
 
     var body: some View {
         ZStack {
@@ -110,16 +125,18 @@ struct LassoCutoutView: View {
         }
     }
 
+    /// The loop in the scan's light (`ScanGlow`): open while the finger moves, closed when it lifts.
     private func loopShape(in frame: CGRect) -> some View {
-        Path { p in
-            let pts = loop.map { CGPoint(x: frame.minX + $0.x * frame.width, y: frame.minY + $0.y * frame.height) }
+        let pts = loop.map { CGPoint(x: frame.minX + $0.x * frame.width, y: frame.minY + $0.y * frame.height) }
+        let closed = !drawing
+        return Canvas { ctx, _ in
             guard let first = pts.first else { return }
+            var p = Path()
             p.move(to: first)
             p.addLines(pts)
-            if !drawing { p.closeSubpath() }
+            if closed { p.closeSubpath() }
+            ScanGlow.stroke(&ctx, p, box: p.boundingRect, alpha: 1, scale: 1.4)
         }
-        .stroke(.white, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: drawing ? [] : [8, 6]))
-        .shadow(color: .black.opacity(0.5), radius: 2)
         .allowsHitTesting(false)
     }
 
@@ -220,7 +237,7 @@ struct LassoCutoutView: View {
         saving = true
         defer { saving = false }
         do {
-            try await onSave(result)
+            try await onSave(result, LassoCut.bounds(loop))
             Haptics.success()
             dismiss()
         } catch {
@@ -230,7 +247,7 @@ struct LassoCutoutView: View {
     }
 
     private func loadPhoto() async {
-        guard photo == nil else { return }
+        guard photo == nil, let photoPath else { return }
         var image = await ImageCache.shared.cached(for: photoPath)
         if image == nil {
             await dex.prefetchPictures([photoPath])
