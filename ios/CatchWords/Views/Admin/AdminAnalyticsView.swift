@@ -188,14 +188,16 @@ struct AdminAnalyticsView: View {
 
     private func learnersChart(_ r: AnalyticsReport) -> some View {
         let days = r.daily
-        let top = max(3, days.map(\.learners.count).max() ?? 0)
+        let most: Int = days.map { $0.learners.count }.max() ?? 0
+        let top: Double = Double(max(3, most))
+        let lift: Double = top * 0.12
         return Chart {
             ForEach(days) { d in
                 BarMark(x: .value("day", d.day), y: .value("learners", Double(d.learners.count)))
-                    .foregroundStyle(d.day == day ? Theme.primaryDeep : Theme.primary.opacity(day == nil ? 0.85 : 0.35))
+                    .foregroundStyle(barColor(d.day))
                     .cornerRadius(3)
                 if !d.signups.isEmpty {
-                    PointMark(x: .value("day", d.day), y: .value("learners", Double(d.learners.count) + Double(top) * 0.12))
+                    PointMark(x: .value("day", d.day), y: .value("learners", Double(d.learners.count) + lift))
                         .symbol(.circle).symbolSize(28)
                         .foregroundStyle(Theme.gold)
                 }
@@ -206,7 +208,7 @@ struct AdminAnalyticsView: View {
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
             }
         }
-        .chartYScale(domain: 0...Double(top) * 1.25)
+        .chartYScale(domain: 0.0...(top * 1.25))
         .chartXAxis {
             AxisMarks(values: AdminBarChart.ticks(days.map(\.day), n: 6)) { v in
                 AxisValueLabel { Text(AdminFormat.day(v.as(String.self) ?? "")).font(.system(size: 10)) }
@@ -234,6 +236,11 @@ struct AdminAnalyticsView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L("学習者の推移"))
         .accessibilityIdentifier("analytics.learnersChart")
+    }
+
+    private func barColor(_ key: String) -> Color {
+        if key == day { return Theme.primaryDeep }
+        return Theme.primary.opacity(day == nil ? 0.85 : 0.35)
     }
 
     private func dayDetail(_ d: AnalyticsReport.Day) -> some View {
@@ -324,31 +331,16 @@ struct AdminAnalyticsView: View {
         }
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(["all"] + AnalyticsText.statuses + ["excluded"], id: \.self) { key in
-                    let n = key == "all" ? counted.count
-                        : key == "excluded" ? r.users.count - counted.count
-                        : counted.filter { $0.status == key }.count
-                    Button {
+                ForEach(Self.filterKeys, id: \.self) { key in
+                    FilterChip(title: AnalyticsText.filterTitle(key), count: Self.filterCount(key, in: r),
+                               selected: userFilter == key) {
                         Haptics.selection()
                         userFilter = key
-                    } label: {
-                        Text("\(AnalyticsText.filterTitle(key)) \(n)")
-                            .scaledFont(size: 13, weight: .semibold, monospacedDigit: true)
-                            .padding(.horizontal, 12).frame(minHeight: 34)
-                            .foregroundStyle(userFilter == key ? Color.white : Theme.foreground)
-                            .background(userFilter == key ? Theme.foreground.opacity(0.85) : Theme.secondary, in: Capsule())
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
-        let shown = r.users.filter {
-            switch userFilter {
-            case "all": $0.excluded == nil
-            case "excluded": $0.excluded != nil
-            default: $0.excluded == nil && $0.status == userFilter
-            }
-        }
+        let shown: [AnalyticsReport.User] = Self.users(in: r, filter: userFilter)
         AnalyticsCard(padding: 0) {
             if shown.isEmpty {
                 EmptyChart(text: L("当てはまる人はいません")).padding(16)
@@ -360,23 +352,51 @@ struct AdminAnalyticsView: View {
                     UserRow(user: u, range: r.range)
                 }
                 .buttonStyle(.plain)
-                .contextMenu {
-                    Button(u.excluded == "flagged" ? L("数に入れる") : L("数えない（試験用など）"),
-                           systemImage: u.excluded == "flagged" ? "person.badge.plus" : "person.badge.minus") {
-                        Task {
-                            if await AdminAnalytics.setExcluded(userId: u.id, excluded: u.excluded != "flagged") {
-                                await load()
-                            }
-                        }
-                    }
-                    .disabled(u.excluded != nil && u.excluded != "flagged")
-                }
+                .contextMenu { excludeButton(u) }
                 if i < shown.count - 1 { Divider().overlay(Theme.border).padding(.leading, 62) }
             }
         }
         Text(L("長押しで「数えない」の印を付け外しできます（あなたの試験用の別アカウントなど）。匿名・管理者・試験用のメールは自動で外します。"))
             .scaledFont(size: 11).foregroundStyle(Theme.muted)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Long press on a person: leave them out of the numbers, or count them again. Automatic reasons (anonymous,
+    /// admin, test mail) cannot be undone here.
+    @ViewBuilder
+    private func excludeButton(_ u: AnalyticsReport.User) -> some View {
+        let flagged: Bool = u.excluded == "flagged"
+        let title: String = flagged ? L("数に入れる") : L("数えない（試験用など）")
+        let icon: String = flagged ? "person.badge.plus" : "person.badge.minus"
+        Button(title, systemImage: icon) {
+            Task {
+                if await AdminAnalytics.setExcluded(userId: u.id, excluded: !flagged) {
+                    await load()
+                }
+            }
+        }
+        .disabled(u.excluded != nil && !flagged)
+    }
+
+    private static let filterKeys: [String] = ["all"] + AnalyticsText.statuses + ["excluded"]
+
+    private static func filterCount(_ key: String, in r: AnalyticsReport) -> Int {
+        let counted: [AnalyticsReport.User] = r.users.filter { $0.excluded == nil }
+        switch key {
+        case "all": return counted.count
+        case "excluded": return r.users.count - counted.count
+        default: return counted.filter { $0.status == key }.count
+        }
+    }
+
+    private static func users(in r: AnalyticsReport, filter: String) -> [AnalyticsReport.User] {
+        r.users.filter { (u: AnalyticsReport.User) -> Bool in
+            switch filter {
+            case "all": return u.excluded == nil
+            case "excluded": return u.excluded != nil
+            default: return u.excluded == nil && u.status == filter
+            }
+        }
     }
 
     // MARK: 品質
@@ -772,6 +792,12 @@ private struct KpiTile: View {
         .accessibilityElement(children: .combine)
     }
 
+    private static func deltaColor(up: Bool, down: Bool) -> Color {
+        if up { return Theme.ok }
+        if down { return Theme.destructive }
+        return Theme.muted
+    }
+
     private var valueText: String {
         guard let v = metric.value else { return "—" }
         switch unit {
@@ -794,7 +820,7 @@ private struct KpiTile: View {
                 Text(up || down ? amount : L("変わらず")).scaledFont(size: 12, weight: .bold, monospacedDigit: true)
                 Text(L("前の期間比")).scaledFont(size: 10).foregroundStyle(Theme.muted)
             }
-            .foregroundStyle(up ? Theme.ok : down ? Theme.destructive : Theme.muted)
+            .foregroundStyle(Self.deltaColor(up: up, down: down))
         } else {
             Text(unit == .rate && metric.n == 0 ? L("対象の人がまだいません") : L("前の期間 —"))
                 .scaledFont(size: 11).foregroundStyle(Theme.muted)
@@ -827,6 +853,28 @@ private struct BigStat: View {
             if let sub { Text(sub).scaledFont(size: 11).foregroundStyle(Theme.muted).lineLimit(2) }
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct FilterChip: View {
+    let title: String
+    let count: Int
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        let ink: Color = selected ? Color.white : Theme.foreground
+        let fill: Color = selected ? Theme.foreground.opacity(0.85) : Theme.secondary
+        Button(action: action) {
+            Text("\(title) \(count)")
+                .scaledFont(size: 13, weight: .semibold, monospacedDigit: true)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 34)
+                .foregroundStyle(ink)
+                .background(fill, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -865,7 +913,7 @@ private struct FunnelBars: View {
         let first = max(1, steps.first?.users.count ?? 1)
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(steps.enumerated()), id: \.element.id) { i, s in
-                let stopped = i == 0 ? [] : steps[i - 1].users.filter { !s.users.contains($0) }
+                let stopped: [String] = Self.stopped(at: i, in: steps)
                 if i > 0, !stopped.isEmpty {
                     Text(L("−\(stopped.count)人"))
                         .scaledFont(size: 11, weight: .bold, monospacedDigit: true)
@@ -877,14 +925,14 @@ private struct FunnelBars: View {
                         HStack {
                             Text(AnalyticsText.step(s.key)).scaledFont(size: 13, weight: .semibold).foregroundStyle(Theme.foreground)
                             Spacer()
-                            Text(L("\(s.users.count)人 · \(AdminFormat.percent(Double(s.users.count) * 100 / Double(first)))"))
+                            Text(L("\(s.users.count)人 · \(Self.share(s.users.count, of: first))"))
                                 .scaledFont(size: 13, weight: .bold, monospacedDigit: true).foregroundStyle(Theme.foreground)
                         }
                         GeometryReader { g in
                             ZStack(alignment: .leading) {
                                 Capsule().fill(Theme.secondary)
                                 Capsule().fill(LinearGradient(colors: [Theme.primaryBright, Theme.primaryDeep], startPoint: .leading, endPoint: .trailing))
-                                    .frame(width: max(6, g.size.width * CGFloat(s.users.count) / CGFloat(first)))
+                                    .frame(width: Self.barWidth(g.size.width, s.users.count, first))
                             }
                         }
                         .frame(height: 12)
@@ -895,6 +943,22 @@ private struct FunnelBars: View {
                 .accessibilityElement(children: .combine)
             }
         }
+    }
+}
+
+extension FunnelBars {
+    static func stopped(at i: Int, in steps: [AnalyticsReport.Step]) -> [String] {
+        guard i > 0 else { return [] }
+        let now = Set(steps[i].users)
+        return steps[i - 1].users.filter { !now.contains($0) }
+    }
+
+    static func share(_ n: Int, of first: Int) -> String {
+        AdminFormat.percent(Double(n) * 100 / Double(max(1, first)))
+    }
+
+    static func barWidth(_ width: CGFloat, _ n: Int, _ first: Int) -> CGFloat {
+        max(6, width * CGFloat(n) / CGFloat(max(1, first)))
     }
 }
 
@@ -934,12 +998,13 @@ private struct CohortGrid: View {
     private func cell(_ c: AnalyticsReport.Cohort, _ k: Int) -> some View {
         if k < c.cells.count, let cell = c.cells[k] {
             Button { onTap(c, k, cell) } label: {
+                let alpha: Double = 0.08 + 0.85 * min(1.0, cell.pct / 100.0)
+                let ink: Color = cell.pct >= 50 ? Color.white : Theme.foreground
                 Text("\(Int(cell.pct.rounded()))")
                     .scaledFont(size: 11, weight: .bold, monospacedDigit: true)
-                    .foregroundStyle(cell.pct >= 50 ? Color.white : Theme.foreground)
+                    .foregroundStyle(ink)
                     .frame(width: 40, height: 28)
-                    .background(Theme.primary.opacity(0.08 + 0.85 * min(1, cell.pct / 100)),
-                                in: .rect(cornerRadius: 6, style: .continuous))
+                    .background(Theme.primary.opacity(alpha), in: .rect(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(cell.users.isEmpty)
@@ -1048,7 +1113,8 @@ private struct SpeedGauge: View {
     let target: Double
 
     var body: some View {
-        let top = max(target * 2, (p90 ?? 0) * 1.15, 1)
+        let slow: Double = (p90 ?? 0) * 1.15
+        let top: Double = max(target * 2, max(slow, 1))
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 14) {
                 big(L("ふつう"), p50)
