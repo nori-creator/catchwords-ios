@@ -78,9 +78,6 @@ nonisolated enum CatchPlan {
         /// The other things (indices) this thing's instance is shared with (`Cut.part` from `split`): each of them also
         /// gets Vision on a crop round its own box first (`InstanceMasks.render`).
         var sharedWith: [Int] = []
-        /// What the sharing takes from inside its outline is given back (`filledHoles`): true for a thing that holds
-        /// another (the curry rice round its cutlet), never for the part lying on it.
-        var fillsHoles: Bool = false
     }
 
     /// One Vision instance near an object's point, and how far it is (squared mask pixels; 0 = under the point).
@@ -240,19 +237,21 @@ nonisolated enum CatchPlan {
                     return Placement(label: c.chosen, cut: cut, anchor: inBoxAnchor ?? anchors[c.chosen] ?? t.point,
                                      note: c.note, refine: c.larger ? box : nil)
                 }
-                let anchor = inBoxAnchor ?? CatchAnchor.anchors(mask: keep.bits, width: w, height: h)[1] ?? anchors[c.chosen] ?? t.point
-                return Placement(label: c.chosen, cut: .part(c.labels, keep), anchor: anchor,
+                // Leaving out pieces away from the box never leaves a hole inside the thing.
+                let whole = filledHoles(keep, labels: c.labels, mask: mask, width: w, height: h)
+                let anchor = inBoxAnchor ?? CatchAnchor.anchors(mask: whole.bits, width: w, height: h)[1] ?? anchors[c.chosen] ?? t.point
+                return Placement(label: c.chosen, cut: .part(c.labels, whole), anchor: anchor,
                                  note: [c.note, "pieces of the instance away from its box left out"].compactMap { $0 }.joined(separator: "; "),
                                  refine: c.larger ? box : nil)
             }
             // Shared with other things: split where they meet (`split`), then only the pieces that reach its box.
             var side = split(owner: i, labels: c.labels, claimants: claimants, boxes: boxes, mask: mask, width: w, height: h,
                              colours: colours)
-            // What the split took from inside its own outline is a hole in it, not where it ends (owner 2026-11-05: the
-            // curry rice named with its cutlet and broccoli came out with holes where they lay): given back.
-            // Only for the thing that holds the others, never for a part lying on another (the cutlet itself).
-            let holds = !rivals.contains { isPart(i, of: $0) }
-            if holds { side = filledHoles(side, labels: c.labels, mask: mask, width: w, height: h) }
+            // A cut-out never has a hole that Vision's own outline does not have (owner 2026-11-05: the curry rice and the
+            // pork-cutlet rice, named with what lay on them, came out with holes where those lay — "Vision cut it out
+            // right and the app spoilt it"). What the split took from inside its own outline is given back, for every
+            // thing: a thing on another keeps its own share and whatever of the instance its share encloses.
+            side = filledHoles(side, labels: c.labels, mask: mask, width: w, height: h)
             let keep = reaching(side, box: box, width: w, height: h)
             guard keep.count > 0 else {
                 return Placement(label: nil, cut: .noMask, anchor: t.point, note: "its share of a shared instance was empty")
@@ -260,7 +259,7 @@ nonisolated enum CatchPlan {
             let anchor = CatchAnchor.anchors(mask: keep.bits, width: w, height: h)[1] ?? t.point
             return Placement(label: c.chosen, cut: .part(c.labels, keep), anchor: anchor,
                              note: "one Vision instance with thing \(rivals.map { String($0 + 1) }.joined(separator: ", ")): split where they meet",
-                             sharedWith: rivals, fillsHoles: holds)
+                             sharedWith: rivals)
         }
 
         // A cut-out that covers only a small corner of its thing's box is something smaller in front of the thing or in

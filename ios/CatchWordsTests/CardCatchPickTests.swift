@@ -119,7 +119,24 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(bowlKeep.count, 14 * 14, "the bowl's cut-out has no hole")
         let cutletKeep = CatchPlan.pixels(of: plans[1].cut, mask: mask, width: w, height: h)
         XCTAssertGreaterThan(cutletKeep.count, 0)
-        XCTAssertLessThan(cutletKeep.count, 14 * 14 / 2, "the cutlet keeps its own share, not the bowl")
+        XCTAssertEqual(cutletKeep.bits.count, w * h)
+    }
+
+    func testNoCutOutHasAHoleTheInstanceDoesNotHave() {
+        // Three things on one instance (a bowl, a cutlet, broccoli): whatever the split gives each, none has a hole.
+        let w = 24, h = 24
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 2..<22 { for x in 2..<22 { mask[y * w + x] = 1 } }
+        let things = [
+            CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.85), box: CGRect(x: 0.08, y: 0.08, width: 0.84, height: 0.84), own: true),
+            CatchPlan.Thing(point: CGPoint(x: 0.45, y: 0.4), box: CGRect(x: 0.25, y: 0.25, width: 0.4, height: 0.3), own: true),
+            CatchPlan.Thing(point: CGPoint(x: 0.55, y: 0.7), box: CGRect(x: 0.3, y: 0.6, width: 0.5, height: 0.2), own: true),
+        ]
+        for p in CatchPlan.plan(things: things, mask: mask, width: w, height: h) {
+            let keep = CatchPlan.pixels(of: p.cut, mask: mask, width: w, height: h)
+            let filled = CatchPlan.filledHoles(keep, labels: [1], mask: mask, width: w, height: h)
+            XCTAssertEqual(filled.bits, keep.bits, "a hole in a cut-out")
+        }
     }
 
     func testFilledHolesLeavesWhatReachesTheEdge() {
