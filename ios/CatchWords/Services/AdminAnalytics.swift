@@ -1,11 +1,10 @@
 import Foundation
 
-/// The developer's numbers, the same the web shows its admin (`/admin/users`, `/admin/metrics`, `/admin/beta`; owner
-/// 2026-10-11: 「開発者の私だけ設定の開発者設定からweb版と同じように、利用者やアプリの詳しい情報、分析が見えるように」).
+/// The developer's numbers (owner 2026-10-11: 「開発者の私だけ…利用者やアプリの詳しい情報、分析が見えるように」;
+/// 2026-11-05: the three screens 利用者ごとの情報 · KPIダッシュボード · ベータの指標 became one 分析, `report(range:)`).
 ///
-/// Read through `/api/native-fn` under admin names (web `native-fn.ts`: `adminListUsers` → `listAdminUsers`,
-/// `adminGetUserDetail` → `getAdminUserDetail`, `adminGetOverview` → `getAdminOverview`, `adminGetDashboard` →
-/// `getAdminDashboard`, `adminGetBetaMetrics` → `getBetaMetrics`). Every one checks `has_role(admin)` on the server
+/// Read through `native-fn` under admin names (`adminGetAnalytics` → `getAdminAnalytics`, `adminGetUserDetail` →
+/// `getAdminUserDetail`, the error reports). Every one checks `has_role(admin)` on the server
 /// (403 for anyone else). Each answer is kept as the JSON the server sent (`JSONValue`) and read leniently, so a field
 /// the web adds or drops never breaks a screen. A server without these names yet (the web change not published)
 /// answers 404 (`notDeployed`): the screens say so instead of failing silently.
@@ -20,29 +19,35 @@ enum AdminAnalytics {
 
     typealias Answer = Result<JSONValue, Failure>
 
-    /// Every account's row (web `listAdminUsers`).
-    static func users() async -> Answer {
-        await run { try await NativeAPI.call("adminListUsers", [:], timeout: 120) }
-    }
-
-    /// The whole service's numbers (web `getAdminOverview`).
-    static func overview() async -> Answer {
-        await run { try await NativeAPI.call("adminGetOverview", [:], timeout: 120) }
-    }
-
     /// One account in detail, compared with everyone (web `getAdminUserDetail`).
     static func userDetail(_ userId: String) async -> Answer {
         await run { try await NativeAPI.call("adminGetUserDetail", ["userId": userId], timeout: 120) }
     }
 
-    /// The KPI dashboard: funnel and the last 14 days (web `getAdminDashboard`).
-    static func dashboard() async -> Answer {
-        await run { try await NativeAPI.call("adminGetDashboard", [:], timeout: 120) }
+    /// 設定 › 開発者 › 分析 (server `adminGetAnalytics`, `analytics.ts`): every section in one answer for the last
+    /// `range` days (7 / 30 / 90) and the same span before it.
+    static func report(range: Int) async -> Result<AnalyticsReport, Failure> {
+        let r = [7, 30, 90].contains(range) ? range : 30
+        do {
+            let data = try await NativeAPI.call("adminGetAnalytics", ["range": r], timeout: 120)
+            return .success(try AnalyticsReport.decode(data))
+        } catch let APIError.server(status, message) {
+            if status == 404 { return .failure(.notDeployed) }
+            if status == 403 { return .failure(.forbidden) }
+            return .failure(.other(L10n.readerSafe(message, fallback: L("サーバーエラー（\(status)）"))))
+        } catch is DecodingError {
+            return .failure(.other(L("読み込めませんでした")))
+        } catch {
+            return .failure(.other((error as? LocalizedError)?.errorDescription ?? L("読み込めませんでした")))
+        }
     }
 
-    /// The beta metrics (web `getBetaMetrics`).
-    static func beta() async -> Answer {
-        await run { try await NativeAPI.call("adminGetBetaMetrics", [:], timeout: 120) }
+    /// Leave an account out of the numbers (one of the developer's own test accounts) or count it again.
+    static func setExcluded(userId: String, excluded: Bool) async -> Bool {
+        guard case .success(let v) = await run({
+            try await NativeAPI.call("adminSetAnalyticsExcluded", ["userId": userId, "excluded": excluded], timeout: 60)
+        }) else { return false }
+        return v["ok"]?.bool ?? true
     }
 
     /// The learners' error reports, newest first (web `adminListEntryReports`, server #187): rows of `{id, headword,

@@ -380,7 +380,8 @@ Claude が次を行います。
    drop extension if exists pg_net;
    ```
 
-3. **Edge Functions** → `migration-intake` → **Delete**
+3. **Edge Functions** → `migration-intake` → **Delete**。`migration-photos`（2026-11-05 の後始末の移動に使った。今は何もしない）と
+   `migration-import` は、1.0.4 の公開直後の差分の移動（Claude が行う）が終わってから **Delete**
 4. 試験用アカウント `e2e-test@catchwords.invalid` は、Claude が「消してよい」と言ってから
    **Authentication** → **Users** → そのアカウント → **Delete user**
 
