@@ -617,6 +617,7 @@ struct CaptureView: View {
                 vm.photoLocation = nil
                 vm.photoNotHere = false
                 vm.photoTakenAt = nil
+                DexStore.saveToPhotosIfEnabled(img)
                 beginAnalyze(img, askSelfie: selfieMode)
             } else {
                 shooting = false
