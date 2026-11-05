@@ -609,7 +609,7 @@ final class CaptureViewModel {
     private func withLearnerCut(_ o: CatchObject) -> CatchObject {
         guard let own = learnerCuts[o.id] else { return o }
         return CatchObject(id: o.id, words: o.words, point: o.point, box: own.box, anchor: o.anchor, cut: own.cut,
-                           instance: o.instance, positioned: o.positioned, cutNote: "cut by the learner (囲んで切り抜き直す)")
+                           instance: o.instance, positioned: o.positioned, cutNote: "cut by the learner (lasso)")
     }
 
     /// A new photo: the cut-outs lifted for the last one are dropped.
