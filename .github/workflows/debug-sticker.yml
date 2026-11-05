@@ -1,0 +1,37 @@
+# 一度だけの調べ物（オーナー 2026-11-05: 焼きおにぎりが切り抜かれない）: 元の写真を取り出し、Vision の塊を数え、
+# 今のコードで何が起きるかを ci-previews の runs/debug-onigiri/ に置く。調べ終わったら消す。
+name: Debug sticker cut-out
+on:
+  push:
+    branches: [claude/debug-onigiri]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -u
+          mkdir -p "$RUNNER_TEMP/d"
+          for p in 1793882986365-object.jpg 1793883054646-cutout.png; do
+            curl -sS -f -H "Authorization: Bearer $KEY" -H "apikey: $KEY" \
+              "$SUPABASE_URL/storage/v1/object/stickers/21b1c42a-9456-4a58-8624-46aa3abb632f/$p" -o "$RUNNER_TEMP/d/$p" || echo "failed $p"
+          done
+          ls -la "$RUNNER_TEMP/d"
+          sips -g pixelWidth -g pixelHeight -g orientation "$RUNNER_TEMP/d/1793882986365-object.jpg"
+          swift scripts/debug/instances.swift "$RUNNER_TEMP/d/1793882986365-object.jpg" "$RUNNER_TEMP/d" | tee "$RUNNER_TEMP/d/instances.txt"
+          python3 scripts/debug/onigiri_cases.py "$RUNNER_TEMP/d"
+          swiftc -O ios/CatchWords/Models/CatchPlan.swift ios/CatchWords/Models/CatchGeometry.swift ios/CatchWords/Models/TagPlacement.swift \
+            ios/CatchWords/Services/InstanceMasks.swift scripts/cutout-harness/OldCatchPlan.swift scripts/cutout-harness/main.swift -o "$RUNNER_TEMP/h"
+          mkdir -p "$RUNNER_TEMP/d/harness"
+          "$RUNNER_TEMP/h" "$RUNNER_TEMP/d/cases.json" "$RUNNER_TEMP/d/harness" | tee "$RUNNER_TEMP/d/harness.txt" || true
+          for f in "$RUNNER_TEMP"/d/harness/*.png; do [ -f "$f" ] && cp "$f" "$RUNNER_TEMP/d/h-$(basename "$f")"; done
+      - if: always()
+        run: |
+          bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            runs/debug-onigiri "debug onigiri" "$RUNNER_TEMP"/d/*
