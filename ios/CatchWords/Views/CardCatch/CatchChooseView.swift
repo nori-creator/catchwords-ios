@@ -39,9 +39,6 @@ struct CatchChooseOverlay: View {
     let onClose: () -> Void
     /// A word typed in the field under the card.
     var onSearch: ((String) -> Void)? = nil
-    /// 囲んで切り抜き直す: the learner redraws the sticker's outline on the photo (owner 2026-11-05: 「単語の候補をタップする
-    /// とき、つまり切り抜きが表示されるときに、丸で囲って切り抜きを直すボタンをつけて」). nil = no button (previews).
-    var onRecut: (() -> Void)? = nil
 
     /// The card has come in and stands still (`settleCard`): its timeline stops until a choice, new rows or closing.
     @State private var cardStill = false
@@ -114,26 +111,6 @@ struct CatchChooseOverlay: View {
             if hasCard, chosenAt == nil, closingAt == nil {
                 VStack {
                     HStack {
-                        if let onRecut {
-                            Button(action: onRecut) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "lasso")
-                                        .font(.system(size: 14, weight: .semibold))
-                                    Text(L("囲んで切り抜き直す"))
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .lineLimit(1)
-                                }
-                                .foregroundStyle(ink)
-                                .padding(.horizontal, 12)
-                                .frame(height: 36)
-                                .background(.white.opacity(0.85), in: Capsule())
-                                .overlay(Capsule().stroke(line, lineWidth: 1))
-                                .frame(minHeight: 44)
-                                .contentShape(Capsule())
-                            }
-                            .buttonStyle(PressableStyle(scale: 0.95))
-                            .accessibilityIdentifier("variant.recut")
-                        }
                         Spacer()
                         Button(action: onClose) {
                             Image(systemName: "xmark")

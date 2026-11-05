@@ -86,7 +86,7 @@ struct HeroPhotoPickerSheet: View {
         }
         .fullScreenCover(isPresented: $recutting) {
             if let path = sticker.objectImageUrl {
-                LassoCutoutView(photoPath: path) { image, _ in
+                LassoCutoutView(photoPath: path) { image in
                     // The cover closes itself; this sheet stays, with the new cut-out among the pictures.
                     try await saveRecut(image)
                 }
