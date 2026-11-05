@@ -100,6 +100,10 @@ final class CaptureViewModel {
     /// started when its choose screen opens, so that screen lifts the same sticker as the GET moment (owner 2026-10-22:
     /// 「単語の候補の画像が切り抜きになってない。新しい言葉をキャッチはちゃんと切り抜きになってる」).
     @ObservationIgnored private var liftedCuts: [Int: Task<(cut: UIImage?, box: CGRect?), Never>] = [:]
+    /// 囲んで切り抜き直す on the choose screen (owner 2026-11-05): the learner's own cut-out of a thing (by `CatchObject.id`;
+    /// -1 = the photo's main subject, a word typed under the photo) with the loop's box, for this photo. It is the sticker
+    /// over anything the masks made — the learner's loop is the last word on what the thing is.
+    @ObservationIgnored private var learnerCuts: [Int: (cut: UIImage, box: CGRect)] = [:]
     private var detailsTask: Task<CardDetails?, Never>?
     /// Cards already being generated for this photo, by headword.
     private var detailsCache: [String: Task<CardDetails?, Never>] = [:]
@@ -152,6 +156,7 @@ final class CaptureViewModel {
         cutsTask?.cancel()
         cutsTask = nil
         dropLiftedCuts()
+        learnerCuts = [:]
         isCutting = false
         cutout = nil
         detectOutcome = nil
@@ -230,7 +235,8 @@ final class CaptureViewModel {
                         return built
                     }.value
                     guard token == runToken else { return }
-                    objects = built
+                    // A cut-out the learner drew meanwhile (囲んで切り抜き直す) stays theirs.
+                    objects = built.map { withLearnerCut($0) }
                     // Things the server gave no place (or the same place twice) went to free Vision instances or spots
                     // of their own instead of the middle; the developer log says which (owner 2026-10-15).
                     if let note = CatchObject.placementNote(built) { DevLog.shared.add("tags", note) }
@@ -457,8 +463,11 @@ final class CaptureViewModel {
         cutout = nil
         dropUploads()
         Haptics.impact(.light)
-        // Every catch is cut out (owner 2026-10-11: the 切り抜きモード setting is gone).
-        if let cut = object?.cut {
+        // Every catch is cut out (owner 2026-10-11: the 切り抜きモード setting is gone). The learner's own loop first.
+        if let own = learnerCuts[object?.id ?? -1] {
+            cutout = own.cut
+            pickedBox = own.box
+        } else if let cut = object?.cut {
             cutout = cut
         } else {
             // Tapped before the photo's cut-outs were rendered (the tags go up first), or a thing they left without
@@ -583,6 +592,24 @@ final class CaptureViewModel {
         }
         liftedCuts[key] = task
         return task
+    }
+
+    /// 囲んで切り抜き直す on the choose screen: `cut` (on transparency) is the sticker of `object` (nil: the photo's main
+    /// subject) from now on — the choose screen's floating sticker, the GET moment and what is saved. `box`: the loop's
+    /// bounds, 0–1 of the photo. The thing's own copy on the words screen carries it too, so opening it again shows it.
+    func setLearnerCut(_ cut: UIImage, box: CGRect, for object: CatchObject?) {
+        let key = object?.id ?? -1
+        learnerCuts[key] = (cut, box)
+        liftedCuts[key]?.cancel()
+        liftedCuts[key] = Task { (cut, box) }
+        objects = objects.map { withLearnerCut($0) }
+    }
+
+    /// `o` with the learner's cut-out in place of the masks' (`learnerCuts`), or as it is.
+    private func withLearnerCut(_ o: CatchObject) -> CatchObject {
+        guard let own = learnerCuts[o.id] else { return o }
+        return CatchObject(id: o.id, words: o.words, point: o.point, box: own.box, anchor: o.anchor, cut: own.cut,
+                           instance: o.instance, positioned: o.positioned, cutNote: "cut by the learner (囲んで切り抜き直す)")
     }
 
     /// A new photo: the cut-outs lifted for the last one are dropped.

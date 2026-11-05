@@ -40,6 +40,8 @@ struct CandidatePickerView: View {
     @State private var covered = false
     /// The photo stage on screen (global): where each thing's sticker lifts from.
     @State private var stageFrame: CGRect = .zero
+    /// 囲んで切り抜き直す over the choose screen (owner 2026-11-05).
+    @State private var recutting = false
     /// DEBUG previews: open the first thing with several ways to say it once the tags are up.
     var autoOpen: Bool = false
     /// DEBUG previews (`-uiPreview choose`): open it once and keep it open (nothing is chosen).
@@ -136,7 +138,7 @@ struct CandidatePickerView: View {
                                    tappedAt: f.tappedAt, chosenAt: f.chosenAt, chosen: f.chosen, closingAt: f.closingAt,
                                    calm: reduceMotion, alwaysCard: true, rowsAt: f.rowsAt, searching: vm.isLookingUp,
                                    searchError: vm.searchError, onChoose: pick, onClose: closeChoices,
-                                   onSearch: searchFromChoices)
+                                   onSearch: searchFromChoices, onRecut: { recutting = true })
                     .zIndex(5)
             }
             // The choose screen keeps its sticker floating while the word is checked (no dark wait over it).
@@ -152,6 +154,17 @@ struct CandidatePickerView: View {
             melt = false
         }
         .task(id: autoOpen) { await openForPreview() }
+        // 囲んで切り抜き直す: the learner's loop on the photo becomes the thing's sticker (the floating one here, the GET
+        // moment's, the saved one). The same screen as on the word page, in the scan's light.
+        .fullScreenCover(isPresented: $recutting) {
+            if let photo = vm.photo {
+                LassoCutoutView(photo: photo) { image, box in
+                    // The sticker's drawn copies, made before it floats (not on the main thread mid-animation).
+                    _ = await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(image) }.value
+                    takeLearnerCut(image, box: box)
+                }
+            }
+        }
         // A typed word's lookup brought words: the choose screen lists them (never straight on to the catch).
         .onChange(of: vm.typedRound) { _, _ in openTyped() }
         // The photo's cut-outs came after the tags (`CatchObject.withCuts`): an open choose screen lifting the photo's
@@ -504,6 +517,17 @@ struct CandidatePickerView: View {
             vm.stagePalette = f.palette
             flow = f
         }
+    }
+
+    /// The cut-out the learner drew (`LassoCutoutView`) is the open choose screen's sticker and the thing's from now on.
+    private func takeLearnerCut(_ image: UIImage, box: CGRect) {
+        guard var f = flow, f.chosenAt == nil, f.closingAt == nil else { return }
+        vm.setLearnerCut(image, box: box, for: f.anchor)
+        f.cut = image
+        f.palette = StagePalette.make(from: image)
+        vm.stagePalette = f.palette
+        flow = f
+        Haptics.success()
     }
 
     /// The words found for a typed word (owner 2026-10-15: 「違う単語を入力」 must show the candidates and let the learner

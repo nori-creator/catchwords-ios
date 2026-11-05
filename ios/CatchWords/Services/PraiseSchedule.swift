@@ -160,12 +160,14 @@ nonisolated struct PraiseMoment: Identifiable, Equatable {
         return r.rank <= 10
     }
 
-    /// The big number for a place among all users, and the other figure as the line under it.
+    /// The big number for a place among all users, and the line under it: under a rank, how many people it is among
+    /// (owner 2026-11-05: 「1位」 over 「全ユーザーの上位13%」 read as a contradiction — with 8 people 1st is 13%); under a
+    /// top %, the rank.
     private static func place(_ kind: Kind, _ r: MyStanding.Rank, title: String, note: String) -> PraiseMoment {
         if prefersRank(r) {
             return PraiseMoment(kind: kind, from: min(r.total, 50), to: r.rank, title: title,
                                 format: { L("\($0)位") },
-                                caption: L("全ユーザーの上位\(r.topPercent)%"), note: note)
+                                caption: L("全ユーザー\(r.total)人の中で"), note: note)
         }
         return PraiseMoment(kind: kind, from: 100, to: r.topPercent, title: title,
                             format: { L("上位\($0)%") },

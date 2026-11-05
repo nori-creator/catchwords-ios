@@ -14,10 +14,23 @@ describe("standingOf", () => {
       ["b", 10],
       ["c", 3],
     ]);
+    // Two of four are at or above 10: rank 2, and the top % counts the tied one too (75%, not 50%).
     expect(standingOf(10, counts, "me")).toEqual({
       rank: 2,
       total: 4,
-      topPercent: 50,
+      topPercent: 75,
+    });
+  });
+
+  it("counts the people tied with the caller in the top % (B39)", () => {
+    // 10 of 50 tied for first: everyone of them is No. 1 and in the top 20%, not the top 2%.
+    const counts = new Map<string, number>();
+    for (let i = 0; i < 9; i++) counts.set(`t${i}`, 7);
+    for (let i = 0; i < 40; i++) counts.set(`u${i}`, 1);
+    expect(standingOf(7, counts, "me")).toEqual({
+      rank: 1,
+      total: 50,
+      topPercent: 20,
     });
   });
 

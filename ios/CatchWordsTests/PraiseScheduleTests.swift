@@ -62,6 +62,17 @@ final class PraiseScheduleTests: XCTestCase {
         XCTAssertTrue(PraiseMoment.flatters(.init(rank: 3, total: 5, topPercent: 60, count: 1)))
     }
 
+    func testUnderARankTheLineSaysHowManyPeopleNotAPercent() {
+        // Owner 2026-11-05: 「1位」 with 「全ユーザーの上位13%」 under it looked like a mistake (1st of 8 people).
+        let first = MyStanding(words: .init(rank: 1, total: 8, topPercent: 13, count: 30), activeDays: nil, category: nil, firstCatcher: false)
+        let words = PraiseMoment.options(standing: first, headword: "", totalWords: 30, start: nil).first { $0.kind == .wordsTop }
+        XCTAssertEqual(words?.caption, L("全ユーザー8人の中で"))
+        XCTAssertEqual(words?.format(1), L("1位"))
+        let tenth = MyStanding(words: .init(rank: 12, total: 200, topPercent: 6, count: 30), activeDays: nil, category: nil, firstCatcher: false)
+        let pct = PraiseMoment.options(standing: tenth, headword: "", totalWords: 30, start: nil).first { $0.kind == .wordsTop }
+        XCTAssertEqual(pct?.caption, L("全ユーザーの中で12位"))
+    }
+
     func testRetentionIsAPlaceWithItsDetail() {
         let s = MyStanding(words: nil, activeDays: nil,
                            retention: .init(rank: 2, total: 40, topPercent: 5, count: 86, active: 30, days: 35),

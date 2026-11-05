@@ -6,7 +6,8 @@
  *
  * - 比べる相手は「1語以上集めた人」だけ（登録しただけの人を入れると、誰でも上位に見えて数字が嘘になる）。
  * - 順位は「自分より多い人の数 + 1」。同じ数の人は同じ順位（自分に不利に数えない／有利にもしない）。
- * - 上位 % は 順位 ÷ 人数 を切り上げ、1% より小さくはしない（「上位0%」は出さない）。
+ * - 上位 % は「自分と同じか多い人の数 ÷ 人数」を切り上げ、1% より小さくはしない（「上位0%」は出さない）。同じ数の人を
+ *   数えないと、50 人中 10 人が同点の 1 位の時に全員が「上位 2%」になる（点検 B39、2026-11-05 に直した）。
  */
 
 export type Standing = {
@@ -29,16 +30,18 @@ export function standingOf(
 ): Standing | null {
   if (mine <= 0) return null;
   let above = 0;
+  let tied = 0;
   let total = 1;
   for (const [uid, n] of counts) {
     if (uid === userId || n <= 0) continue;
     total += 1;
     if (n > mine) above += 1;
+    else if (n === mine) tied += 1;
   }
   const rank = above + 1;
   const topPercent = Math.min(
     100,
-    Math.max(1, Math.ceil((rank / total) * 100)),
+    Math.max(1, Math.ceil(((above + tied + 1) / total) * 100)),
   );
   return { rank, total, topPercent };
 }
