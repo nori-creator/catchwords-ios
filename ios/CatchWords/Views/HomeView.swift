@@ -403,13 +403,15 @@ struct AlbumDay: Identifiable, Equatable {
     var id: Date { day }
 
     /// Every day with photos, newest first, one photo per word a day (`onePerWord`). Today always leads, even before
-    /// its first photo.
+    /// its first photo. Within a day the newest photo is first too, so it is laid out at the top of the day's board
+    /// (owner 2026-11-05: 「新しく取れば取るほど上に追加されるようにして」 — the rice ball and the okonomiyaki taken in the
+    /// evening stood under the curry of the afternoon).
     static func days(from stickers: [Sticker], today: Date) -> [AlbumDay] {
         let cal = Calendar.current
         var byDay = Dictionary(grouping: onePerWord(stickers)) { cal.startOfDay(for: $0.takenAt) }
         if byDay[today] == nil { byDay[today] = [] }
         return byDay.keys.sorted(by: >).map { d in
-            AlbumDay(day: d, items: (byDay[d] ?? []).sorted { $0.takenAt < $1.takenAt })
+            AlbumDay(day: d, items: (byDay[d] ?? []).sorted { $0.takenAt > $1.takenAt })
         }
     }
 

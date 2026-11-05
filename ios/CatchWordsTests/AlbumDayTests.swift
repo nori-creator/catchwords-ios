@@ -26,7 +26,7 @@ final class AlbumDayTests: XCTestCase {
         let days = AlbumDay.days(from: [caught, again1, again2, cup], today: today)
         XCTAssertEqual(days.map(\.day), [today, yesterday])
         XCTAssertEqual(days[0].items.count, 2, "today: 眼鏡 once and 杯子 — 「2語」, not 3")
-        XCTAssertEqual(days[0].items.map(\.id), [again2.id, cup.id], "the latest of the two")
+        XCTAssertEqual(days[0].items.map(\.id), [cup.id, again2.id], "the latest of the two; the newest photo first (top)")
         XCTAssertEqual(days[1].items.map(\.id), [caught.id])
     }
 
