@@ -325,11 +325,8 @@ struct SettingsView: View {
     private var developerSection: some View {
         SettingsCard(title: L("開発者専用（あなたにしか表示されません）")) {
             VStack(spacing: 0) {
-                devRow(icon: "person.2", title: L("利用者ごとの情報"), id: "settings.adminUsers") { adminScreen = .users }
-                Divider().overlay(Theme.border)
-                devRow(icon: "chart.bar.xaxis", title: L("KPIダッシュボード"), id: "settings.adminMetrics") { adminScreen = .metrics }
-                Divider().overlay(Theme.border)
-                devRow(icon: "waveform.path.ecg", title: L("ベータの指標"), id: "settings.adminBeta") { adminScreen = .beta }
+                // 利用者ごとの情報・KPIダッシュボード・ベータの指標は「分析」1つにまとめた（2026-11-05）。
+                devRow(icon: "chart.xyaxis.line", title: L("分析"), id: "settings.adminAnalytics") { adminScreen = .analytics }
                 Divider().overlay(Theme.border)
                 devRow(icon: "iphone", title: L("アプリの情報"), id: "settings.appInfo") { adminScreen = .appInfo }
                 Divider().overlay(Theme.border)
@@ -777,15 +774,13 @@ struct SettingsToggle: View {
 
 /// The developer screens opened from 設定 › 開発者 (each a sheet with its own navigation).
 enum AdminScreen: String, Identifiable {
-    case users, metrics, beta, appInfo, reports
+    case analytics, appInfo, reports
     var id: String { rawValue }
 
     @ViewBuilder
     var view: some View {
         switch self {
-        case .users: AdminUsersView()
-        case .metrics: AdminMetricsView()
-        case .beta: AdminBetaView()
+        case .analytics: AdminAnalyticsView()
         case .appInfo: AppInfoView()
         case .reports: AdminReportsView()
         }
