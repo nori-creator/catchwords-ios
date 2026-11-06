@@ -323,6 +323,35 @@ nonisolated struct CatchScanPlan: Sendable {
 
 // MARK: - The scan for one photo (state, sounds, tags)
 
+/// The scan's glowing blue-white line (v8's look): a soft blue glow under the line (two blurs, screen), then the line
+/// itself with two drop shadows. Also the loop of 囲んで切り抜き直す (owner 2026-11-05: 「切り抜きの線は、元々の青白い光ってる
+/// 線のようにして、今は真っ白だけど」) — the learner draws with the same light the scan drew with.
+enum ScanGlow {
+    static let core = Gradient(colors: [Color(red: 0xBF / 255, green: 0xE8 / 255, blue: 1),
+                                        Color(red: 0x9C / 255, green: 0xC8 / 255, blue: 1),
+                                        Color(red: 0xCF / 255, green: 0xE3 / 255, blue: 1)])
+    static let glowLine = Color(red: 120 / 255, green: 190 / 255, blue: 1)
+
+    /// `box`: the path's bounds (the core line's gradient runs across it). `scale`: 1 = the scan's own widths; the lasso
+    /// draws a little heavier under a finger.
+    static func stroke(_ g: inout GraphicsContext, _ path: Path, box: CGRect, alpha: Double, scale: CGFloat = 1) {
+        let round = StrokeStyle(lineWidth: 3.5 * scale, lineCap: .round, lineJoin: .round)
+        for (blur, a) in [(2.5, 0.65), (8.0, 0.6)] {
+            var glow = g
+            glow.blendMode = .screen
+            glow.opacity = a * alpha
+            glow.addFilter(.blur(radius: CGFloat(blur) * scale))
+            glow.stroke(path, with: .color(glowLine), style: round)
+        }
+        var line = g
+        line.opacity = alpha
+        line.addFilter(.shadow(color: Color(red: 140 / 255, green: 200 / 255, blue: 1, opacity: 0.95), radius: 5 * scale))
+        line.addFilter(.shadow(color: Color(red: 40 / 255, green: 120 / 255, blue: 1, opacity: 0.6), radius: 16 * scale))
+        line.stroke(path, with: .linearGradient(core, startPoint: box.origin, endPoint: CGPoint(x: box.maxX, y: box.maxY)),
+                    style: StrokeStyle(lineWidth: 1.75 * scale, lineCap: .round, lineJoin: .round))
+    }
+}
+
 /// One photo's scan, kept by `CaptureViewModel` for the run (so going back from the celebration does not replay it).
 /// The words screen starts it when it first shows the photo (`begin`), tells it where the photo sits (`layout`) and
 /// steps it about 60 times a second (`step`): that plays the sounds at their moments and brings the tags up.
@@ -623,11 +652,6 @@ final class CatchScanSession {
 
     // MARK: Outlines (v8's look, as the pen draws them)
 
-    private static let core = Gradient(colors: [Color(red: 0xBF / 255, green: 0xE8 / 255, blue: 1),
-                                                Color(red: 0x9C / 255, green: 0xC8 / 255, blue: 1),
-                                                Color(red: 0xCF / 255, green: 0xE3 / 255, blue: 1)])
-    private static let glowLine = Color(red: 120 / 255, green: 190 / 255, blue: 1)
-
     /// The outlines' strength after the names: the words screen's slow pulse (1 ↔ 0.5 every 2 s); an outline that got
     /// no name leaves.
     private func outlineAlpha(_ r: Int, t: Double, found: Double?) -> Double {
@@ -663,21 +687,7 @@ final class CatchScanSession {
     }
 
     private func strokeOutline(_ g: inout GraphicsContext, _ path: Path, box: CGRect, alpha: Double) {
-        let round = StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
-        // A soft blue glow under the line (two blurs, screen), then the line itself with two drop shadows.
-        for (blur, a) in [(2.5, 0.65), (8.0, 0.6)] {
-            var glow = g
-            glow.blendMode = .screen
-            glow.opacity = a * alpha
-            glow.addFilter(.blur(radius: CGFloat(blur)))
-            glow.stroke(path, with: .color(Self.glowLine), style: round)
-        }
-        var line = g
-        line.opacity = alpha
-        line.addFilter(.shadow(color: Color(red: 140 / 255, green: 200 / 255, blue: 1, opacity: 0.95), radius: 5))
-        line.addFilter(.shadow(color: Color(red: 40 / 255, green: 120 / 255, blue: 1, opacity: 0.6), radius: 16))
-        line.stroke(path, with: .linearGradient(Self.core, startPoint: box.origin, endPoint: CGPoint(x: box.maxX, y: box.maxY)),
-                    style: StrokeStyle(lineWidth: 1.75, lineCap: .round, lineJoin: .round))
+        ScanGlow.stroke(&g, path, box: box, alpha: alpha)
     }
 
     private func drawOutlines(_ g: inout GraphicsContext, plan: CatchScanPlan, t: Double, tau: Double, found: Double?) {

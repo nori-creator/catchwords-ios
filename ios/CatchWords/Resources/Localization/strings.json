@@ -9134,6 +9134,13 @@
   "ko": "전체 사용자 중에서",
   "vi": "Trong số tất cả người dùng"
  },
+ "全ユーザー{1}人の中で": {
+  "en": "Among all {1} users",
+  "zh-TW": "在全部 {1} 位使用者之中",
+  "es": "Entre los {1} usuarios",
+  "ko": "전체 사용자 {1}명 중에서",
+  "vi": "Trong số tất cả {1} người dùng"
+ },
  "全ユーザーの中で{1}位": {
   "en": "No. {1} among all users",
   "zh-TW": "在所有使用者中排第 {1} 名",

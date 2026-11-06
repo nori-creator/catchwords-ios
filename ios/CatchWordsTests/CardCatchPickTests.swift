@@ -11,7 +11,7 @@ final class CardCatchPickTests: XCTestCase {
                   point: point, confidence: 0.9, alternatives: [], group: group)
     }
 
-    // MARK: The only thing, without a place from the AI
+    // MARK: A thing without a place from the AI (owner 2026-11-05 「青い線＝切り抜き」)
 
     func testTheOnlyThingWithoutABoxTakesThePhotosOnlyInstance() {
         // 理膚寶水 (owner 2026-11-04): one tube on a grey table, no box from the AI, one Vision instance — the tube.
@@ -24,14 +24,33 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(plans[0].cut, .instance(1))
     }
 
-    func testTheOnlyThingWithoutABoxTakesNoneOfSeveralInstances() {
-        // Two things in the photo and no box: which one it is cannot be told — no cut-out (the photo as it is).
+    func testThingsWithoutAPlaceTakeTheLargestFreeInstancesInOrder() {
+        // The toasted rice ball (owner 2026-11-05): two things named, no position for either, two instances. The first
+        // thing takes the larger, the second the other — never the whole photo while Vision has an instance to give.
         let w = 20, h = 20
         var mask = [UInt8](repeating: 0, count: w * h)
         for y in 2..<8 { for x in 2..<8 { mask[y * w + x] = 1 } }
-        for y in 12..<18 { for x in 12..<18 { mask[y * w + x] = 2 } }
-        let thing = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false)
-        XCTAssertNil(CatchPlan.plan(things: [thing], mask: mask, width: w, height: h)[0].label)
+        for y in 10..<19 { for x in 10..<19 { mask[y * w + x] = 2 } }
+        let things = [CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false),
+                      CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false),
+                      CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false)]
+        let plans = CatchPlan.plan(things: things, mask: mask, width: w, height: h)
+        XCTAssertEqual(plans[0].cut, .instance(2))
+        XCTAssertEqual(plans[1].cut, .instance(1))
+        XCTAssertEqual(plans[2].cut, .noMask, "nothing left for the third")
+        XCTAssertNil(plans[2].label)
+    }
+
+    func testAThingWithoutAPlaceNeverTakesASpeckOrAnotherThingsInstance() {
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 2..<12 { for x in 2..<12 { mask[y * w + x] = 1 } }
+        mask[18 * w + 18] = 2   // 1 px of 400: a speck
+        let placed = CatchPlan.Thing(point: CGPoint(x: 0.3, y: 0.3), box: CGRect(x: 0.05, y: 0.05, width: 0.55, height: 0.55), own: true)
+        let loose = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false)
+        let plans = CatchPlan.plan(things: [placed, loose], mask: mask, width: w, height: h)
+        XCTAssertEqual(plans[0].cut, .instance(1))
+        XCTAssertEqual(plans[1].cut, .noMask)
     }
 
     func testTheOnlyThingWithoutABoxNeverTakesAPerson() {
@@ -676,13 +695,14 @@ final class CardCatchPickTests: XCTestCase {
 
     private let swingBox = CGRect(x: 0.40, y: 0.36, width: 0.32, height: 0.26)
 
-    func testAThingWithoutAPositionNeverTakesAnotherThingsInstance() {
-        // The AI sent no place for 鞦韆: it used to take "the largest free instance" (the man, or the tree).
+    func testAThingWithoutAPositionNeverTakesAPersonButTakesWhatElseIsFree() {
+        // The AI sent no place for 鞦韆 (owner 2026-10-26: it took the man beside it). The people are barred; the tree,
+        // the largest instance left, is taken — a wrong sticker the learner puts right with 囲んで切り抜き直す, where the
+        // whole photo would have cost the same gesture (owner 2026-11-05).
         let p = park()
-        let plans = CatchPlan.plan(things: [CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false)],
-                                   mask: p.mask, width: 100, height: 100)
-        XCTAssertNil(plans[0].label)
-        XCTAssertEqual(plans[0].cut, .noMask)
+        let swing = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.5), box: nil, own: false, mayBePerson: false)
+        let plans = CatchPlan.plan(things: [swing], mask: p.mask, width: 100, height: 100, people: p.people)
+        XCTAssertEqual(plans[0].cut, .instance(3))
     }
 
     func testASwingNeverTakesThePeopleAtItAsItsCutOut() {
@@ -691,17 +711,6 @@ final class CardCatchPickTests: XCTestCase {
         let plans = CatchPlan.plan(things: [swing], mask: p.mask, width: 100, height: 100, people: p.people)
         XCTAssertEqual(plans[0].cut, .noMask, "\(plans[0].cut)")
         XCTAssertNil(plans[0].label)
-    }
-
-    func testASmallThingInsideABigBoxIsNotThatBoxsThing() {
-        // Without knowing who is a person: the child covers 7% of the swing's box — something in it, not the swing.
-        let p = park()
-        let swing = CatchPlan.Thing(point: CGPoint(x: 0.56, y: 0.49), box: swingBox, own: true)
-        let plans = CatchPlan.plan(things: [swing], mask: p.mask, width: 100, height: 100)
-        XCTAssertEqual(plans[0].cut, .noMask, "\(plans[0].cut)")
-        XCTAssertNotNil(plans[0].note)
-        XCTAssertLessThan(CatchPlan.boxCover(CatchPlan.pixels(of: .instance(2), mask: p.mask, width: 100, height: 100),
-                                             box: swingBox, width: 100, height: 100) ?? 1, CatchPlan.minBoxCover)
     }
 
     func testAPersonsOwnWordStillTakesThePerson() {
@@ -724,5 +733,16 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertTrue(CatchObject.mayBePerson([word("person")]))
         XCTAssertTrue(CatchObject.mayBePerson([word("clothes")]), "a T-shirt is cut out of the person wearing it")
         XCTAssertTrue(CatchObject.mayBePerson([word(nil)]), "no category: not barred")
+    }
+
+    /// 囲んで切り抜き直す beside 撮り直す (owner 2026-11-06): the loop goes to the tag whose place is inside it, nearest its
+    /// middle; a loop round nothing's place goes to the nearest tag.
+    func testTheLoopPicksTheTagInsideItElseTheNearest() {
+        let places = [CGPoint(x: 0.2, y: 0.5), CGPoint(x: 0.7, y: 0.5), CGPoint(x: 0.75, y: 0.6)]
+        let loop = CGRect(x: 0.55, y: 0.3, width: 0.3, height: 0.4)
+        XCTAssertEqual(CandidatePickerView.tagInside(loop, of: places) { $0 }, places[1])
+        let edge = CGRect(x: 0.0, y: 0.0, width: 0.1, height: 0.1)
+        XCTAssertEqual(CandidatePickerView.tagInside(edge, of: places) { $0 }, places[0])
+        XCTAssertNil(CandidatePickerView.tagInside(loop, of: [CGPoint]()) { $0 })
     }
 }

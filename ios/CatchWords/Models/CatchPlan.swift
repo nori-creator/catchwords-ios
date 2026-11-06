@@ -8,23 +8,36 @@ import Foundation
 /// The rule (owner 2026-10-16, after a dorayaki ice cream came out with a straight left side and a straight bottom —
 /// cut along the AI's box, which was smaller than the thing and off to one side): **a cut-out is never cut along the
 /// AI's box.** The box only says which pieces of Vision's mask are the thing; the mask's own outline is the cut-out.
+///
+/// **The outline is the cut-out** (owner 2026-11-05: 「青白い線で囲ってるの、大体合ってるのに、切り抜くときにそれがちゃんと
+/// 切り抜かれない」 — the catch scan's glowing line is Vision's instance as it is, while the cut-out went through a dozen
+/// checks against the AI's box and was thrown away for the photo's rectangle when any of them doubted it: a toasted
+/// rice ball outlined exactly came out as the whole photo because the AI had sent no position at all, which it does in
+/// about half of the captures). The sticker is always one of Vision's instances (or its share of one); a rectangle of
+/// the photo only when Vision found nothing where the thing is. A cut-out that is the wrong thing is put right by the
+/// learner with 囲んで切り抜き直す on the choose screen — one gesture — where a rectangle cost the same gesture and a right
+/// cut-out thrown away cost it for nothing. The former checks (`minBoxCover` 15% of the box, `othersLimit`,
+/// `doubtful`, `cropOthersLimit`, "no position → no instance") are gone; what stays is what decides *which* piece of
+/// the mask is the thing:
+/// - A thing with a place from the AI takes the instance under its point (nearest pairs first, `assignInstances`); one
+///   without a place takes the largest instance still free, in the server's order. A person's instance never goes to
+///   a thing that cannot be one (`Thing.mayBePerson`, owner 2026-10-26: the swing's cut-out was the man pushing it).
 /// - One thing claims an instance: the whole instance, also where it goes past the box (only its pieces that do not
 ///   reach the box at all are left out).
 /// - One thing seen in several instances (the dorayaki's two pancakes and the ice cream between them): those that lie
-///   in its box together (`CutCoverage.union`).
+///   in its box together (`CutCoverage.union`, `gather`).
 /// - Two things claim one instance (glasses lying against a water bottle, which Vision saw as one): it is split where
 ///   the two meet — each thing grows over the mask from the part only it has in its box, and never across a change of
 ///   colour in the photo where the other thing can get without crossing one, so the line between them runs along the
 ///   photo's own edge between the two things (`split`, `Cut.part`), never along a box. (`InstanceMasks.render` first
-///   asks Vision on a crop round each such thing's box, which usually separates them by itself.)
+///   asks Vision on a crop round each such thing's box, which usually separates them by itself.) What the split takes
+///   from inside a thing's own outline is given back (`filledHoles`): no cut-out has a hole Vision's outline does not.
 /// - An instance mostly outside the thing's box that no other thing claims (the dorayaki merged with the carton behind
 ///   it, or a box off to one side): `refine` asks Vision once more on the region round the box, and that answer is used
-///   only when it is a whole thing — not touching the region's edge — that covers the box; otherwise the whole instance
-///   stays. A cut-out that lies mostly in other named things' boxes is not used: the photo round the box instead
-///   (`InstanceMasks.render`, `StickerCrop.shaped`; owner 2026-10-26 「別の物を切り抜くくらいなら四角」, check 2026-11-03 S12).
+///   only when it is a whole thing — not touching the region's edge; otherwise the whole instance stays.
 /// - No mask in the thing's box at all: Vision once more on the region round the box; a thing that still runs into the
 ///   region's edge after the widest try is taken with that edge faded out, never cut with a hard line.
-///   With nothing there either: no cut-out (never a rectangle of the photo).
+///   With nothing there either: no cut-out (the caller shows the photo round the box, `StickerCrop.shaped`).
 nonisolated enum CatchPlan {
     /// One thing as the AI placed it: its point and box, 0–1 of the photo (top-left origin), and whether the position is
     /// its own (`TagPlacement.distinct`).
@@ -106,21 +119,24 @@ nonisolated enum CatchPlan {
         let personLabels = hasMask ? Self.personLabels(mask: mask, people: people, totals: totals, width: w, height: h) : []
         let barred: [Set<Int>] = things.map { $0.mayBePerson ? [] : personLabels }
         // Each thing with a place of its own takes its own instance, nearest pairs first (`assignInstances`).
-        // A thing without a place of its own takes none (owner 2026-10-26: with no position from the AI, the swing took
-        // "the largest free instance" — the man beside it — and its cut-out was the man). Its tag goes to a spot of its
-        // own (`spreadSpots`) and its sticker is the photo (`CatchObject`), never another thing.
         var labels: [Int?] = hasMask
             ? assignInstances(things.indices.map { i in
                 things[i].own ? ranked(mask: mask, width: w, height: h, to: things[i].point).filter { !barred[i].contains($0.label) } : []
             })
             : Array(repeating: nil, count: things.count)
-        // … except the only thing in the photo when Vision sees only one thing there (owner 2026-11-04: a tube of
-        // 理膚寶水 alone on a grey table, the AI gave no box, and its sticker was the whole photo though Vision's one
-        // instance was the tube exactly). With no other named thing and no other instance there is nothing it could be
-        // confused with; a person is still never taken for a thing that cannot be one (the swing).
-        if hasMask, things.count == 1, !things[0].own, labels[0] == nil,
-           let only = Self.soleInstance(totals: totals, barred: barred[0], area: w * h) {
-            labels[0] = only
+        // A thing without a place of its own (the AI sent no point or box — in the 14 days to 2026-11-05 nearly half the
+        // captures had such a thing, and the server's second ask for boxes also came back empty at times) takes the
+        // largest instance still free, in the server's order, so its sticker is the thing the scan outlined and not the
+        // whole photo (owner 2026-11-05, the toasted rice ball; 2026-11-04, 理膚寶水). From 2026-10-26 to 11-05 it took
+        // none, because the swing with no position had taken the man beside it: a person is still never taken for a
+        // thing that cannot be one, and whatever else is wrong is put right with 囲んで切り抜き直す.
+        if hasMask {
+            var taken = Set(labels.compactMap { $0 })
+            for i in things.indices where !things[i].own && labels[i] == nil {
+                guard let l = Self.largestFree(totals: totals, taken: taken, barred: barred[i], area: w * h) else { continue }
+                labels[i] = l
+                taken.insert(l)
+            }
         }
         let anchors = hasMask ? CatchAnchor.anchors(mask: mask, width: w, height: h) : [:]
         // Each placed thing's box on the mask grid, and how much of every instance lies inside it.
@@ -262,18 +278,6 @@ nonisolated enum CatchPlan {
                              sharedWith: rivals)
         }
 
-        // A cut-out that covers only a small corner of its thing's box is something smaller in front of the thing or in
-        // it (the child sitting in the swing, inside the swing's box), not the thing: no mask of its own, so Vision
-        // looks again round the box, and the sticker is the photo when nothing whole is found there either.
-        if hasMask {
-            for i in out.indices where out[i].cut != .noMask {
-                guard let box = boxes[i], things[i].own else { continue }
-                let mine = pixels(of: out[i].cut, mask: mask, width: w, height: h)
-                guard let share = boxCover(mine, box: box, width: w, height: h), share < Self.minBoxCover else { continue }
-                out[i] = Placement(label: nil, cut: .noMask, anchor: things[i].point,
-                                   note: String(format: "its instance covers only %.0f%% of its box: not the thing", share * 100))
-            }
-        }
         // A thing with no mask of its own whose tag would sit on another thing: the tag goes on the part of its own box
         // that no other thing covers (owner 2026-10-22: 「オーブンの単語のタグの配置が間違ってる…何回もこのタグの配置の
         // エラー発生してる」 — the oven stood behind a sauce bottle; the middle of the AI's box round the oven lay on the
@@ -320,26 +324,10 @@ nonisolated enum CatchPlan {
         return out
     }
 
-    // MARK: Is it the thing?
+    // MARK: Which instance is the thing
 
-    /// A cut-out must cover this share of its thing's box (its outline's bounding box against the AI's box): less is a
-    /// smaller thing in front of the thing or in it. A box twice as wide and high as the thing is still 25%.
-    static let minBoxCover: Double = 0.15
     /// An instance with this share of its pixels on people is a person (`InstanceMasks.personGrid`).
     static let personShare: Double = 0.5
-
-    /// How much of `box` (0–1 of the photo) the bounding box of `keep` covers (0–1); nil = nothing kept.
-    static func boxCover(_ keep: Keep, box: CGRect, width w: Int, height h: Int) -> Double? {
-        var x0 = w, y0 = h, x1 = -1, y1 = -1
-        for y in 0..<h {
-            for x in 0..<w where keep.bits[y * w + x] != 0 {
-                x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y)
-            }
-        }
-        guard x1 >= x0, y1 >= y0 else { return nil }
-        return cover(CGRect(x: CGFloat(x0) / CGFloat(w), y: CGFloat(y0) / CGFloat(h),
-                            width: CGFloat(x1 - x0 + 1) / CGFloat(w), height: CGFloat(y1 - y0 + 1) / CGFloat(h)), of: box)
-    }
 
     /// The share of `box` that `rect` covers (both 0–1 of the photo).
     static func cover(_ rect: CGRect, of box: CGRect) -> Double {
@@ -349,16 +337,16 @@ nonisolated enum CatchPlan {
         return o.isNull ? 0 : Double(o.width * o.height / area)
     }
 
-    /// An instance below this share of the photo is a speck, not a thing (`soleInstance`).
-    static let soleMinShare = 0.01
+    /// An instance below this share of the photo is a speck, not a thing (`largestFree`).
+    static let speckShare = 0.01
 
-    /// The photo's one instance that is not a speck, when there is exactly one and it is not barred (a person for a
-    /// thing that cannot be one); nil when there are none or several.
-    static func soleInstance(totals: [Int], barred: Set<Int>, area: Int) -> Int? {
+    /// The largest instance (by pixels) not yet `taken`, not `barred` (a person, for a thing that cannot be one) and no
+    /// speck — for a thing the AI gave no place. nil when none is left.
+    static func largestFree(totals: [Int], taken: Set<Int>, barred: Set<Int>, area: Int) -> Int? {
         guard area > 0 else { return nil }
-        let real = (1..<min(256, totals.count)).filter { Double(totals[$0]) >= soleMinShare * Double(area) }
-        guard real.count == 1, let only = real.first, !barred.contains(only) else { return nil }
-        return only
+        return (1..<min(256, totals.count))
+            .filter { Double(totals[$0]) >= speckShare * Double(area) && !taken.contains($0) && !barred.contains($0) }
+            .max { totals[$0] != totals[$1] ? totals[$0] < totals[$1] : $0 > $1 }
     }
 
     /// `keep` with the pixels of `labels` that it encloses put back: those of the instance that cannot be reached from the
