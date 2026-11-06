@@ -80,7 +80,12 @@ struct AdminAnalyticsView: View {
             answer = .success(fixture)
             return
         }
-        answer = await AdminAnalytics.report(range: range)
+        // The period can change while an answer is on its way: a slower answer for the period left behind (30 days
+        // after 7 was picked) is dropped, not shown under the new period.
+        let asked = range
+        let got = await AdminAnalytics.report(range: asked)
+        guard asked == range else { return }
+        answer = got
         day = nil
     }
 

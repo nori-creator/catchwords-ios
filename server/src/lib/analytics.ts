@@ -54,7 +54,14 @@ export type AnalyticsInput = {
   admins: string[];
   flagged: string[];
   /** 新しい語（`stickers`）と再会（`encounters`）。 */
-  catches: Array<{ user_id: string; created_at: string; location_name: string | null; kind: "new" | "again" }>;
+  /** `location_custom` = 学習者が書いた・選んだ場所の名前（地域として数えない）。 */
+  catches: Array<{
+    user_id: string;
+    created_at: string;
+    location_name: string | null;
+    location_custom?: boolean | null;
+    kind: "new" | "again";
+  }>;
   reviews: Array<{ user_id: string; reviewed_at: string; correct: boolean | null }>;
   /** 利用の記録（サーバの AI の記録も、1.0.5 からのアプリの記録も）。 */
   events: Array<{ user_id: string; kind: string; created_at: string }>;
@@ -181,14 +188,25 @@ export function isTestEmail(email: string | null): boolean {
   return /\.(invalid|test|example|localhost)$/.test(domain);
 }
 
+/** 区・郡・町などの行政区の名前の終わり方（漢字・ハングル）と、英語などの呼び方。 */
+const ADMIN_AREA = /(區|鄉|鎮|市|区|町|村|郡|구|군|시|동|읍|면)$|\b(district|township|ward|county|city|borough)\b/i;
+
 /**
- * 撮った場所の名前 → 市と区まで（番地は出さない）。
- * 「台北市 大安區 和平東路一段162號」→「台北市 大安區」。
+ * 撮った場所の名前 → 市と区まで（番地・通りは出さない）。名前は端末の `LocationService.place` が
+ * 「市・区・通り」の順に、漢字・ハングルの表示言語では空白、それ以外では「, 」でつないだ物。
+ * - 「台北市 大安區 和平東路一段162號」→「台北市 大安區」、「Taipei City, Da'an District, 162 …」→「Taipei City, Da'an District」
+ * - 2つ目が区と分からない時（区の無い所の通り「Seattle, 123 Main Street」「台北市 和平東路一段」）は市だけ。
+ * - 1つ目に数字がある（番地から始まる）時は出さない。学習者が書いた・選んだ名前（`location_custom`）は呼ぶ側で外す。
  */
 export function placeArea(name: string | null): string | null {
-  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return null;
-  return parts.slice(0, 2).join(" ");
+  const v = (name ?? "").trim();
+  if (!v) return null;
+  const comma = v.includes(",");
+  const parts = (comma ? v.split(",") : v.split(/\s+/)).map((x) => x.trim()).filter(Boolean);
+  const [city, district] = parts;
+  if (!city || /\d/.test(city)) return null;
+  if (district && !/\d/.test(district) && ADMIN_AREA.test(district)) return city + (comma ? ", " : " ") + district;
+  return city;
 }
 
 /** アプリが送る記録（サーバの AI の記録と分ける）。これが届き始めた日 = 「開いた記録」の始まり。 */
@@ -448,7 +466,11 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
   const suggest = msOf(runsIn("capture_suggest", inWin));
   const suggestPrev = msOf(runsIn("capture_suggest", inPrev));
   const cards = msOf(runsIn("card_generate", inWin));
-  const picks = runsIn("candidate_pick", inWin).map((r) => obj(r.meta).rank);
+  // 候補の当たり（beta-metrics の candidateAccuracy と同じ数え方）: 写真の候補から選んだ回の1番目 ÷
+  // （写真の候補から選んだ回 + 候補を捨てて検索した回）。打ち込み・スキャンなどは数えない。
+  const pickMeta = runsIn("candidate_pick", inWin).map((r) => obj(r.meta));
+  const photoPicks = pickMeta.filter((m) => m.via === "photo");
+  const pickN = photoPicks.length + pickMeta.filter((m) => m.via === "native_search").length;
   const calls = runsIn("ai_call", inWin).map((r) => obj(r.meta));
   let usd = 0;
   let unpriced = 0;
@@ -464,7 +486,7 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
   }).length;
   const areas = new Map<string, number>();
   for (const c of input.catches) {
-    if (!countedIds.has(c.user_id) || !inWin(taipeiDay(c.created_at))) continue;
+    if (!countedIds.has(c.user_id) || !inWin(taipeiDay(c.created_at)) || c.location_custom) continue;
     const a = placeArea(c.location_name);
     if (a) areas.set(a, (areas.get(a) ?? 0) + 1);
   }
@@ -476,7 +498,7 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
       prev_p50: sec(percentile(suggestPrev, 50)),
     },
     card_s: { p50: sec(percentile(cards, 50)), p90: sec(percentile(cards, 90)), n: cards.length },
-    first_pick: { pct: pct(picks.filter((r) => r === 1).length, picks.length), n: picks.length },
+    first_pick: { pct: pct(photoPicks.filter((m) => m.rank === 1).length, pickN), n: pickN },
     ai_errors: { pct: pct(calls.filter((m) => m.ok === false).length, calls.length), n: calls.length },
     backup_refused: backupRefused,
     ai_cost_usd: {
@@ -576,11 +598,12 @@ export function insightsFor(r: Omit<AnalyticsReport, "insights">): Insight[] {
     });
   }
 
-  // 続ける（週1に戻った割合を、週1が見える組だけで平均）
+  // 続ける（週1に戻った割合を、週1が終わった組だけで平均。週1の途中の組は表には出すが、判断に入れない —
+  // 日曜に登録して月曜の朝に見ると、戻る機会がまだ無いのに 0% になる）
   let size = 0;
   let back = 0;
   for (const c of r.cohorts)
-    if (c.size && c.cells.length > 1 && c.cells[1]) {
+    if (c.size && c.cells.length > 1 && c.cells[1] && addDays(c.week, 13) < r.today) {
       size += c.size;
       back += c.cells[1]!.users.length;
     }
