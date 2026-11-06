@@ -734,4 +734,15 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertTrue(CatchObject.mayBePerson([word("clothes")]), "a T-shirt is cut out of the person wearing it")
         XCTAssertTrue(CatchObject.mayBePerson([word(nil)]), "no category: not barred")
     }
+
+    /// 囲んで切り抜き直す beside 撮り直す (owner 2026-11-06): the loop goes to the tag whose place is inside it, nearest its
+    /// middle; a loop round nothing's place goes to the nearest tag.
+    func testTheLoopPicksTheTagInsideItElseTheNearest() {
+        let places = [CGPoint(x: 0.2, y: 0.5), CGPoint(x: 0.7, y: 0.5), CGPoint(x: 0.75, y: 0.6)]
+        let loop = CGRect(x: 0.55, y: 0.3, width: 0.3, height: 0.4)
+        XCTAssertEqual(CandidatePickerView.tagInside(loop, of: places) { $0 }, places[1])
+        let edge = CGRect(x: 0.0, y: 0.0, width: 0.1, height: 0.1)
+        XCTAssertEqual(CandidatePickerView.tagInside(edge, of: places) { $0 }, places[0])
+        XCTAssertNil(CandidatePickerView.tagInside(loop, of: [CGPoint]()) { $0 })
+    }
 }

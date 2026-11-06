@@ -224,6 +224,28 @@ struct CandidatePickerView: View {
             }
             .buttonStyle(PressableStyle())
             .accessibilityIdentifier("picker.retake")
+            // 囲んで切り抜き直す before any tag is tapped (owner 2026-11-06: 「撮り直すボタンのところに切り抜き直す」): the
+            // learner's loop picks the thing it goes round and becomes its sticker, and that thing's words open.
+            if !scanning, flow == nil, !objects.isEmpty {
+                Button { recutting = true } label: {
+                    // The words and the icon; the icon alone where the row is too narrow for both and the hint.
+                    ViewThatFits(in: .horizontal) {
+                        Label(L("囲んで切り抜き直す"), systemImage: "lasso")
+                        Image(systemName: "lasso")
+                    }
+                    .scaledFont(size: 14, weight: .semibold)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 36)
+                    .background(.white.opacity(0.12), in: Capsule())
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+                }
+                .accessibilityLabel(L("囲んで切り抜き直す"))
+                .buttonStyle(PressableStyle())
+                .accessibilityIdentifier("picker.recut")
+            }
             Spacer(minLength: 8)
             Text(topHint)
                 .scaledFont(size: 14, weight: .semibold)
@@ -520,14 +542,37 @@ struct CandidatePickerView: View {
     }
 
     /// The cut-out the learner drew (`LassoCutoutView`) is the open choose screen's sticker and the thing's from now on.
+    /// Drawn before a tag was tapped (the button beside 撮り直す): it goes to the thing the loop went round, whose words
+    /// then open with it as the sticker.
     private func takeLearnerCut(_ image: UIImage, box: CGRect) {
-        guard var f = flow, f.chosenAt == nil, f.closingAt == nil else { return }
+        guard var f = flow else {
+            guard let t = Self.tagInside(box, of: tags(objects)) else { return }
+            vm.setLearnerCut(image, box: box, for: t.object)
+            // The tags built again from the objects, which now carry the cut-out.
+            if let fresh = tags(objects).first(where: { $0.id == t.id }) { open(fresh) }
+            Haptics.success()
+            return
+        }
+        guard f.chosenAt == nil, f.closingAt == nil else { return }
         vm.setLearnerCut(image, box: box, for: f.anchor)
         f.cut = image
         f.palette = StagePalette.make(from: image)
         vm.stagePalette = f.palette
         flow = f
         Haptics.success()
+    }
+
+    /// The tag of the thing a loop (`box`, 0–1 of the photo) went round: the tag whose place is inside it, nearest its
+    /// middle; else the tag nearest the loop's middle (the loop may have gone round the thing's edge only).
+    static func tagInside<T>(_ box: CGRect, of tags: [T], anchor: (T) -> CGPoint) -> T? {
+        let mid = CGPoint(x: box.midX, y: box.midY)
+        func d(_ p: CGPoint) -> CGFloat { hypot(p.x - mid.x, p.y - mid.y) }
+        let inside = tags.filter { box.contains(anchor($0)) }
+        return (inside.isEmpty ? tags : inside).min { d(anchor($0)) < d(anchor($1)) }
+    }
+
+    private static func tagInside(_ box: CGRect, of tags: [Tag]) -> Tag? {
+        tagInside(box, of: tags) { $0.object.anchor }
     }
 
     /// The words found for a typed word (owner 2026-10-15: 「違う単語を入力」 must show the candidates and let the learner
