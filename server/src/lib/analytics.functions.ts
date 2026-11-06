@@ -22,6 +22,8 @@ async function requireAdmin(context: { supabase: unknown; userId: string }) {
 }
 
 const READ = { maxRows: 1_000_000 };
+
+type CatchRow = { user_id: string; created_at: string; location_name: string | null; location_custom: boolean | null };
 /** 「数えない」の印を置く表（移行 `20261105120000_analytics_exclusions.sql`）。無い環境では誰も印なし。 */
 const EXCLUSIONS = "analytics_exclusions";
 
@@ -77,12 +79,14 @@ export const getAdminAnalytics = createServerFn({ method: "POST" })
           .range(a, b),
       ),
       db.from("user_roles").select("user_id").eq("role", "admin"),
-      readAllPages<{ user_id: string; created_at: string; location_name: string | null }>(
-        (a, b) => db.from("stickers").select("user_id, created_at, location_name").order("id").range(a, b),
+      readAllPages<CatchRow>(
+        (a, b) =>
+          db.from("stickers").select("user_id, created_at, location_name, location_custom").order("id").range(a, b),
         READ,
       ),
-      readAllPages<{ user_id: string; created_at: string; location_name: string | null }>(
-        (a, b) => db.from("encounters").select("user_id, created_at, location_name").order("id").range(a, b),
+      readAllPages<CatchRow>(
+        (a, b) =>
+          db.from("encounters").select("user_id, created_at, location_name, location_custom").order("id").range(a, b),
         READ,
       ),
       readAllPages<{ user_id: string; reviewed_at: string; correct: boolean | null }>(

@@ -69,6 +69,14 @@ describe("small helpers", () => {
   it("keeps only the city and district of a place", () => {
     expect(placeArea("台北市 大安區 和平東路一段162號")).toBe("台北市 大安區");
     expect(placeArea("京都市 下京区")).toBe("京都市 下京区");
+    expect(placeArea("Taipei City, Da'an District, 162 Heping East Road")).toBe("Taipei City, Da'an District");
+    // 区の無い所: 2つ目は通りなので市だけ
+    expect(placeArea("Seattle, 123 Main Street")).toBe("Seattle");
+    expect(placeArea("Seattle, Main Street")).toBe("Seattle");
+    expect(placeArea("台北市 和平東路一段")).toBe("台北市");
+    expect(placeArea("서울특별시 강남구 테헤란로 152")).toBe("서울특별시 강남구");
+    // 番地から始まる名前は出さない
+    expect(placeArea("162 Heping East Road")).toBeNull();
     expect(placeArea("  ")).toBeNull();
     expect(placeArea(null)).toBeNull();
   });
@@ -219,6 +227,35 @@ describe("buildAnalytics", () => {
     expect(r.insights.find((i) => i.chart === "cohorts")).toMatchObject({ code: "cohort_week1", values: { pct: 50 } });
   });
 
+  it("leaves a cohort whose week 1 has not ended out of the reading", () => {
+    // 11/1（日）に登録 → 週1 は 11/2〜11/8。11/5 にはまだ途中なので、戻っていなくても 0% として数えない。
+    const r = buildAnalytics(
+      input({
+        users: [user("w1", "2026-10-20"), user("late", "2026-11-01")],
+        catches: [
+          { user_id: "w1", created_at: at("2026-10-20"), location_name: null, kind: "new" },
+          { user_id: "w1", created_at: at("2026-10-27"), location_name: null, kind: "new" },
+          { user_id: "late", created_at: at("2026-11-01"), location_name: null, kind: "new" },
+        ],
+      }),
+    );
+    expect(r.cohorts.find((x) => x.week === "2026-10-26")!.cells.map((x) => x?.pct)).toEqual([100, 0]);
+    expect(r.insights.find((i) => i.chart === "cohorts")).toMatchObject({ code: "cohort_week1", values: { pct: 100, n: 1 } });
+  });
+
+  it("leaves names the learner wrote out of the places", () => {
+    const r = buildAnalytics(
+      input({
+        users: [user("a", "2026-09-01")],
+        catches: [
+          { user_id: "a", created_at: at("2026-11-04"), location_name: "台北市 大安區 和平東路一段162號", kind: "new" },
+          { user_id: "a", created_at: at("2026-11-04"), location_name: "My home", location_custom: true, kind: "again" },
+        ],
+      }),
+    );
+    expect(r.quality.places).toEqual([{ name: "台北市 大安區", n: 1 }]);
+  });
+
   it("measures the wait, the first-pick rate, AI errors, cost and a refusing backup", () => {
     const run = (loop: string, meta: unknown, day = "2026-11-04") => ({
       user_id: "a",
@@ -240,8 +277,11 @@ describe("buildAnalytics", () => {
             ms: 30000,
             attempts: [{ outcome: "error", code: "http_402" }],
           }),
-          run("candidate_pick", { rank: 1 }),
-          run("candidate_pick", { rank: 3 }),
+          run("candidate_pick", { via: "photo", rank: 1 }),
+          run("candidate_pick", { via: "photo", rank: 3 }),
+          // 候補を捨てて検索した1番目は外れとして数え、打ち込み・スキャンは数えない（beta-metrics と同じ）
+          run("candidate_pick", { via: "native_search", rank: 1 }),
+          run("candidate_pick", { via: "typed", rank: 1 }),
           run("ai_call", { ok: true, model: "google:x", in: 1000, out: 100 }),
           run("ai_call", { ok: false, model: "google:x" }),
           run("ai_call", { ok: true, model: "lovable:y", in: 10, out: 10 }),
@@ -251,7 +291,7 @@ describe("buildAnalytics", () => {
     );
     expect(r.quality.suggest_s).toEqual({ p50: 2, p90: 4, n: 2, prev_p50: 1 });
     expect(r.quality.card_s).toMatchObject({ p50: 30, n: 1 });
-    expect(r.quality.first_pick).toEqual({ pct: 50, n: 2 });
+    expect(r.quality.first_pick).toEqual({ pct: 33.3, n: 3 });
     expect(r.quality.ai_errors).toEqual({ pct: 33.3, n: 3 });
     expect(r.quality.ai_cost_usd).toEqual({ total: 0.02, per_learner: 0.02, unpriced: 1 });
     expect(r.quality.backup_refused).toBe(1);
