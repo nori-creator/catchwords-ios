@@ -135,6 +135,15 @@ final class AppRouter {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { tour = next }
     }
 
+    /// After the forgetting curve (2026-11-07: the review comes before the word page): the dex, with the word just
+    /// caught lit to open — its page is the guide's last part.
+    func tourToWord() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+            tab = .dex
+            tour = .dexOpen
+        }
+    }
+
     /// The tour is over: back on the home screen, where its end is celebrated (`TourCompleteView`).
     func tourFinish() {
         withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
@@ -227,7 +236,7 @@ struct MainTabView: View {
             .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
             .presentationDragIndicator(.visible)
             .presentationBackground(Theme.background)
-            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: endTour))
+            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: tourSkip, onEnd: endTour))
     }
 
     /// iPhone Duo folded, or open and held sideways (the tabs are a rail in the side strip, `AppRouter.usesRail`): the
@@ -239,7 +248,7 @@ struct MainTabView: View {
             .id(sticker.id)
             .environment(router)
             .background(Theme.background.ignoresSafeArea())
-            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: endTour))
+            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: tourSkip, onEnd: endTour))
     }
 
     /// The word's page in the tab screen (`inlineWordPage`) rather than a sheet or a cover.
@@ -267,8 +276,8 @@ struct MainTabView: View {
 
     private func wordPageDismissed() {
         router.detailZoomed = false
-        // 単語の頁を見終えたら復習へ（Web: StickerSheet の onClose → review）。
-        if router.tour.isWord { startTourReview() }
+        // 単語の頁は案内の最後（2026-11-07: 復習の後。撮った語のチャンク・例文が届く時間を稼ぐ）: 見終えたら完了。
+        if router.tour.isWord { router.tourFinish() }
     }
 
     var body: some View {
@@ -355,7 +364,7 @@ struct MainTabView: View {
             // word landing in the dex: the card waits until the word has landed (it used to darken the landing).
             if router.tour != .off, !router.tour.isWord, router.tour != .complete, router.landing == nil,
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
-                TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: endTour,
+                TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: tourSkip, onEnd: endTour,
                           bottomClearance: router.barRoom(84, rail: 12))
                     .transition(.opacity)
             }
@@ -380,7 +389,8 @@ struct MainTabView: View {
         .overlay {
             if router.tour == .complete {
                 // The catch's picture; the sample word's when the catch is gone (never the bare logo while a word exists).
-                TourCompleteView(sticker: router.tourStickerId.flatMap { dex.sticker(id: $0) } ?? dex.stickers.first { $0.isSample }) { endTour() }
+                TourCompleteView(sticker: router.tourStickerId.flatMap { dex.sticker(id: $0) } ?? dex.stickers.first { $0.isSample },
+                                 onDone: { endTour() }, onAgain: { restartTour() })
                     .transition(.opacity.combined(with: .scale(scale: 1.02)))
                     .zIndex(3)
             }
@@ -500,10 +510,29 @@ struct MainTabView: View {
         case .detail: router.advanceTour(from: .detail, to: .peel)
         case .homeAdded: router.advanceTour(from: .homeAdded, to: .dexTab)
         case .dexCover: router.advanceTour(from: .dexCover, to: .dexMap)
-        case .dexShadow: router.advanceTour(from: .dexShadow, to: .dexOpen)
-        case .memoryCurve: router.tourFinish()
+        case .dexShadow: startTourReview()   // the review before the word page (2026-11-07)
+        case .memoryCurve: startTourWord()
         default: break
         }
+    }
+
+    /// After the forgetting curve: the dex, with the word just caught lit to open (its page is the guide's last part).
+    /// No word of its own in the dex (the catch was skipped): the guide ends.
+    private func startTourWord() {
+        guard router.tourStickerId.flatMap({ dex.sticker(id: $0) }) != nil else {
+            router.tourFinish()
+            return
+        }
+        router.tourToWord()
+    }
+
+    /// 「チュートリアルをもう一度」 on the completion screen: the guide starts over from the camera, as a new catch.
+    private func restartTour() {
+        router.tourStickerId = nil
+        router.tourSection = nil
+        router.tourSections = []
+        router.tab = .home
+        withAnimation(.easeOut(duration: 0.3)) { router.tour = .tapCamera }
     }
 
     /// The steps over the word's page: its sections one by one, then the settings button, then (closing it) the review.
@@ -520,6 +549,36 @@ struct MainTabView: View {
             }
         case .wordSettings: router.detailSticker = nil   // its onDismiss starts the review
         default: break
+        }
+    }
+
+    /// 「スキップ」: this step is left out and the guide goes on (owner 2026-11-07 — it used to end the guide). A step
+    /// the learner acts on is skipped to the next place that needs no result of it: the 撮る steps to the dex (nothing
+    /// was caught), the dex's buttons one by one, a quiz to the forgetting curve, the word page to the end.
+    private func tourSkip() {
+        Haptics.impact(.light)
+        switch router.tour {
+        case .tapCamera, .shoot, .pick, .detail, .peel, .homeAdded:
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                router.tab = .home
+                router.tour = .dexTab
+            }
+        case .dexTab:
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                router.tab = .dex
+                router.tour = .dexCover
+            }
+        case .dexCover: router.advanceTour(from: .dexCover, to: .dexMap)
+        case .dexMap: router.advanceTour(from: .dexMap, to: .dexGrid)
+        case .dexGrid: router.advanceTour(from: .dexGrid, to: .dexShadow)
+        case .dexShadow: startTourReview()
+        case .reviewPick, .reviewNext:
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { router.tour = .memoryCurve }
+        case .memoryCurve: startTourWord()
+        case .dexOpen: router.tourFinish()
+        case .wordSection: router.advanceTour(from: .wordSection, to: .wordSettings)
+        case .wordSettings: router.detailSticker = nil   // its onDismiss ends the guide
+        case .off, .complete: break
         }
     }
 
@@ -842,11 +901,12 @@ private struct WordPageGuide: ViewModifier {
     let router: AppRouter
     let onNext: () -> Void
     let onSkip: () -> Void
+    let onEnd: () -> Void
 
     func body(content: Content) -> some View {
         content.overlayPreferenceValue(TourAnchorKey.self) { anchors in
             if router.tour.isWord {
-                TourLayer(step: router.tour, anchors: anchors, onNext: onNext, onSkip: onSkip,
+                TourLayer(step: router.tour, anchors: anchors, onNext: onNext, onSkip: onSkip, onEnd: onEnd,
                           bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
                     .transition(.opacity)
             }

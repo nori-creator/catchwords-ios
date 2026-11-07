@@ -163,7 +163,7 @@ struct ReviewView: View {
                         if answered { goNext() }
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { legendOpen = false }
                         showQuizRequest += 1
-                    }, onClose: { if router.tour == .memoryCurve { router.tourFinish() } else { closeCurve() } }, guided: guided)
+                    }, onClose: { if router.tour == .memoryCurve { router.tourToWord() } else { closeCurve() } }, guided: guided)
                     .frame(maxHeight: guided ? 470 : 640)
                     .frame(width: spread && !guided ? QuizCard.rightColumnWidth(viewportWidth, lead: foldLead, trail: foldTrail) : nil)
                     .background(Theme.card, in: .rect(cornerRadius: 32, style: .continuous))
@@ -210,7 +210,8 @@ struct ReviewView: View {
         .onChange(of: router.tour) { _, step in
             if step == .memoryCurve, let s = dex.stickers.first(where: { $0.isSample && $0.word != nil }) ?? practiceCards.first?.sticker {
                 withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { curveSticker = s }
-            } else if step == .complete || step == .off, curveSticker != nil {
+            } else if step != .memoryCurve, curveSticker != nil {
+                // The guide moved on (to the word page since 2026-11-07, or ended): the curve goes.
                 closeCurve()
             }
         }

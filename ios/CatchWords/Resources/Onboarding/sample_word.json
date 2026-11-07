@@ -286,7 +286,7 @@
  ],
  "text": {
   "ja": {
-   "meaning": "タピオカミルクティー。台湾生まれの、もちもちしたタピオカ（珍珠）入りのミルクティー。",
+   "meaning": "タピオカミルクティー",
    "ex1": "タピオカミルクティーを一杯、砂糖半分・氷少なめで。",
    "ex2": "私はいつもタピオカミルクティーを、氷なし・砂糖少なめで頼みます。",
    "chunk1": "タピオカミルクティーを砂糖半分で",
@@ -311,7 +311,7 @@
    "taiwan": "台湾では注文のとき、甘さ（**半糖・少糖・無糖**）と氷の量（**去冰・少冰**）を自分で選びます。短く「珍奶」と言う人も多いです。"
   },
   "en": {
-   "meaning": "Bubble tea: milk tea with chewy tapioca pearls (珍珠), invented in Taiwan.",
+   "meaning": "Bubble tea",
    "ex1": "One bubble tea, please, half sugar and less ice.",
    "ex2": "I always order bubble tea with no ice and less sugar.",
    "chunk1": "bubble tea, half sugar",
@@ -336,7 +336,7 @@
    "taiwan": "In Taiwan you pick the sweetness (**半糖・少糖・無糖**) and the ice (**去冰・少冰**) yourself when you order. Many people just say 珍奶 for short."
   },
   "zh-TW": {
-   "meaning": "台灣發明的飲料：加了Q彈粉圓（珍珠）的奶茶。",
+   "meaning": "珍珠奶茶（加粉圓的奶茶）",
    "ex1": "我要一杯珍珠奶茶，半糖少冰。",
    "ex2": "我每次都點珍珠奶茶，去冰少糖。",
    "chunk1": "珍珠奶茶，甜度半糖",
@@ -361,7 +361,7 @@
    "taiwan": "在台灣點飲料時，甜度（**半糖、少糖、無糖**）和冰量（**去冰、少冰**）都要自己選。很多人會簡稱「珍奶」。"
   },
   "es": {
-   "meaning": "Té con leche y perlas de tapioca (珍珠), una bebida inventada en Taiwán.",
+   "meaning": "Té con leche con perlas de tapioca (bubble tea)",
    "ex1": "Un té de perlas, por favor, con mitad de azúcar y poco hielo.",
    "ex2": "Siempre pido el té de perlas sin hielo y con poca azúcar.",
    "chunk1": "té de perlas con mitad de azúcar",
@@ -386,7 +386,7 @@
    "taiwan": "En Taiwán eliges tú el dulzor (**半糖・少糖・無糖**) y el hielo (**去冰・少冰**) al pedir. Mucha gente dice solo 珍奶."
   },
   "ko": {
-   "meaning": "버블티. 쫄깃한 타피오카 펄(珍珠)이 들어간 밀크티로, 대만에서 시작된 음료예요.",
+   "meaning": "버블티",
    "ex1": "버블티 한 잔 주세요. 당도는 반, 얼음은 적게요.",
    "ex2": "저는 늘 버블티를 얼음 없이, 설탕 적게 시켜요.",
    "chunk1": "버블티 당도 반",
@@ -411,7 +411,7 @@
    "taiwan": "대만에서는 주문할 때 당도(**半糖・少糖・無糖**)와 얼음 양(**去冰・少冰**)을 직접 골라요. 짧게 珍奶라고 부르는 사람도 많아요."
   },
   "vi": {
-   "meaning": "Trà sữa trân châu: trà sữa có trân châu dai (珍珠), ra đời ở Đài Loan.",
+   "meaning": "Trà sữa trân châu",
    "ex1": "Cho tôi một ly trà sữa trân châu, nửa đường, ít đá.",
    "ex2": "Tôi luôn gọi trà sữa trân châu không đá, ít đường.",
    "chunk1": "trà sữa trân châu nửa đường",
