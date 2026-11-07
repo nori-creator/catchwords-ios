@@ -71,9 +71,9 @@ enum TourStep: String, Equatable {
         case .dexOpen: L("最後に、さっき撮った単語を開いてみましょう")
         case .wordSection: L("単語の頁")
         case .wordSettings: L("表示する項目と順番は、ここで変えられます")
-        case .reviewPick: L("自分で撮った写真で復習します")
+        case .reviewPick: L("自分で撮った写真で復習しましょう")
         case .reviewNext: L("答え合わせです")
-        case .memoryCurve: L("この単語を、どのくらい覚えているかのグラフです")
+        case .memoryCurve: L("この単語をどのくらい覚えているかのグラフです")
         default: nil
         }
     }
@@ -82,7 +82,7 @@ enum TourStep: String, Equatable {
     /// 2026-10-28 「撮るだけで単語帳ができますって文字消して。いらない」). Each line names the gain or removes a worry.
     var benefit: String? {
         switch self {
-        case .shoot: L("名前を知らない物でも大丈夫。アプリが調べます。")
+        case .shoot: L("名前を知らない物でも大丈夫です。アプリが調べます。")
         case .pick: L("覚えたい物の名前を1つ選んでください。")
         case .detail: L("声に出して言ってみると、覚えやすくなります。")
         case .peel: L("これで最初の単語が保存されます。")

@@ -11268,5 +11268,26 @@
   "es": "El tamaño del texto y la velocidad de la voz también se cambian aquí.",
   "ko": "글자 크기와 발음 속도도 여기서 바꿀 수 있어요.",
   "vi": "Cỡ chữ và tốc độ đọc cũng chỉnh được ở đây."
+ },
+ "名前を知らない物でも大丈夫です。アプリが調べます。": {
+  "en": "You need not know its name: the app looks it up.",
+  "zh-TW": "不知道名字也沒關係，App 會幫你查。",
+  "es": "No hace falta saber el nombre: la app lo busca.",
+  "ko": "이름을 몰라도 괜찮아요. 앱이 찾아 줍니다.",
+  "vi": "Không biết tên cũng được, ứng dụng sẽ tra giúp."
+ },
+ "自分で撮った写真で復習しましょう": {
+  "en": "Let's review with the photos you took",
+  "zh-TW": "用自己拍的照片來複習吧",
+  "es": "Repasemos con las fotos que tomaste",
+  "ko": "직접 찍은 사진으로 복습해 봐요",
+  "vi": "Cùng ôn tập bằng ảnh bạn đã chụp"
+ },
+ "この単語をどのくらい覚えているかのグラフです": {
+  "en": "A graph of how well you remember this word",
+  "zh-TW": "這張圖顯示你對這個單字記得多牢",
+  "es": "Un gráfico de cuánto recuerdas esta palabra",
+  "ko": "이 단어를 얼마나 기억하고 있는지 보여 주는 그래프예요",
+  "vi": "Biểu đồ cho biết bạn nhớ từ này đến đâu"
  }
 }
