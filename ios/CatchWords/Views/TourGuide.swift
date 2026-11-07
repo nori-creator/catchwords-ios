@@ -58,22 +58,22 @@ enum TourStep: String, Equatable {
     var title: String? {
         switch self {
         case .tapCamera: L("目の前にある物を1枚撮ってみよう")
-        case .shoot: L("物をフレームに入れて、シャッターを押します")
-        case .pick: L("写っている物に、名前が付きました")
+        case .shoot: L("撮りたい物を画面に入れて、シャッターを押してください")
+        case .pick: L("写真の中の物に、名前が付きました")
         case .detail: L("発音を聞いてみましょう")
-        case .peel: L("図鑑に入れましょう")
-        case .homeAdded: L("撮った写真が、そのままアルバムに")
-        case .dexTab: L("集めた単語は、図鑑にまとまります")
-        case .dexCover: L("自分の写真が、そのまま単語カードに")
-        case .dexMap: L("どこで覚えたかも、地図に残ります")
-        case .dexGrid: L("種類ごとに、集めた数が見られます")
-        case .dexShadow: L("影は、まだ集めていない物")
-        case .dexOpen: L("最後に、あなたの1語目を開いてみましょう")
+        case .peel: L("図鑑に追加しましょう")
+        case .homeAdded: L("撮った写真は、ホームのアルバムに貼られます")
+        case .dexTab: L("集めた単語は、図鑑で見られます")
+        case .dexCover: L("撮った写真が、そのまま単語カードになります")
+        case .dexMap: L("撮った場所が、地図に記録されます")
+        case .dexGrid: L("ジャンルごとに、集めた数が分かります")
+        case .dexShadow: L("影になっているのは、まだ集めていない物です")
+        case .dexOpen: L("最後に、さっき撮った単語を開いてみましょう")
         case .wordSection: L("単語の頁")
         case .wordSettings: L("表示する項目と順番は、ここで変えられます")
-        case .reviewPick: L("自分の写真で復習しましょう")
-        case .reviewNext: L("答え合わせ")
-        case .memoryCurve: L("この単語の、覚え具合のグラフです")
+        case .reviewPick: L("自分で撮った写真で復習します")
+        case .reviewNext: L("答え合わせです")
+        case .memoryCurve: L("この単語を、どのくらい覚えているかのグラフです")
         default: nil
         }
     }
@@ -83,18 +83,18 @@ enum TourStep: String, Equatable {
     var benefit: String? {
         switch self {
         case .shoot: L("名前を知らない物でも大丈夫。アプリが調べます。")
-        case .pick: L("覚えたい物の札を1つ選びます。")
-        case .detail: L("声に出してまねすると、覚えやすくなります。")
-        case .peel: L("これが、あなたの1語目になります。")
-        case .homeAdded: L("いつ、何を覚えたかが、ひと目で分かります。")
-        case .dexCover: L("自分で撮った物だから、思い出しやすい。")
-        case .dexMap: L("街や旅先で出会った単語が、場所と一緒に残ります。")
-        case .dexGrid: L("飲み物、料理、乗り物…分類ごとに並びます。")
-        case .dexShadow: L("影にない物も、何でもキャッチできます。")
-        case .wordSettings: L("文字の大きさや発音の速さも、ここから。")
-        case .reviewPick: L("見覚えのある写真だから、思い出しやすい。")
-        case .reviewNext: L("間違えても大丈夫。解説を読んで、次へ。")
-        case .memoryCurve: L("最適な復習のタイミングが分かります。")
+        case .pick: L("覚えたい物の名前を1つ選んでください。")
+        case .detail: L("声に出して言ってみると、覚えやすくなります。")
+        case .peel: L("これで最初の単語が保存されます。")
+        case .homeAdded: L("いつ、どんな単語を覚えたかが、ひと目で分かります。")
+        case .dexCover: L("自分で撮った写真なので、思い出しやすくなります。")
+        case .dexMap: L("どこで覚えた単語かを、あとから見返せます。")
+        case .dexGrid: L("飲み物、料理、乗り物などに分かれて並びます。")
+        case .dexShadow: L("影にない物も、何でも撮って集められます。")
+        case .wordSettings: L("文字の大きさや発音の速さも、ここで変えられます。")
+        case .reviewPick: L("見覚えのある写真なので、思い出しやすくなります。")
+        case .reviewNext: L("間違えても大丈夫です。解説を読んで、次に進みましょう。")
+        case .memoryCurve: L("復習するのにいちばん良いタイミングが分かります。")
         default: nil
         }
     }
@@ -103,13 +103,13 @@ enum TourStep: String, Equatable {
     /// from it, not what it is called.
     static func sectionPoint(_ section: CardSection) -> String {
         switch section {
-        case .meaning: L("この単語の意味です。まずはここだけでOK。")
-        case .usageChunks: L("よく一緒に使われる組み合わせです。このまま覚えると、すぐ使えます。")
+        case .meaning: L("この単語の意味です。まずはここだけ読めば十分です。")
+        case .usageChunks: L("この単語とよく一緒に使われる言葉の組み合わせです。このまま覚えると、すぐに使えます。")
         case .example: L("その組み合わせを使った例文です。音声も聞けます。")
-        case .measureWords: L("数えるときの言い方です。")
+        case .measureWords: L("この物を数えるときの言い方です。")
         case .relatedWords: L("一緒に覚えると便利な単語です。")
         case .taiwanNote: L("台湾ならではの言い方や習慣です。")
-        case .realUsage: L("動画や検索で、実際の使われ方が見られます。")
+        case .realUsage: L("動画や検索で、実際にどう使われているかを見られます。")
         default: L("この単語をもっと深く知るための項目です。")
         }
     }
