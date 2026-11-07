@@ -11051,5 +11051,19 @@
   "es": "Una sección para conocer mejor la palabra.",
   "ko": "이 단어를 더 깊이 알기 위한 항목이에요.",
   "vi": "Mục giúp hiểu sâu hơn về từ này."
+ },
+ "物と一緒に、自分を撮ってみましょう": {
+  "en": "Take a photo of yourself with the thing",
+  "zh-TW": "和東西一起，拍一張自己",
+  "es": "Hazte una foto con el objeto",
+  "ko": "물건과 함께 자신을 찍어 보세요",
+  "vi": "Chụp một tấm ảnh bạn cùng với đồ vật"
+ },
+ "覚えたい物を手に持って、カメラに向けてください。": {
+  "en": "Hold the thing you want to learn and face the camera.",
+  "zh-TW": "拿著想記住的東西，面向鏡頭。",
+  "es": "Sujeta el objeto que quieres aprender y mira a la cámara.",
+  "ko": "외우고 싶은 물건을 들고 카메라를 바라보세요.",
+  "vi": "Cầm đồ vật bạn muốn học và nhìn vào camera."
  }
 }

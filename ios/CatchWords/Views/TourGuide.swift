@@ -258,6 +258,8 @@ struct TourLayer: View {
     let onSkip: () -> Void
     /// 「終了」: the whole guide ends (nil: not offered, as in the previews).
     var onEnd: (() -> Void)? = nil
+    /// The 撮る step with the camera facing the learner: the card says to shoot themselves with the thing.
+    var selfie: Bool = false
     /// Room kept under a card at the bottom: the tab bar's (84) over the tabs, little over the word's page (a sheet).
     var bottomClearance: CGFloat = 84
     /// `.wordSection`: the word page's section the light is on (its card names it).
@@ -328,8 +330,9 @@ struct TourLayer: View {
                         }
                         // A new card per step (its lines come in again, `shown`), the old one fading out.
                         let cardWidth = Self.cardWidth(in: geo.size)
-                        TourCoachCard(step: step, section: section, missed: missed, onNext: onNext, onSkip: onSkip, onEnd: onEnd)
-                            .id("\(step.rawValue)-\(section?.rawValue ?? "")")
+                        TourCoachCard(step: step, section: section, selfie: selfie, missed: missed,
+                                      onNext: onNext, onSkip: onSkip, onEnd: onEnd)
+                            .id("\(step.rawValue)-\(section?.rawValue ?? "")-\(selfie)")
                             .padding(.horizontal, cardWidth == nil ? 16 : 0)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
                             .frame(width: cardWidth ?? geo.size.width)
@@ -369,6 +372,8 @@ struct TourLayer: View {
         .onChange(of: hasPlace) { _, now in if now { arrive(true) } }
         // A tap that missed the lit place: the card comes back to say what to press.
         .onChange(of: missed) { _, _ in if cardHidden { showCard(again: true) } }
+        // The camera was flipped: the card comes back with what to shoot now.
+        .onChange(of: selfie) { _, _ in showCard(again: true) }
     }
 
     /// Whether this step's card goes away by itself: the learner acts on the screen (no 「次へ」), so the card must not
@@ -597,6 +602,8 @@ struct TourCardPill: View {
 struct TourCoachCard: View {
     let step: TourStep
     var section: CardSection? = nil
+    /// The 撮る step with the front camera on (`TourLayer.selfie`).
+    var selfie: Bool = false
     var missed: Int = 0
     let onNext: () -> Void
     let onSkip: () -> Void
@@ -607,11 +614,13 @@ struct TourCoachCard: View {
     @State private var shown = false
 
     private var title: String? {
-        section.map { $0.shortTitle(for: NativeAPI.targetLanguage) } ?? step.title
+        if selfie, step == .shoot { return L("物と一緒に、自分を撮ってみましょう") }
+        return section.map { $0.shortTitle(for: NativeAPI.targetLanguage) } ?? step.title
     }
 
     private var point: String? {
-        section.map(TourStep.sectionPoint) ?? step.benefit
+        if selfie, step == .shoot { return L("覚えたい物を手に持って、カメラに向けてください。") }
+        return section.map(TourStep.sectionPoint) ?? step.benefit
     }
 
     /// Owner 2026-10-28 (「文字が多すぎて何したらいいかちょっと見にくい」): the steps on top, a title, at most one line, and

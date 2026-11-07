@@ -92,6 +92,9 @@ final class AppRouter {
     var praise: PraiseMoment?
     /// First-run tour over the real screens (FirstCatchFlow's experience steps).
     var tour: TourStep = .off
+    /// The camera screen's camera faces the learner (切替): the tour's 撮る card then says to shoot themselves with the
+    /// thing (owner 2026-11-07: 「自撮りモードで何を撮ればいいかわからない。物と一緒に撮ってみようというふうな解説文」).
+    var cameraFront = false
     /// The word caught during the tour (used by the Dex / word / review steps).
     var tourStickerId: String?
     /// `.wordSection`: the word page's section the guide is on, and the page's sections in order (the page tells).
@@ -365,6 +368,7 @@ struct MainTabView: View {
             if router.tour != .off, !router.tour.isWord, router.tour != .complete, router.landing == nil,
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: tourSkip, onEnd: endTour,
+                          selfie: router.tour == .shoot && router.cameraFront,
                           bottomClearance: router.barRoom(84, rail: 12))
                     .transition(.opacity)
             }
