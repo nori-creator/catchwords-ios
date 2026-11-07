@@ -597,8 +597,9 @@ struct OnboardingView: View {
         SampleSticker.markAdded(userId: SupabaseClient.shared.userId)
         // 質問の後は、本物の画面で「撮る → 選ぶ → 図鑑 → 復習」を体験する（TourStep の tapCamera から）。
         if startTour { UserDefaults.standard.set(true, forKey: TourStep.pendingStorageKey(for: SupabaseClient.shared.userId)) }
+        // No sound here (owner 2026-11-08: the sting played as the AI consent came up — 「AI へのデータ送信の同意の時…
+        // 効果音が変だから消して」).
         Haptics.success()
-        SoundService.shared.play(.sting)
         onFinish()
     }
 }

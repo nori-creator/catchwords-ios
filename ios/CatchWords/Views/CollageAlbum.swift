@@ -316,16 +316,16 @@ private struct CollagePiece: View {
         .accessibilityAction(named: L("アルバムから外す")) { if canEdit && editing { onRemove() } }
     }
 
-    /// The first tour's catch arriving on the home screen: held off the page, then pressed on with a bounce, a soft
-    /// tap and the landing sound (owner 2026-10-28: the cut-out added to the home screen as part of the guide).
+    /// The first tour's catch arriving on the home screen: held off the page, then pressed on with a bounce and a soft
+    /// tap (owner 2026-10-28: the cut-out added to the home screen as part of the guide).
     private func paste() {
         guard pasteID == sticker.id, !pastedDone, !reduceMotion, !Self.justPasted else { return }
         Task {
             try? await Task.sleep(for: .milliseconds(450))
             withAnimation(.spring(response: 0.42, dampingFraction: 0.58)) { pastedDone = true }
             try? await Task.sleep(for: .milliseconds(160))
+            // No sound (owner 2026-11-08: 「図鑑に追加されてときの効果音が変だから消して」); the soft tap stays.
             Haptics.impact(.soft, intensity: 0.8)
-            SoundService.shared.play(.landBounce)
             try? await Task.sleep(for: .milliseconds(700))
             Self.pastedAt = Date()
         }
