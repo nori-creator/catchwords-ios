@@ -1,4 +1,5 @@
 import UIKit
+import CryptoKit
 
 /// The home album's selfies cut down to the people and what they hold (owner 2026-10-14: 「ホームに表示する自撮りも
 /// 元の画像ではなく、自撮りに写る人物とその単語の対象に絞って切り抜いてほしい」). Made on this phone with Vision
@@ -15,6 +16,9 @@ final class SelfieCutouts {
     private(set) var ready: Set<String> = []
     /// Selfies with no person to cut out, or that could not be read this time: shown as they are.
     private(set) var none: Set<String> = []
+    /// Goes up each time a selfie's cut-out is replaced by the learner's own (`setLearnerCut`): the views showing it
+    /// read the cache again (their task ids carry it; `ready` alone does not change then).
+    private(set) var revision = 0
 
     @ObservationIgnored private var queue: [String] = []
     @ObservationIgnored private var running = false
@@ -53,6 +57,44 @@ final class SelfieCutouts {
         ready.remove(path)
     }
 
+    /// 囲んで切り抜き直す on the selfie (owner 2026-11-07: 「自撮りでも切り抜き修正できるようにして」): `cut` (on
+    /// transparency) is this selfie's cut-out from now on — on the word page and the album. Kept on this phone only,
+    /// like the cut-out Vision makes, but in Application Support, not the cache, so the system emptying the cache
+    /// brings the learner's drawing back instead of Vision's (`make` reads it first). Never uploaded.
+    func setLearnerCut(_ path: String, cut: UIImage) {
+        let key = Self.key(for: path)
+        ImageCache.shared.forget(key)
+        ImageCache.shared.store(cut, for: key, maxSide: 1024)
+        if let data = cut.pngData() {
+            let file = Self.learnerFile(for: path)
+            try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? data.write(to: file, options: .atomic)
+        }
+        none.remove(path)
+        if let uid = SupabaseClient.shared.userId {
+            var kept = rememberedNone()
+            if kept.remove(path) != nil {
+                remembered = (uid, kept)
+                UserDefaults.standard.set(Array(kept), forKey: Self.noneKey(uid))
+            }
+        }
+        ready.insert(path)
+        revision += 1
+    }
+
+    /// Application Support/selfie-cuts/<sha256 of the selfie's path>.png: the learner's own cut-out of that selfie.
+    nonisolated private static func learnerFile(for path: String) -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("selfie-cuts", isDirectory: true)
+        let name = SHA256.hash(data: Data(path.utf8)).map { String(format: "%02x", $0) }.joined()
+        return base.appendingPathComponent(name + ".png")
+    }
+
+    nonisolated private static var learnerDir: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("selfie-cuts", isDirectory: true)
+    }
+
     #if DEBUG
     /// `-uiPreview`: a selfie's cut-out as a phone would have made it (Vision does not run on the simulator).
     func seedForPreview(_ path: String, cutout: UIImage) {
@@ -62,18 +104,28 @@ final class SelfieCutouts {
     }
     #endif
 
-    /// Signing out or the account deleted.
+    /// Signing out or the account deleted: the learner's own cut-outs go with the cache (the next account must not see
+    /// this one's selfies).
     func reset(deleting uid: String? = nil) {
         queue = []
         ready = []
         none = []
         remembered = nil
+        revision += 1
         if let uid { UserDefaults.standard.removeObject(forKey: Self.noneKey(uid)) }
+        try? FileManager.default.removeItem(at: Self.learnerDir)
     }
 
     private func make(_ path: String, dex: DexStore) async {
         let key = Self.key(for: path)
         if await ImageCache.shared.cached(for: key) != nil {
+            ready.insert(path)
+            return
+        }
+        // The learner's own cut-out of this selfie, if they drew one (survives the cache being emptied).
+        let own = Self.learnerFile(for: path)
+        if let data = try? Data(contentsOf: own), let cut = UIImage(data: data) {
+            ImageCache.shared.store(cut, for: key, maxSide: 1024)
             ready.insert(path)
             return
         }

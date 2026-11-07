@@ -52,14 +52,28 @@ struct HeroPhotoPickerSheet: View {
         return options.first { $0.id == "cutout" }?.id ?? "object"
     }
 
-    /// 囲んで切り抜き直す (owner 2026-11-04): on the original photo of a saved word (not the bundled sample). The sheet
-    /// opens `LassoCutoutView` and saves the cut-out itself; the word page is not changed for it (wiring it through the
-    /// page made the page's SwiftUI updates run without end on scrolling, UI test zh 2026-11-04).
-    private var canRecut: Bool { sticker.objectImageUrl != nil && !sticker.id.hasPrefix(SampleSticker.prefix) }
+    /// 囲んで切り抜き直す (owner 2026-11-04): on the photo selected above (owner 2026-11-07: 「選択した写真で切り抜きの
+    /// し直す…自撮りでも切り抜き修正できるようにして」) — the selfie when 自撮り is selected, else the original photo — of
+    /// a saved word (not the bundled sample). The sheet opens `LassoCutoutView` and saves the cut-out itself; the word
+    /// page is not changed for it (wiring it through the page made the page's SwiftUI updates run without end on
+    /// scrolling, UI test zh 2026-11-04).
+    private var canRecut: Bool { recutPath != nil && !sticker.id.hasPrefix(SampleSticker.prefix) }
+
+    /// The photo the loop is drawn on: the selfie when it is the selected picture, else the original photo.
+    private var recutPath: String? {
+        current == "selfie" ? sticker.selfieImageUrl : sticker.objectImageUrl
+    }
 
     /// The new cut-out replaces the old one (the first photo's or a later one's), and the page shows it
-    /// (表示する写真 = 切り抜き, through `onPick`, which the page answers by showing the cut-out).
-    private func saveRecut(_ image: UIImage) async throws {
+    /// (表示する写真 = 切り抜き, through `onPick`, which the page answers by showing the cut-out). Drawn on the selfie,
+    /// it is the selfie's cut-out on this phone (`SelfieCutouts.setLearnerCut`; never uploaded, like Vision's).
+    private func saveRecut(_ image: UIImage, on path: String) async throws {
+        if path == sticker.selfieImageUrl, path != sticker.objectImageUrl {
+            SelfieCutouts.shared.setLearnerCut(path, cut: image)
+            chosen = "selfie"
+            try? await onPick("selfie")
+            return
+        }
         if let eid = dex.savedEncounterId(sticker) {
             try await dex.addEncounterCutout(eid, image: image)
         } else {
@@ -85,10 +99,10 @@ struct HeroPhotoPickerSheet: View {
             onReplace?(item)
         }
         .fullScreenCover(isPresented: $recutting) {
-            if let path = sticker.objectImageUrl {
+            if let path = recutPath {
                 LassoCutoutView(photoPath: path) { image, _ in
                     // The cover closes itself; this sheet stays, with the new cut-out among the pictures.
-                    try await saveRecut(image)
+                    try await saveRecut(image, on: path)
                 }
             }
         }

@@ -220,6 +220,14 @@ final class ImageCache {
         return ok
     }
 
+    /// Drops the picture under `key` from memory and disk (a picture about to be replaced: `store` never overwrites
+    /// a file that is there).
+    func forget(_ key: String) {
+        cache.removeObject(forKey: key as NSString)
+        reading[key] = nil
+        try? FileManager.default.removeItem(at: Self.file(for: key))
+    }
+
     /// Signing out: the next account must not be shown this one's pictures — in memory or on disk.
     func removeAll() {
         cache.removeAllObjects()

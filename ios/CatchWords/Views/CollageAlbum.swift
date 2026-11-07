@@ -608,7 +608,7 @@ private struct SelfieAlbumCutout: View {
         }
         .frame(width: width, height: height)
         .allowsHitTesting(false)
-        .task(id: "\(path)|\(ready)") {
+        .task(id: "\(path)|\(ready)|\(SelfieCutouts.shared.revision)") {
             guard ready else {
                 SelfieCutouts.shared.request(path, dex: dex)
                 return

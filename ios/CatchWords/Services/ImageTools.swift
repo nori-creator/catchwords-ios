@@ -217,8 +217,12 @@ nonisolated enum CutoutService {
 
 extension CutoutService {
     /// A selfie cut down to its people and what they hold (owner 2026-10-14: 「自撮りに写る人物とその単語の対象に絞って
-    /// 切り抜いてほしい」): the foreground instances that are people, or that touch them (the drink in the hand, the thing
-    /// held up beside the face). Shelves and walls behind them are not foreground; a thing standing apart is dropped.
+    /// 切り抜いてほしい」): once a person is among Vision's foreground instances, **every** foreground instance is kept —
+    /// the people and the thing (the egg carton held up in front, the drink in the hand). Shelves and walls behind them
+    /// are not foreground. The earlier rule kept only instances touching the person's mask and dropped the egg carton
+    /// held in front of the body (owner 2026-11-07: 「自撮りは、人物とそのものを切り抜くように指示しているはず」): the
+    /// carton hid the body, so little of it lay within reach of the person mask. Like the camera's cut-out (「青い線＝
+    /// 切り抜き」, 11-05), the sticker is what Vision sees, with no rule in between.
     /// nil when there is no person (the selfie is then shown as it is) or on the Simulator.
     nonisolated static func liftPeople(from image: UIImage) async -> UIImage? {
         await Task.detached(priority: .utility) { liftPeopleNow(image) }.value
@@ -235,18 +239,19 @@ extension CutoutService {
         do { try handler.perform([foreground, people]) } catch { return nil }
         guard let result = foreground.results?.first, !result.allInstances.isEmpty,
               let personMask = people.results?.first?.pixelBuffer else { return nil }
-        let keep = instancesWithPeople(labels: result.instanceMask, person: personMask)
+        let persons = instancesWithPeople(labels: result.instanceMask, person: personMask)
             .intersection(result.allInstances)
-        guard !keep.isEmpty,
-              let masked = try? result.generateMaskedImage(ofInstances: keep, from: handler, croppedToInstancesExtent: true)
+        guard !persons.isEmpty else { return nil }
+        let keep = result.allInstances
+        guard let masked = try? result.generateMaskedImage(ofInstances: keep, from: handler, croppedToInstancesExtent: true)
         else { return nil }
         let ci = CIImage(cvPixelBuffer: masked)
         guard let out = CIContext().createCGImage(ci, from: ci.extent) else { return nil }
         return UIImage(cgImage: out)
     }
 
-    /// The instance labels that are people (≥ 30 % of the instance lies on the person mask) or that touch them
-    /// (≥ 35 % lies within a short reach of a person — what is held in front of or beside the body).
+    /// The instance labels that are people (≥ 30 % of the instance lies on the person mask). Whether a selfie has a
+    /// person at all; the things kept with them are every other foreground instance (`liftPeople`).
     nonisolated static func instancesWithPeople(labels: CVPixelBuffer, person: CVPixelBuffer) -> IndexSet {
         CVPixelBufferLockBaseAddress(labels, .readOnly)
         CVPixelBufferLockBaseAddress(person, .readOnly)
@@ -260,7 +265,7 @@ extension CutoutService {
               let lbase = CVPixelBufferGetBaseAddress(labels), let pbase = CVPixelBufferGetBaseAddress(person) else { return [] }
         let lrow = CVPixelBufferGetBytesPerRow(labels), prow = CVPixelBufferGetBytesPerRow(person)
 
-        // The person mask on a coarse grid (at most 160 cells a side), then widened by ~4 % of the picture.
+        // The person mask on a coarse grid (at most 160 cells a side).
         let scale = 160.0 / Double(max(pw, ph))
         let gw = max(1, Int(Double(pw) * min(1, scale))), gh = max(1, Int(Double(ph) * min(1, scale)))
         var onPerson = [Bool](repeating: false, count: gw * gh)
@@ -271,50 +276,28 @@ extension CutoutService {
             }
         }
         guard onPerson.contains(true) else { return [] }
-        let reach = max(1, Int(Double(max(gw, gh)) * 0.04))
-        var across = [Bool](repeating: false, count: gw * gh)
-        for gy in 0..<gh {
-            for gx in 0..<gw where onPerson[gy * gw + gx] {
-                for x in max(0, gx - reach)...min(gw - 1, gx + reach) { across[gy * gw + x] = true }
-            }
-        }
-        var near = [Bool](repeating: false, count: gw * gh)
-        for gy in 0..<gh {
-            for gx in 0..<gw where across[gy * gw + gx] {
-                for y in max(0, gy - reach)...min(gh - 1, gy + reach) { near[y * gw + gx] = true }
-            }
-        }
 
-        var total: [Int: Int] = [:], inside: [Int: Int] = [:], touching: [Int: Int] = [:]
+        var total: [Int: Int] = [:], inside: [Int: Int] = [:]
         let step = max(1, max(lw, lh) / 400)
         for y in stride(from: 0, to: lh, by: step) {
             let gy = min(gh - 1, y * gh / lh)
             for x in stride(from: 0, to: lw, by: step) {
                 let l = Int(lbase.advanced(by: y * lrow + x).load(as: UInt8.self))
                 guard l != 0 else { continue }
-                let g = gy * gw + min(gw - 1, x * gw / lw)
                 total[l, default: 0] += 1
-                if onPerson[g] { inside[l, default: 0] += 1 }
-                if near[g] { touching[l, default: 0] += 1 }
+                if onPerson[gy * gw + min(gw - 1, x * gw / lw)] { inside[l, default: 0] += 1 }
             }
         }
         var keep = IndexSet()
-        for (l, n) in total where keepsWithPeople(total: n, onPerson: inside[l] ?? 0, nearPerson: touching[l] ?? 0) {
-            keep.insert(l)
-        }
+        for (l, n) in total where isPerson(total: n, onPerson: inside[l] ?? 0) { keep.insert(l) }
         return keep
     }
 
-    /// Whether a foreground instance of a selfie stays with its people (counts of its sampled pixels): a person (≥ 30 %
-    /// on the person mask), or a thing against them. A thing held up to the camera is large and touches the person only
-    /// along one side — the hand (owner 2026-10-15: 冰火菠蘿油 held up in a selfie was dropped, so the album sticker
-    /// showed the person without the word's thing). So a thing is kept when most of it is within reach of a person,
-    /// or when a real part of it is (≥ 4 % of it, at least a few samples); a thing standing apart is still dropped.
-    nonisolated static func keepsWithPeople(total n: Int, onPerson: Int, nearPerson: Int) -> Bool {
-        guard n > 0 else { return false }
-        if Double(onPerson) / Double(n) >= 0.3 { return true }
-        if Double(nearPerson) / Double(n) >= 0.35 { return true }
-        return nearPerson >= max(6, n / 25)
+    /// Whether a foreground instance of a selfie is a person (counts of its sampled pixels: ≥ 30 % on the person mask).
+    /// Before 2026-11-07 this also decided which things stayed with the person (within reach of the mask); now every
+    /// foreground instance stays once a person is found, so the thing held in front of the body is never dropped.
+    nonisolated static func isPerson(total n: Int, onPerson: Int) -> Bool {
+        n > 0 && Double(onPerson) / Double(n) >= 0.3
     }
 
     /// The instance label under `point` (0–1, top-left origin), or the nearest within ~8% (`MaskPixels`).
