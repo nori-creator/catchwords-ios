@@ -91,6 +91,8 @@ struct CaptureView: View {
             CCShutterFlash(start: shotFlash, calm: reduceMotion).zIndex(30)
         }
         .denseTypeSizeCap()  // the camera chrome is laid out around the viewfinder and the shutter
+        // The tour's 撮る card reads which way the camera faces (`AppRouter.cameraFront`).
+        .onChange(of: camera.position, initial: true) { _, p in router.cameraFront = p == .front }
         // The camera machine and the words on the photo are dark full-screen views; the choose screen and the GET
         // moment (film v6) are the light page.
         .statusBarTone(vm.step == .celebrate || (vm.step == .select && vm.lightStage) ? .dark

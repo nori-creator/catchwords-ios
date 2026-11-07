@@ -53,27 +53,27 @@ enum TourStep: String, Equatable {
     /// What to do, or what this is, in a few words. Owner 2026-10-28 (「チュートリアルのすべての文字文章が変だから一から
     /// 考え直して」「操作が明らかなところは…ここをタップって書かなくていい。そこだけ光らしたらユーザーもそこわかる」): the lit
     /// place shows where to tap, so no card says 「〜をタップ」.
-    /// Owner's pick 2026-10-29 from three written sets: A (what to do, plainly) for most cards, C (what no other word
-    /// app does) for the album, cards, map, shadows, review and the end. The first one stays the owner's own words.
+    /// Written again from scratch on 2026-11-07 (owner: 「日本語文が変だから…1から書き直して」) for the order of that day
+    /// (the word page last): plain polite Japanese, one thing per card. The first one stays the owner's own words.
     var title: String? {
         switch self {
         case .tapCamera: L("目の前にある物を1枚撮ってみよう")
-        case .shoot: L("物を画面に入れて、シャッター")
-        case .pick: L("写った物に、名前が付きました")
-        case .detail: L("発音を聞いて、まねしてみよう")
-        case .peel: L("図鑑に入れよう")
-        case .homeAdded: L("勉強の記録が、そのままアルバムに")
-        case .dexTab: L("集めた単語は、図鑑にあります")
-        case .dexCover: L("自分の写真が、単語カードになる")
-        case .dexMap: L("単語が、思い出の場所と結びつく")
-        case .dexGrid: L("分類ごとに、集めた数が分かります")
-        case .dexShadow: L("影を埋めるほど、言える物が増える")
-        case .dexOpen: L("あなたの1語目を開いてみよう")
+        case .shoot: L("撮りたい物を画面に入れて、シャッターを押してください")
+        case .pick: L("AIが、写真の中の物を分析しました")
+        case .detail: L("発音を聞いてみましょう")
+        case .peel: L("図鑑に追加しましょう")
+        case .homeAdded: L("図鑑に追加されました")
+        case .dexTab: L("集めた単語は、図鑑で見られます")
+        case .dexCover: L("撮った写真が、そのまま単語カードになります")
+        case .dexMap: L("撮った場所が、地図に記録されます")
+        case .dexGrid: L("ジャンルごとに、集めた数が分かります")
+        case .dexShadow: L("影になっているのは、まだ集めていない物です")
+        case .dexOpen: L("最後に、さっき撮った単語を開いてみましょう")
         case .wordSection: L("単語の頁")
-        case .wordSettings: L("表示する項目と順番を変えられます")
-        case .reviewPick: L("自分の写真で、復習する")
-        case .reviewNext: L("答え合わせ")
-        case .memoryCurve: L("この単語の覚え具合です")
+        case .wordSettings: L("表示する項目と順番は、ここで変えられます")
+        case .reviewPick: L("自分で撮った写真で復習しましょう")
+        case .reviewNext: L("答え合わせです")
+        case .memoryCurve: L("この単語をどのくらい覚えているかのグラフです")
         default: nil
         }
     }
@@ -82,19 +82,19 @@ enum TourStep: String, Equatable {
     /// 2026-10-28 「撮るだけで単語帳ができますって文字消して。いらない」). Each line names the gain or removes a worry.
     var benefit: String? {
         switch self {
-        case .shoot: L("名前を知らない物でも大丈夫です。")
-        case .pick: L("覚えたい物を1つ選んでください。")
-        case .detail: L("声に出すと、覚えやすくなります。")
-        case .peel: L("これで1語目が保存されます。")
-        case .homeAdded: L("いつ何を覚えたか、ひと目で分かります。")
-        case .dexCover: L("自分で撮った物は、思い出しやすい。")
-        case .dexMap: L("街や旅先で覚えた単語が、地図に残ります。")
-        case .dexGrid: L("飲み物・料理など、種類ごとに並びます。")
-        case .dexShadow: L("影にない物も、何でもキャッチできます。")
-        case .wordSettings: L("文字の大きさ・発音の速さも、ここで変えられます。")
-        case .reviewPick: L("見覚えのある写真だから、思い出しやすい。")
-        case .reviewNext: L("間違えても、解説を読めば大丈夫です。")
-        case .memoryCurve: L("最適な復習のタイミングが分かります。")
+        case .shoot: L("名前を知らない物でも大丈夫です。アプリが調べます。")
+        case .pick: L("覚えたい単語を1つ選んでください。")
+        case .detail: L("声に出して言ってみると、覚えやすくなります。")
+        case .peel: L("これで最初の単語が保存されます。")
+        case .homeAdded: L("撮った写真は、ホームのアルバムにも貼られます。")
+        case .dexCover: L("自分で撮った写真なので、思い出しやすくなります。")
+        case .dexMap: L("どこで覚えた単語かを、あとから見返せます。")
+        case .dexGrid: L("飲み物、料理、乗り物などに分かれて並びます。")
+        case .dexShadow: L("影にない物も、何でも撮って集められます。")
+        case .wordSettings: L("文字の大きさや発音の速さも、ここで変えられます。")
+        case .reviewPick: L("見覚えのある写真なので、思い出しやすくなります。")
+        case .reviewNext: L("間違えても大丈夫です。解説を読んで、次に進みましょう。")
+        case .memoryCurve: L("復習するのにいちばん良いタイミングが分かります。")
         default: nil
         }
     }
@@ -103,14 +103,14 @@ enum TourStep: String, Equatable {
     /// from it, not what it is called.
     static func sectionPoint(_ section: CardSection) -> String {
         switch section {
-        case .meaning: L("この単語の意味です。まずはここだけ読めばOK。")
-        case .usageChunks: L("よく一緒に使う組み合わせ。このまま覚えると、すぐ使えます。")
-        case .example: L("上の組み合わせを使った文です。音声も聞けます。")
-        case .measureWords: L("数えるときの言い方です。")
+        case .meaning: L("この単語の意味です。まずはここだけ読めば十分です。")
+        case .usageChunks: L("この単語とよく一緒に使われる言葉の組み合わせです。このまま覚えると、すぐに使えます。")
+        case .example: L("その組み合わせを使った例文です。音声も聞けます。")
+        case .measureWords: L("この物を数えるときの言い方です。")
         case .relatedWords: L("一緒に覚えると便利な単語です。")
-        case .taiwanNote: L("台湾ならではの言い方や習慣です。")
-        case .realUsage: L("動画や検索で、本当の使われ方を見られます。")
-        default: L("この単語を深く知るための項目です。")
+        case .taiwanNote: L("この単語にまつわる、台湾の豆知識や文化を紹介します。")
+        case .realUsage: L("ネイティブが実際にどう使っているかを、動画や検索で見られます。")
+        default: L("この単語をもっと深く知るための項目です。")
         }
     }
 
@@ -125,8 +125,8 @@ enum TourStep: String, Equatable {
     var nextLabel: String? {
         switch self {
         case .detail, .homeAdded, .dexCover, .dexShadow, .wordSection: L("次へ")
-        case .wordSettings: L("復習へ")
-        case .memoryCurve: L("完了")
+        case .wordSettings: L("完了")
+        case .memoryCurve: L("次へ")
         default: nil
         }
     }
@@ -143,6 +143,9 @@ enum TourStep: String, Equatable {
     }
 
     var isReview: Bool { self == .reviewPick || self == .reviewNext || self == .memoryCurve }
+    /// The catch between the tag and the dex (the choose screen, the GET moment, 図鑑に追加): no card and no dim
+    /// (owner 2026-11-07: 「その間にチュートリアルの解説を入れる必要はない」); the next card says the word was added.
+    var isSilent: Bool { self == .detail || self == .peel }
     var isCapture: Bool { self == .shoot || self == .pick || self == .detail || self == .peel }
     /// The steps shown over the word's page (its sheet has a guide layer of its own).
     var isWord: Bool { self == .wordSection || self == .wordSettings }
@@ -176,8 +179,10 @@ enum TourStep: String, Equatable {
 }
 
 /// The guide's five steps, the same on the onboarding's last screen (what is coming) and on every card (where you are).
+/// The order of the guide (owner 2026-11-07: 「単語の詳細の説明が出るまで時間のラグがあるから、他の部分を解説して…時間稼ぎを」):
+/// the word page comes last, after the review, so the word just caught has its chunks and examples by then.
 enum TourPhase: Int, CaseIterable {
-    case shoot, home, dex, word, review
+    case shoot, home, dex, review, word
 
     var label: String {
         switch self {
@@ -251,7 +256,16 @@ struct TourLayer: View {
     let step: TourStep
     let anchors: [TourAnchor: Anchor<CGRect>]
     let onNext: () -> Void
+    /// 「スキップ」: on to the next step (owner 2026-11-07: 「スキップというのは、チュートリアルのステップをスキップする」 —
+    /// it used to end the whole guide).
     let onSkip: () -> Void
+    /// 「終了」: the whole guide ends (nil: not offered, as in the previews).
+    var onEnd: (() -> Void)? = nil
+    /// 「戻る」: the step before (owner 2026-11-07 「戻るボタンも追加して」; nil on the first step and where there is no
+    /// step to go back to, `MainTabView.tourBackAction`).
+    var onBack: (() -> Void)? = nil
+    /// The 撮る step with the camera facing the learner: the card says to shoot themselves with the thing.
+    var selfie: Bool = false
     /// Room kept under a card at the bottom: the tab bar's (84) over the tabs, little over the word's page (a sheet).
     var bottomClearance: CGFloat = 84
     /// `.wordSection`: the word page's section the light is on (its card names it).
@@ -273,6 +287,13 @@ struct TourLayer: View {
     @State private var arrival: Int = 0
     /// The card's height, measured (it is placed beside the lit place).
     @State private var cardHeight: CGFloat = 170
+    /// On a step the learner acts on (the shutter, a tag, a tab — no 「次へ」), the card goes away a few seconds after it
+    /// came, so the camera's picture and the photo's tags are not hidden behind it (owner 2026-11-07: 「この解説がずっと
+    /// そこにあってカメラのその画面が見れない…何秒か表示して消えるようにして」). A small pill then stands in for it and
+    /// brings it back; a tap on the dark part brings it back too.
+    @State private var cardHidden = false
+    @State private var hideToken = 0
+    private static let cardStays: Duration = .seconds(4)
 
     var body: some View {
         let hasPlace = step.anchor.map { anchors[$0] != nil } ?? false
@@ -305,7 +326,7 @@ struct TourLayer: View {
                             .opacity(Double(max(0, 1 - iris * 3)))
                         if !reduceMotion { bursts(on: hole, in: geo.size) }
                     }
-                    if showsCard {
+                    if showsCard, !cardHidden {
                         // Right beside the lit place, pointing at it (owner 2026-10-28: 「次操作する場所の近くにその解説を
                         // 書いて」 — the camera's card sat at the top of the screen, its button at the bottom).
                         let place = Self.cardPlace(hole: hole, size: geo.size, insets: insets, height: cardHeight,
@@ -315,20 +336,29 @@ struct TourLayer: View {
                         }
                         // A new card per step (its lines come in again, `shown`), the old one fading out.
                         let cardWidth = Self.cardWidth(in: geo.size)
-                        TourCoachCard(step: step, section: section, missed: missed, onNext: onNext, onSkip: onSkip)
-                            .id("\(step.rawValue)-\(section?.rawValue ?? "")")
+                        TourCoachCard(step: step, section: section, selfie: selfie, missed: missed,
+                                      onNext: onNext, onSkip: onSkip, onEnd: onEnd, onBack: onBack)
+                            .id("\(step.rawValue)-\(section?.rawValue ?? "")-\(selfie)")
                             .padding(.horizontal, cardWidth == nil ? 16 : 0)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
                             .frame(width: cardWidth ?? geo.size.width)
                             .position(x: Self.cardX(hole: hole, width: cardWidth, in: geo.size), y: place.midY)
                     }
+                    if showsCard, cardHidden {
+                        // The card's stand-in while it is away: the step and a short word, out of the picture's way.
+                        TourCardPill(step: step) { showCard(again: true) }
+                            .position(x: geo.size.width / 2, y: insets.top + 24)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
                 .animation(.spring(response: 0.5, dampingFraction: 0.86), value: lit)
+                .animation(.easeInOut(duration: 0.35), value: cardHidden)
             }
             .ignoresSafeArea()
         }
         .onAppear {
             arrive(hasPlace)
+            showCard(again: false)
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
             withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) { ripple = true }
@@ -336,14 +366,37 @@ struct TourLayer: View {
         .onChange(of: step) { _, _ in
             Haptics.selection()
             arrive(hasPlace)
+            showCard(again: false)
         }
         // The word page's next section: the light moves on like a new step.
         .onChange(of: section) { _, _ in
             Haptics.selection()
             arrive(hasPlace)
+            showCard(again: false)
         }
         // The place can come on screen after the step (the next screen still rising): the light lands when it does.
         .onChange(of: hasPlace) { _, now in if now { arrive(true) } }
+        // A tap that missed the lit place: the card comes back to say what to press.
+        .onChange(of: missed) { _, _ in if cardHidden { showCard(again: true) } }
+        // The camera was flipped: the card comes back with what to shoot now.
+        .onChange(of: selfie) { _, _ in showCard(again: true) }
+    }
+
+    /// Whether this step's card goes away by itself: the learner acts on the screen (no 「次へ」), so the card must not
+    /// stay over the camera, the photo or the dex.
+    private var cardFades: Bool { step.isInteractive && step.nextLabel == nil }
+
+    /// Shows the card (again) and, on a step whose card fades, lets it go after `cardStays`.
+    private func showCard(again: Bool) {
+        hideToken += 1
+        let token = hideToken
+        if again { withAnimation(.easeInOut(duration: 0.25)) { cardHidden = false } } else { cardHidden = false }
+        guard cardFades else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.cardStays)
+            guard token == hideToken else { return }
+            withAnimation(.easeInOut(duration: 0.35)) { cardHidden = true }
+        }
     }
 
     /// A step comes in: the light opens and closes onto its place, a ring bursts as it lands, the finger glides in.
@@ -518,37 +571,93 @@ private struct Shake: GeometryEffect {
     }
 }
 
+/// The card's stand-in while it has gone away (`TourLayer.cardFades`): 「STEP n」 and 「案内を見る」; a tap brings the
+/// card back for a few seconds.
+struct TourCardPill: View {
+    let step: TourStep
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 8) {
+                if let phase = step.phase {
+                    Text(verbatim: "STEP \(phase.rawValue + 1)")  // l10n-ignore (common notation)
+                        .scaledFont(size: 12, weight: .heavy)
+                        .foregroundStyle(Theme.primaryInk)
+                }
+                Text(L("案内を見る"))
+                    .scaledFont(size: 13, weight: .semibold)
+                    .foregroundStyle(Theme.foreground)
+                Image(systemName: "questionmark.circle")
+                    .scaledFont(size: 13, weight: .semibold)
+                    .foregroundStyle(Theme.muted)
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 36)
+            .background(Theme.card.opacity(0.96), in: Capsule())
+            .overlay(Capsule().stroke(Theme.primary.opacity(0.18), lineWidth: 1))
+            .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
+            .frame(minHeight: 44)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle(scale: 0.95))
+        .accessibilityIdentifier("tour.pill")
+    }
+}
+
 struct TourCoachCard: View {
     let step: TourStep
     var section: CardSection? = nil
+    /// The 撮る step with the front camera on (`TourLayer.selfie`).
+    var selfie: Bool = false
     var missed: Int = 0
     let onNext: () -> Void
     let onSkip: () -> Void
+    var onEnd: (() -> Void)? = nil
+    var onBack: (() -> Void)? = nil
 
     @Environment(\.appReduceMotion) private var reduceMotion
     /// The card's lines come in one after another (the card is made anew for each step).
     @State private var shown = false
 
     private var title: String? {
-        section.map { $0.shortTitle(for: NativeAPI.targetLanguage) } ?? step.title
+        if selfie, step == .shoot { return L("物と一緒に自撮りしてみよう") }
+        return section.map { $0.shortTitle(for: NativeAPI.targetLanguage) } ?? step.title
     }
 
     private var point: String? {
-        section.map(TourStep.sectionPoint) ?? step.benefit
+        if selfie, step == .shoot { return L("自分の顔と一緒に写真を撮ると、記憶に残りやすく、思い出しやすくなります。") }
+        return section.map(TourStep.sectionPoint) ?? step.benefit
     }
 
     /// Owner 2026-10-28 (「文字が多すぎて何したらいいかちょっと見にくい」): the steps on top, a title, at most one line, and
-    /// 「次へ」 where the step goes on from the card; 「スキップ」 small and out of the way.
+    /// one action. Owner 2026-11-07 (「4つあるの変じゃない？もっとすっきりとした自然な UI 設計にして」): the card has at most
+    /// three controls, each where a learner expects it — ✕ in the top corner ends the guide, a round ‹ at the bottom
+    /// left goes back a step, and one action at the bottom right: 「次へ」 where the card moves the guide on, else a quiet
+    /// 「スキップ」 for a step the learner would otherwise act on. (The old row of 戻る・終了・スキップ・次へ is gone.)
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let phase = step.phase {
                 // 「STEP n」 and 「n / 5」 are common notation, the same in every display language (like NEW and No.).
-                HStack {
+                HStack(spacing: 10) {
                     StepPill(text: "STEP \(phase.rawValue + 1)")  // l10n-ignore (common notation)
                     Spacer()
                     Text(verbatim: "\(phase.rawValue + 1) / \(TourPhase.allCases.count)")
                         .scaledFont(size: 12, weight: .semibold)
                         .foregroundStyle(Theme.muted)
+                    if let onEnd {
+                        Button(action: onEnd) {
+                            Image(systemName: "xmark")
+                                .scaledFont(size: 11, weight: .bold)
+                                .foregroundStyle(Theme.muted)
+                                .frame(width: 28, height: 28)
+                                .background(Theme.muted.opacity(0.12), in: Circle())
+                        }
+                        .buttonStyle(PressableStyle(scale: 0.9))
+                        .accessibilityLabel(L("終了"))
+                        .accessibilityHint(L("案内を終える"))
+                        .accessibilityIdentifier("tour.end")
+                    }
                 }
                 .staggerIn(shown, delay: 0.02, distance: 6)
             }
@@ -564,13 +673,23 @@ struct TourCoachCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .staggerIn(shown, delay: 0.18, distance: 10)
             }
-            HStack(spacing: 10) {
-                Button(L("スキップ"), action: onSkip)
-                    .scaledFont(size: 15, weight: .medium)
-                    .foregroundStyle(Theme.muted)
-                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
-                    .accessibilityHint(L("案内を終える"))
-                    .accessibilityIdentifier("tour.skip")
+            HStack(spacing: 12) {
+                if let onBack {
+                    Button {
+                        Haptics.impact(.light)
+                        onBack()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .scaledFont(size: 14, weight: .bold)
+                            .foregroundStyle(Theme.foreground)
+                            .frame(width: 40, height: 40)
+                            .background(Theme.muted.opacity(0.12), in: Circle())
+                    }
+                    .buttonStyle(PressableStyle(scale: 0.92))
+                    .accessibilityLabel(L("戻る"))
+                    .accessibilityHint(L("前の段へ"))
+                    .accessibilityIdentifier("tour.back")
+                }
                 Spacer(minLength: 0)
                 if let next = step.nextLabel {
                     Button {
@@ -590,6 +709,14 @@ struct TourCoachCard: View {
                     }
                     .buttonStyle(PressableStyle(scale: 0.95))
                     .accessibilityIdentifier("tour.next")
+                } else {
+                    // A step the learner acts on: the quiet way past it (owner 2026-11-07: skip = this step only).
+                    Button(L("スキップ"), action: onSkip)
+                        .scaledFont(size: 15, weight: .medium)
+                        .foregroundStyle(Theme.muted)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                        .accessibilityHint(L("次の段へ"))
+                        .accessibilityIdentifier("tour.skip")
                 }
             }
             .staggerIn(shown, delay: 0.26, distance: 8)
@@ -626,6 +753,8 @@ struct TourCoachCard: View {
 struct TourCompleteView: View {
     let sticker: Sticker?
     let onDone: () -> Void
+    /// 「チュートリアルをもう一度」 under 「はじめる」 (owner 2026-11-07): the guide starts over from the camera.
+    var onAgain: (() -> Void)? = nil
 
     @Environment(DexStore.self) private var dex
     @Environment(\.appReduceMotion) private var reduceMotion
@@ -673,7 +802,18 @@ struct TourCompleteView: View {
                 .accessibilityLabel(sticker?.word?.headword ?? "")
                 Spacer(minLength: 16)
                 PrimaryButton(title: L("はじめる"), icon: "arrow.right", sheen: true, action: onDone)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, onAgain == nil ? 24 : 6)
+                if let onAgain {
+                    Button(action: onAgain) {
+                        Label(L("チュートリアルをもう一度"), systemImage: "arrow.counterclockwise")
+                            .scaledFont(size: 15, weight: .semibold)
+                            .foregroundStyle(Theme.muted)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityIdentifier("tour.again")
+                    .padding(.bottom, 18)
+                }
             }
             .padding(.horizontal, 24)
             .readableColumn()
