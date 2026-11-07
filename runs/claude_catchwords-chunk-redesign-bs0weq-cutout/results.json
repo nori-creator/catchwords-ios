@@ -1,0 +1,610 @@
+[
+  {
+    "after" : "part of [1] (40672 px)",
+    "before" : "CLIP [1] to box (0.18,0.34 0.64×0.34)",
+    "failures" : [
+
+    ],
+    "id" : "dorayaki-box-right",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "one Vision instance with thing 2: split where they meet; Vision on a crop round its box found it whole",
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "冰淇淋"
+  },
+  {
+    "after" : "part of [1] (45146 px)",
+    "before" : "CLIP [1] to box (0.17,0.03 0.65×0.34)",
+    "failures" : [
+
+    ],
+    "id" : "dorayaki-box-right",
+    "measure" : {
+      "coverage" : 0.9834890420141678,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.281437125748503,
+      "straightAt" : "column 681 of 880"
+    },
+    "note" : "one Vision instance with thing 1: split where they meet; the instance without what a crop found for thing 1",
+    "oldMeasure" : {
+      "coverage" : 0.9834890420141678,
+      "leak" : 0.0007302131041036903,
+      "rectangle" : false,
+      "straight" : 0.281437125748503,
+      "straightAt" : "column 681 of 880"
+    },
+    "thing" : "盒子"
+  },
+  {
+    "after" : "instance 1 + region",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "dorayaki-box-off",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "instance mostly outside its box: kept whole, Vision asked again on the region; no crop found it whole: the whole instance",
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "冰淇淋"
+  },
+  {
+    "after" : "part of [1] (40614 px)",
+    "before" : "CLIP [1] to box (0.42,0.33 0.42×0.31)",
+    "failures" : [
+
+    ],
+    "id" : "dorayaki-box-off-carton",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 0.0010696233092311548,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "one Vision instance with thing 2: split where they meet",
+    "oldMeasure" : {
+      "coverage" : 0.6478375093697011,
+      "leak" : 0.04234001875766539,
+      "rectangle" : false,
+      "straight" : 0.9696969696969697,
+      "straightAt" : "column 364 of 880"
+    },
+    "thing" : "冰淇淋"
+  },
+  {
+    "after" : "part of [1] (45146 px)",
+    "before" : "CLIP [1] to box (0.17,0.03 0.65×0.34)",
+    "failures" : [
+
+    ],
+    "id" : "dorayaki-box-off-carton",
+    "measure" : {
+      "coverage" : 0.9834890420141678,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.281437125748503,
+      "straightAt" : "column 681 of 880"
+    },
+    "note" : "one Vision instance with thing 1: split where they meet",
+    "oldMeasure" : {
+      "coverage" : 0.9834890420141678,
+      "leak" : 0.0007302131041036903,
+      "rectangle" : false,
+      "straight" : 0.281437125748503,
+      "straightAt" : "column 681 of 880"
+    },
+    "thing" : "盒子"
+  },
+  {
+    "after" : "instance 1 + region",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "dorayaki-box-30-smaller",
+    "measure" : {
+      "coverage" : 0.9999781676867209,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "instance mostly outside its box: kept whole, Vision asked again on the region; Vision on a crop round its box found it whole",
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "冰淇淋"
+  },
+  {
+    "after" : "instance 1",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "dorayaki-no-box",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "冰淇淋"
+  },
+  {
+    "after" : "instance 1 + region",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "dorayaki-point-outside",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "took the instance most present in its box; instance mostly outside its box: kept whole, Vision asked again on the region; Vision on a crop round its box found it whole",
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "冰淇淋"
+  },
+  {
+    "after" : "instance 1 + region",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "dorayaki-exif-rotated",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "instance mostly outside its box: kept whole, Vision asked again on the region; no crop found it whole: the whole instance",
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "冰淇淋"
+  },
+  {
+    "after" : "part of [1] (121847 px)",
+    "before" : "CLIP [1] to box (0.27,0.01 0.41×0.80)",
+    "failures" : [
+
+    ],
+    "id" : "coffee-cup-saucer-spoon",
+    "measure" : {
+      "coverage" : 0.9830051637065199,
+      "leak" : 0.05244234838432019,
+      "rectangle" : false,
+      "straight" : 0.08571428571428572,
+      "straightAt" : "row 33 of 400"
+    },
+    "note" : "one Vision instance with thing 2, 3: split where they meet; the crop's instance held thing 3 too",
+    "oldMeasure" : {
+      "coverage" : 0.9830051637065199,
+      "leak" : 0.07924696031199817,
+      "rectangle" : false,
+      "straight" : 0.08571428571428572,
+      "straightAt" : "row 33 of 400"
+    },
+    "thing" : "杯子"
+  },
+  {
+    "after" : "part of [1] (86594 px)",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "coffee-cup-saucer-spoon",
+    "note" : "one Vision instance with thing 1, 3: split where they meet; the crop's instance held thing 3 too",
+    "thing" : "盤子"
+  },
+  {
+    "after" : "part of [1] (120957 px)",
+    "before" : "CLIP [1] to box (0.53,0.14 0.17×0.70)",
+    "failures" : [
+
+    ],
+    "id" : "coffee-cup-saucer-spoon",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 0.3069634259802903,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "one Vision instance with thing 1, 2: split where they meet",
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0.2523361227336123,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "湯匙"
+  },
+  {
+    "after" : "instance 1 + region",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "coffee-cup-box-small",
+    "measure" : {
+      "coverage" : 0.9830051637065199,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.08571428571428572,
+      "straightAt" : "row 33 of 400"
+    },
+    "note" : "instance mostly outside its box: kept whole, Vision asked again on the region; no crop found it whole: the whole instance",
+    "oldMeasure" : {
+      "coverage" : 0.9830051637065199,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.08571428571428572,
+      "straightAt" : "row 33 of 400"
+    },
+    "thing" : "杯子"
+  },
+  {
+    "after" : "instance 1",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "chelsea-fills-frame",
+    "measure" : {
+      "coverage" : 0.9915569391784672,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.2967741935483871,
+      "straightAt" : "column 31 of 451"
+    },
+    "oldMeasure" : {
+      "coverage" : 0.9915569391784672,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.2967741935483871,
+      "straightAt" : "column 31 of 451"
+    },
+    "thing" : "貓"
+  },
+  {
+    "after" : "instance 1",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "chelsea-box-small",
+    "measure" : {
+      "coverage" : 0.9915569391784672,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.2967741935483871,
+      "straightAt" : "column 31 of 451"
+    },
+    "oldMeasure" : {
+      "coverage" : 0.9915569391784672,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.2967741935483871,
+      "straightAt" : "column 31 of 451"
+    },
+    "thing" : "貓"
+  },
+  {
+    "after" : "part of [1] (43013 px)",
+    "before" : "CLIP [1] to box (0.52,0.66 0.48×0.34)",
+    "failures" : [
+
+    ],
+    "id" : "astronaut-helmet",
+    "measure" : {
+      "coverage" : 0.9996283658231697,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.022727272727272728,
+      "straightAt" : "row 356 of 512"
+    },
+    "note" : "one Vision instance with thing 3: split where they meet",
+    "oldMeasure" : {
+      "coverage" : 0.9996283658231697,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.022727272727272728,
+      "straightAt" : "row 356 of 512"
+    },
+    "thing" : "安全帽"
+  },
+  {
+    "after" : "no mask, no cut-out (expected: none — Vision has no instance for the model shuttle in the whole photo, and the crop round its box has only one instance, lying mostly outside the box; the old plan cut that crop instance at the crop's edge (a straight cut along 100% of a line). No cut-out is the honest result.)",
+    "before" : "no mask",
+    "failures" : [
+
+    ],
+    "id" : "astronaut-helmet",
+    "measure" : {
+      "coverage" : 0,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "no Vision mask inside its box; no cut-out (no crop round its box found it either)",
+    "oldMeasure" : {
+      "coverage" : 0.9747850635185423,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 1,
+      "straightAt" : "column 455 of 512"
+    },
+    "thing" : "太空梭"
+  },
+  {
+    "after" : "part of [1] (136781 px)",
+    "before" : "CLIP [1] to box (0.00,0.00 0.75×1.00)",
+    "failures" : [
+
+    ],
+    "id" : "astronaut-helmet",
+    "note" : "one Vision instance with thing 1: split where they meet; the crop's instance held thing 1 too",
+    "thing" : "太空人"
+  },
+  {
+    "after" : "instance 1",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "cafe-cup-vase",
+    "measure" : {
+      "coverage" : 0.9987236758136566,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "oldMeasure" : {
+      "coverage" : 0.9987236758136566,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "咖啡"
+  },
+  {
+    "after" : "no mask",
+    "before" : "no mask",
+    "failures" : [
+
+    ],
+    "id" : "cafe-cup-vase",
+    "measure" : {
+      "coverage" : 0.9661109592784914,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.1951219512195122,
+      "straightAt" : "column 452 of 480"
+    },
+    "note" : "no Vision mask inside its box; cut from a crop round its box",
+    "oldMeasure" : {
+      "coverage" : 0.9793659469800492,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.1958762886597938,
+      "straightAt" : "column 387 of 480"
+    },
+    "thing" : "花瓶"
+  },
+  {
+    "after" : "no mask, no cut-out",
+    "before" : "no mask",
+    "failures" : [
+
+    ],
+    "id" : "cafe-cup-vase",
+    "note" : "no Vision mask inside its box; no cut-out (no crop round its box found it either)",
+    "thing" : "花"
+  },
+  {
+    "after" : "instance 1",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "cat-and-plant",
+    "measure" : {
+      "coverage" : 0.9536128456735058,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.2697095435684647,
+      "straightAt" : "column 498 of 720"
+    },
+    "oldMeasure" : {
+      "coverage" : 0.9536128456735058,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.2697095435684647,
+      "straightAt" : "column 498 of 720"
+    },
+    "thing" : "貓"
+  },
+  {
+    "after" : "no mask, no cut-out",
+    "before" : "no mask",
+    "failures" : [
+
+    ],
+    "id" : "cat-and-plant",
+    "note" : "no Vision mask inside its box; no cut-out (no crop round its box found it either)",
+    "thing" : "植物"
+  },
+  {
+    "after" : "instance 1",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "boba-portrait",
+    "measure" : {
+      "coverage" : 0.9647551197949731,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.2462686567164179,
+      "straightAt" : "column 391 of 554"
+    },
+    "oldMeasure" : {
+      "coverage" : 0.9647551197949731,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0.2462686567164179,
+      "straightAt" : "column 391 of 554"
+    },
+    "thing" : "珍珠奶茶"
+  },
+  {
+    "after" : "part of [1] (5554 px)",
+    "before" : "CLIP [1] to box (0.16,0.53 0.63×0.30)",
+    "failures" : [
+
+    ],
+    "id" : "glasses-against-bottle",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "one Vision instance with thing 2: split where they meet",
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0.5953971105276895,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "眼鏡"
+  },
+  {
+    "after" : "part of [1] (23656 px)",
+    "before" : "CLIP [1] to box (0.62,0.09 0.29×0.78)",
+    "failures" : [
+
+    ],
+    "id" : "glasses-against-bottle",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 1.0255358424776945e-05,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "note" : "one Vision instance with thing 1: split where they meet",
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0.015205148833467418,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "水壺"
+  },
+  {
+    "after" : "instance 1",
+    "before" : "instance 1",
+    "failures" : [
+
+    ],
+    "id" : "keys-on-remote",
+    "measure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "oldMeasure" : {
+      "coverage" : 1,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "遙控器"
+  },
+  {
+    "after" : "instance 2",
+    "before" : "instance 2",
+    "failures" : [
+
+    ],
+    "id" : "keys-on-remote",
+    "measure" : {
+      "coverage" : 0.9996802265823074,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "oldMeasure" : {
+      "coverage" : 0.9996802265823074,
+      "leak" : 0,
+      "rectangle" : false,
+      "straight" : 0,
+      "straightAt" : ""
+    },
+    "thing" : "鑰匙"
+  }
+]

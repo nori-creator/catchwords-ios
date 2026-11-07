@@ -1,0 +1,1 @@
+frames 59 columns 8 width 320 height 695 fps 10.0 start 2.5
