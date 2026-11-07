@@ -147,6 +147,10 @@ enum TourStep: String, Equatable {
     /// (owner 2026-11-07: 「その間にチュートリアルの解説を入れる必要はない」); the next card says the word was added.
     var isSilent: Bool { self == .detail || self == .peel }
     var isCapture: Bool { self == .shoot || self == .pick || self == .detail || self == .peel }
+    /// The dim lets every tap through (2026-11-07 check A5・A6): on the camera the learner must still reach 切替・写真・
+    /// ズーム (the selfie card never showed because 切替 was under the dim), and on the photo 撮り直す・囲んで切り抜き直す
+    /// and the other tags. The light still marks the shutter / the first tag; only the "missed tap" shake is given up.
+    var passesTaps: Bool { self == .shoot || self == .pick }
     /// The steps shown over the word's page (its sheet has a guide layer of its own).
     var isWord: Bool { self == .wordSection || self == .wordSettings }
 
@@ -305,9 +309,11 @@ struct TourLayer: View {
                 let full = CGRect(origin: .zero, size: geo.size)
                 let hole: CGRect? = step.anchor.flatMap { anchors[$0] }.map { Self.holeRect(around: geo[$0], in: full) }
                 let settled = hole.map(Self.radius(for:)) ?? 0
-                // 押す所が画面に無い（表示を切り替えた等）ときは暗くせず、札だけ出して操作を妨げない。
+                // 押す所が画面に無い（表示を切り替えた・カメラの許可が無い・解析に失敗した等）ときは暗くせず、札だけ出して
+                // 操作を妨げない。札はいつも出す（2026-11-07 check A4: 穴の無い操作段で札もピルも消え、スキップも終了も
+                // 押せなかった）。
                 let shouldDim = hole != nil || !step.isInteractive
-                let showsCard = shouldDim || step.nextLabel != nil
+                let showsCard = true
                 // While it opens, the light is the place grown by up to the screen's size, rounder the wider it is.
                 let open = iris * max(geo.size.width, geo.size.height)
                 let lit = hole.map { $0.insetBy(dx: -open, dy: -open) } ?? CGRect(x: full.midX, y: full.midY, width: 0, height: 0)
@@ -319,6 +325,7 @@ struct TourLayer: View {
                             .fill(Color(hex: 0x0B1020, opacity: hole == nil ? 0.35 : step.dimOpacity), style: FillStyle(eoFill: true))
                             .contentShape(step.isInteractive && hole != nil ? dim.path(in: full) : Path(full), eoFill: true)
                             .onTapGesture { if step.isInteractive, hole != nil { missedTap() } }
+                            .allowsHitTesting(!step.passesTaps)
                             .transition(.opacity)
                     }
                     if let hole {
@@ -346,7 +353,7 @@ struct TourLayer: View {
                     }
                     if showsCard, cardHidden {
                         // The card's stand-in while it is away: the step and a short word, out of the picture's way.
-                        TourCardPill(step: step) { showCard(again: true) }
+                        TourCardPill(step: step) { showCard(again: true, fades: hasPlace) }
                             .position(x: geo.size.width / 2, y: insets.top + 24)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
@@ -358,7 +365,7 @@ struct TourLayer: View {
         }
         .onAppear {
             arrive(hasPlace)
-            showCard(again: false)
+            showCard(again: false, fades: hasPlace)
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
             withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) { ripple = true }
@@ -366,32 +373,35 @@ struct TourLayer: View {
         .onChange(of: step) { _, _ in
             Haptics.selection()
             arrive(hasPlace)
-            showCard(again: false)
+            showCard(again: false, fades: hasPlace)
         }
         // The word page's next section: the light moves on like a new step.
         .onChange(of: section) { _, _ in
             Haptics.selection()
             arrive(hasPlace)
-            showCard(again: false)
+            showCard(again: false, fades: hasPlace)
         }
-        // The place can come on screen after the step (the next screen still rising): the light lands when it does.
-        .onChange(of: hasPlace) { _, now in if now { arrive(true) } }
+        // The place can come on screen after the step (the next screen still rising, the camera's permission just
+        // given): the light lands when it does, and only then does the card start to go away — until then it stays,
+        // so a learner with no place to tap still has スキップ and ✕ (check A4).
+        .onChange(of: hasPlace) { _, now in if now { arrive(true); showCard(again: false, fades: true) } }
         // A tap that missed the lit place: the card comes back to say what to press.
-        .onChange(of: missed) { _, _ in if cardHidden { showCard(again: true) } }
+        .onChange(of: missed) { _, _ in if cardHidden { showCard(again: true, fades: hasPlace) } }
         // The camera was flipped: the card comes back with what to shoot now.
-        .onChange(of: selfie) { _, _ in showCard(again: true) }
+        .onChange(of: selfie) { _, _ in showCard(again: true, fades: hasPlace) }
     }
 
     /// Whether this step's card goes away by itself: the learner acts on the screen (no 「次へ」), so the card must not
     /// stay over the camera, the photo or the dex.
     private var cardFades: Bool { step.isInteractive && step.nextLabel == nil }
 
-    /// Shows the card (again) and, on a step whose card fades, lets it go after `cardStays`.
-    private func showCard(again: Bool) {
+    /// Shows the card (again) and, on a step whose card fades, lets it go after `cardStays`. `fades` false (the lit
+    /// place is not on screen yet) keeps it: the timer starts once the place is there (`onChange(of: hasPlace)`).
+    private func showCard(again: Bool, fades: Bool) {
         hideToken += 1
         let token = hideToken
         if again { withAnimation(.easeInOut(duration: 0.25)) { cardHidden = false } } else { cardHidden = false }
-        guard cardFades else { return }
+        guard cardFades, fades else { return }
         Task { @MainActor in
             try? await Task.sleep(for: Self.cardStays)
             guard token == hideToken else { return }
