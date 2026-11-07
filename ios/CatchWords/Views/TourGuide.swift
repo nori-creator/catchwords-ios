@@ -59,7 +59,7 @@ enum TourStep: String, Equatable {
         switch self {
         case .tapCamera: L("目の前にある物を1枚撮ってみよう")
         case .shoot: L("撮りたい物を画面に入れて、シャッターを押してください")
-        case .pick: L("写真の中の物に、名前が付きました")
+        case .pick: L("AIが、写真の中の物を分析しました")
         case .detail: L("発音を聞いてみましょう")
         case .peel: L("図鑑に追加しましょう")
         case .homeAdded: L("撮った写真は、ホームのアルバムに貼られます")
@@ -83,7 +83,7 @@ enum TourStep: String, Equatable {
     var benefit: String? {
         switch self {
         case .shoot: L("名前を知らない物でも大丈夫です。アプリが調べます。")
-        case .pick: L("覚えたい物の名前を1つ選んでください。")
+        case .pick: L("覚えたい単語を1つ選んでください。")
         case .detail: L("声に出して言ってみると、覚えやすくなります。")
         case .peel: L("これで最初の単語が保存されます。")
         case .homeAdded: L("いつ、どんな単語を覚えたかが、ひと目で分かります。")
@@ -108,8 +108,8 @@ enum TourStep: String, Equatable {
         case .example: L("その組み合わせを使った例文です。音声も聞けます。")
         case .measureWords: L("この物を数えるときの言い方です。")
         case .relatedWords: L("一緒に覚えると便利な単語です。")
-        case .taiwanNote: L("台湾ならではの言い方や習慣です。")
-        case .realUsage: L("動画や検索で、実際にどう使われているかを見られます。")
+        case .taiwanNote: L("この単語にまつわる、台湾の豆知識や文化を紹介します。")
+        case .realUsage: L("ネイティブが実際にどう使っているかを、動画や検索で見られます。")
         default: L("この単語をもっと深く知るための項目です。")
         }
     }
@@ -614,12 +614,12 @@ struct TourCoachCard: View {
     @State private var shown = false
 
     private var title: String? {
-        if selfie, step == .shoot { return L("物と一緒に、自分を撮ってみましょう") }
+        if selfie, step == .shoot { return L("物と一緒に自撮りしてみよう") }
         return section.map { $0.shortTitle(for: NativeAPI.targetLanguage) } ?? step.title
     }
 
     private var point: String? {
-        if selfie, step == .shoot { return L("覚えたい物を手に持って、カメラに向けてください。") }
+        if selfie, step == .shoot { return L("自分の顔と一緒に写真を撮ると、記憶に残りやすく、思い出しやすくなります。") }
         return section.map(TourStep.sectionPoint) ?? step.benefit
     }
 

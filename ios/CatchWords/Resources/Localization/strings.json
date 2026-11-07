@@ -11289,5 +11289,47 @@
   "es": "Un gráfico de cuánto recuerdas esta palabra",
   "ko": "이 단어를 얼마나 기억하고 있는지 보여 주는 그래프예요",
   "vi": "Biểu đồ cho biết bạn nhớ từ này đến đâu"
+ },
+ "物と一緒に自撮りしてみよう": {
+  "en": "Take a selfie with the thing",
+  "zh-TW": "和東西一起自拍看看",
+  "es": "Hazte un selfi con el objeto",
+  "ko": "물건과 함께 셀카를 찍어 보세요",
+  "vi": "Thử chụp ảnh tự sướng cùng đồ vật"
+ },
+ "自分の顔と一緒に写真を撮ると、記憶に残りやすく、思い出しやすくなります。": {
+  "en": "A photo with your own face in it is easier to remember and recall.",
+  "zh-TW": "和自己的臉一起拍下來，更容易記住，也更容易想起來。",
+  "es": "Una foto con tu cara se recuerda y se recupera más fácilmente.",
+  "ko": "자기 얼굴과 함께 찍으면 기억에 더 잘 남고, 더 쉽게 떠올릴 수 있어요.",
+  "vi": "Chụp cùng khuôn mặt mình sẽ dễ nhớ và dễ nhớ lại hơn."
+ },
+ "AIが、写真の中の物を分析しました": {
+  "en": "The AI analysed the things in your photo",
+  "zh-TW": "AI 分析了照片裡的東西",
+  "es": "La IA analizó las cosas de tu foto",
+  "ko": "AI가 사진 속 물건을 분석했어요",
+  "vi": "AI đã phân tích các đồ vật trong ảnh"
+ },
+ "覚えたい単語を1つ選んでください。": {
+  "en": "Choose one word you want to learn.",
+  "zh-TW": "請選一個想記住的單字。",
+  "es": "Elige una palabra que quieras aprender.",
+  "ko": "외우고 싶은 단어를 하나 고르세요.",
+  "vi": "Hãy chọn một từ bạn muốn học."
+ },
+ "この単語にまつわる、台湾の豆知識や文化を紹介します。": {
+  "en": "Tidbits about Taiwan and its culture connected to this word.",
+  "zh-TW": "介紹和這個單字有關的台灣小知識與文化。",
+  "es": "Curiosidades sobre Taiwán y su cultura relacionadas con esta palabra.",
+  "ko": "이 단어와 관련된 대만의 상식과 문화를 소개해요.",
+  "vi": "Giới thiệu kiến thức thú vị và văn hóa Đài Loan liên quan đến từ này."
+ },
+ "ネイティブが実際にどう使っているかを、動画や検索で見られます。": {
+  "en": "See how native speakers actually use it, in videos and searches.",
+  "zh-TW": "可以透過影片和搜尋，看看母語者實際上怎麼用。",
+  "es": "Mira cómo lo usan de verdad los hablantes nativos, en vídeos y búsquedas.",
+  "ko": "원어민이 실제로 어떻게 쓰는지 영상과 검색으로 볼 수 있어요.",
+  "vi": "Xem người bản xứ thực sự dùng thế nào qua video và tìm kiếm."
  }
 }
