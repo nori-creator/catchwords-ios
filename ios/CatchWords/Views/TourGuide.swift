@@ -261,6 +261,9 @@ struct TourLayer: View {
     let onSkip: () -> Void
     /// 「終了」: the whole guide ends (nil: not offered, as in the previews).
     var onEnd: (() -> Void)? = nil
+    /// 「戻る」: the step before (owner 2026-11-07 「戻るボタンも追加して」; nil on the first step and where there is no
+    /// step to go back to, `MainTabView.tourBackAction`).
+    var onBack: (() -> Void)? = nil
     /// The 撮る step with the camera facing the learner: the card says to shoot themselves with the thing.
     var selfie: Bool = false
     /// Room kept under a card at the bottom: the tab bar's (84) over the tabs, little over the word's page (a sheet).
@@ -334,7 +337,7 @@ struct TourLayer: View {
                         // A new card per step (its lines come in again, `shown`), the old one fading out.
                         let cardWidth = Self.cardWidth(in: geo.size)
                         TourCoachCard(step: step, section: section, selfie: selfie, missed: missed,
-                                      onNext: onNext, onSkip: onSkip, onEnd: onEnd)
+                                      onNext: onNext, onSkip: onSkip, onEnd: onEnd, onBack: onBack)
                             .id("\(step.rawValue)-\(section?.rawValue ?? "")-\(selfie)")
                             .padding(.horizontal, cardWidth == nil ? 16 : 0)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
@@ -611,6 +614,7 @@ struct TourCoachCard: View {
     let onNext: () -> Void
     let onSkip: () -> Void
     var onEnd: (() -> Void)? = nil
+    var onBack: (() -> Void)? = nil
 
     @Environment(\.appReduceMotion) private var reduceMotion
     /// The card's lines come in one after another (the card is made anew for each step).
@@ -653,8 +657,24 @@ struct TourCoachCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .staggerIn(shown, delay: 0.18, distance: 10)
             }
-            HStack(spacing: 14) {
-                // 「終了」 ends the guide; 「スキップ」 goes on to the next step (owner 2026-11-07).
+            HStack(spacing: 12) {
+                // 「戻る」 goes back a step, 「終了」 ends the guide, 「スキップ」 goes on to the next step (owner 2026-11-07).
+                if let onBack {
+                    Button {
+                        Haptics.impact(.light)
+                        onBack()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "chevron.left").scaledFont(size: 12, weight: .bold)
+                            Text(L("戻る"))
+                        }
+                    }
+                    .scaledFont(size: 15, weight: .medium)
+                    .foregroundStyle(Theme.muted)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                    .accessibilityHint(L("前の段へ"))
+                    .accessibilityIdentifier("tour.back")
+                }
                 if let onEnd {
                     Button(L("終了"), action: onEnd)
                         .scaledFont(size: 15, weight: .medium)

@@ -239,7 +239,7 @@ struct MainTabView: View {
             .modifier(DetailZoomTransition(id: sticker.id, namespace: router.detailZoomed ? router.detailZoom : nil))
             .presentationDragIndicator(.visible)
             .presentationBackground(Theme.background)
-            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: tourSkip, onEnd: endTour))
+            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: tourSkip, onEnd: endTour, onBack: tourBackAction))
     }
 
     /// iPhone Duo folded, or open and held sideways (the tabs are a rail in the side strip, `AppRouter.usesRail`): the
@@ -251,7 +251,7 @@ struct MainTabView: View {
             .id(sticker.id)
             .environment(router)
             .background(Theme.background.ignoresSafeArea())
-            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: tourSkip, onEnd: endTour))
+            .modifier(WordPageGuide(router: router, onNext: wordTourNext, onSkip: tourSkip, onEnd: endTour, onBack: tourBackAction))
     }
 
     /// The word's page in the tab screen (`inlineWordPage`) rather than a sheet or a cover.
@@ -368,7 +368,7 @@ struct MainTabView: View {
             if router.tour != .off, !router.tour.isWord, !router.tour.isSilent, router.tour != .complete, router.landing == nil,
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: tourSkip, onEnd: endTour,
-                          selfie: router.tour == .shoot && router.cameraFront,
+                          onBack: tourBackAction, selfie: router.tour == .shoot && router.cameraFront,
                           bottomClearance: router.barRoom(84, rail: 12))
                     .transition(.opacity)
             }
@@ -583,6 +583,67 @@ struct MainTabView: View {
         case .wordSection: router.advanceTour(from: .wordSection, to: .wordSettings)
         case .wordSettings: router.detailSticker = nil   // its onDismiss ends the guide
         case .off, .complete: break
+        }
+    }
+
+    /// 「戻る」 (owner 2026-11-07 「チュートリアル　戻るボタンも追加して」): the step before, where there is one to go back to.
+    /// nil, and no button, on the first step and in the catch itself (選ぶ・GET・図鑑に追加 have 撮り直す of their own, and
+    /// 「図鑑に追加されました」 has nothing before it to redo).
+    private var tourBackAction: (() -> Void)? {
+        switch router.tour {
+        case .off, .complete, .tapCamera, .pick, .detail, .peel, .homeAdded: return nil
+        default: return { tourBack() }
+        }
+    }
+
+    private func tourBack() {
+        let spring = Animation.spring(response: 0.4, dampingFraction: 0.88)
+        switch router.tour {
+        case .shoot:
+            withAnimation(spring) {
+                router.tab = .home
+                router.tour = .tapCamera
+            }
+        case .dexTab:
+            // 「図鑑に追加されました」 only when something was caught; after a skipped catch, the camera's step.
+            withAnimation(spring) { router.tour = router.tourStickerId != nil ? .homeAdded : .tapCamera }
+        case .dexCover:
+            withAnimation(spring) {
+                router.tab = .home
+                router.tour = .dexTab
+            }
+        case .dexMap: router.advanceTour(from: .dexMap, to: .dexCover)
+        case .dexGrid: router.advanceTour(from: .dexGrid, to: .dexMap)      // DexView shows the card view again
+        case .dexShadow: router.advanceTour(from: .dexShadow, to: .dexGrid)  // DexView shows the map again
+        case .reviewPick:
+            withAnimation(spring) {
+                router.tab = .dex
+                router.tour = .dexShadow
+            }
+        case .reviewNext, .memoryCurve:
+            // The quiz is asked again (ReviewView clears the answer and closes the curve).
+            withAnimation(spring) { router.tour = .reviewPick }
+        case .dexOpen:
+            withAnimation(spring) {
+                router.tab = .review
+                router.tour = .memoryCurve   // ReviewView opens the curve on appearing
+            }
+        case .wordSection:
+            let all = router.tourSections
+            if let at = router.tourSection.flatMap({ all.firstIndex(of: $0) }), at > 0 {
+                withAnimation(spring) { router.tourSection = all[at - 1] }
+            } else {
+                // Before the first section: the page closes and the dex lights the word again. The step changes first,
+                // so closing the page is not taken as the end of the guide (`wordPageDismissed`).
+                router.tour = .dexOpen
+                router.detailSticker = nil
+            }
+        case .wordSettings:
+            withAnimation(spring) {
+                router.tourSection = router.tourSections.last
+                router.tour = .wordSection
+            }
+        case .off, .complete, .tapCamera, .pick, .detail, .peel, .homeAdded: break
         }
     }
 
@@ -906,12 +967,13 @@ private struct WordPageGuide: ViewModifier {
     let onNext: () -> Void
     let onSkip: () -> Void
     let onEnd: () -> Void
+    let onBack: (() -> Void)?
 
     func body(content: Content) -> some View {
         content.overlayPreferenceValue(TourAnchorKey.self) { anchors in
             if router.tour.isWord {
                 TourLayer(step: router.tour, anchors: anchors, onNext: onNext, onSkip: onSkip, onEnd: onEnd,
-                          bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
+                          onBack: onBack, bottomClearance: 12, section: router.tour == .wordSection ? router.tourSection : nil)
                     .transition(.opacity)
             }
         }

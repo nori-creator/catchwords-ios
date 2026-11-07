@@ -208,13 +208,19 @@ struct ReviewView: View {
         // した時のグラフを表示して…ユーザーに見せたい」); the word just practised has only today's answer. It closes when
         // the tour moves on.
         .onChange(of: router.tour) { _, step in
-            if step == .memoryCurve, let s = dex.stickers.first(where: { $0.isSample && $0.word != nil }) ?? practiceCards.first?.sticker {
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { curveSticker = s }
-            } else if step != .memoryCurve, curveSticker != nil {
-                // The guide moved on (to the word page since 2026-11-07, or ended): the curve goes.
+            if step == .memoryCurve {
+                showTourCurve()
+            } else if curveSticker != nil {
+                // The guide moved on (to the word page since 2026-11-07, or ended) or went back: the curve goes.
                 closeCurve()
             }
+            // 「戻る」 from the answer or the curve to the question (2026-11-07): the quiz is asked again.
+            if step == .reviewPick, answer != nil {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { answer = nil }
+            }
         }
+        // 「戻る」 from the word page (the dex) to the curve: this screen is made anew, so the curve opens on appearing.
+        .onAppear { if router.tour == .memoryCurve, curveSticker == nil { showTourCurve() } }
         // R5 「学習言語台湾華語なのに英語の4択が表示されてる」: a switched learning language starts a fresh queue.
         .onChange(of: profile.targetLanguage) { _, _ in
             store.reset()
@@ -275,6 +281,11 @@ struct ReviewView: View {
     private var quizFitHeight: CGFloat? {
         guard viewportHeight > 0, topHeight > 0 else { return nil }
         return viewportHeight - 8 - topHeight - 10 - tabBarClearance
+    }
+
+    private func showTourCurve() {
+        guard let s = dex.stickers.first(where: { $0.isSample && $0.word != nil }) ?? practiceCards.first?.sticker else { return }
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { curveSticker = s }
     }
 
     private func closeCurve() {

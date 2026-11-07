@@ -234,9 +234,21 @@ struct DexView: View {
             guard router.landing == nil else { return }
             focus = nil
         }
-        // The first tour starts on the slide dex (カード), whatever view was open last.
-        .onChange(of: router.tour) { _, step in
-            if step == .dexCover, mode != .cover { mode = .cover }
+        // The first tour starts on the slide dex (カード), whatever view was open last. Each of its dex steps lights a
+        // button of the view before it (地図 on the cards, ギャラリー on the map, the shadows in the gallery), so coming
+        // back a step (「戻る」, 2026-11-07) or skipping to one shows that view.
+        .onChange(of: router.tour) { _, step in syncTourView(step) }
+        // Back on this tab in the middle of the guide (「戻る」 from the review to the shadows): the same view.
+        .onAppear { syncTourView(router.tour) }
+    }
+
+    /// The view a dex step of the guide is shown on (`DexView.onChange(of: router.tour)`).
+    private func syncTourView(_ step: TourStep) {
+        switch step {
+        case .dexCover, .dexMap: if mode != .cover { mode = .cover }
+        case .dexGrid: if mode != .map { mode = .map }
+        case .dexShadow, .dexOpen: if mode != .grid { mode = .grid }
+        default: break
         }
     }
 
