@@ -367,16 +367,17 @@ struct RuledMemo: View {
     }
 }
 
-/// A UILabel with a fixed line height (min = max), sized to the width SwiftUI gives it.
+/// The memo's text with a fixed line height (min = max), sized to the width SwiftUI gives it, drawn by TextKit in
+/// `MemoLabel` so the marks' light blue sits exactly behind their glyphs (owner 2026-11-07: 「マーカーが上に偏ってる」 —
+/// UILabel's `.backgroundColor` attribute drew the band at the line's own place while the glyphs were lifted by
+/// `.baselineOffset`, so the band stood above the words).
 private struct RuledLabel: UIViewRepresentable {
     let text: String
     let size: CGFloat
     let lineHeight: CGFloat
 
-    func makeUIView(context: Context) -> SilentLabel {
-        let label = SilentLabel()
-        label.numberOfLines = 0
-        label.lineBreakMode = .byWordWrapping
+    func makeUIView(context: Context) -> MemoLabel {
+        let label = MemoLabel()
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         label.setContentHuggingPriority(.defaultLow, for: .horizontal)
         return label
@@ -401,19 +402,24 @@ private struct RuledLabel: UIViewRepresentable {
         return coordinator.text
     }
 
-    func updateUIView(_ label: SilentLabel, context: Context) {
+    func updateUIView(_ label: MemoLabel, context: Context) {
         // Set only when something changed. The light / dark colours follow by themselves (dynamic UIColors).
         let string = current(context.coordinator)
         guard context.coordinator.shown != key else { return }
         context.coordinator.shown = key
-        label.attributedText = string
+        label.show(string, lift: lift, marks: MemoMarks.parse(text).ranges)
+    }
+
+    /// The glyphs sit a little above the rule, as handwriting on a ruled page.
+    private var lift: CGFloat {
+        max(0, (lineHeight - UIFont.systemFont(ofSize: size).lineHeight) / 2 - 1)
     }
 
     /// The height comes from the text alone (the same width always gives the same height), never from the label's
     /// own state: on the word page (display English, learning 中文) the label's size moved each time SwiftUI placed
     /// it, the page measured again, and it went round without end — the app stopped answering after a scroll to the
     /// 台湾メモ (UI test test_3_en_zh, 2026-11-03, twice).
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: SilentLabel, context: Context) -> CGSize? {
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: MemoLabel, context: Context) -> CGSize? {
         guard let width = proposal.width, width > 0, width.isFinite else { return nil }
         let box = current(context.coordinator).boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
@@ -430,8 +436,6 @@ private struct RuledLabel: UIViewRepresentable {
         paragraph.minimumLineHeight = lineHeight
         paragraph.maximumLineHeight = lineHeight
         paragraph.lineBreakStrategy = .standard
-        // The glyphs sit a little above the rule, as handwriting on a ruled page.
-        let lift = max(0, (lineHeight - font.lineHeight) / 2 - 1)
         // Theme.foreground at 90 %, as a UIKit colour that follows light / dark by itself.
         let ink = UIColor { traits in
             traits.userInterfaceStyle == .dark
@@ -443,9 +447,8 @@ private struct RuledLabel: UIViewRepresentable {
             .font: font,
             .foregroundColor: ink,
             .paragraphStyle: paragraph,
-            .baselineOffset: lift,
         ])
-        // The phrase to remember (版25 §7): primaryInk, bold, on a light blue (primary 16 %).
+        // The phrase to remember (版25 §7): primaryInk, bold, on a light blue (primary 16 %, drawn by `MemoLabel`).
         let markInk = UIColor { $0.userInterfaceStyle == .dark
             ? UIColor(red: 0x6F / 255, green: 0xB0 / 255, blue: 1, alpha: 1)
             : UIColor(red: 0, green: 0x53 / 255, blue: 0xD4 / 255, alpha: 1) }
@@ -453,18 +456,85 @@ private struct RuledLabel: UIViewRepresentable {
             out.addAttributes([
                 .font: UIFont.systemFont(ofSize: size, weight: .bold),
                 .foregroundColor: markInk,
-                .backgroundColor: UIColor(red: 0, green: 0x83 / 255, blue: 1, alpha: 0.16),
             ], range: r)
         }
         return out
     }
 }
 
-/// A UILabel that never asks to be measured again: no size of its own (SwiftUI's `sizeThatFits` gives it), and a
-/// new width or text does not tell the layout above it that its size moved.
-final class SilentLabel: UILabel {
+/// Draws the memo with TextKit: the marks' light blue band first, exactly round each marked run's glyph box (the
+/// font's ascent to its descent, 2 pt of air), then the glyphs, both lifted by `lift`. Never asks to be measured
+/// again: no size of its own (SwiftUI's `sizeThatFits` gives it), and a new width or text does not tell the layout
+/// above it that its size moved (the word page went round without end when it did, 2026-11-03).
+final class MemoLabel: UIView {
+    private var string = NSAttributedString()
+    private var lift: CGFloat = 0
+    private var marks: [NSRange] = []
+    private static let markFill = UIColor(red: 0, green: 0x83 / 255, blue: 1, alpha: 0.16)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+        contentMode = .redraw
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
     override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric) }
     override func invalidateIntrinsicContentSize() {}
+
+    func show(_ string: NSAttributedString, lift: CGFloat, marks: [NSRange]) {
+        self.string = string
+        self.lift = lift
+        self.marks = marks
+        setNeedsDisplay()
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard bounds.width > 0, string.length > 0 else { return }
+        let storage = NSTextStorage(attributedString: string)
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: CGSize(width: bounds.width, height: .greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        container.lineBreakMode = .byWordWrapping
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        let all = layout.glyphRange(for: container)
+        let origin = CGPoint(x: 0, y: -lift)
+        if let ctx = UIGraphicsGetCurrentContext() {
+            ctx.setFillColor(Self.markFill.cgColor)
+            for r in marks {
+                let glyphs = layout.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
+                layout.enumerateEnclosingRects(forGlyphRange: glyphs, withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                                               in: container) { piece, _ in
+                    // The band hugs the glyphs' own box on this line, not the (taller) line fragment.
+                    let first = self.firstGlyph(in: piece, of: glyphs, layout)
+                    let fragment = layout.lineFragmentRect(forGlyphAt: first, effectiveRange: nil)
+                    let baseline = fragment.minY + layout.location(forGlyphAt: first).y
+                    let font = (storage.attribute(.font, at: layout.characterIndexForGlyph(at: first), effectiveRange: nil) as? UIFont)
+                        ?? UIFont.systemFont(ofSize: 15)
+                    let top = baseline - font.ascender - 2
+                    let height = font.ascender - font.descender + 4
+                    let band = CGRect(x: piece.minX - 1, y: top + origin.y, width: piece.width + 2, height: height)
+                    ctx.addPath(UIBezierPath(roundedRect: band, cornerRadius: 4).cgPath)
+                    ctx.fillPath()
+                }
+            }
+        }
+        layout.drawBackground(forGlyphRange: all, at: origin)
+        layout.drawGlyphs(forGlyphRange: all, at: origin)
+    }
+
+    /// The first glyph of `glyphs` that lies on the line `piece` belongs to.
+    private func firstGlyph(in piece: CGRect, of glyphs: NSRange, _ layout: NSLayoutManager) -> Int {
+        var g = glyphs.location
+        while g < NSMaxRange(glyphs) {
+            let fragment = layout.lineFragmentRect(forGlyphAt: g, effectiveRange: nil)
+            if fragment.minY <= piece.midY, piece.midY <= fragment.maxY { return g }
+            g += 1
+        }
+        return glyphs.location
+    }
 }
 
 /// The 台湾メモ's phrases to remember (版25 §7, owner 2026-10-26「入れる」): the server wraps one or two of them in `**`.
