@@ -353,7 +353,7 @@ struct TourLayer: View {
                     }
                     if showsCard, cardHidden {
                         // The card's stand-in while it is away: the step and a short word, out of the picture's way.
-                        TourCardPill(step: step) { showCard(again: true) }
+                        TourCardPill(step: step) { showCard(again: true, fades: hasPlace) }
                             .position(x: geo.size.width / 2, y: insets.top + 24)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
