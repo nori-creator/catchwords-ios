@@ -265,7 +265,7 @@ extension CutoutService {
               let lbase = CVPixelBufferGetBaseAddress(labels), let pbase = CVPixelBufferGetBaseAddress(person) else { return [] }
         let lrow = CVPixelBufferGetBytesPerRow(labels), prow = CVPixelBufferGetBytesPerRow(person)
 
-        // The person mask on a coarse grid (at most 160 cells a side), then widened by ~4 % of the picture.
+        // The person mask on a coarse grid (at most 160 cells a side).
         let scale = 160.0 / Double(max(pw, ph))
         let gw = max(1, Int(Double(pw) * min(1, scale))), gh = max(1, Int(Double(ph) * min(1, scale)))
         var onPerson = [Bool](repeating: false, count: gw * gh)
