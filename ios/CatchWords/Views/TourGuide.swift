@@ -140,8 +140,9 @@ enum TourStep: String, Equatable {
         switch self {
         case .shoot: 0.2
         case .pick: 0.3
-        // The 図鑑's views are for looking at and touching (owner 2026-11-08: 「ユーザーがちゃんと触れるようになってない」).
-        case .dexCover, .dexMap, .dexGrid, .dexShadow: 0.12
+        // The 図鑑's views are for looking at and touching, never darkened (owner 2026-11-08: 「マップとか暗くせずにユーザーが
+        // そのまま触れるように…図鑑は色を暗くしなくていい」); only the next view's button is lit blue.
+        case .dexCover, .dexMap, .dexGrid, .dexShadow: 0
         default: 0.35
         }
     }
@@ -719,7 +720,7 @@ struct TourCompleteView: View {
                 // Owner 2026-11-08: 「準備完了ではなくチュートリアル終了…最も自然な案を」.
                 RevealHeadline(marked: L("チュートリアル完了"), size: 28, delay: 0.25)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(L("あとは、身の回りの物を撮るだけです。撮るたびに、あなただけの単語帳が育ちます。"))
+                Text(L("毎日出会ういろんなものを撮って、あなただけの単語帳を育てよう"))
                     .scaledFont(size: 15)
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
