@@ -3,7 +3,7 @@ import XCTest
 
 /// The cut-out always contains the thing the word names (owner 2026-10-15: 冰火菠蘿油 held up in a selfie came out as the
 /// person alone, and the album sticker showed no bun). Pure decisions on mask counts (`CutCoverage`,
-/// `CutoutService.keepsWithPeople`); Vision itself does not run on the simulator. Run on its own by
+/// `CutoutService.isPerson`); Vision itself does not run on the simulator. Run on its own by
 /// .github/workflows/ios-check.yml.
 final class MaskCoverageTests: XCTestCase {
     // A 100 × 100 grid: the AI boxed the bun at 40…60 × 40…60 (400 pixels).
@@ -57,16 +57,14 @@ final class MaskCoverageTests: XCTestCase {
     }
 
     func testSelfieKeepsWhatThePersonHolds() {
-        // A person.
-        XCTAssertTrue(CutoutService.keepsWithPeople(total: 1000, onPerson: 600, nearPerson: 1000))
-        // A big bun held up to the camera: it touches the person only along the hand (10 % of it within reach).
-        XCTAssertTrue(CutoutService.keepsWithPeople(total: 11000, onPerson: 200, nearPerson: 1100))
-        // A drink held beside the face, mostly within reach.
-        XCTAssertTrue(CutoutService.keepsWithPeople(total: 400, onPerson: 20, nearPerson: 200))
-        // A thing standing apart, and a speck that merely grazes the reach.
-        XCTAssertFalse(CutoutService.keepsWithPeople(total: 5000, onPerson: 0, nearPerson: 0))
-        XCTAssertFalse(CutoutService.keepsWithPeople(total: 5000, onPerson: 0, nearPerson: 3))
-        XCTAssertFalse(CutoutService.keepsWithPeople(total: 0, onPerson: 0, nearPerson: 0))
+        // Owner 2026-11-07: once a person is found, every foreground instance stays (the egg carton held in front of
+        // the body hid the body and was dropped by the old "within reach of the person" rule). Only the person test is
+        // left: a person, and not a thing.
+        XCTAssertTrue(CutoutService.isPerson(total: 1000, onPerson: 600))
+        XCTAssertTrue(CutoutService.isPerson(total: 1000, onPerson: 300))
+        XCTAssertFalse(CutoutService.isPerson(total: 11000, onPerson: 200))
+        XCTAssertFalse(CutoutService.isPerson(total: 5000, onPerson: 0))
+        XCTAssertFalse(CutoutService.isPerson(total: 0, onPerson: 0))
     }
 
     func testTheAIsBoxIsRead() throws {

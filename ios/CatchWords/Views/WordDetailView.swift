@@ -2344,7 +2344,7 @@ struct SelfieCutoutImage: View {
                 Color.clear
             }
         }
-        .task(id: path) {
+        .task(id: "\(path)|\(SelfieCutouts.shared.revision)") {
             let key = SelfieCutouts.key(for: path)
             if let hit = ImageCache.shared.image(for: key) {
                 image = hit
