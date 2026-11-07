@@ -62,7 +62,7 @@ enum TourStep: String, Equatable {
         case .pick: L("AIが、写真の中の物を分析しました")
         case .detail: L("発音を聞いてみましょう")
         case .peel: L("図鑑に追加しましょう")
-        case .homeAdded: L("撮った写真は、ホームのアルバムに貼られます")
+        case .homeAdded: L("図鑑に追加されました")
         case .dexTab: L("集めた単語は、図鑑で見られます")
         case .dexCover: L("撮った写真が、そのまま単語カードになります")
         case .dexMap: L("撮った場所が、地図に記録されます")
@@ -86,7 +86,7 @@ enum TourStep: String, Equatable {
         case .pick: L("覚えたい単語を1つ選んでください。")
         case .detail: L("声に出して言ってみると、覚えやすくなります。")
         case .peel: L("これで最初の単語が保存されます。")
-        case .homeAdded: L("いつ、どんな単語を覚えたかが、ひと目で分かります。")
+        case .homeAdded: L("撮った写真は、ホームのアルバムにも貼られます。")
         case .dexCover: L("自分で撮った写真なので、思い出しやすくなります。")
         case .dexMap: L("どこで覚えた単語かを、あとから見返せます。")
         case .dexGrid: L("飲み物、料理、乗り物などに分かれて並びます。")
@@ -143,6 +143,9 @@ enum TourStep: String, Equatable {
     }
 
     var isReview: Bool { self == .reviewPick || self == .reviewNext || self == .memoryCurve }
+    /// The catch between the tag and the dex (the choose screen, the GET moment, 図鑑に追加): no card and no dim
+    /// (owner 2026-11-07: 「その間にチュートリアルの解説を入れる必要はない」); the next card says the word was added.
+    var isSilent: Bool { self == .detail || self == .peel }
     var isCapture: Bool { self == .shoot || self == .pick || self == .detail || self == .peel }
     /// The steps shown over the word's page (its sheet has a guide layer of its own).
     var isWord: Bool { self == .wordSection || self == .wordSettings }

@@ -383,7 +383,9 @@ struct CatchCelebrationView: View {
 
     /// The moment's sounds, haptic and the hand-over, each at its time (a skip jumps over the ones before the end).
     private func run() async {
-        tourHold = router.tour.isCapture
+        // The first tour no longer holds the moment for its 発音 / 図鑑に追加 cards (owner 2026-11-07: 「解説や文字は
+        // 入れずにそのまま図鑑に追加されるアニメーションを表示して」): the catch runs as it always does.
+        tourHold = false
         if vm.cutout == nil, fallback == nil { fallback = vm.stickerFallback() }
         if vm.stagePalette == nil { palette = StagePalette.make(from: vm.cutout ?? fallback) }
         if let c = vm.picked { dexLabel = CatchDexInfo.label(headword: c.headword, stickers: dex.stickers) }

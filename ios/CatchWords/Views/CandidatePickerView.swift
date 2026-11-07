@@ -431,10 +431,12 @@ struct CandidatePickerView: View {
             : (reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.7).delay(delay))
         return Button {
             UITestTrace.log("tag.action \(t.id) shown=\(shown) checking=\(vm.isCheckingOwned)")
-            // The first tour's 選ぶ step dims everything but this tag: there the everyday name is taken at once, as before.
-            if router.tour.isCapture || vm.photo == nil {
+            if vm.photo == nil {
                 vm.choose(t.word, object: t.choices[0].object)
             } else {
+                // The first tour (owner 2026-11-07): the tag opens the choose screen like any other time (several ways
+                // to say it are chosen from), and the guide's light goes out until the word is in the dex.
+                router.advanceTour(from: .pick, to: .detail)
                 open(t)
             }
         } label: {

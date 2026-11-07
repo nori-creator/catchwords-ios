@@ -365,7 +365,7 @@ struct MainTabView: View {
         .overlayPreferenceValue(TourAnchorKey.self) { anchors in
             // The catch hides the tab bar for its whole flow; its capture steps still need the guide. Never over a
             // word landing in the dex: the card waits until the word has landed (it used to darken the landing).
-            if router.tour != .off, !router.tour.isWord, router.tour != .complete, router.landing == nil,
+            if router.tour != .off, !router.tour.isWord, !router.tour.isSilent, router.tour != .complete, router.landing == nil,
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: tourSkip, onEnd: endTour,
                           selfie: router.tour == .shoot && router.cameraFront,
