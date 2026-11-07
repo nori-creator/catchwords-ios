@@ -1189,6 +1189,13 @@
   "ko": "다시 외워 봐요",
   "vi": "Cùng học lại nhé"
  },
+ "プロフィールを読み込めませんでした。通信を確かめて、もう一度お試しください。": {
+  "en": "Your profile could not be loaded. Check your connection and try again.",
+  "zh-TW": "無法載入個人資料。請確認網路後再試一次。",
+  "es": "No se pudo cargar tu perfil. Revisa la conexión e inténtalo de nuevo.",
+  "ko": "프로필을 불러올 수 없습니다. 연결을 확인하고 다시 시도해 주세요.",
+  "vi": "Không thể tải hồ sơ. Hãy kiểm tra kết nối và thử lại."
+ },
  "もう一度試す": {
   "en": "Try again",
   "zh-TW": "再試一次",

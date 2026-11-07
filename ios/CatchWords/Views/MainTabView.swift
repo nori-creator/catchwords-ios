@@ -429,6 +429,13 @@ struct MainTabView: View {
         // A word's reminder or widget tapped at launch waits for the dex to know that word.
         .onChange(of: dex.hasLoaded) { _, loaded in if loaded { openNotification(NotificationRouter.shared.pending) } }
         .onChange(of: tourPending) { _, _ in beginTourIfPending() }
+        // The guide waits for the AI consent (RootView shows it over this screen right after onboarding): started
+        // under it, the first card's 4 seconds ran out behind the consent (check A2), and without the consent the
+        // camera tab is the gate screen, where the guide could not go on (A3). 「同意する」 later (the consent screen or
+        // 設定) starts the waiting guide.
+        .onChange(of: AIConsent.shared.isGranted) { _, granted in if granted { beginTourIfPending() } }
+        // The guide is over once its end is on screen: a relaunch before 「はじめる」 must not start it again (A7).
+        .onChange(of: router.tour) { _, step in if step == .complete { tourPending = false } }
         .onChange(of: router.tab) { _, tab in
             if tab == .camera { router.advanceTour(from: .tapCamera, to: .shoot) }
             if tab == .dex { router.advanceTour(from: .dexTab, to: .dexCover) }
@@ -503,7 +510,7 @@ struct MainTabView: View {
     }
 
     private func beginTourIfPending() {
-        guard tourPending, router.tour == .off else { return }
+        guard tourPending, router.tour == .off, AIConsent.shared.isGranted else { return }
         router.tab = .home
         // Straight to the first thing to do (the camera); the home's own explanation step is gone (2026-10-27).
         withAnimation(.easeOut(duration: 0.3)) { router.tour = .tapCamera }

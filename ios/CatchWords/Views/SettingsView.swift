@@ -394,6 +394,14 @@ struct SettingsView: View {
                 }
                 Link(destination: AppConfig.supportURL) { legalLabel(L("お問い合わせ・サポート")) }
                     .accessibilityIdentifier("settings.support")
+                // 「あとで始める」 had no "later" (check A1 2026-11-07): the guide can be started from here. It waits for
+                // the AI consent (MainTabView.beginTourIfPending), so without it the consent settings open first.
+                Button {
+                    UserDefaults.standard.set(true, forKey: TourStep.pendingStorageKey(for: SupabaseClient.shared.userId))
+                    if AIConsent.shared.isGranted { router.tab = .home } else { showAIConsentSettings = true }
+                } label: { legalLabel(L("チュートリアルをもう一度")) }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.tour")
             }
         }
     }

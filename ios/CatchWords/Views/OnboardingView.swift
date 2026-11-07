@@ -551,11 +551,10 @@ struct OnboardingView: View {
 
     /// 「ログイン」: leave the session this guide was running in and open the sign-in screen, so the
     /// learner can enter the account they already have.
-    /// The account signing in next is one the learner already has, so it skips the guide too (it adopts the
-    /// device-wide flag once, see `OnboardingState.isDone`).
+    /// Nothing is marked done (check A8 2026-11-07): this account did not finish, so it is asked again when it
+    /// comes back, and the account signing in next is judged on its own flag (an account that finished before has
+    /// it; a new one is asked). The device-wide flag used to be set here and made the next account skip everything.
     private func finishToLogin() {
-        OnboardingState.markDone(userId: SupabaseClient.shared.userId)
-        UserDefaults.standard.set(true, forKey: OnboardingState.doneKey)
         onFinish()
         auth.signOut(keepLanguage: true)
     }

@@ -24,7 +24,15 @@ struct RootView: View {
         if StoreShot.isOn { return false }   // the App Store shots show the app as an account that agreed sees it
         #endif
         let consent = AIConsent.shared
-        return consent.isLoaded && consent.isUndecided && !needsOnboarding && (profile.isLoaded || profile.loadFailed)
+        // Never before the profile is read (check A9 2026-11-07): read failed, the consent used to open over an empty
+        // home where the onboarding should have been; `profileUnavailable` offers a retry instead.
+        return consent.isLoaded && consent.isUndecided && !needsOnboarding && profile.isLoaded && !profile.loadFailed
+    }
+
+    /// The profile could not be read and there is nothing else to show (no words, onboarding not done): say so
+    /// and offer a retry, instead of an empty home (check A9). An account with words keeps its home.
+    private var profileUnavailable: Bool {
+        profile.isLoaded && profile.loadFailed && !onboardingDone && dex.stickers.isEmpty
     }
 
     var body: some View {
@@ -49,6 +57,15 @@ struct RootView: View {
                             .statusBarTone(.automatic)
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                             .zIndex(1)
+                    }
+                    if profileUnavailable {
+                        ConnectionFailedView(reason: L("プロフィールを読み込めませんでした。通信を確かめて、もう一度お試しください。")) {
+                            Task { await profile.load() }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Theme.background.ignoresSafeArea())
+                        .transition(.opacity)
+                        .zIndex(2)
                     }
                     if needsOnboarding {
                         OnboardingView {
