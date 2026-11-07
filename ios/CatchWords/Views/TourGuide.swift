@@ -53,27 +53,27 @@ enum TourStep: String, Equatable {
     /// What to do, or what this is, in a few words. Owner 2026-10-28 (「チュートリアルのすべての文字文章が変だから一から
     /// 考え直して」「操作が明らかなところは…ここをタップって書かなくていい。そこだけ光らしたらユーザーもそこわかる」): the lit
     /// place shows where to tap, so no card says 「〜をタップ」.
-    /// Owner's pick 2026-10-29 from three written sets: A (what to do, plainly) for most cards, C (what no other word
-    /// app does) for the album, cards, map, shadows, review and the end. The first one stays the owner's own words.
+    /// Written again from scratch on 2026-11-07 (owner: 「日本語文が変だから…1から書き直して」) for the order of that day
+    /// (the word page last): plain polite Japanese, one thing per card. The first one stays the owner's own words.
     var title: String? {
         switch self {
         case .tapCamera: L("目の前にある物を1枚撮ってみよう")
-        case .shoot: L("物を画面に入れて、シャッター")
-        case .pick: L("写った物に、名前が付きました")
-        case .detail: L("発音を聞いて、まねしてみよう")
-        case .peel: L("図鑑に入れよう")
-        case .homeAdded: L("勉強の記録が、そのままアルバムに")
-        case .dexTab: L("集めた単語は、図鑑にあります")
-        case .dexCover: L("自分の写真が、単語カードになる")
-        case .dexMap: L("単語が、思い出の場所と結びつく")
-        case .dexGrid: L("分類ごとに、集めた数が分かります")
-        case .dexShadow: L("影を埋めるほど、言える物が増える")
-        case .dexOpen: L("あなたの1語目を開いてみよう")
+        case .shoot: L("物をフレームに入れて、シャッターを押します")
+        case .pick: L("写っている物に、名前が付きました")
+        case .detail: L("発音を聞いてみましょう")
+        case .peel: L("図鑑に入れましょう")
+        case .homeAdded: L("撮った写真が、そのままアルバムに")
+        case .dexTab: L("集めた単語は、図鑑にまとまります")
+        case .dexCover: L("自分の写真が、そのまま単語カードに")
+        case .dexMap: L("どこで覚えたかも、地図に残ります")
+        case .dexGrid: L("種類ごとに、集めた数が見られます")
+        case .dexShadow: L("影は、まだ集めていない物")
+        case .dexOpen: L("最後に、あなたの1語目を開いてみましょう")
         case .wordSection: L("単語の頁")
-        case .wordSettings: L("表示する項目と順番を変えられます")
-        case .reviewPick: L("自分の写真で、復習する")
+        case .wordSettings: L("表示する項目と順番は、ここで変えられます")
+        case .reviewPick: L("自分の写真で復習しましょう")
         case .reviewNext: L("答え合わせ")
-        case .memoryCurve: L("この単語の覚え具合です")
+        case .memoryCurve: L("この単語の、覚え具合のグラフです")
         default: nil
         }
     }
@@ -82,18 +82,18 @@ enum TourStep: String, Equatable {
     /// 2026-10-28 「撮るだけで単語帳ができますって文字消して。いらない」). Each line names the gain or removes a worry.
     var benefit: String? {
         switch self {
-        case .shoot: L("名前を知らない物でも大丈夫です。")
-        case .pick: L("覚えたい物を1つ選んでください。")
-        case .detail: L("声に出すと、覚えやすくなります。")
-        case .peel: L("これで1語目が保存されます。")
-        case .homeAdded: L("いつ何を覚えたか、ひと目で分かります。")
-        case .dexCover: L("自分で撮った物は、思い出しやすい。")
-        case .dexMap: L("街や旅先で覚えた単語が、地図に残ります。")
-        case .dexGrid: L("飲み物・料理など、種類ごとに並びます。")
+        case .shoot: L("名前を知らない物でも大丈夫。アプリが調べます。")
+        case .pick: L("覚えたい物の札を1つ選びます。")
+        case .detail: L("声に出してまねすると、覚えやすくなります。")
+        case .peel: L("これが、あなたの1語目になります。")
+        case .homeAdded: L("いつ、何を覚えたかが、ひと目で分かります。")
+        case .dexCover: L("自分で撮った物だから、思い出しやすい。")
+        case .dexMap: L("街や旅先で出会った単語が、場所と一緒に残ります。")
+        case .dexGrid: L("飲み物、料理、乗り物…分類ごとに並びます。")
         case .dexShadow: L("影にない物も、何でもキャッチできます。")
-        case .wordSettings: L("文字の大きさ・発音の速さも、ここで変えられます。")
+        case .wordSettings: L("文字の大きさや発音の速さも、ここから。")
         case .reviewPick: L("見覚えのある写真だから、思い出しやすい。")
-        case .reviewNext: L("間違えても、解説を読めば大丈夫です。")
+        case .reviewNext: L("間違えても大丈夫。解説を読んで、次へ。")
         case .memoryCurve: L("最適な復習のタイミングが分かります。")
         default: nil
         }
@@ -103,14 +103,14 @@ enum TourStep: String, Equatable {
     /// from it, not what it is called.
     static func sectionPoint(_ section: CardSection) -> String {
         switch section {
-        case .meaning: L("この単語の意味です。まずはここだけ読めばOK。")
-        case .usageChunks: L("よく一緒に使う組み合わせ。このまま覚えると、すぐ使えます。")
-        case .example: L("上の組み合わせを使った文です。音声も聞けます。")
+        case .meaning: L("この単語の意味です。まずはここだけでOK。")
+        case .usageChunks: L("よく一緒に使われる組み合わせです。このまま覚えると、すぐ使えます。")
+        case .example: L("その組み合わせを使った例文です。音声も聞けます。")
         case .measureWords: L("数えるときの言い方です。")
         case .relatedWords: L("一緒に覚えると便利な単語です。")
         case .taiwanNote: L("台湾ならではの言い方や習慣です。")
-        case .realUsage: L("動画や検索で、本当の使われ方を見られます。")
-        default: L("この単語を深く知るための項目です。")
+        case .realUsage: L("動画や検索で、実際の使われ方が見られます。")
+        default: L("この単語をもっと深く知るための項目です。")
         }
     }
 
