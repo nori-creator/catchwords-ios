@@ -239,9 +239,9 @@ extension CutoutService {
         do { try handler.perform([foreground, people]) } catch { return nil }
         guard let result = foreground.results?.first, !result.allInstances.isEmpty,
               let personMask = people.results?.first?.pixelBuffer else { return nil }
-        let people = instancesWithPeople(labels: result.instanceMask, person: personMask)
+        let persons = instancesWithPeople(labels: result.instanceMask, person: personMask)
             .intersection(result.allInstances)
-        guard !people.isEmpty else { return nil }
+        guard !persons.isEmpty else { return nil }
         let keep = result.allInstances
         guard let masked = try? result.generateMaskedImage(ofInstances: keep, from: handler, croppedToInstancesExtent: true)
         else { return nil }
