@@ -631,17 +631,33 @@ struct TourCoachCard: View {
     }
 
     /// Owner 2026-10-28 (「文字が多すぎて何したらいいかちょっと見にくい」): the steps on top, a title, at most one line, and
-    /// 「次へ」 where the step goes on from the card; 「スキップ」 small and out of the way.
+    /// one action. Owner 2026-11-07 (「4つあるの変じゃない？もっとすっきりとした自然な UI 設計にして」): the card has at most
+    /// three controls, each where a learner expects it — ✕ in the top corner ends the guide, a round ‹ at the bottom
+    /// left goes back a step, and one action at the bottom right: 「次へ」 where the card moves the guide on, else a quiet
+    /// 「スキップ」 for a step the learner would otherwise act on. (The old row of 戻る・終了・スキップ・次へ is gone.)
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let phase = step.phase {
                 // 「STEP n」 and 「n / 5」 are common notation, the same in every display language (like NEW and No.).
-                HStack {
+                HStack(spacing: 10) {
                     StepPill(text: "STEP \(phase.rawValue + 1)")  // l10n-ignore (common notation)
                     Spacer()
                     Text(verbatim: "\(phase.rawValue + 1) / \(TourPhase.allCases.count)")
                         .scaledFont(size: 12, weight: .semibold)
                         .foregroundStyle(Theme.muted)
+                    if let onEnd {
+                        Button(action: onEnd) {
+                            Image(systemName: "xmark")
+                                .scaledFont(size: 11, weight: .bold)
+                                .foregroundStyle(Theme.muted)
+                                .frame(width: 28, height: 28)
+                                .background(Theme.muted.opacity(0.12), in: Circle())
+                        }
+                        .buttonStyle(PressableStyle(scale: 0.9))
+                        .accessibilityLabel(L("終了"))
+                        .accessibilityHint(L("案内を終える"))
+                        .accessibilityIdentifier("tour.end")
+                    }
                 }
                 .staggerIn(shown, delay: 0.02, distance: 6)
             }
@@ -658,37 +674,22 @@ struct TourCoachCard: View {
                     .staggerIn(shown, delay: 0.18, distance: 10)
             }
             HStack(spacing: 12) {
-                // 「戻る」 goes back a step, 「終了」 ends the guide, 「スキップ」 goes on to the next step (owner 2026-11-07).
                 if let onBack {
                     Button {
                         Haptics.impact(.light)
                         onBack()
                     } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "chevron.left").scaledFont(size: 12, weight: .bold)
-                            Text(L("戻る"))
-                        }
+                        Image(systemName: "chevron.left")
+                            .scaledFont(size: 14, weight: .bold)
+                            .foregroundStyle(Theme.foreground)
+                            .frame(width: 40, height: 40)
+                            .background(Theme.muted.opacity(0.12), in: Circle())
                     }
-                    .scaledFont(size: 15, weight: .medium)
-                    .foregroundStyle(Theme.muted)
-                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                    .buttonStyle(PressableStyle(scale: 0.92))
+                    .accessibilityLabel(L("戻る"))
                     .accessibilityHint(L("前の段へ"))
                     .accessibilityIdentifier("tour.back")
                 }
-                if let onEnd {
-                    Button(L("終了"), action: onEnd)
-                        .scaledFont(size: 15, weight: .medium)
-                        .foregroundStyle(Theme.muted)
-                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
-                        .accessibilityHint(L("案内を終える"))
-                        .accessibilityIdentifier("tour.end")
-                }
-                Button(L("スキップ"), action: onSkip)
-                    .scaledFont(size: 15, weight: .medium)
-                    .foregroundStyle(Theme.muted)
-                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
-                    .accessibilityHint(L("次の段へ"))
-                    .accessibilityIdentifier("tour.skip")
                 Spacer(minLength: 0)
                 if let next = step.nextLabel {
                     Button {
@@ -708,6 +709,14 @@ struct TourCoachCard: View {
                     }
                     .buttonStyle(PressableStyle(scale: 0.95))
                     .accessibilityIdentifier("tour.next")
+                } else {
+                    // A step the learner acts on: the quiet way past it (owner 2026-11-07: skip = this step only).
+                    Button(L("スキップ"), action: onSkip)
+                        .scaledFont(size: 15, weight: .medium)
+                        .foregroundStyle(Theme.muted)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                        .accessibilityHint(L("次の段へ"))
+                        .accessibilityIdentifier("tour.skip")
                 }
             }
             .staggerIn(shown, delay: 0.26, distance: 8)
