@@ -113,6 +113,7 @@ struct CaptureView: View {
             LocationService.shared.coolDown()
             router.cameraImmersive = true
             router.tabBarHidden = false
+            router.photoInFlight = false
         }
         .task(id: vm.step == .selfie) {
             // Each selfie step starts with its words, which give way after a few seconds.
@@ -126,6 +127,7 @@ struct CaptureView: View {
         .onChange(of: vm.step) { old, step in
             UITestTrace.log("step \(old) -> \(step)")
             if step != .selfie { selfieCountdown.cancel() }
+            router.photoInFlight = step == .selfie || step == .processing
             syncChrome()
             if step == .select { router.advanceTour(from: .shoot, to: .pick) }
             if step == .celebrate {

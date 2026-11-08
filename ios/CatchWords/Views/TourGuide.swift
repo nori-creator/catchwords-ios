@@ -348,8 +348,12 @@ struct TourLayer: View {
                     }
                     if showsCard, cardHidden {
                         // The card's stand-in while it is away: the step and a short word, out of the picture's way.
+                        // Never over the place the learner presses (owner 2026-11-08: 「終了」 sat on the dex's next view
+                        // button): at the top, or above the tab bar when the lit place is near the top.
+                        let low = hole.map { $0.midY < geo.size.height * 0.4 } ?? false
                         TourCardPill(step: step, onEnd: onEnd) { showCard(again: true, fades: fades(hasPlace)) }
-                            .position(x: geo.size.width / 2, y: insets.top + 24)
+                            .position(x: geo.size.width / 2,
+                                      y: low ? geo.size.height - max(insets.bottom, 12) - bottomClearance - 26 : insets.top + 24)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
