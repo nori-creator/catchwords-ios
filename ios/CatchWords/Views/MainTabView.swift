@@ -102,6 +102,9 @@ final class AppRouter {
     /// screen's own スキップ goes on with the catch; then 「自撮りの時のものと一緒に撮ってみようっていう案内が出なかった」
     /// when the card was hidden over the whole step).
     var selfieStep = false
+    /// The guide's card is on screen (not yet gone away): the 撮る step's shutter waits for it (owner 2026-11-08: a learner
+    /// pressed the shutter while the card covered the picture and took a picture they had not seen).
+    var tourCardVisible = false
     /// The word caught during the tour (used by the Dex / word / review steps).
     var tourStickerId: String?
     /// `.wordSection`: the word page's section the guide is on, and the page's sections in order (the page tells).
@@ -380,6 +383,7 @@ struct MainTabView: View {
                           onBack: selfieShot ? nil : tourBackAction,
                           selfie: router.tour == .shoot && (router.cameraFront || router.selfieStep),
                           hidesSkip: selfieShot,
+                          onCardShown: { router.tourCardVisible = $0 },
                           bottomClearance: router.barRoom(84, rail: 12))
                     .transition(.opacity)
             }
@@ -439,6 +443,14 @@ struct MainTabView: View {
         }
         #if DEBUG
         .task { await openStoreShot() }
+        // UI test (`WordOpenTests.test_catchLimitSheet`): the day's-limit sheet opened as the shutter opens it.
+        .task {
+            guard UserDefaults.standard.bool(forKey: "uiCatchLimitSheet") else { return }
+            // After the AI consent (shown over this screen first), as on a phone.
+            for _ in 0..<120 where !AIConsent.shared.isGranted { try? await Task.sleep(for: .milliseconds(500)) }
+            try? await Task.sleep(for: .seconds(2))
+            router.showLimitReached()
+        }
         #endif
         .onChange(of: NotificationRouter.shared.pending) { _, route in openNotification(route) }
         // A word's reminder or widget tapped at launch waits for the dex to know that word.
@@ -476,6 +488,10 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $router.showCatchLimit) {
             CatchLimitSheet()
+                // The sheet is presented from outside `.environment(router)` above, so it gets the router here: without
+                // it the sheet's `@Environment(AppRouter.self)` stopped the app the moment the day's last free catch was
+                // used and the shutter was pressed again (TestFlight 1.0.5 (1089), 2026-11-08 21:07).
+                .environment(router)
                 // Half the screen held it on most iPhones; on a small one (SE) or with large text the ad's button was
                 // cut off (check 2026-11-03 B6): it can be pulled up to the whole screen.
                 .presentationDetents([.medium, .large])

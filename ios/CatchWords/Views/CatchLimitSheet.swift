@@ -64,6 +64,7 @@ struct CatchLimitSheet: View {
         .padding(.bottom, 12)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .accessibilityIdentifier("catchLimit.sheet")
         .task { if offersAd { ads.prepare() } }
     }
 
