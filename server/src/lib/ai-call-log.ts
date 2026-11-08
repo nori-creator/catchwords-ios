@@ -27,6 +27,7 @@ export const AI_TASKS = [
   { id: "photo_candidates", feature: "scan" }, // 撮った写真の単語の候補（suggestWords）
   { id: "tutorial_candidates", feature: "scan" }, // チュートリアルの写真の候補
   { id: "word_candidates", feature: "scan" }, // 母語で調べた語の候補（suggestWordCandidates）
+  { id: "word_lookup", feature: "scan" }, // しらべる（辞書）の見出し（lookupWord）
   { id: "scan_detect", feature: "scan" }, // スキャンの画面の物・文字の検出（detectScan）
   { id: "scan_parts", feature: "scan" }, // 「+細かく」の部分の検出（detectParts）
   { id: "image_sense", feature: "scan" }, // 語の絵の意味を決める（image-sense）

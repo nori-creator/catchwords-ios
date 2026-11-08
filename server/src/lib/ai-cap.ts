@@ -64,6 +64,8 @@ export const DAILY_CAPS: Readonly<Record<string, number>> = {
   wordbook: 60, // 1枚の写真で最大60語。取り込みは1日に何度もやる物ではない
   phrase_card: 100,
   suggest: 300,
+  // しらべる（辞書。`lookupWord`。速いモデルの小さな呼び出し。検索ボタンを押した時だけ1回、同じ言葉は端末が覚えている）。
+  lookup: 300,
   removebg: 100, // paid per image — tighter than the free-tier guards
   native_text: 200, // iOS 版の添削・例文など（/api/native-ai の text）
   // 読む人の言語の意味だけを埋める（`fillReaderMeanings`。1回で最大24語、辞書に無い語だけ）。

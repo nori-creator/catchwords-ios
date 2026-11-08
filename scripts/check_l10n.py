@@ -28,7 +28,7 @@ HANGUL = re.compile(r"[가-힣ᄀ-ᇿ]")
 
 IOS = os.path.join(os.path.dirname(__file__), "..", "ios")
 ROOT = os.path.join(IOS, "CatchWords")
-SKIP = {"Views/UIPreview.swift"}  # DEBUG-only fixtures for the simulator check
+SKIP = {"Views/UIPreview.swift", "Views/Lookup/LookupPreview.swift"}  # DEBUG-only fixtures for the simulator check
 TABLE = os.path.join(ROOT, "Resources", "Localization", "strings.json")
 WIDGET_TABLE = os.path.join(IOS, "Shared", "Localization", "widget-strings.json")
 WIDGETS = os.path.join(IOS, "CatchWordsWidgets")

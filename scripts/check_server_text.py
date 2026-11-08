@@ -23,7 +23,7 @@ RESOLVED = re.compile(r"(^|[^\w])(word\??|\.word\??)$")
 # Loop variables over the resolved word's extras — only on the pages that draw them.
 EXTRAS_PAGES = {"Views/WordDetailView.swift", "Views/AnswerPanel.swift"}
 EXTRAS_VARS = re.compile(r"(^|[^\w])(ex|chunk|r|m|k|c|p|st|row|extras\??)$")
-SKIP = {"Views/UIPreview.swift"}
+SKIP = {"Views/UIPreview.swift", "Views/Lookup/LookupPreview.swift"}
 
 problems = []
 # The screens, and the notifications (their text is shown by the system, outside the screens).

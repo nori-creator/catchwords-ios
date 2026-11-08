@@ -11380,5 +11380,229 @@
   "es": "Haz fotos de todo lo que encuentras cada día y haz crecer un cuaderno de palabras solo tuyo.",
   "ko": "매일 만나는 여러 가지 물건을 찍어서 나만의 단어장을 키워 보세요.",
   "vi": "Hãy chụp những thứ bạn gặp mỗi ngày và nuôi lớn sổ từ vựng của riêng bạn."
+ },
+ "AI の利用に同意すると、しらべるが使えます。": {
+  "en": "Agree to the use of AI to look up words.",
+  "zh-TW": "同意使用 AI 後，就能使用查詢。",
+  "es": "Acepta el uso de la IA para buscar palabras.",
+  "ko": "AI 이용에 동의하면 찾아보기를 쓸 수 있어요.",
+  "vi": "Đồng ý sử dụng AI để tra từ."
+ },
+ "「{1}」をしらべる": {
+  "en": "Look up “{1}”",
+  "zh-TW": "查詢「{1}」",
+  "es": "Buscar «{1}»",
+  "ko": "‘{1}’ 찾아보기",
+  "vi": "Tra “{1}”"
+ },
+ "あなたの図鑑": {
+  "en": "In your collection",
+  "zh-TW": "你的圖鑑",
+  "es": "En tu colección",
+  "ko": "내 도감",
+  "vi": "Trong bộ sưu tập của bạn"
+ },
+ "あなたの言葉で": {
+  "en": "In your language",
+  "zh-TW": "用你的語言",
+  "es": "En tu idioma",
+  "ko": "내 언어로",
+  "vi": "Bằng ngôn ngữ của bạn"
+ },
+ "こんな言葉で引けます": {
+  "en": "You can look up",
+  "zh-TW": "可以這樣查",
+  "es": "Puedes buscar así",
+  "ko": "이렇게 찾을 수 있어요",
+  "vi": "Bạn có thể tra như sau"
+ },
+ "しらべています": {
+  "en": "Looking up…",
+  "zh-TW": "查詢中…",
+  "es": "Buscando…",
+  "ko": "찾는 중…",
+  "vi": "Đang tra…"
+ },
+ "しらべる": {
+  "en": "Look up",
+  "zh-TW": "查詢",
+  "es": "Buscar",
+  "ko": "찾아보기",
+  "vi": "Tra cứu"
+ },
+ "すべて消す": {
+  "en": "Clear all",
+  "zh-TW": "全部清除",
+  "es": "Borrar todo",
+  "ko": "모두 지우기",
+  "vi": "Xóa tất cả"
+ },
+ "ほかの言い方": {
+  "en": "Other words",
+  "zh-TW": "其他說法",
+  "es": "Otras palabras",
+  "ko": "다른 말",
+  "vi": "Cách nói khác"
+ },
+ "カードを作れませんでした。もう一度お試しください。": {
+  "en": "Couldn't make the card. Please try again.",
+  "zh-TW": "無法建立卡片，請再試一次。",
+  "es": "No se pudo crear la tarjeta. Inténtalo de nuevo.",
+  "ko": "카드를 만들지 못했어요. 다시 시도해 주세요.",
+  "vi": "Không tạo được thẻ. Vui lòng thử lại."
+ },
+ "使い分け": {
+  "en": "Which one to use",
+  "zh-TW": "怎麼區分",
+  "es": "Cuál usar",
+  "ko": "구분해서 쓰기",
+  "vi": "Cách phân biệt"
+ },
+ "例文を聞く": {
+  "en": "Listen to the example",
+  "zh-TW": "聽例句",
+  "es": "Escuchar el ejemplo",
+  "ko": "예문 듣기",
+  "vi": "Nghe câu ví dụ"
+ },
+ "傘": {
+  "en": "umbrella",
+  "zh-TW": "雨傘",
+  "es": "paraguas",
+  "ko": "우산",
+  "vi": "cái ô"
+ },
+ "写真: {1}": {
+  "en": "Photo: {1}",
+  "zh-TW": "照片：{1}",
+  "es": "Foto: {1}",
+  "ko": "사진: {1}",
+  "vi": "Ảnh: {1}"
+ },
+ "写真を選ぶ": {
+  "en": "Choose a picture",
+  "zh-TW": "選擇圖片",
+  "es": "Elegir una imagen",
+  "ko": "사진 고르기",
+  "vi": "Chọn ảnh"
+ },
+ "別の言い方や、読みでも引けます。": {
+  "en": "Try another word, or type how it's read.",
+  "zh-TW": "換個說法，或用讀音也可以查。",
+  "es": "Prueba con otra palabra o escribe cómo se pronuncia.",
+  "ko": "다른 말이나 발음으로도 찾을 수 있어요.",
+  "vi": "Hãy thử từ khác, hoặc gõ cách đọc."
+ },
+ "同意して使う": {
+  "en": "Agree and continue",
+  "zh-TW": "同意並使用",
+  "es": "Aceptar y continuar",
+  "ko": "동의하고 사용하기",
+  "vi": "Đồng ý và sử dụng"
+ },
+ "図鑑で開く": {
+  "en": "Open in collection",
+  "zh-TW": "在圖鑑中打開",
+  "es": "Abrir en la colección",
+  "ko": "도감에서 열기",
+  "vi": "Mở trong bộ sưu tập"
+ },
+ "図鑑と復習に入ります": {
+  "en": "It joins your collection and reviews.",
+  "zh-TW": "會加入圖鑑和複習。",
+  "es": "Se añade a tu colección y a tus repasos.",
+  "ko": "도감과 복습에 들어가요.",
+  "vi": "Từ sẽ có trong bộ sưu tập và phần ôn tập."
+ },
+ "図鑑にあり": {
+  "en": "In collection",
+  "zh-TW": "已在圖鑑",
+  "es": "En la colección",
+  "ko": "도감에 있음",
+  "vi": "Đã có"
+ },
+ "字から覚える": {
+  "en": "Learn it from its characters",
+  "zh-TW": "從字記住",
+  "es": "Apréndela por sus caracteres",
+  "ko": "글자로 익히기",
+  "vi": "Nhớ qua từng chữ"
+ },
+ "専門用語": {
+  "en": "Technical",
+  "zh-TW": "專業用語",
+  "es": "Técnico",
+  "ko": "전문 용어",
+  "vi": "Thuật ngữ"
+ },
+ "履歴から消す": {
+  "en": "Remove from history",
+  "zh-TW": "從紀錄中移除",
+  "es": "Quitar del historial",
+  "ko": "기록에서 삭제",
+  "vi": "Xóa khỏi lịch sử"
+ },
+ "最近しらべた言葉": {
+  "en": "Recent",
+  "zh-TW": "最近查過的詞",
+  "es": "Búsquedas recientes",
+  "ko": "최근 찾아본 단어",
+  "vi": "Đã tra gần đây"
+ },
+ "漢字で": {
+  "en": "In characters",
+  "zh-TW": "用漢字",
+  "es": "Con caracteres",
+  "ko": "한자로",
+  "vi": "Bằng chữ Hán"
+ },
+ "看板・メニュー": {
+  "en": "Signs & menus",
+  "zh-TW": "招牌、菜單",
+  "es": "Carteles y menús",
+  "ko": "간판·메뉴",
+  "vi": "Biển hiệu, thực đơn"
+ },
+ "見かけた言葉を、その場で。": {
+  "en": "Look up what you see, right where you are.",
+  "zh-TW": "看到的詞，當場就查。",
+  "es": "Busca lo que ves, en el momento.",
+  "ko": "본 단어를 그 자리에서.",
+  "vi": "Thấy từ nào, tra ngay tại chỗ."
+ },
+ "見つかりませんでした": {
+  "en": "Nothing found",
+  "zh-TW": "找不到",
+  "es": "No se encontró nada",
+  "ko": "찾지 못했어요",
+  "vi": "Không tìm thấy"
+ },
+ "言葉・漢字・読みでしらべる": {
+  "en": "Search a word, character or reading",
+  "zh-TW": "輸入詞語、漢字或讀音",
+  "es": "Busca una palabra, un carácter o su lectura",
+  "ko": "단어·한자·발음으로 찾기",
+  "vi": "Tìm theo từ, chữ Hán hoặc cách đọc"
+ },
+ "読みで（声調なしでも）": {
+  "en": "By how it's read (tones optional)",
+  "zh-TW": "用讀音（不標聲調也可以）",
+  "es": "Por su lectura (sin tonos también)",
+  "ko": "발음으로 (성조 없이도)",
+  "vi": "Theo cách đọc (không cần dấu thanh)"
+ },
+ "辞書": {
+  "en": "Dictionary",
+  "zh-TW": "辭典",
+  "es": "Diccionario",
+  "ko": "사전",
+  "vi": "Từ điển"
+ },
+ "通信に失敗しました。もう一度お試しください。": {
+  "en": "Couldn't connect. Please try again.",
+  "zh-TW": "連線失敗，請再試一次。",
+  "es": "No se pudo conectar. Inténtalo de nuevo.",
+  "ko": "연결하지 못했어요. 다시 시도해 주세요.",
+  "vi": "Không kết nối được. Vui lòng thử lại."
  }
 }

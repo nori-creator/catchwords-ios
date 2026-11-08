@@ -251,7 +251,15 @@ final class DexStore {
 
     /// The photos the home album shows (the ones taken off the album stay in the dex only).
     /// Re-encounter photos are pages too, on the day they were met (`albumEncounters`).
-    var albumStickers: [Sticker] { (stickers + albumEncounters).filter { !albumHidden.contains($0.id) } }
+    /// The home album's photos. A word looked up in しらべる with no photo of its own (`capture_type` text) is in the dex
+    /// and the review, never in the album: the album is the learner's own photos (owner 2026-11-08 — the dictionary is
+    /// a separate way in from the camera). Its later photo, if the thing is caught, is an encounter and shows there.
+    var albumStickers: [Sticker] {
+        (stickers + albumEncounters).filter { !albumHidden.contains($0.id) && !Self.isLookupOnly($0) }
+    }
+
+    /// Looked up (しらべる) and never photographed.
+    nonisolated static func isLookupOnly(_ s: Sticker) -> Bool { s.captureType == "text" && !s.hasOwnPhoto }
     /// How many of this account's photos are off the album (the ones still in the dex or met again).
     var albumHiddenCount: Int { (stickers + albumEncounters).filter { albumHidden.contains($0.id) }.count }
 
@@ -878,6 +886,51 @@ final class DexStore {
     static func isAccountChanged(_ error: Error) -> Bool {
         if case .server(409, "account changed")? = SaveFailure.root(error) as? APIError { return true }
         return false
+    }
+
+    // MARK: - しらべる: a looked-up word into the dex
+
+    /// Saves a word found in しらべる (`LookupEntryView`) without a photo: the same `saveSticker` as a catch, marked
+    /// `capture_type: text`, with the card made while its entry was open. The picture the learner picked becomes its
+    /// stand-in (`setPlaceholder`); none picked, the internet's first picture is found later (`autoHeroSoon`). A word
+    /// already in the dex comes back as it is (the server returns its sticker; nothing is added).
+    func saveLookup(_ entry: LookupEntry, card: CardDetails, picture: WebImageCandidate?) async throws -> Sticker {
+        guard let uid = client.userId else { throw APIError.unauthorized }
+        let language = NativeAPI.targetLanguage
+        let word = Self.wordFields(entry.candidate, card)
+        let data: [String: Any] = [
+            "client_catch_id": UUID().uuidString.lowercased(),
+            "word": word,
+            "new_shelf": NSNull(),
+            "language": language,
+            "capture_type": "text",
+        ]
+        struct Saved: Decodable {
+            let id: String
+            let wordId: String?
+            enum CodingKeys: String, CodingKey { case id, wordId = "word_id" }
+        }
+        let saved = try await NativeAPI.call("saveSticker", data, as: Saved.self, timeout: 45, asUser: uid, retryOnDrop: true)
+        guard client.userId == uid else { throw Self.accountChanged }
+        if let had = sticker(id: saved.id) { return had }
+        let fresh = (try? await fetchSticker(id: saved.id)) ?? present([Sticker(
+            id: saved.id, wordId: saved.wordId ?? "", objectImageUrl: nil, cutoutImageUrl: nil, selfieImageUrl: nil,
+            caption: nil, locationName: nil, takenAt: Date(), captureType: "text",
+            word: Self.localWord(word, id: saved.wordId ?? "", language: language)
+        )])[0]
+        guard client.userId == uid else { throw Self.accountChanged }
+        if language == self.language, !stickers.contains(where: { $0.id == fresh.id }) {
+            stickers.insert(fresh, at: 0)
+            savedSinceLoad.insert(fresh.id)
+        }
+        retireSample(ifDuplicating: fresh)
+        scheduleSnapshot()
+        if let picture, !fresh.hasOwnPhoto, fresh.placeholderImageUrl == nil {
+            if (try? await setPlaceholder(fresh, to: picture)) == nil { autoHeroSoon(fresh) }
+        } else {
+            autoHeroSoon(fresh)
+        }
+        return sticker(id: fresh.id) ?? fresh
     }
 
     // MARK: - Uploads ahead (card catch: the photos go up while the card is on screen)

@@ -242,6 +242,10 @@ struct UIPreviewRoot: View {
             case "aiconsent": AIConsentView()
             case "paywall": PaywallView()
             case "dex": DexView()
+            // しらべる (owner 2026-11-08): the first screen, a search's answer, one entry.
+            case "lookup": LookupSearchPreview(answered: false)
+            case "lookup-results": LookupSearchPreview(answered: true)
+            case "lookup-entry": LookupEntryPreview()
             case "done": DonePreview()
             case "home": HomePreview()
             case "home-again": HomePreview(metAgain: true)
