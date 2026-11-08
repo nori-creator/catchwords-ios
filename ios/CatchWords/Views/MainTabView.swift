@@ -443,6 +443,14 @@ struct MainTabView: View {
         }
         #if DEBUG
         .task { await openStoreShot() }
+        // UI test (`WordOpenTests.test_catchLimitSheet`): the day's-limit sheet opened as the shutter opens it.
+        .task {
+            guard UserDefaults.standard.bool(forKey: "uiCatchLimitSheet") else { return }
+            // After the AI consent (shown over this screen first), as on a phone.
+            for _ in 0..<120 where !AIConsent.shared.isGranted { try? await Task.sleep(for: .milliseconds(500)) }
+            try? await Task.sleep(for: .seconds(2))
+            router.showLimitReached()
+        }
         #endif
         .onChange(of: NotificationRouter.shared.pending) { _, route in openNotification(route) }
         // A word's reminder or widget tapped at launch waits for the dex to know that word.
@@ -480,6 +488,10 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $router.showCatchLimit) {
             CatchLimitSheet()
+                // The sheet is presented from outside `.environment(router)` above, so it gets the router here: without
+                // it the sheet's `@Environment(AppRouter.self)` stopped the app the moment the day's last free catch was
+                // used and the shutter was pressed again (TestFlight 1.0.5 (1089), 2026-11-08 21:07).
+                .environment(router)
                 // Half the screen held it on most iPhones; on a small one (SE) or with large text the ad's button was
                 // cut off (check 2026-11-03 B6): it can be pulled up to the whole screen.
                 .presentationDetents([.medium, .large])
