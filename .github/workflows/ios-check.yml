@@ -39,6 +39,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
 
       - name: 表示の言語が混ざらないか確かめる（訳のない日本語や、どれか1つの表示言語の訳が無ければ失敗）
         run: |
@@ -414,6 +415,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
 
       - name: シミュレーターを先に起動する
         run: |
@@ -513,6 +515,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
       - name: Xcode の版と、App Store Connect へ送る道具（altool）があるか
         run: |
           xcodebuild -version
@@ -546,6 +549,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
 
       - name: Xcode の版と iPhone Duo のシミュレーターを表示
         run: |

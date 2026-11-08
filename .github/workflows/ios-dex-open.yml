@@ -18,6 +18,7 @@ jobs:
         device: [iphone, ipad]
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
       - name: シミュレーターを選んで起動する
         run: |
           UDID=$(xcrun simctl list devices available -j | DEVICE=${{ matrix.device }} python3 -c '

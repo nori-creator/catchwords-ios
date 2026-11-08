@@ -49,6 +49,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
 
       - name: 必要な設定がそろっているか確かめる
         env:
