@@ -361,6 +361,17 @@ struct TourLayer: View {
                         // 消えるとどうやって次に進めばいいかわからない…そのような箇所がない場合は、白い案内が消えても次へ
                         // ボタンが表示されるように」): the learner taps the blue-lined place, or this 次へ.
                         let pillNext = hole != nil && step.litPlaceMovesOn ? nil : step.nextLabel
+                        // The band reads as the bar it is: the page fades out under it (a scrolled page's words pass
+                        // under it as they pass under the tab bar), so the pill never sits on words.
+                        let bandBottom = geo.size.height - max(insets.bottom, 12) - bottomClearance
+                        let bandHeight = AppRouter.tourBandHeight + 14
+                        LinearGradient(stops: [.init(color: Theme.background.opacity(0), location: 0),
+                                               .init(color: Theme.background.opacity(0.97), location: 0.32)],
+                                       startPoint: .top, endPoint: .bottom)
+                            .frame(width: geo.size.width, height: bandHeight)
+                            .position(x: geo.size.width / 2, y: bandBottom - bandHeight / 2)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
                         TourCardPill(step: step, nextLabel: pillNext, onNext: onNext, onEnd: onEnd) {
                             showCard(again: true, fades: fades(hasPlace))
                         }
