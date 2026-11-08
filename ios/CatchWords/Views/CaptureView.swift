@@ -458,6 +458,10 @@ struct CaptureView: View {
     private var cameraFailed: Bool { !demoCamera && (camera.state == .denied || camera.state == .unavailable) }
     /// Something to shoot: the live camera, or the demo's sample photo.
     private var canShoot: Bool { cameraLive || demoCamera }
+    /// The guide's 撮る card (the camera and the selfie step) is on screen: the shutter waits until it has gone (4 s, or its
+    /// ✕), so nothing is shot while the card covers the picture (owner 2026-11-08: 「白い解説が閉じる前に、シャッターボタンを
+    /// 押して、画面を確認できないまま、変な画像を撮ってしまった」).
+    private var tourHoldsShutter: Bool { router.tour == .shoot && router.tourCardVisible }
 
     /// 1× 2× 3× 5× (CameraZoomMeter): the lit stop follows pinch zoom too.
     private var zoomPills: some View {
@@ -502,7 +506,7 @@ struct CaptureView: View {
                 .buttonStyle(PressableStyle(scale: 0.9))
             }
             Spacer()
-            ShutterButton(enabled: canShoot, arriving: router.shutterFlying) { shoot() }
+            ShutterButton(enabled: canShoot && !tourHoldsShutter, arriving: router.shutterFlying) { shoot() }
                 .opacity(shooting ? 0 : 1)
                 .allowsHitTesting(!shooting)
                 // The first tour's 撮る step lights the shutter and dims the rest. With the camera denied or

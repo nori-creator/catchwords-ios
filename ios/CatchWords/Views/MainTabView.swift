@@ -102,6 +102,9 @@ final class AppRouter {
     /// screen's own スキップ goes on with the catch; then 「自撮りの時のものと一緒に撮ってみようっていう案内が出なかった」
     /// when the card was hidden over the whole step).
     var selfieStep = false
+    /// The guide's card is on screen (not yet gone away): the 撮る step's shutter waits for it (owner 2026-11-08: a learner
+    /// pressed the shutter while the card covered the picture and took a picture they had not seen).
+    var tourCardVisible = false
     /// The word caught during the tour (used by the Dex / word / review steps).
     var tourStickerId: String?
     /// `.wordSection`: the word page's section the guide is on, and the page's sections in order (the page tells).
@@ -380,6 +383,7 @@ struct MainTabView: View {
                           onBack: selfieShot ? nil : tourBackAction,
                           selfie: router.tour == .shoot && (router.cameraFront || router.selfieStep),
                           hidesSkip: selfieShot,
+                          onCardShown: { router.tourCardVisible = $0 },
                           bottomClearance: router.barRoom(84, rail: 12))
                     .transition(.opacity)
             }

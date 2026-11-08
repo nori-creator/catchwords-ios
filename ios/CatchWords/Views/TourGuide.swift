@@ -280,6 +280,8 @@ struct TourLayer: View {
     var selfie: Bool = false
     /// No スキップ on the card (the selfie step after the shutter: the screen's own スキップ keeps the photo).
     var hidesSkip: Bool = false
+    /// Told whether the card is on screen (the camera's shutter waits for it to go, `AppRouter.tourCardVisible`).
+    var onCardShown: ((Bool) -> Void)? = nil
     /// Room kept under a card at the bottom: the tab bar's (84) over the tabs, little over the word's page (a sheet).
     var bottomClearance: CGFloat = 84
     /// The pill's middle above `bottomClearance` when it sits at the bottom.
@@ -390,6 +392,8 @@ struct TourLayer: View {
             }
             .ignoresSafeArea()
         }
+        .onChange(of: cardHidden, initial: true) { _, hidden in onCardShown?(!hidden) }
+        .onDisappear { onCardShown?(false) }
         .onAppear {
             arrive(hasPlace)
             showCard(again: false, fades: fades(hasPlace))
