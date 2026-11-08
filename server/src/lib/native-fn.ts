@@ -51,6 +51,7 @@ const analytics = () => import("./analytics.functions");
 const reports = () => import("./reports.functions");
 const sentenceReadings = () => import("./sentence-readings.functions");
 const standing = () => import("./standing.functions");
+const dictionary = () => import("./dictionary.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -66,6 +67,9 @@ export const NATIVE_FNS: Record<string, Loader> = {
   suggestWordCandidates: from(ai, "suggestWordCandidates"),
   // 候補の何番目を選んだか（モデルごとの候補の当たり。`candidate-pick.functions.ts`）
   logCandidatePick: from(candidatePick, "logCandidatePick"),
+  // しらべる（辞書。2026-11-08）: 打った言葉 → 学習言語の見出しと字の成り立ち・使い分け・例文（`dictionary.functions.ts`）。
+  // 入力 { query, targetLanguage } → { query, mode, entries }
+  lookupWord: from(dictionary, "lookupWord"),
   generateCard: from(ai, "generateCard"),
   // アプリの使い方の記録（開いた・画面・質問とチュートリアルの段・上限と広告・通知とウィジェット。
   // 1.0.5 から。種類と許可した小さな情報だけ — `metrics.functions.ts` の APP_EVENTS / AppEventMeta）。

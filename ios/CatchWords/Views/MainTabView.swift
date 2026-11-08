@@ -62,6 +62,8 @@ final class AppRouter {
     /// A catch landing in progress: the dex opens in ギャラリー and the star flies into the slot.
     var landing: CatchLandingController?
     var detailSticker: Sticker?
+    /// しらべる (the dictionary) is open over the tabs (the magnifier at the top of the home screen).
+    var lookupOpen: Bool = false
     /// The later photo (`encounters` id) the word page opens on, when it was opened from that photo (check 2026-11-03 H7).
     var detailEncounterId: String?
     var showPaywall: Bool = false
@@ -419,6 +421,19 @@ struct MainTabView: View {
         .fullScreenCover(item: wideScreen && !wordPageInline ? $router.detailSticker : Binding<Sticker?>.constant(nil),
                          onDismiss: wordPageDismissed) { sticker in
             wordPage(sticker)
+        }
+        // しらべる: over every tab. A word opened from it (one of the learner's own, or one just added) closes it first,
+        // then its page opens as from the dex.
+        .fullScreenCover(isPresented: Binding(get: { router.lookupOpen }, set: { router.lookupOpen = $0 })) {
+            LookupSearchView { sticker in
+                router.lookupOpen = false
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
+                    router.detailSticker = dex.current(sticker.id) ?? sticker
+                }
+            }
+            .environment(dex)
+            .environment(router)
         }
         .animation(.spring(response: 0.42, dampingFraction: 0.9), value: wordPageInline ? router.detailSticker?.id : nil)
         .onGeometryChange(for: Bool.self) { $0.size.width >= 800 && $0.size.width > $0.size.height } action: { wideScreen = $0 }

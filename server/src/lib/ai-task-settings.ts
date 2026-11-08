@@ -58,6 +58,7 @@ const VISION_TASKS: ReadonlySet<string> = new Set([
 export const IOS_AI_TASKS: readonly AiTask[] = [
   "photo_candidates",
   "word_candidates",
+  "word_lookup",
   "card",
   "reader_meaning",
   "section_regen",
@@ -98,6 +99,14 @@ const TASK_TEXT: Record<string, { label: Label; description: Label }> = {
       "「違う単語を入力」で調べた語の候補",
       "Candidates for a word typed in your language",
       "「輸入其他單字」時的候選",
+    ),
+  },
+  word_lookup: {
+    label: L("しらべる（辞書）", "Look up (dictionary)", "查詢（辭典）"),
+    description: L(
+      "打った言葉から学習言語の見出し・字の成り立ち・使い分け・例文を出す",
+      "Finds entries, character meanings, usage differences and an example for what you typed",
+      "從輸入的詞找出詞條、字的組成、用法差異與例句",
     ),
   },
   scan_detect: {

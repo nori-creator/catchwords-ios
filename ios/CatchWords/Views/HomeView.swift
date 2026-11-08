@@ -361,6 +361,21 @@ struct HomeView: View {
                 .scaledFont(size: 18, weight: .medium)
                 .foregroundStyle(Theme.muted)
             Spacer()
+            // しらべる (owner 2026-11-08: 「辞書の代わりになるようにしたい」): beside the calendar, the same round button.
+            Button {
+                SoundService.shared.pon(open: true)
+                router.lookupOpen = true
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color(hex: 0x33291F))
+                    .frame(width: 44, height: 44)
+                    .background(Color(hex: 0x33291F, opacity: 0.07), in: Circle())
+            }
+            .buttonStyle(PressableStyle(scale: 0.92))
+            .disabled(albumEditing)
+            .accessibilityLabel(L("しらべる"))
+            .accessibilityIdentifier("home.lookup")
             Button {
                 SoundService.shared.pon(open: true)
                 calendarOpen = true

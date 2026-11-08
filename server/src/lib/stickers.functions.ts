@@ -794,6 +794,12 @@ const SaveStickerInput = z.object({
    * （2026-11-03 点検 B1・T35）。先の時刻・90日より前・読めない値は無かったことにする（今の時刻）。
    */
   taken_at: z.string().max(40).nullable().optional(),
+  /**
+   * どう出会った語か（`stickers.capture_type`）。省けば今までどおり写真（`photo`）。
+   * `text` = しらべる（辞書）で引いて図鑑に入れた語（2026-11-08）。写真が無いのでホームのアルバムには出さない（iOS）。
+   * 知らない値は写真として扱う（DB の制約は photo / text / voice）。
+   */
+  capture_type: z.enum(["photo", "text"]).optional().catch(undefined),
 });
 
 /** 保存に使う撮った時。使えない値は null（列の既定 = 今）。 */
@@ -1400,6 +1406,18 @@ export const saveSticker = createServerFn({ method: "POST" })
         .maybeSingle();
       if (existing) return { id: existing.id, word_id: existing.word_id, first_catch: false };
     }
+    // 辞書で引いた語がもう図鑑に在れば、その札を返すだけ（写真の無い「再会」は記録しない — 出会った写真が無い）。
+    if (data.capture_type === "text") {
+      const { data: owned } = await supabase
+        .from("stickers")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("word_id", wordId)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (owned?.id) return { id: owned.id as string, word_id: wordId, first_catch: false, owned: true };
+    }
     // ひと言・自撮りがある回は再会にしない（`mayReuseOwnedSticker`）。
     if (mayReuseOwnedSticker(data, userId)) {
       const reused = await reuseOwnedSticker(supabase, userId, wordId, {
@@ -1431,6 +1449,8 @@ export const saveSticker = createServerFn({ method: "POST" })
       // 型定義は生成物で、`shelf_key` はそれより新しい列。
       // `current_level` のときと同じで、緩いクライアントとして扱う。
       ...(shelfKey ? { shelf_key: shelfKey } : {}),
+      // 写真の語は列の既定（photo）のまま。辞書で引いた語だけ text と書く。
+      ...(data.capture_type === "text" ? { capture_type: "text" } : {}),
     } as Record<string, unknown>;
     let res = await supabase
       .from("stickers")

@@ -35,6 +35,7 @@ final class AIConsent {
         "detectScan",             // scan frame → words
         "rankScanCandidates",     // the words a scan found
         "suggestWordCandidates",  // typed or spoken word → names
+        "lookupWord",             // しらべる: typed word → dictionary entries
         "generateCard",           // word → card, notes, example sentences
         "regenerateCardSection",  // word → one section written again
         "reportAndFixSection",    // the learner's note on a wrong item
