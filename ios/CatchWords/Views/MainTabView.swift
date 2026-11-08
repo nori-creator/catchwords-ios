@@ -95,6 +95,10 @@ final class AppRouter {
     /// The camera screen's camera faces the learner (切替): the tour's 撮る card then says to shoot themselves with the
     /// thing (owner 2026-11-07: 「自撮りモードで何を撮ればいいかわからない。物と一緒に撮ってみようというふうな解説文」).
     var cameraFront = false
+    /// A photo has been taken and the catch is under way before its tags (the selfie step, the analysis): the 撮る
+    /// card is not shown then (owner 2026-11-08: its スキップ over the selfie step left the catch, and the photo was
+    /// never saved). The selfie screen's own スキップ goes on with the catch.
+    var photoInFlight = false
     /// The word caught during the tour (used by the Dex / word / review steps).
     var tourStickerId: String?
     /// `.wordSection`: the word page's section the guide is on, and the page's sections in order (the page tells).
@@ -366,6 +370,7 @@ struct MainTabView: View {
             // The catch hides the tab bar for its whole flow; its capture steps still need the guide. Never over a
             // word landing in the dex: the card waits until the word has landed (it used to darken the landing).
             if router.tour != .off, !router.tour.isWord, !router.tour.isSilent, router.tour != .complete, router.landing == nil,
+               !(router.tour == .shoot && router.photoInFlight),
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: tourSkip, onEnd: endTour,
                           onBack: tourBackAction, selfie: router.tour == .shoot && router.cameraFront,
@@ -393,7 +398,11 @@ struct MainTabView: View {
         .overlay {
             if router.tour == .complete {
                 // The catch's picture; the sample word's when the catch is gone (never the bare logo while a word exists).
-                TourCompleteView(sticker: router.tourStickerId.flatMap { dex.sticker(id: $0) } ?? dex.stickers.first { $0.isSample },
+                // Owner 2026-11-08: the picture the learner took, wherever there is one — the guide's catch, else their
+                // newest own word — and the sample only when they have none.
+                TourCompleteView(sticker: router.tourStickerId.flatMap { dex.sticker(id: $0) }
+                                    ?? dex.stickers.filter { !$0.isSample }.max { $0.takenAt < $1.takenAt }
+                                    ?? dex.stickers.first { $0.isSample },
                                  onDone: { endTour() }, onAgain: { restartTour() })
                     .transition(.opacity.combined(with: .scale(scale: 1.02)))
                     .zIndex(3)
