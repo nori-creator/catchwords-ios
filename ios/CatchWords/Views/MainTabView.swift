@@ -55,7 +55,15 @@ final class AppRouter {
     var railOverhang: CGFloat { usesRail ? max(0, Self.railWidth - railStrip) : 0 }
     /// The room a screen keeps at its bottom for the floating tab bar: `bar` with the bar at the bottom, `rail` (just the
     /// usual margin) when the bar is a rail at the side.
-    func barRoom(_ bar: CGFloat, rail: CGFloat = 16) -> CGFloat { usesRail ? rail : bar }
+    func barRoom(_ bar: CGFloat, rail: CGFloat = 16) -> CGFloat { tabBarRoom(bar, rail: rail) + tourBand }
+    /// The tab bar's room alone, without the guide's band.
+    func tabBarRoom(_ bar: CGFloat, rail: CGFloat = 16) -> CGFloat { usesRail ? rail : bar }
+    /// While the first guide runs, every screen keeps a band above the tab bar for the guide's pill (「案内を見る」・「次へ」・
+    /// 「終了」), the same on every step so nothing jumps: the pill never lies on the page's words or buttons (owner
+    /// 2026-11-08: 「次へボタンはページ内の文字や機能に被らないようにして」). Scrolled pages end above it; the shutter, the
+    /// review's choices and the like stand above it.
+    var tourBand: CGFloat { tour != .off && tour != .complete ? Self.tourBandHeight : 0 }
+    static let tourBandHeight: CGFloat = 64
     var landingStickerId: String?
     /// The catch's star waiting for the save: it leaves from the celebration's sticker (CaptureView → CatchLanding).
     var catchStar: CatchStar?
@@ -374,7 +382,7 @@ struct MainTabView: View {
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: tourSkip, onEnd: endTour,
                           onBack: tourBackAction, selfie: router.tour == .shoot && router.cameraFront,
-                          bottomClearance: router.barRoom(84, rail: 12))
+                          bottomClearance: router.tabBarRoom(84, rail: 12))
                     .transition(.opacity)
             }
         }

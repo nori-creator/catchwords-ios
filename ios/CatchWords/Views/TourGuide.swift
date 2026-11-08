@@ -277,7 +277,10 @@ struct TourLayer: View {
     /// The 撮る step with the camera facing the learner: the card says to shoot themselves with the thing.
     var selfie: Bool = false
     /// Room kept under a card at the bottom: the tab bar's (84) over the tabs, little over the word's page (a sheet).
+    /// The tab bar's alone: the guide's band (`AppRouter.tourBand`) above it is where the pill goes.
     var bottomClearance: CGFloat = 84
+    /// The pill's middle above `bottomClearance`, inside the band.
+    static let pillLift: CGFloat = 26
     /// `.wordSection`: the word page's section the light is on (its card names it).
     var section: CardSection? = nil
 
@@ -350,20 +353,19 @@ struct TourLayer: View {
                             .position(x: Self.cardX(hole: hole, width: cardWidth, in: geo.size), y: place.midY)
                     }
                     if showsCard, cardHidden {
-                        // The card's stand-in while it is away: the step and a short word, out of the picture's way.
-                        // Never over the place the learner presses (owner 2026-11-08: 「終了」 sat on the dex's next view
-                        // button): above the tab bar when the lit place is near the top or there is none (the 図鑑's
-                        // view buttons are at the top), else at the top.
+                        // The card's stand-in while it is away, in the band every screen keeps free above the tab bar
+                        // while the guide runs (`AppRouter.tourBand`): never on the page's words or buttons (owner
+                        // 2026-11-08: 「終了」 sat on the dex's view buttons, then 「次へボタンはページ内の文字や機能に
+                        // 被らないようにして」).
                         // A step that nothing on the screen moves on keeps its 次へ here (owner 2026-11-08 「白い案内が
                         // 消えるとどうやって次に進めばいいかわからない…そのような箇所がない場合は、白い案内が消えても次へ
                         // ボタンが表示されるように」): the learner taps the blue-lined place, or this 次へ.
-                        let low = hole.map { $0.midY < geo.size.height * 0.4 } ?? true
                         let pillNext = hole != nil && step.litPlaceMovesOn ? nil : step.nextLabel
                         TourCardPill(step: step, nextLabel: pillNext, onNext: onNext, onEnd: onEnd) {
                             showCard(again: true, fades: fades(hasPlace))
                         }
                             .position(x: geo.size.width / 2,
-                                      y: low ? geo.size.height - max(insets.bottom, 12) - bottomClearance - 26 : insets.top + 24)
+                                      y: geo.size.height - max(insets.bottom, 12) - bottomClearance - Self.pillLift)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
