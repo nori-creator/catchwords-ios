@@ -157,6 +157,8 @@ enum TourStep: String, Equatable {
     /// Tapping the lit place itself moves the guide on (the 図鑑's next view button), so the card's 次へ need not stay
     /// on the pill there.
     var litPlaceMovesOn: Bool { self == .dexCover || self == .dexMap }
+    /// The 図鑑's view steps: its view buttons sit at the top, so the pill goes above the tab bar there.
+    var isDexView: Bool { self == .dexCover || self == .dexMap || self == .dexGrid || self == .dexShadow }
 
     /// The old device-wide flag "the first tour is still to run". Now only a hand-over: kept per account
     /// (`tour.pending.<userId>`, R6-05) like `OnboardingState`, so one account's unfinished tour never opens
@@ -276,11 +278,14 @@ struct TourLayer: View {
     var onBack: (() -> Void)? = nil
     /// The 撮る step with the camera facing the learner: the card says to shoot themselves with the thing.
     var selfie: Bool = false
+    /// No スキップ on the card (the selfie step after the shutter: the screen's own スキップ keeps the photo).
+    var hidesSkip: Bool = false
     /// Room kept under a card at the bottom: the tab bar's (84) over the tabs, little over the word's page (a sheet).
-    /// The tab bar's alone: the guide's band (`AppRouter.tourBand`) above it is where the pill goes.
     var bottomClearance: CGFloat = 84
-    /// The pill's middle above `bottomClearance`, inside the band.
+    /// The pill's middle above `bottomClearance` when it sits at the bottom.
     static let pillLift: CGFloat = 26
+    /// The page-coloured strip behind the pill at the bottom.
+    static let pillBackdrop: CGFloat = 78
     /// `.wordSection`: the word page's section the light is on (its card names it).
     var section: CardSection? = nil
 
@@ -345,7 +350,7 @@ struct TourLayer: View {
                         // A new card per step (its lines come in again, `shown`), the old one fading out.
                         let cardWidth = Self.cardWidth(in: geo.size)
                         TourCoachCard(step: step, section: section, selfie: selfie,
-                                      onNext: onNext, onSkip: onSkip, onClose: closeCard, onBack: onBack)
+                                      onNext: onNext, onSkip: hidesSkip ? nil : onSkip, onClose: closeCard, onBack: onBack)
                             .id("\(step.rawValue)-\(section?.rawValue ?? "")-\(selfie)")
                             .padding(.horizontal, cardWidth == nil ? 16 : 0)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
@@ -353,30 +358,30 @@ struct TourLayer: View {
                             .position(x: Self.cardX(hole: hole, width: cardWidth, in: geo.size), y: place.midY)
                     }
                     if showsCard, cardHidden {
-                        // The card's stand-in while it is away, in the band every screen keeps free above the tab bar
-                        // while the guide runs (`AppRouter.tourBand`): never on the page's words or buttons (owner
-                        // 2026-11-08: 「終了」 sat on the dex's view buttons, then 「次へボタンはページ内の文字や機能に
-                        // 被らないようにして」).
+                        // The card's stand-in while it is away: at the top as it always was, the screens keeping their
+                        // own layout (owner 2026-11-08: a band kept free above the tab bar moved the shutter and the
+                        // rest — 「アプリ本来の配置を変更してるからそれはしないで元のように」). Above the tab bar where the
+                        // top is what the learner presses: the 図鑑's view buttons (「終了」 sat on them) and a lit place
+                        // near the top; a page-coloured strip behind it there, so it never sits on the page's words.
                         // A step that nothing on the screen moves on keeps its 次へ here (owner 2026-11-08 「白い案内が
                         // 消えるとどうやって次に進めばいいかわからない…そのような箇所がない場合は、白い案内が消えても次へ
                         // ボタンが表示されるように」): the learner taps the blue-lined place, or this 次へ.
+                        let low = step.isDexView || (hole.map { $0.midY < geo.size.height * 0.4 } ?? false)
                         let pillNext = hole != nil && step.litPlaceMovesOn ? nil : step.nextLabel
-                        // The band reads as the bar it is: the page fades out under it (a scrolled page's words pass
-                        // under it as they pass under the tab bar), so the pill never sits on words.
-                        let bandBottom = geo.size.height - max(insets.bottom, 12) - bottomClearance
-                        let bandHeight = AppRouter.tourBandHeight + 14
-                        LinearGradient(stops: [.init(color: Theme.background.opacity(0), location: 0),
-                                               .init(color: Theme.background.opacity(0.97), location: 0.32)],
-                                       startPoint: .top, endPoint: .bottom)
-                            .frame(width: geo.size.width, height: bandHeight)
-                            .position(x: geo.size.width / 2, y: bandBottom - bandHeight / 2)
-                            .allowsHitTesting(false)
-                            .transition(.opacity)
+                        let footY = geo.size.height - max(insets.bottom, 12) - bottomClearance
+                        if low {
+                            LinearGradient(stops: [.init(color: Theme.background.opacity(0), location: 0),
+                                                   .init(color: Theme.background.opacity(0.97), location: 0.32)],
+                                           startPoint: .top, endPoint: .bottom)
+                                .frame(width: geo.size.width, height: Self.pillBackdrop)
+                                .position(x: geo.size.width / 2, y: footY - Self.pillBackdrop / 2)
+                                .allowsHitTesting(false)
+                                .transition(.opacity)
+                        }
                         TourCardPill(step: step, nextLabel: pillNext, onNext: onNext, onEnd: onEnd) {
                             showCard(again: true, fades: fades(hasPlace))
                         }
-                            .position(x: geo.size.width / 2,
-                                      y: geo.size.height - max(insets.bottom, 12) - bottomClearance - Self.pillLift)
+                            .position(x: geo.size.width / 2, y: low ? footY - Self.pillLift : insets.top + 24)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
@@ -628,7 +633,8 @@ struct TourCoachCard: View {
     /// The 撮る step with the front camera on (`TourLayer.selfie`).
     var selfie: Bool = false
     let onNext: () -> Void
-    let onSkip: () -> Void
+    /// nil: no スキップ (the selfie step after the shutter).
+    let onSkip: (() -> Void)?
     /// The ✕: the card closes and the guide goes on (owner 2026-11-08: 「×を押すと白い部分の解説が閉じる…チュートリアルは
     /// 続くように」 — it used to end the guide, over the camera by accident).
     var onClose: (() -> Void)? = nil
@@ -731,7 +737,7 @@ struct TourCoachCard: View {
                     }
                     .buttonStyle(PressableStyle(scale: 0.95))
                     .accessibilityIdentifier("tour.next")
-                } else {
+                } else if let onSkip {
                     // A step the learner acts on: the quiet way past it (owner 2026-11-07: skip = this step only).
                     Button(L("スキップ"), action: onSkip)
                         .scaledFont(size: 15, weight: .medium)

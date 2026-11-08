@@ -250,8 +250,7 @@ struct WordDetailView: View {
         LazyVStack(spacing: 14) { content() }
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            // The guide's pill sits at the page's foot while it runs (`AppRouter.tourBand`): the last card ends above it.
-            .padding(.bottom, 40 + router.tourBand)
+            .padding(.bottom, 40)
             // Exactly the screen's width, even when a part comes out a few points wider (an example line drawn a
             // hair wider than measured, a long translation): wider content let the page slide sideways while it
             // scrolled and spring back (owner 2026-10-28: 「スクロールすると横揺れする」, up to 37 px on a device).

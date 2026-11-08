@@ -55,15 +55,7 @@ final class AppRouter {
     var railOverhang: CGFloat { usesRail ? max(0, Self.railWidth - railStrip) : 0 }
     /// The room a screen keeps at its bottom for the floating tab bar: `bar` with the bar at the bottom, `rail` (just the
     /// usual margin) when the bar is a rail at the side.
-    func barRoom(_ bar: CGFloat, rail: CGFloat = 16) -> CGFloat { tabBarRoom(bar, rail: rail) + tourBand }
-    /// The tab bar's room alone, without the guide's band.
-    func tabBarRoom(_ bar: CGFloat, rail: CGFloat = 16) -> CGFloat { usesRail ? rail : bar }
-    /// While the first guide runs, every screen keeps a band above the tab bar for the guide's pill (「案内を見る」・「次へ」・
-    /// 「終了」), the same on every step so nothing jumps: the pill never lies on the page's words or buttons (owner
-    /// 2026-11-08: 「次へボタンはページ内の文字や機能に被らないようにして」). Scrolled pages end above it; the shutter, the
-    /// review's choices and the like stand above it.
-    var tourBand: CGFloat { tour != .off && tour != .complete ? Self.tourBandHeight : 0 }
-    static let tourBandHeight: CGFloat = 64
+    func barRoom(_ bar: CGFloat, rail: CGFloat = 16) -> CGFloat { usesRail ? rail : bar }
     var landingStickerId: String?
     /// The catch's star waiting for the save: it leaves from the celebration's sticker (CaptureView → CatchLanding).
     var catchStar: CatchStar?
@@ -103,10 +95,13 @@ final class AppRouter {
     /// The camera screen's camera faces the learner (切替): the tour's 撮る card then says to shoot themselves with the
     /// thing (owner 2026-11-07: 「自撮りモードで何を撮ればいいかわからない。物と一緒に撮ってみようというふうな解説文」).
     var cameraFront = false
-    /// A photo has been taken and the catch is under way before its tags (the selfie step, the analysis): the 撮る
-    /// card is not shown then (owner 2026-11-08: its スキップ over the selfie step left the catch, and the photo was
-    /// never saved). The selfie screen's own スキップ goes on with the catch.
+    /// A photo has been taken and is being analysed: the 撮る card is not shown then.
     var photoInFlight = false
+    /// The selfie step after the shutter: the 撮る card says to shoot themselves with the thing, without its スキップ
+    /// and ‹ (owner 2026-11-08: the card's スキップ there left the catch and the photo was never saved — the selfie
+    /// screen's own スキップ goes on with the catch; then 「自撮りの時のものと一緒に撮ってみようっていう案内が出なかった」
+    /// when the card was hidden over the whole step).
+    var selfieStep = false
     /// The word caught during the tour (used by the Dex / word / review steps).
     var tourStickerId: String?
     /// `.wordSection`: the word page's section the guide is on, and the page's sections in order (the page tells).
@@ -380,9 +375,12 @@ struct MainTabView: View {
             if router.tour != .off, !router.tour.isWord, !router.tour.isSilent, router.tour != .complete, router.landing == nil,
                !(router.tour == .shoot && router.photoInFlight),
                !router.cameraFullScreen || (router.tab == .camera && router.tour.isCapture) {
+                let selfieShot = router.tour == .shoot && router.selfieStep
                 TourLayer(step: router.tour, anchors: anchors, onNext: tourNext, onSkip: tourSkip, onEnd: endTour,
-                          onBack: tourBackAction, selfie: router.tour == .shoot && router.cameraFront,
-                          bottomClearance: router.tabBarRoom(84, rail: 12))
+                          onBack: selfieShot ? nil : tourBackAction,
+                          selfie: router.tour == .shoot && (router.cameraFront || router.selfieStep),
+                          hidesSkip: selfieShot,
+                          bottomClearance: router.barRoom(84, rail: 12))
                     .transition(.opacity)
             }
         }
