@@ -21,6 +21,10 @@
   街で使う・取り込む D2、思い出・つながる D3）。**しらべる（下の項）も一から作り直す**（同日「今実装した調べるとか…一から
   やり直して」。PR #42 は下書きのまま）。発音の練習はオーナーの送ったスポーツの動画（姿勢の線・大きな数字・その場のグラフ・
   1回ごとの判定の表）、スキャンの演出はゲームの背表紙のスキャン（Cibby）とカードのスキャンの動画、書き順はひらがなのなぞりの動画が手本。
+  案の頁: A https://claude.ai/artifact/4DtWDCFB6RUdvUPi43n56R ・ B https://claude.ai/artifact/LaG7mqyhgUiM3svsqypGcF ・
+  C https://claude.ai/artifact/72jMoj2gx7hwKYDeznKJCi ・ D1 https://claude.ai/artifact/VyjP47vvxnLeMmDQNmbEV8 ・
+  D2 https://claude.ai/artifact/3e6FVpi7b9ZYc8H8fw1ULW ・ D3 https://claude.ai/artifact/Kr2tf3zNAYv8CpLJ6fHFaL。
+  オーナーが選んだ記号（例: A1、B3）をここに書いてから作る。
 - **しらべる（辞書、2026-11-08）**: ホームの右上の虫めがね。日本語・漢字・読み（声調なし可）で引く（`lookupWord`、
   `server/src/lib/dictionary.functions.ts`）。打っている間は自分の図鑑の語だけがすぐ出て、AI で引くのは検索の時だけ。
   1語ごとに辞書の土台（見出し・読み・意味・使う場・固有名詞の印）と AI にしか書けない物（字ごとの意味となぜその意味に
