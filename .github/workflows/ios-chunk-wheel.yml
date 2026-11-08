@@ -10,6 +10,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
       - name: シミュレーターを選んで起動する
         run: |
           UDID=$(xcrun simctl list devices available -j | python3 -c '
