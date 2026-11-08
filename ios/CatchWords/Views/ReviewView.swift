@@ -140,7 +140,8 @@ struct ReviewView: View {
                 )
                 .accessibilityAction(named: L("次へ")) { goNext() }
                 .tourAnchor(.reviewNext, if: router.tour == .reviewNext)
-                .modifier(AnswerSheetPlace(spread: spread, quizTop: quizTop, viewportHeight: viewportHeight, rail: router.usesRail))
+                .modifier(AnswerSheetPlace(spread: spread, quizTop: quizTop, viewportHeight: viewportHeight, rail: router.usesRail,
+                                            band: router.tourBand))
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
                 .answerSheetColumn(wide: spread, width: viewportWidth, lead: foldLead, trail: foldTrail)
                 .transition(spread ? .opacity.combined(with: .move(edge: .top)) : .move(edge: .bottom).combined(with: .opacity))
@@ -548,6 +549,8 @@ private struct AnswerSheetPlace: ViewModifier {
     let viewportHeight: CGFloat
     /// The tab bar is a rail at the side: nothing to keep clear at the bottom.
     var rail: Bool = false
+    /// The first guide's band above the tab bar (`AppRouter.tourBand`): the sheet's buttons stay above its pill.
+    var band: CGFloat = 0
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -556,12 +559,12 @@ private struct AnswerSheetPlace: ViewModifier {
                 // A card of its own on the page: rounded at the bottom too (on the iPhone it runs off the screen's edge).
                 .clipShape(.rect(cornerRadius: 28, style: .continuous))
                 .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
-                .frame(maxHeight: max(240, viewportHeight - quizTop - (rail ? 24 : 78)), alignment: .top)
+                .frame(maxHeight: max(240, viewportHeight - quizTop - (rail ? 24 : 78) - band), alignment: .top)
                 .padding(.top, max(0, quizTop))
         } else {
             content
-                .padding(.bottom, rail ? 12 : 66)
-                .background(alignment: .bottom) { Theme.card.frame(height: 80) }
+                .padding(.bottom, (rail ? 12 : 66) + band)
+                .background(alignment: .bottom) { Theme.card.frame(height: 80 + band) }
                 .ignoresSafeArea(edges: .bottom)
         }
     }

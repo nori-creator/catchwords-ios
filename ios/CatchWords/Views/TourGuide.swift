@@ -154,6 +154,9 @@ enum TourStep: String, Equatable {
     var isCapture: Bool { self == .shoot || self == .pick || self == .detail || self == .peel }
     /// The steps shown over the word's page (its sheet has a guide layer of its own).
     var isWord: Bool { self == .wordSection || self == .wordSettings }
+    /// Tapping the lit place itself moves the guide on (the 図鑑's next view button), so the card's 次へ need not stay
+    /// on the pill there.
+    var litPlaceMovesOn: Bool { self == .dexCover || self == .dexMap }
 
     /// The old device-wide flag "the first tour is still to run". Now only a hand-over: kept per account
     /// (`tour.pending.<userId>`, R6-05) like `OnboardingState`, so one account's unfinished tour never opens
@@ -274,7 +277,10 @@ struct TourLayer: View {
     /// The 撮る step with the camera facing the learner: the card says to shoot themselves with the thing.
     var selfie: Bool = false
     /// Room kept under a card at the bottom: the tab bar's (84) over the tabs, little over the word's page (a sheet).
+    /// The tab bar's alone: the guide's band (`AppRouter.tourBand`) above it is where the pill goes.
     var bottomClearance: CGFloat = 84
+    /// The pill's middle above `bottomClearance`, inside the band.
+    static let pillLift: CGFloat = 26
     /// `.wordSection`: the word page's section the light is on (its card names it).
     var section: CardSection? = nil
 
@@ -347,13 +353,30 @@ struct TourLayer: View {
                             .position(x: Self.cardX(hole: hole, width: cardWidth, in: geo.size), y: place.midY)
                     }
                     if showsCard, cardHidden {
-                        // The card's stand-in while it is away: the step and a short word, out of the picture's way.
-                        // Never over the place the learner presses (owner 2026-11-08: 「終了」 sat on the dex's next view
-                        // button): at the top, or above the tab bar when the lit place is near the top.
-                        let low = hole.map { $0.midY < geo.size.height * 0.4 } ?? false
-                        TourCardPill(step: step, onEnd: onEnd) { showCard(again: true, fades: fades(hasPlace)) }
+                        // The card's stand-in while it is away, in the band every screen keeps free above the tab bar
+                        // while the guide runs (`AppRouter.tourBand`): never on the page's words or buttons (owner
+                        // 2026-11-08: 「終了」 sat on the dex's view buttons, then 「次へボタンはページ内の文字や機能に
+                        // 被らないようにして」).
+                        // A step that nothing on the screen moves on keeps its 次へ here (owner 2026-11-08 「白い案内が
+                        // 消えるとどうやって次に進めばいいかわからない…そのような箇所がない場合は、白い案内が消えても次へ
+                        // ボタンが表示されるように」): the learner taps the blue-lined place, or this 次へ.
+                        let pillNext = hole != nil && step.litPlaceMovesOn ? nil : step.nextLabel
+                        // The band reads as the bar it is: the page fades out under it (a scrolled page's words pass
+                        // under it as they pass under the tab bar), so the pill never sits on words.
+                        let bandBottom = geo.size.height - max(insets.bottom, 12) - bottomClearance
+                        let bandHeight = AppRouter.tourBandHeight + 14
+                        LinearGradient(stops: [.init(color: Theme.background.opacity(0), location: 0),
+                                               .init(color: Theme.background.opacity(0.97), location: 0.32)],
+                                       startPoint: .top, endPoint: .bottom)
+                            .frame(width: geo.size.width, height: bandHeight)
+                            .position(x: geo.size.width / 2, y: bandBottom - bandHeight / 2)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                        TourCardPill(step: step, nextLabel: pillNext, onNext: onNext, onEnd: onEnd) {
+                            showCard(again: true, fades: fades(hasPlace))
+                        }
                             .position(x: geo.size.width / 2,
-                                      y: low ? geo.size.height - max(insets.bottom, 12) - bottomClearance - 26 : insets.top + 24)
+                                      y: geo.size.height - max(insets.bottom, 12) - bottomClearance - Self.pillLift)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
@@ -512,12 +535,42 @@ struct TourLayer: View {
 /// out of the guide is here).
 struct TourCardPill: View {
     let step: TourStep
+    /// The card's 次へ (or 完了), kept here while the card is away on a step nothing on the screen moves on.
+    var nextLabel: String? = nil
+    var onNext: (() -> Void)? = nil
     var onEnd: (() -> Void)? = nil
     let onTap: () -> Void
 
     var body: some View {
+        // On a narrow screen with 次へ the 「案内を見る」 words go and the step and ? stay.
+        ViewThatFits(in: .horizontal) {
+            row(full: true)
+            row(full: false)
+        }
+    }
+
+    private func row(full: Bool) -> some View {
         HStack(spacing: 8) {
-            show
+            show(full: full)
+            if let nextLabel, let onNext {
+                Button(action: onNext) {
+                    HStack(spacing: 6) {
+                        Text(nextLabel)
+                            .scaledFont(size: 14, weight: .bold)
+                        Image(systemName: "arrow.right")
+                            .scaledFont(size: 12, weight: .bold)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 36)
+                    .background(Theme.primary, in: Capsule())
+                    .shadow(color: Theme.primary.opacity(0.35), radius: 10, y: 4)
+                    .frame(minHeight: 44)
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(PressableStyle(scale: 0.95))
+                .accessibilityIdentifier("tour.pill.next")
+            }
             if let onEnd {
                 Button(action: onEnd) {
                     Text(L("終了"))
@@ -538,7 +591,7 @@ struct TourCardPill: View {
         }
     }
 
-    private var show: some View {
+    private func show(full: Bool) -> some View {
         Button(action: onTap) {
             HStack(spacing: 8) {
                 if let phase = step.phase {
@@ -546,9 +599,11 @@ struct TourCardPill: View {
                         .scaledFont(size: 12, weight: .heavy)
                         .foregroundStyle(Theme.primaryInk)
                 }
-                Text(L("案内を見る"))
-                    .scaledFont(size: 13, weight: .semibold)
-                    .foregroundStyle(Theme.foreground)
+                if full {
+                    Text(L("案内を見る"))
+                        .scaledFont(size: 13, weight: .semibold)
+                        .foregroundStyle(Theme.foreground)
+                }
                 Image(systemName: "questionmark.circle")
                     .scaledFont(size: 13, weight: .semibold)
                     .foregroundStyle(Theme.muted)
@@ -562,6 +617,7 @@ struct TourCardPill: View {
             .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle(scale: 0.95))
+        .accessibilityLabel(L("案内を見る"))
         .accessibilityIdentifier("tour.pill")
     }
 }
