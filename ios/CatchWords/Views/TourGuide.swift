@@ -26,15 +26,17 @@ enum TourStep: String, Equatable {
         case .peel: .peel
         case .homeAdded: .album
         case .dexTab: .dexTab
-        case .dexMap: .dexMap
-        case .dexGrid: .dexGrid
+        // Owner 2026-11-08 (「マップが開いた時に、白い解説がマップの解説ではなくて一つずれてる」): the card explains the view
+        // that is open, and lights the button of the next one (カード → 地図 → ギャラリー).
+        case .dexCover: .dexMap
+        case .dexMap: .dexGrid
         case .dexOpen: .dexWord
         case .wordSection: .wordSection
         case .wordSettings: .wordSections
         case .reviewPick: .quiz
         case .reviewNext: .reviewNext
         case .memoryCurve: .memoryCurve
-        case .off, .dexCover, .dexShadow, .complete: nil
+        case .off, .dexGrid, .dexShadow, .complete: nil
         }
     }
 
@@ -114,7 +116,8 @@ enum TourStep: String, Equatable {
         }
     }
 
-    /// Spotlight の `interactive`: 光っている所だけ押せる。false なら札のボタンで進む。
+    /// false: the card's button moves the guide on and the screen is dimmed even with nothing lit. (The dim never takes
+    /// taps any more, 2026-11-08.)
     var isInteractive: Bool {
         switch self {
         case .homeAdded, .dexShadow, .wordSection, .wordSettings, .memoryCurve: false
@@ -124,7 +127,7 @@ enum TourStep: String, Equatable {
 
     var nextLabel: String? {
         switch self {
-        case .detail, .homeAdded, .dexCover, .dexShadow, .wordSection: L("次へ")
+        case .detail, .homeAdded, .dexCover, .dexMap, .dexGrid, .dexShadow, .wordSection: L("次へ")
         case .wordSettings: L("完了")
         case .memoryCurve: L("次へ")
         default: nil
@@ -137,7 +140,9 @@ enum TourStep: String, Equatable {
         switch self {
         case .shoot: 0.2
         case .pick: 0.3
-        case .dexMap, .dexGrid: 0.25
+        // The 図鑑's views are for looking at and touching, never darkened (owner 2026-11-08: 「マップとか暗くせずにユーザーが
+        // そのまま触れるように…図鑑は色を暗くしなくていい」); only the next view's button is lit blue.
+        case .dexCover, .dexMap, .dexGrid, .dexShadow: 0
         default: 0.35
         }
     }
@@ -147,10 +152,6 @@ enum TourStep: String, Equatable {
     /// (owner 2026-11-07: 「その間にチュートリアルの解説を入れる必要はない」); the next card says the word was added.
     var isSilent: Bool { self == .detail || self == .peel }
     var isCapture: Bool { self == .shoot || self == .pick || self == .detail || self == .peel }
-    /// The dim lets every tap through (2026-11-07 check A5・A6): on the camera the learner must still reach 切替・写真・
-    /// ズーム (the selfie card never showed because 切替 was under the dim), and on the photo 撮り直す・囲んで切り抜き直す
-    /// and the other tags. The light still marks the shutter / the first tag; only the "missed tap" shake is given up.
-    var passesTaps: Bool { self == .shoot || self == .pick }
     /// The steps shown over the word's page (its sheet has a guide layer of its own).
     var isWord: Bool { self == .wordSection || self == .wordSettings }
 
@@ -254,8 +255,9 @@ private struct SpotlightDim: Shape {
     }
 }
 
-/// Spotlight.tsx: 画面を暗くし、押す所だけ穴を開けて青く光らせる。説明の札は穴と反対側に出す。
-/// 押す所が小さいときは手の印がそこをタップしてみせ、暗い所を押すと光る所が大きく光って札が揺れる。
+/// Spotlight.tsx: 画面を暗くし、押す所だけ穴を開けて青く光らせる。説明の札は穴の隣に出す。
+/// 2026-11-08（オーナー、TestFlight 1.0.5）: 暗い所も光る所も、いつも押せる（画面はそのまま操作できる）。札は4秒で消え、
+/// ✕ は札を閉じるだけ（案内は続く）。光る所の印は青い線1本の点滅だけ（3本線・外の輪・広がる輪は無し）。
 struct TourLayer: View {
     let step: TourStep
     let anchors: [TourAnchor: Anchor<CGRect>]
@@ -263,7 +265,8 @@ struct TourLayer: View {
     /// 「スキップ」: on to the next step (owner 2026-11-07: 「スキップというのは、チュートリアルのステップをスキップする」 —
     /// it used to end the whole guide).
     let onSkip: () -> Void
-    /// 「終了」: the whole guide ends (nil: not offered, as in the previews).
+    /// 「終了」: the whole guide ends (nil: not offered, as in the previews). On the pill that stands in for the card
+    /// (owner 2026-11-08: the card's ✕ only closes the card).
     var onEnd: (() -> Void)? = nil
     /// 「戻る」: the step before (owner 2026-11-07 「戻るボタンも追加して」; nil on the first step and where there is no
     /// step to go back to, `MainTabView.tourBackAction`).
@@ -276,25 +279,18 @@ struct TourLayer: View {
     var section: CardSection? = nil
 
     @Environment(\.appReduceMotion) private var reduceMotion
+    /// The lit place's one blue line blinks (owner 2026-11-08: 「内側の青い線が点滅するように」).
     @State private var pulse: Bool = false
-    @State private var ripple: Bool = false
-    /// Taps on the dark part during a step that wants a tap on the lit place.
-    @State private var missed: Int = 0
-    @State private var flash: Bool = false
     /// Each step's arrival (owner 2026-10-28: 「モーションデザインなどを用いて…クオリティ高く解説」): the light opens wide (1)
-    /// and closes onto the place (0) like a camera focusing on it, one ring bursts out as it lands (`burst` 0 → 1), and
-    /// the blue strokes beside it draw themselves after (`strokes`).
+    /// and closes onto the place (0) like a camera focusing on it.
     @State private var iris: CGFloat = 0
-    @State private var burst: CGFloat = 1
-    /// The blue strokes beside the lit place, drawn in (0 → 1) as the light lands.
-    @State private var strokes: CGFloat = 1
     @State private var arrival: Int = 0
     /// The card's height, measured (it is placed beside the lit place).
     @State private var cardHeight: CGFloat = 170
-    /// On a step the learner acts on (the shutter, a tag, a tab — no 「次へ」), the card goes away a few seconds after it
-    /// came, so the camera's picture and the photo's tags are not hidden behind it (owner 2026-11-07: 「この解説がずっと
-    /// そこにあってカメラのその画面が見れない…何秒か表示して消えるようにして」). A small pill then stands in for it and
-    /// brings it back; a tap on the dark part brings it back too.
+    /// Every card goes away a few seconds after it came, so the screen under it can be seen and used (owner 2026-11-07:
+    /// 「この解説がずっとそこにあってカメラのその画面が見れない…何秒か表示して消えるようにして」; 2026-11-08: 「チュートリアルの
+    /// すべてで4秒間ぐらい経ったら白い解説が消えるように」). Its ✕ closes it at once. A small pill then stands in for it and
+    /// brings it back, and carries 「終了」.
     @State private var cardHidden = false
     @State private var hideToken = 0
     private static let cardStays: Duration = .seconds(4)
@@ -321,17 +317,16 @@ struct TourLayer: View {
                 let dim = SpotlightDim(hole: lit, radius: radius)
                 ZStack {
                     if shouldDim {
+                        // Never in the way (owner 2026-11-08: 「青く囲んだ部分はユーザーがタップできるようにして、でちゃんと
+                        // ページが操作できるように」): the lit place and the rest of the screen take their own taps.
                         dim
-                            .fill(Color(hex: 0x0B1020, opacity: hole == nil ? 0.35 : step.dimOpacity), style: FillStyle(eoFill: true))
-                            .contentShape(step.isInteractive && hole != nil ? dim.path(in: full) : Path(full), eoFill: true)
-                            .onTapGesture { if step.isInteractive, hole != nil { missedTap() } }
-                            .allowsHitTesting(!step.passesTaps)
+                            .fill(Color(hex: 0x0B1020, opacity: step.dimOpacity), style: FillStyle(eoFill: true))
+                            .allowsHitTesting(false)
                             .transition(.opacity)
                     }
                     if let hole {
                         ring(hole, radius: settled)
                             .opacity(Double(max(0, 1 - iris * 3)))
-                        if !reduceMotion { bursts(on: hole, in: geo.size) }
                     }
                     if showsCard, !cardHidden {
                         // Right beside the lit place, pointing at it (owner 2026-10-28: 「次操作する場所の近くにその解説を
@@ -343,8 +338,8 @@ struct TourLayer: View {
                         }
                         // A new card per step (its lines come in again, `shown`), the old one fading out.
                         let cardWidth = Self.cardWidth(in: geo.size)
-                        TourCoachCard(step: step, section: section, selfie: selfie, missed: missed,
-                                      onNext: onNext, onSkip: onSkip, onEnd: onEnd, onBack: onBack)
+                        TourCoachCard(step: step, section: section, selfie: selfie,
+                                      onNext: onNext, onSkip: onSkip, onClose: closeCard, onBack: onBack)
                             .id("\(step.rawValue)-\(section?.rawValue ?? "")-\(selfie)")
                             .padding(.horizontal, cardWidth == nil ? 16 : 0)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
@@ -353,7 +348,7 @@ struct TourLayer: View {
                     }
                     if showsCard, cardHidden {
                         // The card's stand-in while it is away: the step and a short word, out of the picture's way.
-                        TourCardPill(step: step) { showCard(again: true, fades: hasPlace) }
+                        TourCardPill(step: step, onEnd: onEnd) { showCard(again: true, fades: fades(hasPlace)) }
                             .position(x: geo.size.width / 2, y: insets.top + 24)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
@@ -365,43 +360,39 @@ struct TourLayer: View {
         }
         .onAppear {
             arrive(hasPlace)
-            showCard(again: false, fades: hasPlace)
+            showCard(again: false, fades: fades(hasPlace))
             guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
-            withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) { ripple = true }
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { pulse = true }
         }
         .onChange(of: step) { _, _ in
             Haptics.selection()
             arrive(hasPlace)
-            showCard(again: false, fades: hasPlace)
+            showCard(again: false, fades: fades(hasPlace))
         }
         // The word page's next section: the light moves on like a new step.
         .onChange(of: section) { _, _ in
             Haptics.selection()
             arrive(hasPlace)
-            showCard(again: false, fades: hasPlace)
+            showCard(again: false, fades: fades(hasPlace))
         }
         // The place can come on screen after the step (the next screen still rising, the camera's permission just
         // given): the light lands when it does, and only then does the card start to go away — until then it stays,
-        // so a learner with no place to tap still has スキップ and ✕ (check A4).
+        // so a learner with no place to tap still has スキップ (check A4).
         .onChange(of: hasPlace) { _, now in if now { arrive(true); showCard(again: false, fades: true) } }
-        // A tap that missed the lit place: the card comes back to say what to press.
-        .onChange(of: missed) { _, _ in if cardHidden { showCard(again: true, fades: hasPlace) } }
         // The camera was flipped: the card comes back with what to shoot now.
-        .onChange(of: selfie) { _, _ in showCard(again: true, fades: hasPlace) }
+        .onChange(of: selfie) { _, _ in showCard(again: true, fades: fades(hasPlace)) }
     }
 
-    /// Whether this step's card goes away by itself: the learner acts on the screen (no 「次へ」), so the card must not
-    /// stay over the camera, the photo or the dex.
-    private var cardFades: Bool { step.isInteractive && step.nextLabel == nil }
+    /// Whether the card may go away now: its lit place is on screen, or the step lights nothing. A step whose place is
+    /// not there yet (the camera's permission not given) keeps its card until it is.
+    private func fades(_ hasPlace: Bool) -> Bool { hasPlace || step.anchor == nil }
 
-    /// Shows the card (again) and, on a step whose card fades, lets it go after `cardStays`. `fades` false (the lit
-    /// place is not on screen yet) keeps it: the timer starts once the place is there (`onChange(of: hasPlace)`).
+    /// Shows the card (again) and lets it go after `cardStays` (`fades` false: kept until the place is on screen).
     private func showCard(again: Bool, fades: Bool) {
         hideToken += 1
         let token = hideToken
         if again { withAnimation(.easeInOut(duration: 0.25)) { cardHidden = false } } else { cardHidden = false }
-        guard cardFades, fades else { return }
+        guard fades else { return }
         Task { @MainActor in
             try? await Task.sleep(for: Self.cardStays)
             guard token == hideToken else { return }
@@ -409,41 +400,40 @@ struct TourLayer: View {
         }
     }
 
-    /// A step comes in: the light opens and closes onto its place, a ring bursts as it lands, the finger glides in.
+    /// The card's ✕: the card goes (the pill stays to bring it back); the guide goes on.
+    private func closeCard() {
+        hideToken += 1
+        withAnimation(.easeInOut(duration: 0.3)) { cardHidden = true }
+    }
+
+    /// A step comes in: the light opens and closes onto its place.
     private func arrive(_ hasPlace: Bool) {
         arrival += 1
         let token = arrival
         guard !reduceMotion, hasPlace else {
             iris = 0
-            strokes = 1
             return
         }
         var still = Transaction()
         still.disablesAnimations = true
-        withTransaction(still) {
-            iris = 1
-            burst = 1
-            strokes = 0
-        }
+        withTransaction(still) { iris = 1 }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(40))
             guard token == arrival else { return }
             withAnimation(.spring(response: 0.8, dampingFraction: 0.88)) { iris = 0 }
             try? await Task.sleep(for: .milliseconds(520))
             guard token == arrival else { return }
-            withTransaction(still) { burst = 0 }
-            withAnimation(.easeOut(duration: 0.8)) { burst = 1 }
-            withAnimation(.easeOut(duration: 0.45)) { strokes = 1 }
             Haptics.impact(.soft, intensity: 0.55)
         }
     }
 
-    /// The lit place: the element with a margin; a round thing (the camera disc, the shutter, the speaker) a circle.
-    /// A place as wide as the screen (the word page's jump bar, the home's album) stays inside it: its ring ran off
-    /// both sides (CI 2026-10-28).
+    /// The lit place: the element with a margin; a small round thing (the camera disc, the shutter, a view button) a
+    /// circle. A larger place keeps its own shape (owner 2026-11-08: the word page's 使い方 section, nearly square, was
+    /// lit as a circle — 「他の単語の項目のように枠に合うように」). A place as wide as the screen (the word page's jump
+    /// bar, the home's album) stays inside it: its ring ran off both sides (CI 2026-10-28).
     static func holeRect(around r: CGRect, in screen: CGRect) -> CGRect {
         let padded = r.insetBy(dx: -8, dy: -8)
-        guard abs(padded.width - padded.height) < 16 else {
+        guard abs(padded.width - padded.height) < 16, max(padded.width, padded.height) <= 140 else {
             let inside = padded.intersection(screen.insetBy(dx: 6, dy: 6))
             return inside.isNull || inside.isEmpty ? padded : inside
         }
@@ -500,94 +490,51 @@ struct TourLayer: View {
         hole.width == hole.height ? hole.width / 2 : min(22, hole.height / 2)
     }
 
+    /// The lit place's mark: one blue line along its edge, blinking (owner 2026-11-08: 「外側消して内側のもの1つだけにして、
+    /// 内側の青い線が点滅するように」 — the white halo, the landing ring, the spreading ring and the blue strokes are gone).
     private func ring(_ hole: CGRect, radius: CGFloat) -> some View {
-        // Growth in points, the same on every side: a wide place swelled by a share of its width went off screen.
-        func grown(_ points: CGFloat) -> CGSize {
-            CGSize(width: 1 + 2 * points / max(hole.width, 1), height: 1 + 2 * points / max(hole.height, 1))
-        }
-        let wide = hole.width > 200
-        return ZStack {
-            // A soft white halo: the place looks lit, not only outlined (the reference pictures, 2026-10-28).
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .stroke(Color.white.opacity(0.35), lineWidth: 2)
-                .shadow(color: .white.opacity(0.9), radius: 22)
-                .scaleEffect(grown(4))
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .stroke(Theme.primary, lineWidth: 3)
-                .shadow(color: Theme.primary.opacity(pulse ? 0.9 : 0.4), radius: pulse ? 18 : 8)
-                .scaleEffect(grown(flash ? 8 : pulse ? 2 : 0))
-            // The landing: one wide ring bursting out of the place (a screen-wide place only a little: no room).
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .stroke(Theme.primaryBright, lineWidth: 4)
-                .scaleEffect(grown(burst * (wide ? 6 : 36)))
-                .opacity(Double(1 - burst) * 0.9)
-            // A ring spreading out from the place again and again: "here".
-            if step.isInteractive && !reduceMotion {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(Theme.primaryBright, lineWidth: 2)
-                    .scaleEffect(grown(ripple ? (wide ? 6 : 18) : 0))
-                    .opacity(ripple ? 0 : 0.8)
-            }
-        }
-        .frame(width: hole.width, height: hole.height)
-        .position(x: hole.midX, y: hole.midY)
-        .allowsHitTesting(false)
-    }
-
-    /// The blue strokes at the place's upper corners (the welcome screen's mark), drawn in as the light lands; kept
-    /// inside the screen.
-    private func bursts(on hole: CGRect, in size: CGSize) -> some View {
-        let side: CGFloat = 34
-        let left = CGPoint(x: max(side / 2 + 4, hole.minX - 22), y: max(side / 2 + 4, hole.minY - 22))
-        let right = CGPoint(x: min(size.width - side / 2 - 4, hole.maxX + 22), y: max(side / 2 + 4, hole.minY - 22))
-        return ZStack {
-            burstMark(side: side).position(left)
-            burstMark(side: side).scaleEffect(x: -1).position(right)
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-
-    private func burstMark(side: CGFloat) -> some View {
-        WelcomeBurst()
-            .trim(from: 0, to: strokes)
-            .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-            .frame(width: side, height: side)
-            .shadow(color: .white.opacity(0.8), radius: 2)
-            .scaleEffect(pulse ? 1.06 : 1)
-    }
-
-    private func missedTap() {
-        Haptics.impact(.rigid, intensity: 0.8)
-        withAnimation(.linear(duration: 0.4)) { missed += 1 }
-        withAnimation(.spring(response: 0.18, dampingFraction: 0.5)) { flash = true }
-        Task {
-            try? await Task.sleep(for: .milliseconds(220))
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { flash = false }
-        }
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .stroke(Theme.primary, lineWidth: 3)
+            .shadow(color: Theme.primary.opacity(0.5), radius: 6)
+            .opacity(reduceMotion ? 1 : (pulse ? 1 : 0.25))
+            .frame(width: hole.width, height: hole.height)
+            .position(x: hole.midX, y: hole.midY)
+            .allowsHitTesting(false)
     }
 }
 
-/// A sideways shake (a tap that missed the lit place).
-private struct Shake: GeometryEffect {
-    var amount: CGFloat
-    var animatableData: CGFloat {
-        get { amount }
-        set { amount = newValue }
-    }
-
-    func effectValue(size: CGSize) -> ProjectionTransform {
-        ProjectionTransform(CGAffineTransform(translationX: 7 * sin(amount * .pi * 4), y: 0))
-    }
-}
-
-/// The card's stand-in while it has gone away (`TourLayer.cardFades`): 「STEP n」 and 「案内を見る」; a tap brings the
-/// card back for a few seconds.
+/// The card's stand-in while it has gone away: 「STEP n」 and 「案内を見る」 (a tap brings the card back for a few
+/// seconds), and beside it 「終了」, which ends the guide (owner 2026-11-08: the card's ✕ only closes the card, so the way
+/// out of the guide is here).
 struct TourCardPill: View {
     let step: TourStep
+    var onEnd: (() -> Void)? = nil
     let onTap: () -> Void
 
     var body: some View {
+        HStack(spacing: 8) {
+            show
+            if let onEnd {
+                Button(action: onEnd) {
+                    Text(L("終了"))
+                        .scaledFont(size: 13, weight: .semibold)
+                        .foregroundStyle(Theme.muted)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 36)
+                        .background(Theme.card.opacity(0.96), in: Capsule())
+                        .overlay(Capsule().stroke(Theme.primary.opacity(0.18), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
+                        .frame(minHeight: 44)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(PressableStyle(scale: 0.95))
+                .accessibilityHint(L("案内を終える"))
+                .accessibilityIdentifier("tour.end")
+            }
+        }
+    }
+
+    private var show: some View {
         Button(action: onTap) {
             HStack(spacing: 8) {
                 if let phase = step.phase {
@@ -620,10 +567,11 @@ struct TourCoachCard: View {
     var section: CardSection? = nil
     /// The 撮る step with the front camera on (`TourLayer.selfie`).
     var selfie: Bool = false
-    var missed: Int = 0
     let onNext: () -> Void
     let onSkip: () -> Void
-    var onEnd: (() -> Void)? = nil
+    /// The ✕: the card closes and the guide goes on (owner 2026-11-08: 「×を押すと白い部分の解説が閉じる…チュートリアルは
+    /// 続くように」 — it used to end the guide, over the camera by accident).
+    var onClose: (() -> Void)? = nil
     var onBack: (() -> Void)? = nil
 
     @Environment(\.appReduceMotion) private var reduceMotion
@@ -645,6 +593,7 @@ struct TourCoachCard: View {
     /// three controls, each where a learner expects it — ✕ in the top corner ends the guide, a round ‹ at the bottom
     /// left goes back a step, and one action at the bottom right: 「次へ」 where the card moves the guide on, else a quiet
     /// 「スキップ」 for a step the learner would otherwise act on. (The old row of 戻る・終了・スキップ・次へ is gone.)
+    /// 2026-11-08: the ✕ closes the card only; 「終了」 is on the pill that stands in for it.
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let phase = step.phase {
@@ -655,18 +604,21 @@ struct TourCoachCard: View {
                     Text(verbatim: "\(phase.rawValue + 1) / \(TourPhase.allCases.count)")
                         .scaledFont(size: 12, weight: .semibold)
                         .foregroundStyle(Theme.muted)
-                    if let onEnd {
-                        Button(action: onEnd) {
+                    if let onClose {
+                        Button(action: onClose) {
                             Image(systemName: "xmark")
                                 .scaledFont(size: 11, weight: .bold)
                                 .foregroundStyle(Theme.muted)
                                 .frame(width: 28, height: 28)
                                 .background(Theme.muted.opacity(0.12), in: Circle())
+                                .frame(width: 44, height: 44)
+                                .contentShape(Circle())
                         }
                         .buttonStyle(PressableStyle(scale: 0.9))
-                        .accessibilityLabel(L("終了"))
-                        .accessibilityHint(L("案内を終える"))
-                        .accessibilityIdentifier("tour.end")
+                        .padding(-8)
+                        .accessibilityLabel(L("閉じる"))
+                        .accessibilityHint(L("案内を隠す"))
+                        .accessibilityIdentifier("tour.close")
                     }
                 }
                 .staggerIn(shown, delay: 0.02, distance: 6)
@@ -736,20 +688,7 @@ struct TourCoachCard: View {
         .padding(.bottom, 8)
         .background(Theme.card, in: .rect(cornerRadius: 26, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Theme.primary.opacity(0.12), lineWidth: 1))
-        // The small burst at the card's corner (the reference pictures).
-        .overlay(alignment: .topTrailing) {
-            WelcomeBurst()
-                .trim(from: 0, to: shown ? 1 : 0)
-                .stroke(Color(hex: 0x5AA4F8), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .frame(width: 26, height: 26)
-                .scaleEffect(x: -1)
-                .offset(x: 8, y: -12)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.4).delay(0.3), value: shown)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
         .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
-        .modifier(Shake(amount: CGFloat(missed)))
         .task { shown = true }
         .transition(reduceMotion ? .opacity : .asymmetric(
             insertion: .scale(scale: 0.94).combined(with: .opacity).combined(with: .offset(y: 14)),
@@ -778,9 +717,10 @@ struct TourCompleteView: View {
             ConfettiRain(running: burst)
             VStack(spacing: 0) {
                 Spacer(minLength: 12)
-                RevealHeadline(marked: L("準備完了。\nあとは撮るだけ"), size: 28, delay: 0.25)
+                // Owner 2026-11-08: 「準備完了ではなくチュートリアル終了…最も自然な案を」.
+                RevealHeadline(marked: L("チュートリアル完了"), size: 28, delay: 0.25)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(L("撮るたびに、あなただけの単語帳が育ちます。"))
+                Text(L("毎日出会ういろんなものを撮って、あなただけの単語帳を育てよう"))
                     .scaledFont(size: 15)
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)

@@ -521,6 +521,8 @@ struct MainTabView: View {
         case .detail: router.advanceTour(from: .detail, to: .peel)
         case .homeAdded: router.advanceTour(from: .homeAdded, to: .dexTab)
         case .dexCover: router.advanceTour(from: .dexCover, to: .dexMap)
+        case .dexMap: router.advanceTour(from: .dexMap, to: .dexGrid)
+        case .dexGrid: router.advanceTour(from: .dexGrid, to: .dexShadow)
         case .dexShadow: startTourReview()   // the review before the word page (2026-11-07)
         case .memoryCurve: startTourWord()
         default: break
@@ -620,8 +622,8 @@ struct MainTabView: View {
                 router.tour = .dexTab
             }
         case .dexMap: router.advanceTour(from: .dexMap, to: .dexCover)
-        case .dexGrid: router.advanceTour(from: .dexGrid, to: .dexMap)      // DexView shows the card view again
-        case .dexShadow: router.advanceTour(from: .dexShadow, to: .dexGrid)  // DexView shows the map again
+        case .dexGrid: router.advanceTour(from: .dexGrid, to: .dexMap)      // DexView shows the map again
+        case .dexShadow: router.advanceTour(from: .dexShadow, to: .dexGrid)
         case .reviewPick:
             withAnimation(spring) {
                 router.tab = .dex

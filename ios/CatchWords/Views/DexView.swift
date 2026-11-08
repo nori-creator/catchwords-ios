@@ -227,16 +227,19 @@ struct DexView: View {
         .onChange(of: router.landing?.stickerId) { _, id in if id != nil { showGallery() } }
         .onChange(of: router.landingStickerId) { _, id in if id != nil { showGallery() } }
         .onChange(of: mode) { _, m in
-            // The first tour: each view the learner switches to moves the guide on (地図 → ギャラリー → the shadows).
-            if m == .map { router.advanceTour(from: .dexMap, to: .dexGrid) }
-            if m == .grid { router.advanceTour(from: .dexGrid, to: .dexShadow) }
+            // The first tour: the card explains the view that is open (owner 2026-11-08: the map's card showed while the
+            // cards were still open, and the gallery's over the map). Any view the learner switches to, in any order,
+            // brings its own card; the learner looks and touches freely (the dim takes no taps).
+            if [.dexCover, .dexMap, .dexGrid].contains(router.tour), let step = Self.tourStep(for: m), step != router.tour {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { router.tour = step }
+            }
             // Switching views redraws the gallery (`renderDex`): the landing's focus goes.
             guard router.landing == nil else { return }
             focus = nil
         }
-        // The first tour starts on the slide dex (カード), whatever view was open last. Each of its dex steps lights a
-        // button of the view before it (地図 on the cards, ギャラリー on the map, the shadows in the gallery), so coming
-        // back a step (「戻る」, 2026-11-07) or skipping to one shows that view.
+        // The first tour starts on the slide dex (カード), whatever view was open last. Each of its dex steps shows its own
+        // view (カード, 地図, ギャラリー, the shadows in the gallery) and lights the button of the next, so 「次へ」, 「戻る」
+        // (2026-11-07) and skipping all show the view the card explains.
         .onChange(of: router.tour) { _, step in syncTourView(step) }
         // Back on this tab in the middle of the guide (「戻る」 from the review to the shadows): the same view.
         .onAppear { syncTourView(router.tour) }
@@ -245,10 +248,20 @@ struct DexView: View {
     /// The view a dex step of the guide is shown on (`DexView.onChange(of: router.tour)`).
     private func syncTourView(_ step: TourStep) {
         switch step {
-        case .dexCover, .dexMap: if mode != .cover { mode = .cover }
-        case .dexGrid: if mode != .map { mode = .map }
-        case .dexShadow, .dexOpen: if mode != .grid { mode = .grid }
+        case .dexCover: if mode != .cover { mode = .cover }
+        case .dexMap: if mode != .map { mode = .map }
+        case .dexGrid, .dexShadow, .dexOpen: if mode != .grid { mode = .grid }
         default: break
+        }
+    }
+
+    /// The guide's step that explains a view (the list has none: the card stays as it is).
+    static func tourStep(for mode: DexMode) -> TourStep? {
+        switch mode {
+        case .cover: .dexCover
+        case .map: .dexMap
+        case .grid: .dexGrid
+        default: nil
         }
     }
 

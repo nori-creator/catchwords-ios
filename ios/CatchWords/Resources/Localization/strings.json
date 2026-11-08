@@ -11359,5 +11359,26 @@
   "es": "Tu foto también va al álbum de Inicio.",
   "ko": "찍은 사진은 홈의 앨범에도 붙어요.",
   "vi": "Ảnh bạn chụp cũng được dán vào album ở Trang chủ."
+ },
+ "案内を隠す": {
+  "en": "Hide the guide",
+  "zh-TW": "隱藏說明",
+  "es": "Ocultar la guía",
+  "ko": "안내 숨기기",
+  "vi": "Ẩn hướng dẫn"
+ },
+ "チュートリアル完了": {
+  "en": "Tutorial complete",
+  "zh-TW": "教學完成",
+  "es": "Tutorial completado",
+  "ko": "튜토리얼 완료",
+  "vi": "Hoàn tất hướng dẫn"
+ },
+ "毎日出会ういろんなものを撮って、あなただけの単語帳を育てよう": {
+  "en": "Take photos of all kinds of things you meet every day, and grow a wordbook that is yours alone.",
+  "zh-TW": "拍下每天遇到的各種東西，養大專屬你的單字本吧。",
+  "es": "Haz fotos de todo lo que encuentras cada día y haz crecer un cuaderno de palabras solo tuyo.",
+  "ko": "매일 만나는 여러 가지 물건을 찍어서 나만의 단어장을 키워 보세요.",
+  "vi": "Hãy chụp những thứ bạn gặp mỗi ngày và nuôi lớn sổ từ vựng của riêng bạn."
  }
 }
