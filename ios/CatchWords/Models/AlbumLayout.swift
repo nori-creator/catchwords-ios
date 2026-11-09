@@ -199,6 +199,14 @@ nonisolated enum AlbumLayout {
         return q
     }
 
+    /// 指が写真を動かした・大きさを変えた・回したか（オーナー 2026-11-09: 長押しして動かさずに離しただけで、傾きが水平に
+    /// そろえられて（`settle`）その日の位置が保存され、後から撮った写真が下に出ていた）。指の震え（台紙の幅の 1.5%・
+    /// 大きさ 1%・1度）までは動かしていない。
+    static func moved(from a: AlbumPlacement, to b: AlbumPlacement) -> Bool {
+        abs(a.x - b.x) > 0.015 || abs(a.y - b.y) > 0.015 || abs(a.scale - b.scale) > 0.01 * Swift.max(a.scale, 0.01)
+            || abs(normalizeDeg(a.rot - b.rot)) > 1
+    }
+
     /// 札の実寸 px（TS `sizePx`、傾きは含まない）。
     static func sizePx(_ p: AlbumPlacement, boardW: Double, ratio: Double) -> (w: Double, h: Double) {
         let w = boardW * BASE_WIDTH * p.scale
@@ -295,7 +303,7 @@ nonisolated enum AlbumLayout {
     /// - 指で置いた写真（`fixed`）が在る日は、どの写真も、上から見て最初に空いている所へ（自分の段の位置 → 中央 →
     ///   左 → 右の順に試す）。指で置いた写真にも、先に置いた写真にも決して重ならない。
     /// - 指で置いた写真が無く、写真が台紙の高さの下限に足りない日は、写真のまとまりを台紙の縦の真ん中へ。
-    static func packDay(_ items: [CollageItem], fixed: [AlbumBox] = [], spread: Bool = false) -> [AlbumPlacement] {
+    static func packDay(_ items: [CollageItem], fixed: [AlbumBox] = [], spread: Bool = false, centred: Bool = true) -> [AlbumPlacement] {
         func safeRatio(_ r: Double) -> Double { r.isFinite && r > 0 ? r : 1 }
         if spread && fixed.isEmpty { return packSpread(items) }
         let w = spread ? SPREAD_PHOTO_W : DAY_PHOTO_W
@@ -328,7 +336,7 @@ nonisolated enum AlbumLayout {
             out.append(p)
         }
         // 写真が少ない日は、まとまりを台紙の縦の真ん中へ（1枚なら真ん中に1枚）。
-        if fixed.isEmpty, !out.isEmpty {
+        if centred, fixed.isEmpty, !out.isEmpty {
             let room = (spread ? SPREAD_MIN_BOARD_H : MIN_BOARD_H) - GAP_Y - (rowBottom - COLLAGE_GAP)
             if room > 0 { out = out.map { var q = $0; q.y += room / 2; return q } }
         }
@@ -439,8 +447,14 @@ nonisolated enum AlbumLayout {
         hasHero && jsTruthy(boardW) ? (CAP_ROW_PX + (jsTruthy(s.caption) ? CAP_NOTE_PX : 0)) / boardW : 0
     }
 
-    /// 自動の置き場所を決め、保存した写真を避ける（TS `settleDayAlbum`）。
-    static func settleDayAlbum(_ input: DayLayoutInput) -> (frameRatio: (String) -> Double, settledById: [String: AlbumPlacement]) {
+    /// 自動の置き場所を決め、保存した写真を避ける（TS `settleDayAlbum`）。`input.stickers` は新しい順（`AlbumDay.days`）。
+    /// 指で置いた写真（保存した位置）が在る日は（オーナー 2026-11-09「新しい画像は上に来るようにしてって言ってるよね…
+    /// 直ってない」— その日の1枚目が長押しだけで保存され、後から撮った教科書がその下に出ていた）:
+    /// - 指で置いた写真のどれよりも新しい写真は、台紙の一番上から段に並べる（`packDay`、真ん中に寄せない）。
+    /// - 指で置いた写真は、互いの並びを保ったまま、その下へずらす（`fixedById`）。
+    /// - それより古い自動の写真は、上から見て最初に空いている所へ。
+    static func settleDayAlbum(_ input: DayLayoutInput)
+        -> (frameRatio: (String) -> Double, settledById: [String: AlbumPlacement], fixedById: [String: AlbumPlacement]) {
         let stickers = input.stickers
         let hasHero = input.hasHero
         let boardW = input.boardW
@@ -449,26 +463,45 @@ nonisolated enum AlbumLayout {
         func item(_ s: DayLayoutSticker) -> CollageItem {
             CollageItem(id: s.id, ratio: frameRatio(s.id), extra: dayExtra(s, hasHero: hasHero(s.id), boardW: boardW))
         }
+        func box(_ p: AlbumPlacement, _ s: DayLayoutSticker) -> AlbumBox {
+            boxOf(p, ratio: frameRatio(s.id), extra: dayExtra(s, hasHero: hasHero(s.id), boardW: boardW))
+        }
         let places = packDay(base.map(item), spread: input.spread)
         var autoById: [String: AlbumPlacement] = [:]
         for (i, s) in base.enumerated() { autoById[s.id] = places[i] }
 
         func saved(_ s: DayLayoutSticker) -> Bool { s.albumX != nil && s.albumY != nil }
-        let fixed: [AlbumBox] = stickers.filter(saved).map { s in
-            let p = placementFrom(
+        guard let newestSaved = stickers.firstIndex(where: saved) else { return (frameRatio, autoById, [:]) }
+        var fixedById: [String: AlbumPlacement] = [:]
+        for s in stickers where saved(s) {
+            fixedById[s.id] = placementFrom(
                 x: s.albumX, y: s.albumY, scale: s.albumScale, rot: s.albumRot,
                 auto: autoById[s.id] ?? placeFromCell(AlbumCell(col: 0, row: 0), .small, id: s.id)
             )
-            return boxOf(p, ratio: frameRatio(s.id), extra: dayExtra(s, hasHero: hasHero(s.id), boardW: boardW))
         }
-        if fixed.isEmpty { return (frameRatio, autoById) }
-
-        // 指で置いていない写真は撮った順に、上から見て最初に空いている所へ（`packDay`）。
+        let rank = Dictionary(stickers.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
         let autos = base.filter { !saved($0) }
-        let settled = packDay(autos.map(item), fixed: fixed, spread: input.spread)
+        let newer = autos.filter { (rank[$0.id] ?? Int.max) < newestSaved }
+        let older = autos.filter { (rank[$0.id] ?? Int.max) >= newestSaved }
         var settledById = autoById
-        for (i, s) in autos.enumerated() { settledById[s.id] = settled[i] }
-        return (frameRatio, settledById)
+        var taken: [AlbumBox] = []
+        if !newer.isEmpty {
+            let top = packDay(newer.map(item), spread: input.spread, centred: false)
+            for (i, s) in newer.enumerated() {
+                settledById[s.id] = top[i]
+                taken.append(box(top[i], s))
+            }
+            let newerBottom = taken.map { $0.y + $0.h / 2 }.max() ?? 0
+            let savedTop = stickers.filter(saved).compactMap { s in fixedById[s.id].map { box($0, s) } }
+                .map { $0.y - $0.h / 2 }.min() ?? 0
+            let shift = Swift.max(0, newerBottom + COLLAGE_GAP - savedTop)
+            if shift > 0 { for (id, p) in fixedById { var q = p; q.y += shift; fixedById[id] = q } }
+        }
+        taken += stickers.filter(saved).compactMap { s in fixedById[s.id].map { box($0, s) } }
+        // 指で置いた写真より古い自動の写真は撮った順に、上から見て最初に空いている所へ（`packDay`）。
+        let settled = packDay(older.map(item), fixed: taken, spread: input.spread)
+        for (i, s) in older.enumerated() { settledById[s.id] = settled[i] }
+        return (frameRatio, settledById, fixedById)
     }
 
     /// 札の本当の置き方：指で置いた値が在ればそれ、無ければ自動（TS `dayPlacement`）。
@@ -481,13 +514,13 @@ nonisolated enum AlbumLayout {
 
     /// 1日の全体と台紙の高さ（TS `layoutDayAlbum`）。
     static func layoutDayAlbum(_ input: DayLayoutInput) -> (items: [DayLayoutItem], boardH: Double) {
-        let (frameRatio, settledById) = settleDayAlbum(input)
+        let (frameRatio, settledById, fixedById) = settleDayAlbum(input)
         let ordered = sortedByOrder(input.stickers)
         let items = ordered.enumerated().map { i, s in
             DayLayoutItem(
                 id: s.id,
-                place: dayPlacement(s, settledById: settledById,
-                                    size: s.albumSize ?? AUTO_ALBUM_SIZE[i % AUTO_ALBUM_SIZE.count]),
+                place: fixedById[s.id] ?? dayPlacement(s, settledById: settledById,
+                                                       size: s.albumSize ?? AUTO_ALBUM_SIZE[i % AUTO_ALBUM_SIZE.count]),
                 ratio: frameRatio(s.id),
                 z: 10 + i
             )
