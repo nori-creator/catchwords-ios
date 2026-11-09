@@ -2,8 +2,8 @@ import SwiftUI
 
 /// 囲んで切り抜き直す (owner 2026-11-04: 「切り抜いたあとの画像を、指でその物体をサークルで囲うと切り抜きをその部分やり直す
 /// 機能をつけて」). The original photo, full screen: the learner draws a loop round the thing with a finger — in the catch
-/// scan's own glowing blue-white light (`ScanGlow`, owner 2026-11-05) — the photo is cut along the loop
-/// (`LassoCutout`, owner 2026-11-09: no automatic cut-out here), shown on a checkerboard, and kept with 「この切り抜きにする」 (`onSave`) or drawn again. Opened from the
+/// scan's own glowing blue-white light (`ScanGlow`, owner 2026-11-05) — the cut-out is made again from what lies in it
+/// (`LassoCutout`), shown on a checkerboard, and kept with 「この切り抜きにする」 (`onSave`) or drawn again. Opened from the
 /// long-press photo sheet (`HeroPhotoPickerSheet`) and from the choose screen right after the shot (`CandidatePickerView`,
 /// owner 2026-11-05: 「単語の候補をタップするとき、つまり切り抜きが表示されるときに、丸で囲って切り抜きを直すボタンをつけて」).
 struct LassoCutoutView: View {
