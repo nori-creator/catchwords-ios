@@ -42,9 +42,44 @@ struct CatchChooseOverlay: View {
     /// 囲んで切り抜き直す: the learner redraws the sticker's outline on the photo (owner 2026-11-05: 「単語の候補をタップする
     /// とき、つまり切り抜きが表示されるときに、丸で囲って切り抜きを直すボタンをつけて」). nil = no button (previews).
     var onRecut: (() -> Void)? = nil
+    /// 元の写真のまま: the whole photo becomes the sticker, when no cut-out is right (owner 2026-11-09: 「切り抜き直すボタンの
+    /// 横に元の画像のまま表示するってボタン」). nil = no button (no photo: a typed word).
+    var onWholePhoto: (() -> Void)? = nil
 
     /// The card has come in and stands still (`settleCard`): its timeline stops until a choice, new rows or closing.
     @State private var cardStill = false
+
+    /// 囲んで切り抜き直す and 元の写真のまま at the top left.
+    @ViewBuilder
+    private var cutButtons: some View {
+        if let onRecut {
+            cutButton(L("囲んで切り抜き直す"), icon: "lasso", id: "variant.recut", action: onRecut)
+        }
+        if let onWholePhoto {
+            cutButton(L("元の写真のまま"), icon: "photo", id: "variant.wholePhoto", action: onWholePhoto)
+        }
+    }
+
+    private func cutButton(_ title: String, icon: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(ink)
+            .padding(.horizontal, 12)
+            .frame(height: 36)
+            .background(.white.opacity(0.85), in: Capsule())
+            .overlay(Capsule().stroke(line, lineWidth: 1))
+            .frame(minHeight: 44)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle(scale: 0.95))
+        .accessibilityIdentifier(id)
+    }
 
     private func closing(_ now: Double) -> Double { closingAt.map { Film6.seg(now - $0, 0, 0.3) } ?? 0 }
 
@@ -114,25 +149,10 @@ struct CatchChooseOverlay: View {
             if hasCard, chosenAt == nil, closingAt == nil {
                 VStack {
                     HStack {
-                        if let onRecut {
-                            Button(action: onRecut) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "lasso")
-                                        .font(.system(size: 14, weight: .semibold))
-                                    Text(L("囲んで切り抜き直す"))
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .lineLimit(1)
-                                }
-                                .foregroundStyle(ink)
-                                .padding(.horizontal, 12)
-                                .frame(height: 36)
-                                .background(.white.opacity(0.85), in: Capsule())
-                                .overlay(Capsule().stroke(line, lineWidth: 1))
-                                .frame(minHeight: 44)
-                                .contentShape(Capsule())
-                            }
-                            .buttonStyle(PressableStyle(scale: 0.95))
-                            .accessibilityIdentifier("variant.recut")
+                        // Side by side, or one over the other where the row is too narrow for both.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) { cutButtons }
+                            VStack(alignment: .leading, spacing: 0) { cutButtons }
                         }
                         Spacer()
                         Button(action: onClose) {

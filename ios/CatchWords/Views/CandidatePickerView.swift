@@ -138,7 +138,8 @@ struct CandidatePickerView: View {
                                    tappedAt: f.tappedAt, chosenAt: f.chosenAt, chosen: f.chosen, closingAt: f.closingAt,
                                    calm: reduceMotion, alwaysCard: true, rowsAt: f.rowsAt, searching: vm.isLookingUp,
                                    searchError: vm.searchError, onChoose: pick, onClose: closeChoices,
-                                   onSearch: searchFromChoices, onRecut: { recutting = true })
+                                   onSearch: searchFromChoices, onRecut: { recutting = true },
+                                   onWholePhoto: vm.photo == nil || f.typed ? nil : { takeWholePhoto() })
                     .zIndex(5)
             }
             // The choose screen keeps its sticker floating while the word is checked (no dark wait over it).
@@ -207,15 +208,67 @@ struct CandidatePickerView: View {
         }
     }
 
+    /// 撮り直す, 囲んで切り抜き直す and the hint in one row; where the row is too narrow, the hint goes under the buttons
+    /// (owner 2026-11-09: the button was its icon alone there — 「アイコンだけで何の機能がわからないから、切り抜き直すって文字を
+    /// つけて」).
     private var topBar: some View {
-        HStack(spacing: 10) {
-            // A photo opened from 「解析待ち」 is not thrown away from here (check 2026-11-03 H2: 撮り直す deleted it with
-            // no question, and it was this screen's only way out): 閉じる leaves it in 「解析待ち」.
-            let fromQueue = vm.restoredPendingId != nil
-            Button { if fromQueue { vm.keepPendingAndReset() } else { vm.reset() } } label: {
-                Label(fromQueue ? L("閉じる") : L("撮り直す"), systemImage: fromQueue ? "xmark" : "arrow.counterclockwise")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                retakeButton
+                recutButton
+                Spacer(minLength: 8)
+                hintText
+            }
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(spacing: 10) {
+                    retakeButton
+                    recutButton
+                    Spacer(minLength: 0)
+                }
+                hintText
+            }
+            // Large text in a long language: one button over the other.
+            VStack(alignment: .leading, spacing: 0) {
+                retakeButton
+                recutButton
+                hintText.frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+    }
+
+    private var retakeButton: some View {
+        // A photo opened from 「解析待ち」 is not thrown away from here (check 2026-11-03 H2: 撮り直す deleted it with
+        // no question, and it was this screen's only way out): 閉じる leaves it in 「解析待ち」.
+        let fromQueue = vm.restoredPendingId != nil
+        return Button { if fromQueue { vm.keepPendingAndReset() } else { vm.reset() } } label: {
+            Label(fromQueue ? L("閉じる") : L("撮り直す"), systemImage: fromQueue ? "xmark" : "arrow.counterclockwise")
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 14)
+                .frame(minHeight: 36)
+                .background(.white.opacity(0.12), in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityIdentifier("picker.retake")
+    }
+
+    /// 囲んで切り抜き直す before any tag is tapped (owner 2026-11-06: 「撮り直すボタンのところに切り抜き直す」): the learner's
+    /// loop picks the thing it goes round and becomes its sticker, and that thing's words open.
+    @ViewBuilder
+    private var recutButton: some View {
+        if !scanning, flow == nil, !objects.isEmpty {
+            Button { recutting = true } label: {
+                Label(L("囲んで切り抜き直す"), systemImage: "lasso")
                     .scaledFont(size: 14, weight: .semibold)
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
                     .padding(.horizontal, 14)
                     .frame(minHeight: 36)
                     .background(.white.opacity(0.12), in: Capsule())
@@ -223,40 +276,18 @@ struct CandidatePickerView: View {
                     .contentShape(.rect)
             }
             .buttonStyle(PressableStyle())
-            .accessibilityIdentifier("picker.retake")
-            // 囲んで切り抜き直す before any tag is tapped (owner 2026-11-06: 「撮り直すボタンのところに切り抜き直す」): the
-            // learner's loop picks the thing it goes round and becomes its sticker, and that thing's words open.
-            if !scanning, flow == nil, !objects.isEmpty {
-                Button { recutting = true } label: {
-                    // The words and the icon; the icon alone where the row is too narrow for both and the hint.
-                    ViewThatFits(in: .horizontal) {
-                        Label(L("囲んで切り抜き直す"), systemImage: "lasso")
-                        Image(systemName: "lasso")
-                    }
-                    .scaledFont(size: 14, weight: .semibold)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 36)
-                    .background(.white.opacity(0.12), in: Capsule())
-                    .frame(minHeight: 44)
-                    .contentShape(.rect)
-                }
-                .accessibilityLabel(L("囲んで切り抜き直す"))
-                .buttonStyle(PressableStyle())
-                .accessibilityIdentifier("picker.recut")
-            }
-            Spacer(minLength: 8)
-            Text(topHint)
-                .scaledFont(size: 14, weight: .semibold)
-                .foregroundStyle(.white.opacity(0.85))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .contentTransition(.opacity)
-                .animation(.easeInOut(duration: 0.25), value: topHint)
+            .accessibilityIdentifier("picker.recut")
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
+    }
+
+    private var hintText: some View {
+        Text(topHint)
+            .scaledFont(size: 14, weight: .semibold)
+            .foregroundStyle(.white.opacity(0.85))
+            .lineLimit(1)
+            .fixedSize()
+            .contentTransition(.opacity)
+            .animation(.easeInOut(duration: 0.25), value: topHint)
     }
 
     // MARK: The photo and its tags
@@ -562,6 +593,19 @@ struct CandidatePickerView: View {
         vm.stagePalette = f.palette
         flow = f
         Haptics.success()
+    }
+
+    /// 元の写真のまま (owner 2026-11-09: 「切り抜きどうしてもうまくいかない時用に元の画像をそのまま使う」): the whole photo, as a
+    /// rectangle with slightly rounded corners (`StickerCrop.shaped`), is the open choose screen's sticker and the thing's
+    /// from now on — the floating one, the GET moment's, the saved one — the same way as a loop's cut-out.
+    private func takeWholePhoto() {
+        guard let f = flow, f.chosenAt == nil, f.closingAt == nil,
+              let whole = StickerCrop.shaped(vm.photo, box: nil) else { return }
+        Task {
+            // The sticker's drawn copies, made before it floats (not on the main thread mid-animation).
+            _ = await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(whole) }.value
+            takeLearnerCut(whole, box: CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
     }
 
     /// The tag of the thing a loop (`box`, 0–1 of the photo) went round: the tag whose place is inside it, nearest its

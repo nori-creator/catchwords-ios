@@ -11380,5 +11380,12 @@
   "es": "Haz fotos de todo lo que encuentras cada día y haz crecer un cuaderno de palabras solo tuyo.",
   "ko": "매일 만나는 여러 가지 물건을 찍어서 나만의 단어장을 키워 보세요.",
   "vi": "Hãy chụp những thứ bạn gặp mỗi ngày và nuôi lớn sổ từ vựng của riêng bạn."
+ },
+ "元の写真のまま": {
+  "en": "Use the original photo",
+  "zh-TW": "使用原始照片",
+  "es": "Usar la foto original",
+  "ko": "원본 사진 그대로",
+  "vi": "Dùng ảnh gốc"
  }
 }

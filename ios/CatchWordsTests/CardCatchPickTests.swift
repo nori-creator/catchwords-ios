@@ -75,14 +75,13 @@ final class CardCatchPickTests: XCTestCase {
         return pts
     }
 
-    func testALassoMarksTheGridInsideIt() {
+    func testALoopsAreaAndBounds() {
         let loop = squareLoop(0.25, 0.25, 0.75, 0.75)
         XCTAssertEqual(LassoCut.area(loop), 0.25, accuracy: 0.001)
         XCTAssertTrue(LassoCut.isLoop(loop))
-        let bits = LassoCut.inside(loop, width: 20, height: 20)
-        XCTAssertEqual(bits.reduce(0) { $0 + Int($1) }, 100)
-        XCTAssertEqual(bits[10 * 20 + 10], 1)
-        XCTAssertEqual(bits[2 * 20 + 2], 0)
+        let b = LassoCut.bounds(loop)
+        XCTAssertEqual(b.minX, 0.25, accuracy: 0.001)
+        XCTAssertEqual(b.maxY, 0.75, accuracy: 0.001)
     }
 
     func testATapOrAShortStrokeIsNoLoop() {
@@ -92,35 +91,22 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertFalse(LassoCut.isLoop(squareLoop(0.5, 0.5, 0.52, 0.52)))
     }
 
-    func testTheLassoKeepsTheThingInItWholeAndLeavesTheNeighbourItGrazes() {
-        // 20×20: the thing in two pieces (labels 1 and 2, a roller and its handle) inside the loop; a neighbour
-        // (label 3) on the right that the loop only touches.
-        let w = 20, h = 20
-        var mask = [UInt8](repeating: 0, count: w * h)
-        for y in 6..<14 { for x in 6..<10 { mask[y * w + x] = 1 } }
-        for y in 6..<14 { for x in 10..<13 { mask[y * w + x] = 2 } }
-        for y in 4..<16 { for x in 14..<20 { mask[y * w + x] = 3 } }
-        let loop = squareLoop(0.25, 0.25, 0.75, 0.75)   // x, y 5–14
-        let inside = LassoCut.inside(loop, width: w, height: h)
-        let picked = LassoCut.pick(mask: mask, inside: inside, width: w, height: h)
-        XCTAssertEqual(picked, [1, 2])
-        let keep = LassoCut.keep(mask: mask, labels: picked, inside: inside, width: w, height: h)
-        XCTAssertEqual(keep.reduce(0) { $0 + Int($1) }, 8 * 4 + 8 * 3)
-        XCTAssertEqual(keep[10 * w + 15], 0)
-    }
-
-    func testTheLassoCutsOffWhatOfTheThingLiesOutsideIt() {
-        // One instance runs well past the loop (Vision joined the thing to the table edge): only its part in the loop
-        // (and `slack` round it) is kept.
-        let w = 20, h = 20
-        var mask = [UInt8](repeating: 0, count: w * h)
-        for y in 6..<14 { for x in 2..<14 { mask[y * w + x] = 1 } }
-        let loop = squareLoop(0.25, 0.25, 0.75, 0.75)
-        let inside = LassoCut.inside(loop, width: w, height: h)
-        XCTAssertEqual(LassoCut.pick(mask: mask, inside: inside, width: w, height: h), [1])
-        let keep = LassoCut.keep(mask: mask, labels: [1], inside: inside, width: w, height: h)
-        XCTAssertEqual(keep[10 * w + 2], 0)
-        XCTAssertEqual(keep[10 * w + 8], 1)
+    func testSmoothingTakesOutTheFingersWobbleAndKeepsTheLoop() {
+        // A round loop with every other point pushed out (a shaky finger): smoothed, the wobble is mostly gone, and the
+        // loop keeps its place and its size (a finger's loop has a point every few screen points: 200 round a thing).
+        let n = 200
+        let loop = (0..<n).map { i -> CGPoint in
+            let a = CGFloat(i) / CGFloat(n) * 2 * .pi
+            let r: CGFloat = i.isMultiple(of: 2) ? 0.3 : 0.34
+            return CGPoint(x: 0.5 + r * cos(a), y: 0.5 + r * sin(a))
+        }
+        let smooth = LassoCut.smoothed(loop)
+        XCTAssertEqual(smooth.count, n)
+        let radii = smooth.map { hypot($0.x - 0.5, $0.y - 0.5) }
+        XCTAssertLessThan(radii.max()! - radii.min()!, 0.01, "the wobble (0.04) is smoothed out")
+        XCTAssertEqual(LassoCut.area(smooth), LassoCut.area(loop), accuracy: 0.005)
+        // Too few points to smooth: left as drawn.
+        XCTAssertEqual(LassoCut.smoothed(Array(loop.prefix(4))), Array(loop.prefix(4)))
     }
 
     // MARK: No holes where a thing lay on another
