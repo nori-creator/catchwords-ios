@@ -142,7 +142,9 @@ struct CollageBoard: View {
         grabbed = id
         Haptics.impact(.soft)
         guard front.last != id else { return }
-        changed = true
+        // Coming to the front alone is not a change to save: only a move, a pinch or a twist is (`release`). A long press
+        // let go where it began saved the whole day's places, and the day's photos stayed put from then on (owner
+        // 2026-11-09: the textbook taken later stood under the stone bowl).
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             front.removeAll { $0 == id }
             front.append(id)
@@ -151,7 +153,14 @@ struct CollageBoard: View {
 
     /// The finger let go where `place` says: kept (straightened when near level) until 「完了」 saves the page.
     private func release(_ id: String, at place: AlbumPlacement) {
-        let settled = AlbumLayout.settle(place)
+        // A press let go where it began keeps the photo as it was: straightening it to level (`settle`) is not a change
+        // the learner made, and it saved the page.
+        let settled: AlbumPlacement
+        if let before = live[id], !AlbumLayout.moved(from: before, to: place) {
+            settled = before
+        } else {
+            settled = AlbumLayout.settle(place)
+        }
         if live[id] != settled { changed = true }
         // Damped (no overshoot): the photo stays where the finger left it and only straightens.
         withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {

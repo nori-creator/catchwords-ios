@@ -89,4 +89,41 @@ final class AlbumDayTests: XCTestCase {
         XCTAssertLessThan(AlbumLayout.boxOf(p[0], ratio: it[0].ratio, extra: it[0].extra).y, 0.5, "at the top")
         assertNoOverlap(fixed + boxes(p, it))
     }
+
+    // MARK: Newer photos above the ones placed by hand (owner 2026-11-09: 「新しい画像は上に来るようにして…直ってない」)
+
+    private func day(_ stickers: [DayLayoutSticker]) -> [String: AlbumBox] {
+        let input = DayLayoutInput(stickers: stickers, hasHero: { _ in true }, photoRatio: [:], boardW: 350)
+        let out = AlbumLayout.layoutDayAlbum(input)
+        return Dictionary(uniqueKeysWithValues: out.items.map { ($0.id, AlbumLayout.boxOf($0.place, ratio: $0.ratio)) })
+    }
+
+    func testAPhotoTakenAfterOnePlacedByHandStandsAboveIt() {
+        // The stone bowl, its place saved (a long press) in the middle of the day; the textbook taken later. Newest first.
+        let bowl = DayLayoutSticker(id: "bowl", albumOrder: 0, albumX: 0.5, albumY: 0.52, albumScale: AlbumLayout.DAY_PHOTO_W / AlbumLayout.BASE_WIDTH, albumRot: 0)
+        let book = DayLayoutSticker(id: "book")
+        let b = day([book, bowl])
+        let top = { (x: AlbumBox) in x.y - x.h / 2 }, bottom = { (x: AlbumBox) in x.y + x.h / 2 }
+        XCTAssertLessThan(bottom(b["book"]!), top(b["bowl"]!), "the newer photo is above the one placed by hand")
+        XCTAssertEqual(b["bowl"]!.x, 0.5, accuracy: 0.0001, "the placed photo keeps its side")
+    }
+
+    func testPhotosPlacedByHandKeepTheirPlacesWhenNothingNewerCame() {
+        let w = AlbumLayout.DAY_PHOTO_W / AlbumLayout.BASE_WIDTH
+        let a = DayLayoutSticker(id: "a", albumOrder: 0, albumX: 0.3, albumY: 0.4, albumScale: w, albumRot: 2)
+        let older = DayLayoutSticker(id: "older")
+        let input = DayLayoutInput(stickers: [a, older], hasHero: { _ in true }, photoRatio: [:], boardW: 350)
+        let out = AlbumLayout.layoutDayAlbum(input)
+        let placed = out.items.first { $0.id == "a" }!.place
+        XCTAssertEqual(placed.x, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(placed.y, 0.4, accuracy: 0.0001, "an older photo does not push it")
+    }
+
+    func testAPressLetGoWhereItBeganIsNoMove() {
+        let p = AlbumPlacement(x: 0.5, y: 0.5, scale: 0.4, rot: 1.2)
+        XCTAssertFalse(AlbumLayout.moved(from: p, to: AlbumPlacement(x: 0.505, y: 0.497, scale: 0.4, rot: 1.2)), "a trembling finger")
+        XCTAssertTrue(AlbumLayout.moved(from: p, to: AlbumPlacement(x: 0.6, y: 0.5, scale: 0.4, rot: 1.2)), "dragged")
+        XCTAssertTrue(AlbumLayout.moved(from: p, to: AlbumPlacement(x: 0.5, y: 0.5, scale: 0.5, rot: 1.2)), "pinched")
+        XCTAssertTrue(AlbumLayout.moved(from: p, to: AlbumPlacement(x: 0.5, y: 0.5, scale: 0.4, rot: 8)), "twisted")
+    }
 }
