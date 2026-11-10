@@ -49,28 +49,34 @@ struct CatchChooseOverlay: View {
     /// The card has come in and stands still (`settleCard`): its timeline stops until a choice, new rows or closing.
     @State private var cardStill = false
 
-    /// 囲んで切り抜き直す and 元の写真のまま at the top left.
+    /// 囲んで切り抜き直す and 元の写真のまま at the top left, always side by side (owner 2026-11-10: 「元の画像は切り抜き
+    /// 治すの右に配置して」 — stacked, the second one covered the cut-out). Where the row is narrow the two get smaller.
     @ViewBuilder
-    private var cutButtons: some View {
-        if let onRecut {
-            cutButton(L("囲んで切り抜き直す"), icon: "lasso", id: "variant.recut", action: onRecut)
-        }
-        if let onWholePhoto {
-            cutButton(L("元の写真のまま"), icon: "photo", id: "variant.wholePhoto", action: onWholePhoto)
+    private func cutButtons(compact: Bool) -> some View {
+        HStack(spacing: compact ? 6 : 8) {
+            if let onRecut {
+                cutButton(L("囲んで切り抜き直す"), icon: "lasso", id: "variant.recut", compact: compact, action: onRecut)
+            }
+            if let onWholePhoto {
+                cutButton(L("元の写真のまま"), icon: "photo", id: "variant.wholePhoto", compact: compact,
+                          action: onWholePhoto)
+            }
         }
     }
 
-    private func cutButton(_ title: String, icon: String, id: String, action: @escaping () -> Void) -> some View {
+    private func cutButton(_ title: String, icon: String, id: String, compact: Bool,
+                           action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: compact ? 4 : 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: compact ? 12 : 14, weight: .semibold))
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: compact ? 12 : 13, weight: .semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .foregroundStyle(ink)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, compact ? 9 : 12)
             .frame(height: 36)
             .background(.white.opacity(0.85), in: Capsule())
             .overlay(Capsule().stroke(line, lineWidth: 1))
@@ -149,12 +155,14 @@ struct CatchChooseOverlay: View {
             if hasCard, chosenAt == nil, closingAt == nil {
                 VStack {
                     HStack {
-                        // Side by side, or one over the other where the row is too narrow for both.
+                        // Side by side, smaller where the row is narrow. The row gets its width before the Spacer:
+                        // with the Spacer sharing it, the buttons were offered half the row and fell one under the other.
                         ViewThatFits(in: .horizontal) {
-                            HStack(spacing: 8) { cutButtons }
-                            VStack(alignment: .leading, spacing: 0) { cutButtons }
+                            cutButtons(compact: false)
+                            cutButtons(compact: true)
                         }
-                        Spacer()
+                        .layoutPriority(1)
+                        Spacer(minLength: 8)
                         Button(action: onClose) {
                             Image(systemName: "xmark")
                                 .font(.system(size: 15, weight: .semibold))
