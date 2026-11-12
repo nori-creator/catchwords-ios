@@ -33,12 +33,15 @@ enum CCPickLayout {
     /// The width of the 「言い方の数」 badge after a name (CandidatePickerView draws it exactly this wide).
     static let badgeWidth: CGFloat = 32
 
-    /// A tag's size for a name: 8 + dot 10 + 7 + text (+ 7 + badge) + 12 wide, 7 + line + 7 high.
+    /// The blue 「＋」 at a tag's end (owner 2026-11-12, design A: the tag reads as something to press).
+    static let plusSize: CGFloat = 18
+
+    /// A tag's size for a name: 8 + dot 10 + 7 + text (+ 7 + badge) + 7 + 「＋」 18 + 6 wide, 7 + line + 7 high.
     static func tagSize(name: String, badge: Bool = false) -> CGSize {
         let font = UIFont.systemFont(ofSize: tagFontSize, weight: .heavy)
         let w = (name as NSString).size(withAttributes: [.font: font]).width
-        return CGSize(width: ceil(w) + 37 + (badge ? 7 + badgeWidth : 0),
-                      height: ceil(max(badge ? 18 : 10, font.lineHeight)) + 14)
+        return CGSize(width: ceil(w) + 38 + plusSize + (badge ? 7 + badgeWidth : 0),
+                      height: ceil(max(plusSize, font.lineHeight)) + 14)
     }
 
     /// The tag's x, kept inside the area.
@@ -119,5 +122,56 @@ enum CCPickLayout {
     private static func distance(_ p: CGPoint, _ r: CGRect) -> CGFloat {
         let dx = p.x - r.midX, dy = p.y - r.midY
         return dx * dx + dy * dy
+    }
+}
+
+
+/// Where the finger that taps the first tag stands (owner 2026-11-12: 「名前のタグに決してカーソルがかぶらないようにして」).
+/// The hand (`hand.point.up.left`, fingertip at its top-left corner, mirrored as needed) stands diagonally off a
+/// corner of the tag, `gap` away; its tap moves it `travel` towards the tag, so even pressed it stays clear. A place
+/// is taken only if the hand, over its whole tap, touches no tag and stays on the photo; with no such place there is
+/// no finger.
+enum TagHandPlacement {
+    static let size = CGSize(width: 34, height: 34)
+    static let gap: CGFloat = 10
+    static let travel: CGFloat = 5
+
+    struct Spot: Equatable {
+        /// The hand's square on the stage, at rest.
+        var rect: CGRect
+        var flipX: Bool
+        var flipY: Bool
+        /// The direction of the tap (towards the tag), unit length.
+        var toward: CGVector
+        /// The tag it taps.
+        var target: CGRect
+    }
+
+    static func spot(target: CGRect, tags: [CGRect], stage: CGSize) -> Spot? {
+        let w = size.width, h = size.height
+        let d = 1 / CGFloat(2).squareRoot()
+        // Below the tag first (the finger points up at it, as on most photos the tags sit over their things), from its
+        // middle, then its right and left ends; above it last.
+        let xs: [CGFloat] = [target.midX, target.maxX - 12, target.minX + 12]
+        var candidates: [Spot] = []
+        for x in xs {
+            candidates.append(Spot(rect: CGRect(x: x + 2, y: target.maxY + gap, width: w, height: h),
+                                   flipX: false, flipY: false, toward: CGVector(dx: -d, dy: -d), target: target))
+            candidates.append(Spot(rect: CGRect(x: x - 2 - w, y: target.maxY + gap, width: w, height: h),
+                                   flipX: true, flipY: false, toward: CGVector(dx: d, dy: -d), target: target))
+        }
+        for x in xs {
+            candidates.append(Spot(rect: CGRect(x: x + 2, y: target.minY - gap - h, width: w, height: h),
+                                   flipX: false, flipY: true, toward: CGVector(dx: -d, dy: d), target: target))
+            candidates.append(Spot(rect: CGRect(x: x - 2 - w, y: target.minY - gap - h, width: w, height: h),
+                                   flipX: true, flipY: true, toward: CGVector(dx: d, dy: d), target: target))
+        }
+        let bounds = CGRect(origin: .zero, size: stage).insetBy(dx: 4, dy: 4)
+        return candidates.first { c in
+            let pressed = c.rect.offsetBy(dx: c.toward.dx * travel, dy: c.toward.dy * travel)
+            let sweep = c.rect.union(pressed)
+            guard bounds.contains(sweep) else { return false }
+            return !tags.contains { $0.insetBy(dx: -3, dy: -3).intersects(sweep) }
+        }
     }
 }

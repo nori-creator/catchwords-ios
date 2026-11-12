@@ -296,6 +296,9 @@ final class FullTourTests: XCTestCase {
             return
         }
         settle(1.5)
+        // The field is behind 「リストにない言葉を探す」 (design A, 2026-11-12).
+        let openSearch = app.buttons["picker.searchOpen"]
+        if openSearch.waitForExistence(timeout: 5) { openSearch.tap(); settle(0.6) }
         let field = app.textFields["picker.field"]
         guard field.waitForExistence(timeout: 5) else {
             XCTFail("[\(display)/\(learning)] no field to type a word under the photo")

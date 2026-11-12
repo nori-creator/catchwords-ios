@@ -11387,5 +11387,12 @@
   "es": "Usar la foto original",
   "ko": "원본 사진 그대로",
   "vi": "Dùng ảnh gốc"
+ },
+ "リストにない言葉を探す": {
+  "en": "Search for a word not listed",
+  "zh-TW": "搜尋不在清單上的詞",
+  "es": "Buscar una palabra que no aparece",
+  "ko": "목록에 없는 단어 찾기",
+  "vi": "Tìm từ không có trong danh sách"
  }
 }

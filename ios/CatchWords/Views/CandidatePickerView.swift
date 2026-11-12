@@ -42,6 +42,11 @@ struct CandidatePickerView: View {
     @State private var stageFrame: CGRect = .zero
     /// 囲んで切り抜き直す over the choose screen (owner 2026-11-05).
     @State private var recutting = false
+    /// 「リストにない言葉を探す」 was pressed: the field is out (design A, owner 2026-11-12).
+    @State private var searchOpen = false
+    /// The finger that taps the first tag (design A + C's hand): the photos it has been shown on, the first five only.
+    @AppStorage("coach.tagHand") private var tagHandCount: Int = 0
+    @State private var handPhoto: ObjectIdentifier?
     /// DEBUG previews: open the first thing with several ways to say it once the tags are up.
     var autoOpen: Bool = false
     /// DEBUG previews (`-uiPreview choose`): open it once and keep it open (nothing is chosen).
@@ -153,6 +158,13 @@ struct CandidatePickerView: View {
         .onChange(of: scanning) { _, _ in
             flow = nil
             melt = false
+            searchOpen = false
+        }
+        // The field goes back to its one line when it is left with nothing typed and nothing found.
+        .onChange(of: inputFocused) { _, focused in
+            guard !focused, typed.trimmingCharacters(in: .whitespaces).isEmpty, vm.typedCandidates.isEmpty,
+                  vm.searchError == nil, !vm.isLookingUp else { return }
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) { searchOpen = false }
         }
         .task(id: autoOpen) { await openForPreview() }
         // 囲んで切り抜き直す: the learner's loop on the photo becomes the thing's sticker (the floating one here, the GET
@@ -204,7 +216,8 @@ struct CandidatePickerView: View {
         switch vm.scan?.phase {
         case .scanning?: return L("写真をスキャンしています")
         case .naming?: return L("名前を調べています")
-        default: return L("覚えたいことばをタップ")
+        // Design A (owner 2026-11-12: 「覚えたいもののタグをタップって文字を消して」): the tags' 「＋」 and the finger say it.
+        default: return ""
         }
     }
 
@@ -280,7 +293,12 @@ struct CandidatePickerView: View {
         }
     }
 
+    @ViewBuilder
     private var hintText: some View {
+        if !topHint.isEmpty { hintLine }
+    }
+
+    private var hintLine: some View {
         Text(topHint)
             .scaledFont(size: 14, weight: .semibold)
             .foregroundStyle(.white.opacity(0.85))
@@ -317,7 +335,13 @@ struct CandidatePickerView: View {
                     tagButton(p)
                         .position(x: p.spot.x, y: p.spot.y - p.size.height / 2)
                 }
+                if let spot = handSpot(placedTags, in: size) {
+                    TagTapHand(spot: spot, calm: reduceMotion)
+                        .onAppear(perform: countHand)
+                        .transition(.opacity)
+                }
             }
+            .animation(.easeOut(duration: 0.35), value: handSpot(placedTags, in: size) != nil)
             .frame(width: size.width, height: size.height)
             // The choose screen melts the photo (film: blur 40 px, brightness +6%, scale 1.08 round the thing).
             .blur(radius: melt ? 15 : 0)
@@ -426,6 +450,32 @@ struct CandidatePickerView: View {
         return k.isEmpty ? nil : k
     }
 
+    /// Where the finger taps the first tag, or nil: only on the first five photos (owner 2026-11-12), once that tag
+    /// and every other one are up and nothing covers the photo, never in the first-run guide (its card points at the
+    /// same tag), and never over any tag (`TagHandPlacement`: no room beside the first tag, no finger).
+    private func handSpot(_ placedTags: [Placed], in size: CGSize) -> TagHandPlacement.Spot? {
+        guard flow == nil, !scanning, !vm.isCheckingOwned, router.tour == .off, !inputFocused,
+              let first = placedTags.first(where: { $0.tag.mainIndex == 0 }) else { return nil }
+        if let scan = vm.scan, !scan.settled { return nil }
+        let photoId = vm.photo.map { ObjectIdentifier($0) }
+        guard tagHandCount < Self.handPhotos || (photoId != nil && handPhoto == photoId) else { return nil }
+        let frames = placedTags.map { CCPickLayout.frame(bottomCenter: $0.spot, size: $0.size) }
+        let target = CCPickLayout.frame(bottomCenter: first.spot, size: first.size)
+        return TagHandPlacement.spot(target: target, tags: frames, stage: size)
+    }
+
+    /// The finger is shown on this many photos, then never again.
+    static let handPhotos = 5
+
+    /// Counts the photo the finger came up on (once a photo).
+    private func countHand() {
+        guard let photo = vm.photo else { return }
+        let id = ObjectIdentifier(photo)
+        guard handPhoto != id else { return }
+        handPhoto = id
+        tagHandCount += 1
+    }
+
     private func placed(in size: CGSize) -> [Placed] {
         guard let photo = vm.photo, size.width > 0, size.height > 0 else { return [] }
         let list = tags(objects)
@@ -492,11 +542,19 @@ struct CandidatePickerView: View {
                     .frame(width: CCPickLayout.badgeWidth, height: 18)
                     .background(Color(hex: 0x2A9BFF).opacity(0.14), in: Capsule())
                 }
+                // Design A (owner 2026-11-12): a blue 「＋」 so the tag reads as something to press, not a label on the
+                // photo (a friend trying the app pressed 検索 under the photo instead).
+                Image(systemName: "plus")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(.white)
+                    .frame(width: CCPickLayout.plusSize, height: CCPickLayout.plusSize)
+                    .background(Color(hex: 0x2A9BFF), in: Circle())
             }
             .padding(.leading, 8)
-            .padding(.trailing, 12)
+            .padding(.trailing, 6)
             .padding(.vertical, 7)
             .background(Color.white.opacity(0.96), in: Capsule())
+            .overlay { if shown && !reduceMotion { TagPulseRing(delay: Double(t.mainIndex ?? 4) * 0.15) } }
             .shadow(color: .black.opacity(0.3), radius: 10, y: 6)
             .contentShape(Capsule().inset(by: -6))
         }
@@ -748,7 +806,38 @@ struct CandidatePickerView: View {
 
     // MARK: "違う単語を入力"
 
+    /// 「リストにない言葉を探す」, one small line at the bottom (design A, owner 2026-11-12: the white card with its field
+    /// was the brightest thing on the screen and read as what to do next); pressed, the field comes up as before.
+    @ViewBuilder
     private var bottomPanel: some View {
+        if searchOpen || !vm.typedCandidates.isEmpty || vm.searchError != nil || vm.isLookingUp {
+            searchCard
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        } else {
+            Button {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) { searchOpen = true }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(280))
+                    inputFocused = true
+                }
+            } label: {
+                Text(L("リストにない言葉を探す"))
+                    .scaledFont(size: 14, weight: .semibold)
+                    .underline()
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityIdentifier("picker.searchOpen")
+            .transition(.opacity)
+        }
+    }
+
+    private var searchCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             if !vm.typedCandidates.isEmpty { typedList }
             manualInput
@@ -928,5 +1017,89 @@ struct PronounceCircle: View {
         .accessibilityLabel(L("発音を聞く"))
         // Web `pronounce.prefetch`: fetch the server voice when the button appears, so the tap is instant.
         .task(id: text) { if prefetch { SoundService.shared.prefetch(text) } }
+    }
+}
+
+
+/// A tag's blue ring, three times as it comes up (design A, owner 2026-11-12), then still.
+private struct TagPulseRing: View {
+    let delay: Double
+    @State private var grow: CGFloat = 0
+    @State private var lit = false
+
+    var body: some View {
+        Capsule()
+            .stroke(Color(hex: 0x2A9BFF), lineWidth: 3)
+            .scaleEffect(1 + 0.18 * grow)
+            .opacity(lit ? Double(1 - grow) * 0.85 : 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .task {
+                try? await Task.sleep(for: .seconds(0.35 + delay))
+                for _ in 0..<3 {
+                    guard !Task.isCancelled else { return }
+                    grow = 0
+                    lit = true
+                    withAnimation(.easeOut(duration: 0.9)) { grow = 1 }
+                    try? await Task.sleep(for: .seconds(1.15))
+                }
+                lit = false
+            }
+    }
+}
+
+/// The finger that taps the first tag (owner 2026-11-12: C's finger on design A, 「名前のタグに決してカーソルがかぶらない
+/// ようにして」). It stands beside the tag (`TagHandPlacement`), moves a few points towards it and back, and a white ring
+/// goes out round the tag as it touches; the ring is outside the tag and the finger never reaches it.
+struct TagTapHand: View {
+    let spot: TagHandPlacement.Spot
+    let calm: Bool
+
+    private struct Pose { var press: CGFloat = 0; var ring: CGFloat = 0 }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if calm {
+                hand(press: 0)
+            } else {
+                KeyframeAnimator(initialValue: Pose(), repeating: true) { pose in
+                    ZStack(alignment: .topLeading) {
+                        Capsule()
+                            .stroke(.white, lineWidth: 2)
+                            .frame(width: spot.target.width + 6 + 14 * pose.ring, height: spot.target.height + 6 + 14 * pose.ring)
+                            .position(x: spot.target.midX, y: spot.target.midY)
+                            .opacity(pose.ring > 0 ? Double(1 - pose.ring) * 0.9 : 0)
+                        hand(press: pose.press)
+                    }
+                } keyframes: { _ in
+                    KeyframeTrack(\.press) {
+                        CubicKeyframe(0, duration: 0.5)
+                        CubicKeyframe(1, duration: 0.22)
+                        CubicKeyframe(0, duration: 0.28)
+                        CubicKeyframe(0, duration: 0.6)
+                    }
+                    KeyframeTrack(\.ring) {
+                        LinearKeyframe(0, duration: 0.7)
+                        LinearKeyframe(1, duration: 0.6)
+                        LinearKeyframe(0, duration: 0.01)
+                        LinearKeyframe(0, duration: 0.29)
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func hand(press: CGFloat) -> some View {
+        Image(systemName: "hand.point.up.left.fill")
+            .font(.system(size: TagHandPlacement.size.height * 0.82))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.45), radius: 4, y: 2)
+            .scaleEffect(x: spot.flipX ? -1 : 1, y: spot.flipY ? -1 : 1)
+            .frame(width: spot.rect.width, height: spot.rect.height)
+            .scaleEffect(1 - 0.06 * press)
+            .position(x: spot.rect.midX + spot.toward.dx * TagHandPlacement.travel * press,
+                      y: spot.rect.midY + spot.toward.dy * TagHandPlacement.travel * press)
     }
 }

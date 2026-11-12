@@ -143,6 +143,8 @@ final class DuoWalkthroughTests: XCTestCase {
         shutter.tap()
         guard app.buttons["candidate.0"].firstMatch.waitForExistence(timeout: 30) else { return }
         pause(1.5)
+        let openSearch = app.buttons["picker.searchOpen"]
+        if openSearch.waitForExistence(timeout: 5) { openSearch.tap(); pause(0.6) }
         let field = app.textFields["picker.field"]
         guard field.waitForExistence(timeout: 5) else { return }
         field.tap(); pause(1); snap("typed-keyboard")
