@@ -84,4 +84,40 @@ final class ReadingAndCategoryTests: XCTestCase {
                        ["Stress the first syllable.", "Then relax."])
         XCTAssertEqual(WordDetailView.sentences("  "), [])
     }
+
+    // MARK: - The reading a phone starts on (owner 2026-11-12: a new install reads pinyin)
+
+    private func freshDefaults() -> UserDefaults {
+        let name = "reading-default-\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: name)!
+        d.removePersistentDomain(forName: name)
+        return d
+    }
+
+    func testANewInstallStartsOnPinyin() {
+        let d = freshDefaults()
+        ReadingDefault.settle(d)
+        XCTAssertEqual(d.string(forKey: "reading.pref"), "pinyin")
+    }
+
+    func testAPhoneThatUsedTheAppKeepsZhuyin() {
+        for key in ["onboarding.done", "onboarding.done.user-1", "aiConsent.user-1", "plan.day", "last.targetLanguage"] {
+            let d = freshDefaults()
+            d.set("x", forKey: key)
+            ReadingDefault.settle(d)
+            XCTAssertEqual(d.string(forKey: "reading.pref"), "zhuyin", key)
+        }
+    }
+
+    func testAChoiceAlreadyMadeIsKept() {
+        let d = freshDefaults()
+        d.set("zhuyin", forKey: "reading.pref")
+        ReadingDefault.settle(d)
+        XCTAssertEqual(d.string(forKey: "reading.pref"), "zhuyin")
+        let e = freshDefaults()
+        e.set("pinyin", forKey: "reading.pref")
+        e.set(true, forKey: "onboarding.done")
+        ReadingDefault.settle(e)
+        XCTAssertEqual(e.string(forKey: "reading.pref"), "pinyin")
+    }
 }
