@@ -745,4 +745,46 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(CandidatePickerView.tagInside(edge, of: places) { $0 }, places[0])
         XCTAssertNil(CandidatePickerView.tagInside(loop, of: [CGPoint]()) { $0 })
     }
+
+    // MARK: - The finger that taps the first tag never covers a tag (owner 2026-11-12)
+
+    private func sweep(_ spot: TagHandPlacement.Spot) -> CGRect {
+        spot.rect.union(spot.rect.offsetBy(dx: spot.toward.dx * TagHandPlacement.travel,
+                                           dy: spot.toward.dy * TagHandPlacement.travel))
+    }
+
+    func testTheFingerStandsBelowALoneTag() {
+        let tag = CGRect(x: 100, y: 100, width: 90, height: 32)
+        let spot = TagHandPlacement.spot(target: tag, tags: [tag], stage: CGSize(width: 360, height: 480))
+        XCTAssertNotNil(spot)
+        XCTAssertGreaterThan(spot!.rect.minY, tag.maxY, "below the tag")
+        XCTAssertFalse(sweep(spot!).intersects(tag), "not even pressed")
+    }
+
+    func testTheFingerKeepsOffEveryTag() {
+        let stage = CGSize(width: 360, height: 480)
+        let first = CGRect(x: 120, y: 140, width: 100, height: 32)
+        // Tags right under the first one: the finger goes above it, or wherever is free, never on a tag.
+        let others = [CGRect(x: 60, y: 180, width: 120, height: 32), CGRect(x: 170, y: 182, width: 110, height: 32)]
+        let tags = [first] + others
+        let spot = TagHandPlacement.spot(target: first, tags: tags, stage: stage)
+        XCTAssertNotNil(spot)
+        for t in tags { XCTAssertFalse(sweep(spot!).intersects(t), "the finger touches a tag at \(t)") }
+        XCTAssertTrue(CGRect(origin: .zero, size: stage).contains(sweep(spot!)), "on the photo")
+    }
+
+    func testNoRoomMeansNoFinger() {
+        // Tags all round the first one and the photo's edges close: no finger rather than a finger on a tag.
+        let first = CGRect(x: 40, y: 50, width: 80, height: 32)
+        let tags = [first, CGRect(x: 0, y: 84, width: 160, height: 60), CGRect(x: 0, y: 0, width: 160, height: 48)]
+        XCTAssertNil(TagHandPlacement.spot(target: first, tags: tags, stage: CGSize(width: 160, height: 150)))
+    }
+
+    func testATagIsWideEnoughForItsPlus() {
+        let plain = CCPickLayout.tagSize(name: "机")
+        let font = UIFont.systemFont(ofSize: CCPickLayout.tagFontSize, weight: .heavy)
+        let text = ceil(("机" as NSString).size(withAttributes: [.font: font]).width)
+        XCTAssertEqual(plain.width, 8 + 10 + 7 + text + 7 + CCPickLayout.plusSize + 6)
+        XCTAssertGreaterThanOrEqual(plain.height, CCPickLayout.plusSize + 14)
+    }
 }
