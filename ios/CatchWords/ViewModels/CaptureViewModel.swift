@@ -291,6 +291,7 @@ final class CaptureViewModel {
     func finishSelfie(_ image: UIImage?) {
         guard step == .selfie else { return }
         selfie = image
+        if image != nil { AppEvents.feature(.selfie) }
         if detectOutcome == nil {
             withAnimation(.easeInOut(duration: 0.3)) { step = .processing }
         } else {

@@ -58,8 +58,10 @@ struct CatchChooseOverlay: View {
                 cutButton(L("囲んで切り抜き直す"), icon: "lasso", id: "variant.recut", compact: compact, action: onRecut)
             }
             if let onWholePhoto {
-                cutButton(L("元の写真のまま"), icon: "photo", id: "variant.wholePhoto", compact: compact,
-                          action: onWholePhoto)
+                cutButton(L("元の写真のまま"), icon: "photo", id: "variant.wholePhoto", compact: compact) {
+                    AppEvents.feature(.wholePhoto)
+                    onWholePhoto()
+                }
             }
         }
     }

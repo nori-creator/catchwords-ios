@@ -11772,5 +11772,425 @@
   "es": "Solo se puede elegir un modelo que respondió a la prueba.",
   "ko": "시험 호출에서 작동한 모델만 고를 수 있어요.",
   "vi": "Chỉ chọn được mô hình đã trả lời khi gọi thử."
+ },
+ "13週。色が濃いほど、その日に撮った語と復習が多い。": {
+  "en": "13 weeks. The darker the day, the more words caught and reviewed.",
+  "zh-TW": "13 週。顏色越深，當天拍的單字和複習越多。",
+  "es": "13 semanas. Cuanto más oscuro el día, más palabras capturadas y repasadas.",
+  "ko": "13주. 색이 진할수록 그날 찍은 단어와 복습이 많아요.",
+  "vi": "13 tuần. Ngày càng đậm thì càng chụp và ôn nhiều từ."
+ },
+ "1回の滞在": {
+  "en": "Per visit",
+  "zh-TW": "每次停留",
+  "es": "Por visita",
+  "ko": "1회 이용 시간",
+  "vi": "Mỗi lần dùng"
+ },
+ "1日の復習 {1}": {
+  "en": "{1} reviews a day",
+  "zh-TW": "每天複習 {1}",
+  "es": "{1} repasos al día",
+  "ko": "하루 복습 {1}",
+  "vi": "{1} lượt ôn mỗi ngày"
+ },
+ "2週分の復習がたまると出ます": {
+  "en": "Shown after two weeks of reviews",
+  "zh-TW": "累積兩週的複習後顯示",
+  "es": "Aparece tras dos semanas de repasos",
+  "ko": "2주 분량의 복습이 쌓이면 표시돼요",
+  "vi": "Hiện khi có ôn tập của hai tuần"
+ },
+ "AI の失敗": {
+  "en": "AI failures",
+  "zh-TW": "AI 失敗",
+  "es": "Fallos de la IA",
+  "ko": "AI 실패",
+  "vi": "Lỗi AI"
+ },
+ "TOCFL {1} → 目標 {2}": {
+  "en": "TOCFL {1} → goal {2}",
+  "zh-TW": "TOCFL {1} → 目標 {2}",
+  "es": "TOCFL {1} → meta {2}",
+  "ko": "TOCFL {1} → 목표 {2}",
+  "vi": "TOCFL {1} → mục tiêu {2}"
+ },
+ "{1}件": {
+  "en": "{1}",
+  "zh-TW": "{1} 件",
+  "es": "{1}",
+  "ko": "{1}건",
+  "vi": "{1}"
+ },
+ "{1}回 · 開いた日 {2}日": {
+  "en": "{1} visits · opened on {2} days",
+  "zh-TW": "{1} 次 · 開啟 {2} 天",
+  "es": "{1} visitas · abierta {2} días",
+  "ko": "{1}회 · 연 날 {2}일",
+  "vi": "{1} lần · mở {2} ngày"
+ },
+ "{1}回（{2}回中）": {
+  "en": "{1} of {2}",
+  "zh-TW": "{1} 次（共 {2} 次）",
+  "es": "{1} de {2}",
+  "ko": "{1}회 ({2}회 중)",
+  "vi": "{1} trên {2} lần"
+ },
+ "↻ 作り直し": {
+  "en": "↻ Remake",
+  "zh-TW": "↻ 重新產生",
+  "es": "↻ Rehacer",
+  "ko": "↻ 다시 만들기",
+  "vi": "↻ Làm lại"
+ },
+ "−{1}人 · ここで一番多く離れた": {
+  "en": "−{1} · most people left here",
+  "zh-TW": "−{1} 人 · 在這裡離開的人最多",
+  "es": "−{1} · aquí se fue más gente",
+  "ko": "−{1}명 · 여기서 가장 많이 떠났어요",
+  "vi": "−{1} người · rời đi nhiều nhất ở đây"
+ },
+ "いま覚えている語の数を、記憶の段ごとに。": {
+  "en": "Words by how well they are remembered now.",
+  "zh-TW": "依記憶程度，目前記住的單字數。",
+  "es": "Palabras según lo bien que se recuerdan ahora.",
+  "ko": "지금 기억 단계별 단어 수예요.",
+  "vi": "Số từ theo mức độ nhớ hiện tại."
+ },
+ "この30日 {1} · 再会 {2}": {
+  "en": "Last 30 days {1} · again {2}",
+  "zh-TW": "這 30 天 {1} · 再次拍到 {2}",
+  "es": "Últimos 30 días {1} · de nuevo {2}",
+  "ko": "최근 30일 {1} · 다시 만남 {2}",
+  "vi": "30 ngày qua {1} · gặp lại {2}"
+ },
+ "この{1}日で、まず見ること": {
+  "en": "What to look at first in these {1} days",
+  "zh-TW": "這 {1} 天裡最先要看的",
+  "es": "Lo primero que mirar en estos {1} días",
+  "ko": "이 {1}일 동안 먼저 볼 것",
+  "vi": "Điều cần xem trước trong {1} ngày này"
+ },
+ "この{1}日に登録した {2}人。赤い行で一番多く離れています。": {
+  "en": "{2} people signed up in these {1} days. Most left at the red line.",
+  "zh-TW": "這 {1} 天註冊的 {2} 人。紅色那一行離開的人最多。",
+  "es": "{2} personas se registraron en estos {1} días. La mayoría se fue en la línea roja.",
+  "ko": "이 {1}일 동안 가입한 {2}명. 빨간 줄에서 가장 많이 떠났어요.",
+  "vi": "{2} người đăng ký trong {1} ngày này. Dòng đỏ là nơi nhiều người rời đi nhất."
+ },
+ "どこまで進んだか": {
+  "en": "How far they got",
+  "zh-TW": "進行到哪裡",
+  "es": "Hasta dónde llegó",
+  "ko": "어디까지 진행했는지",
+  "vi": "Đã đi được đến đâu"
+ },
+ "まだ記録がありません（アプリの次の版から集まります）": {
+  "en": "No records yet (collected from the next app version)",
+  "zh-TW": "還沒有紀錄（從下一版 App 開始收集）",
+  "es": "Aún no hay registros (se recogen desde la próxima versión de la app)",
+  "ko": "아직 기록이 없어요 (앱의 다음 버전부터 모여요)",
+  "vi": "Chưa có dữ liệu (bắt đầu thu từ phiên bản ứng dụng tiếp theo)"
+ },
+ "アプリ {1}": {
+  "en": "App {1}",
+  "zh-TW": "App {1}",
+  "es": "App {1}",
+  "ko": "앱 {1}",
+  "vi": "Ứng dụng {1}"
+ },
+ "アプリの改善に使う": {
+  "en": "For improving the app",
+  "zh-TW": "用來改善 App",
+  "es": "Para mejorar la app",
+  "ko": "앱 개선에 쓰기",
+  "vi": "Để cải thiện ứng dụng"
+ },
+ "アプリを閉じる前に最後に開いていた画面": {
+  "en": "The screen open last before leaving the app",
+  "zh-TW": "離開 App 前最後開著的畫面",
+  "es": "La última pantalla abierta antes de salir de la app",
+  "ko": "앱을 닫기 전에 마지막으로 열려 있던 화면",
+  "vi": "Màn hình mở cuối cùng trước khi rời ứng dụng"
+ },
+ "チュートリアル": {
+  "en": "Tutorial",
+  "zh-TW": "教學",
+  "es": "Tutorial",
+  "ko": "튜토리얼",
+  "vi": "Hướng dẫn"
+ },
+ "メール": {
+  "en": "Email",
+  "zh-TW": "電子郵件",
+  "es": "Correo",
+  "ko": "이메일",
+  "vi": "Email"
+ },
+ "使う時間帯": {
+  "en": "When they use it",
+  "zh-TW": "使用時段",
+  "es": "Cuándo la usa",
+  "ko": "사용 시간대",
+  "vi": "Thời gian sử dụng"
+ },
+ "使った日": {
+  "en": "Days used",
+  "zh-TW": "使用的日子",
+  "es": "Días de uso",
+  "ko": "사용한 날",
+  "vi": "Ngày đã dùng"
+ },
+ "使った機能": {
+  "en": "Features used",
+  "zh-TW": "使用過的功能",
+  "es": "Funciones usadas",
+  "ko": "사용한 기능",
+  "vi": "Tính năng đã dùng"
+ },
+ "出すのは数だけです。メールアドレス・正確な位置・写真・撮った語・本人の書いた文は出しません。場所は市と区まで。日付は台湾時間。": {
+  "en": "Numbers only. No email addresses, exact locations, photos, caught words or anything people wrote. Places go down to city and district only. Dates are Taiwan time.",
+  "zh-TW": "只顯示數字。不顯示電子郵件、精確位置、照片、拍到的單字或本人寫的文字。地點只到縣市和區。日期為台灣時間。",
+  "es": "Solo números. Sin correos, ubicaciones exactas, fotos, palabras capturadas ni textos escritos por la persona. Los lugares llegan solo a ciudad y distrito. Las fechas están en hora de Taiwán.",
+  "ko": "숫자만 보여요. 이메일, 정확한 위치, 사진, 찍은 단어, 본인이 쓴 글은 보여 주지 않아요. 장소는 시와 구까지만. 날짜는 타이완 시간이에요.",
+  "vi": "Chỉ hiện con số. Không hiện email, vị trí chính xác, ảnh, từ đã chụp hay nội dung người dùng viết. Địa điểm chỉ đến thành phố và quận. Ngày theo giờ Đài Loan."
+ },
+ "困ったこと": {
+  "en": "Problems",
+  "zh-TW": "遇到的問題",
+  "es": "Problemas",
+  "ko": "곤란했던 일",
+  "vi": "Sự cố"
+ },
+ "図鑑の分類": {
+  "en": "Collection categories",
+  "zh-TW": "圖鑑分類",
+  "es": "Categorías de la colección",
+  "ko": "도감 분류",
+  "vi": "Danh mục bộ sưu tập"
+ },
+ "地図に置ける地名がありません": {
+  "en": "No place names to put on the map",
+  "zh-TW": "沒有可以放在地圖上的地名",
+  "es": "No hay nombres de lugar para poner en el mapa",
+  "ko": "지도에 놓을 수 있는 지명이 없어요",
+  "vi": "Không có địa danh nào để đặt lên bản đồ"
+ },
+ "報告した間違い": {
+  "en": "Mistakes reported",
+  "zh-TW": "回報的錯誤",
+  "es": "Errores reportados",
+  "ko": "신고한 오류",
+  "vi": "Lỗi đã báo"
+ },
+ "場所のある写真はまだありません": {
+  "en": "No photos with a place yet",
+  "zh-TW": "還沒有帶地點的照片",
+  "es": "Aún no hay fotos con lugar",
+  "ko": "아직 장소가 있는 사진이 없어요",
+  "vi": "Chưa có ảnh nào có địa điểm"
+ },
+ "夜": {
+  "en": "Evening",
+  "zh-TW": "晚上",
+  "es": "Noche",
+  "ko": "저녁",
+  "vi": "Tối"
+ },
+ "学んだ日（13週）": {
+  "en": "Days learned (13 weeks)",
+  "zh-TW": "學習的天數（13 週）",
+  "es": "Días de estudio (13 semanas)",
+  "ko": "학습한 날 (13주)",
+  "vi": "Ngày đã học (13 tuần)"
+ },
+ "市と区ごとの枚数。円が大きいほど多い。番地や1人ずつの位置は出しません。": {
+  "en": "Photos per city and district. Bigger circles mean more. No street addresses or individual locations.",
+  "zh-TW": "依縣市和區統計的照片數。圓越大表示越多。不顯示門牌或每個人的位置。",
+  "es": "Fotos por ciudad y distrito. Cuanto mayor el círculo, más fotos. Sin direcciones ni ubicaciones individuales.",
+  "ko": "시와 구별 사진 수. 원이 클수록 많아요. 번지나 개인별 위치는 보여 주지 않아요.",
+  "vi": "Số ảnh theo thành phố và quận. Vòng tròn càng lớn càng nhiều. Không hiện số nhà hay vị trí từng người."
+ },
+ "市と区ごとの枚数。番地や正確な位置は出しません。円の位置は地名から決めています。": {
+  "en": "Photos per city and district. No street addresses or exact locations. Circles are placed from the place names.",
+  "zh-TW": "依縣市和區統計的照片數。不顯示門牌或精確位置。圓的位置是依地名決定的。",
+  "es": "Fotos por ciudad y distrito. Sin direcciones ni ubicaciones exactas. Los círculos se colocan según el nombre del lugar.",
+  "ko": "시와 구별 사진 수. 번지나 정확한 위치는 보여 주지 않아요. 원의 위치는 지명으로 정해요.",
+  "vi": "Số ảnh theo thành phố và quận. Không hiện số nhà hay vị trí chính xác. Vị trí vòng tròn được đặt theo địa danh."
+ },
+ "撮った場所": {
+  "en": "Where photos were taken",
+  "zh-TW": "拍攝地點",
+  "es": "Dónde se tomaron las fotos",
+  "ko": "찍은 장소",
+  "vi": "Nơi đã chụp"
+ },
+ "撮った場所の地図": {
+  "en": "Map of where photos were taken",
+  "zh-TW": "拍攝地點的地圖",
+  "es": "Mapa de dónde se tomaron las fotos",
+  "ko": "찍은 장소 지도",
+  "vi": "Bản đồ nơi đã chụp"
+ },
+ "撮った語の数を、図鑑の分類ごとに（語そのものは出しません）。": {
+  "en": "Words caught per collection category (the words themselves are not shown).",
+  "zh-TW": "依圖鑑分類統計拍到的單字數（不顯示單字本身）。",
+  "es": "Palabras capturadas por categoría de la colección (no se muestran las palabras).",
+  "ko": "도감 분류별 찍은 단어 수 (단어 자체는 보여 주지 않아요).",
+  "vi": "Số từ đã chụp theo danh mục bộ sưu tập (không hiện chính các từ)."
+ },
+ "昼": {
+  "en": "Daytime",
+  "zh-TW": "白天",
+  "es": "Día",
+  "ko": "낮",
+  "vi": "Ban ngày"
+ },
+ "曜日と時刻（台湾時間、3時間ごと）。開いた・撮った・復習した回数。": {
+  "en": "Day and hour (Taiwan time, every 3 hours): times opened, caught and reviewed.",
+  "zh-TW": "星期和時刻（台灣時間，每 3 小時）。開啟、拍攝、複習的次數。",
+  "es": "Día y hora (hora de Taiwán, cada 3 horas): veces que abrió, capturó y repasó.",
+  "ko": "요일과 시각 (타이완 시간, 3시간마다). 연 횟수·찍은 횟수·복습한 횟수.",
+  "vi": "Thứ và giờ (giờ Đài Loan, mỗi 3 giờ): số lần mở, chụp và ôn."
+ },
+ "最初の質問": {
+  "en": "First questions",
+  "zh-TW": "最初的問題",
+  "es": "Primeras preguntas",
+  "ko": "첫 질문",
+  "vi": "Câu hỏi đầu tiên"
+ },
+ "最初の質問の途中": {
+  "en": "Mid first questions",
+  "zh-TW": "最初的問題尚未完成",
+  "es": "A mitad de las primeras preguntas",
+  "ko": "첫 질문 진행 중",
+  "vi": "Đang ở câu hỏi đầu tiên"
+ },
+ "最後の記録 {1}": {
+  "en": "Last record {1}",
+  "zh-TW": "最後一筆紀錄 {1}",
+  "es": "Último registro {1}",
+  "ko": "마지막 기록 {1}",
+  "vi": "Bản ghi cuối {1}"
+ },
+ "朝": {
+  "en": "Morning",
+  "zh-TW": "早上",
+  "es": "Mañana",
+  "ko": "아침",
+  "vi": "Sáng"
+ },
+ "正答率の推移": {
+  "en": "Accuracy over time",
+  "zh-TW": "正確率的變化",
+  "es": "Evolución del acierto",
+  "ko": "정답률 추이",
+  "vi": "Tỉ lệ đúng theo thời gian"
+ },
+ "無料": {
+  "en": "Free",
+  "zh-TW": "免費",
+  "es": "Gratis",
+  "ko": "무료",
+  "vi": "Miễn phí"
+ },
+ "発音を再生": {
+  "en": "Pronunciation played",
+  "zh-TW": "播放發音",
+  "es": "Pronunciación reproducida",
+  "ko": "발음 재생",
+  "vi": "Phát phát âm"
+ },
+ "登録 {1}": {
+  "en": "Joined {1}",
+  "zh-TW": "註冊 {1}",
+  "es": "Registro {1}",
+  "ko": "가입 {1}",
+  "vi": "Đăng ký {1}"
+ },
+ "登録 {1}（{2}日目）": {
+  "en": "Joined {1} (day {2})",
+  "zh-TW": "註冊 {1}（第 {2} 天）",
+  "es": "Registro {1} (día {2})",
+  "ko": "가입 {1} ({2}일째)",
+  "vi": "Đăng ký {1} (ngày thứ {2})"
+ },
+ "目標 TOCFL {1}": {
+  "en": "Goal TOCFL {1}",
+  "zh-TW": "目標 TOCFL {1}",
+  "es": "Meta TOCFL {1}",
+  "ko": "목표 TOCFL {1}",
+  "vi": "Mục tiêu TOCFL {1}"
+ },
+ "直近30日": {
+  "en": "Last 30 days",
+  "zh-TW": "最近 30 天",
+  "es": "Últimos 30 días",
+  "ko": "최근 30일",
+  "vi": "30 ngày gần đây"
+ },
+ "直近30日の回数": {
+  "en": "Times in the last 30 days",
+  "zh-TW": "最近 30 天的次數",
+  "es": "Veces en los últimos 30 días",
+  "ko": "최근 30일 횟수",
+  "vi": "Số lần trong 30 ngày gần đây"
+ },
+ "続けて {1}日 · 最長 {2}日": {
+  "en": "{1} in a row · best {2}",
+  "zh-TW": "連續 {1} 天 · 最長 {2} 天",
+  "es": "{1} seguidos · máximo {2}",
+  "ko": "연속 {1}일 · 최장 {2}일",
+  "vi": "Liên tiếp {1} ngày · dài nhất {2} ngày"
+ },
+ "要点": {
+  "en": "Key points",
+  "zh-TW": "重點",
+  "es": "Puntos clave",
+  "ko": "요점",
+  "vi": "Điểm chính"
+ },
+ "記憶の段": {
+  "en": "Memory levels",
+  "zh-TW": "記憶等級",
+  "es": "Niveles de memoria",
+  "ko": "기억 단계",
+  "vi": "Mức ghi nhớ"
+ },
+ "記憶の状態": {
+  "en": "Memory",
+  "zh-TW": "記憶狀態",
+  "es": "Memoria",
+  "ko": "기억 상태",
+  "vi": "Trạng thái ghi nhớ"
+ },
+ "途中で「終了」を押した {1}回": {
+  "en": "Tapped “End” midway {1} times",
+  "zh-TW": "中途按了「結束」{1} 次",
+  "es": "Pulsó “Terminar” a mitad {1} veces",
+  "ko": "도중에 ‘종료’를 누름 {1}회",
+  "vi": "Đã nhấn “Kết thúc” giữa chừng {1} lần"
+ },
+ "週ごと（直近13週）": {
+  "en": "By week (last 13 weeks)",
+  "zh-TW": "每週（最近 13 週）",
+  "es": "Por semana (últimas 13 semanas)",
+  "ko": "주별 (최근 13주)",
+  "vi": "Theo tuần (13 tuần gần đây)"
+ },
+ "開いた画面": {
+  "en": "Screens opened",
+  "zh-TW": "開啟的畫面",
+  "es": "Pantallas abiertas",
+  "ko": "연 화면",
+  "vi": "Màn hình đã mở"
+ },
+ "離れる直前の画面": {
+  "en": "Screen before leaving",
+  "zh-TW": "離開前的畫面",
+  "es": "Pantalla antes de salir",
+  "ko": "떠나기 직전 화면",
+  "vi": "Màn hình trước khi rời đi"
  }
 }
