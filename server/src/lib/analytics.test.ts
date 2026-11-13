@@ -176,6 +176,31 @@ describe("buildAnalytics", () => {
     expect(drop?.values).toMatchObject({ lost: 1, of: 3 }); // the first drop of the biggest size wins
     expect(r.quality.places).toEqual([{ name: "台北市 大安區", n: 1 }]);
     expect(r.users.find((u) => u.id === "n3")).toMatchObject({ status: "new", stopped_at: "onboarding" });
+    // The step after the first biggest loss is marked for the red line (signup 3 → onboarded 2).
+    expect(r.funnel.worst).toBe(1);
+    // The last 14 days of catches + reviews, oldest first: n1 caught on 11/01 and reviewed on 11/02.
+    const n1 = r.users.find((u) => u.id === "n1")!;
+    expect(n1.recent).toHaveLength(14);
+    expect(n1.recent.slice(-5)).toEqual([1, 1, 0, 0, 0]);
+  });
+
+  it("picks the month's points: bad before warn before good, one per chart, three at most", () => {
+    const r = buildAnalytics(
+      input({
+        users: [user("active", "2026-09-01"), user("risk", "2026-09-01"), user("never", "2026-09-01")],
+        catches: [
+          { user_id: "active", created_at: at("2026-11-01"), location_name: null, kind: "new" },
+          { user_id: "risk", created_at: at("2026-10-20"), location_name: null, kind: "new" },
+        ],
+      }),
+    );
+    expect(r.highlights.length).toBeLessThanOrEqual(3);
+    expect(r.highlights.every((h) => h.tone !== "info")).toBe(true);
+    const tones = r.highlights.map((h) => h.tone);
+    const order = { bad: 0, warn: 1, good: 2, info: 3 } as const;
+    expect([...tones].sort((a, b) => order[a] - order[b])).toEqual(tones);
+    expect(new Set(r.highlights.map((h) => h.chart)).size).toBe(r.highlights.length);
+    expect(r.highlights[0]).toMatchObject({ chart: "users", code: "users_never", tone: "bad" });
   });
 
   it("gives each user a status from the last day they were seen", () => {

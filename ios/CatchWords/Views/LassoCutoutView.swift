@@ -49,7 +49,10 @@ struct LassoCutoutView: View {
             }
         }
         .statusBarTone(.light)
-        .task { await loadPhoto() }
+        .task {
+            AppEvents.feature(.lasso)   // the developer's 分析: that it was opened, nothing of the photo
+            await loadPhoto()
+        }
         .sensoryFeedback(.success, trigger: result != nil)
     }
 

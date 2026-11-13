@@ -1491,6 +1491,7 @@ struct WordDetailView: View {
         guard !refreshing.contains(s) else { return }
         guard AIConsent.shared.isGranted else { askAIConsent = true; return }
         Haptics.impact(.light)
+        AppEvents.feature(.regenerate)
         let wordId = current.wordId
         withAnimation(.snappy) { _ = refreshing.insert(s) }
         Task {

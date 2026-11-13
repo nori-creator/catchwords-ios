@@ -24,13 +24,22 @@ enum AdminAnalytics {
         await run { try await NativeAPI.call("adminGetUserDetail", ["userId": userId], timeout: 120) }
     }
 
+    /// The person's page of 分析 (owner 2026-11-13), read into `AdminUserDetail`: numbers only, as the privacy policy
+    /// allows (§2).
+    static func person(_ userId: String) async -> Result<AdminUserDetail, Failure> {
+        await decoded { try AdminUserDetail.decode(try await NativeAPI.call("adminGetUserDetail", ["userId": userId], timeout: 120)) }
+    }
+
     /// 設定 › 開発者 › 分析 (server `adminGetAnalytics`, `analytics.ts`): every section in one answer for the last
     /// `range` days (7 / 30 / 90) and the same span before it.
     static func report(range: Int) async -> Result<AnalyticsReport, Failure> {
         let r = [7, 30, 90].contains(range) ? range : 30
+        return await decoded { try AnalyticsReport.decode(try await NativeAPI.call("adminGetAnalytics", ["range": r], timeout: 120)) }
+    }
+
+    private static func decoded<T>(_ work: () async throws -> T) async -> Result<T, Failure> {
         do {
-            let data = try await NativeAPI.call("adminGetAnalytics", ["range": r], timeout: 120)
-            return .success(try AnalyticsReport.decode(data))
+            return .success(try await work())
         } catch let APIError.server(status, message) {
             if status == 404 { return .failure(.notDeployed) }
             if status == 403 { return .failure(.forbidden) }

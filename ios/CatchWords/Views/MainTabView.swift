@@ -438,6 +438,7 @@ struct MainTabView: View {
         .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { _ in measureFold() }
         .onAppear {
             router.detailZoom = detailZoom
+            AppEvents.screen(AppEvents.Screen(router.tab))
             beginTourIfPending()
             openNotification(NotificationRouter.shared.pending)
         }
@@ -462,8 +463,12 @@ struct MainTabView: View {
         // 設定) starts the waiting guide.
         .onChange(of: AIConsent.shared.isGranted) { _, granted in if granted { beginTourIfPending() } }
         // The guide is over once its end is on screen: a relaunch before 「はじめる」 must not start it again (A7).
-        .onChange(of: router.tour) { _, step in if step == .complete { tourPending = false } }
+        .onChange(of: router.tour) { _, step in
+            if step == .complete { tourPending = false }
+            AppEvents.tourStep(step.rawValue)
+        }
         .onChange(of: router.tab) { _, tab in
+            AppEvents.screen(AppEvents.Screen(tab))
             if tab == .camera { router.advanceTour(from: .tapCamera, to: .shoot) }
             if tab == .dex { router.advanceTour(from: .dexTab, to: .dexCover) }
             // The camera screen's full-screen catch is over once another tab shows: coming back to the camera starts
@@ -476,6 +481,8 @@ struct MainTabView: View {
                 router.advanceTour(from: .dexOpen, to: .wordSection)
             }
             if old == nil, s != nil { UITestTrace.log("word page asked") }
+            if old == nil, s != nil { AppEvents.screen(.word) }
+            if old != nil, s == nil { AppEvents.screen(AppEvents.Screen(router.tab)) }
             // Every way into a word (dex, home, review, a reminder) pons open; closing it pons back.
             if old == nil, s != nil { SoundService.shared.pon(open: true) }
             if old != nil, s == nil { SoundService.shared.pon(open: false) }
@@ -700,6 +707,8 @@ struct MainTabView: View {
     }
 
     private func endTour() {
+        // Ended before its last screen (「終了」): counted for the developer's 分析 (`AppEvents`).
+        if router.tour != .off, router.tour != .complete { AppEvents.tourEnded() }
         tourPending = false
         router.detailSticker = nil
         router.tourSection = nil

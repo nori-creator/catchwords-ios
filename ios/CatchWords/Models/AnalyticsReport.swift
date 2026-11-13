@@ -42,6 +42,8 @@ nonisolated struct AnalyticsReport: Decodable, Sendable, Equatable {
     nonisolated struct Funnel: Decodable, Sendable, Equatable {
         let cohort: Int
         let steps: [Step]
+        /// The step after the biggest loss (the red line); nil when no one was lost. Older servers: nil.
+        var worst: Int? = nil
     }
 
     nonisolated struct Cell: Decodable, Sendable, Equatable {
@@ -79,6 +81,8 @@ nonisolated struct AnalyticsReport: Decodable, Sendable, Equatable {
         let lastActive: String?
         /// anonymous / admin / test_email / flagged; nil when counted
         let excluded: String?
+        /// The last 14 days (oldest first): catches + reviews each day, for the row's small bars. Older servers: nil.
+        var recent: [Int]? = nil
     }
 
     nonisolated struct Timing: Decodable, Sendable, Equatable {
@@ -157,6 +161,8 @@ nonisolated struct AnalyticsReport: Decodable, Sendable, Equatable {
     let quality: Quality
     let ads: Ads
     let insights: [Insight]
+    /// 「要点」: up to three readings, bad before warn before good (server `pickHighlights`). Older servers: nil.
+    var highlights: [Insight]? = nil
 
     static func decode(_ data: Data) throws -> AnalyticsReport {
         let d = JSONDecoder()
