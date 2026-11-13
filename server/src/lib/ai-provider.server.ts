@@ -44,11 +44,14 @@ import { OFF, parseBackupValue } from "./ai-task-settings";
  *      ("provider:model"; "auto"/empty falls through)
  *   3. env AI_PROVIDER / AI_MODEL_FAST / AI_MODEL_RICH / AI_MODEL_RICH_PREMIUM
  *   4. keyword defaults: scan → latest-flash-lite, everything else → latest-flash
- *      (Pro section regeneration → latest-pro), resolved to the newest Gemini at runtime
+ *      (Pro section regeneration → latest-pro), resolved to the newest Gemini at runtime.
+ *      Only the last fallback when nothing is chosen: since 2026-11-13 the owner picks the model by
+ *      hand in the developer screen (one pick writes every feature and task), because Google's names
+ *      no longer say flash / pro (gemini-4-hydrogen…) and the keyword pick cannot see them.
  *
  * Every model `getAiFor` returns falls back once to a backup on another provider when the call
- * fails (`ai-backup.server.ts`; per-task `app_config.ai_models.backups[task]`, default
- * `resolveBackupFor`).
+ * fails (`ai-backup.server.ts`; per-task `app_config.ai_models.backups[task]`, then the one backup
+ * for every task `app_config.ai_models.backup`, default `resolveBackupFor`).
  */
 
 const LOVABLE_BASE_URL = "https://ai.gateway.lovable.dev/v1";
@@ -63,10 +66,12 @@ export const LOVABLE_MODELS = [LOVABLE_DEFAULT_MODEL, "google/gemini-2.5-flash"]
 // カード生成とスピーキング添削が全滅した。最新版へ乗り換えたいときは
 // 設定の「AI の設定（開発者）」から明示的に指定する(env でも可)。
 //
-// 2026-10-09「常に最新の Gemini を自動で使う」: 既定は**合言葉**
-// (`latest-flash-lite` / `latest-flash` / `latest-pro`)。`-latest` の別名とは違い、
-// Google 公式のモデル一覧から**実在する版付きの ID** を実行時に選んで渡す
+// 何も選んでいない時の既定は**合言葉**(`latest-flash-lite` / `latest-flash` / `latest-pro`)。
+// `-latest` の別名とは違い、Google 公式のモデル一覧から**実在する版付きの ID** を実行時に選んで渡す
 // (`gemini-latest.server.ts`)。一覧が読めなければ下の固定の安定版に落ちる。
+// 2026-10-09 の「常に最新の Gemini を自動で使う」は 2026-11-13 に取りやめた: Google の名前に
+// flash / pro が付かなくなり(gemini-4-hydrogen など)合言葉では選べないので、開発者の画面で
+// 新しいモデル(New の印)を見て手で選ぶ。合言葉は、古い保存の値と何も選んでいない時のためだけに残す。
 /** 固定の安定版(どの会社の設定でも最後の退避先に使う)。 */
 const GOOGLE_DEFAULT_FAST = "gemini-3.1-flash-lite";
 const GOOGLE_AUTO_FAST = "latest-flash-lite";
@@ -135,6 +140,8 @@ export async function concreteModelId(
  */
 export type AiModelOverride = {
   features?: Partial<Record<AiFeature, string>>;
+  /** 全部の用途の控え（`"off"` か `"会社:モデル"`。用途ごとの控えが先。2026-11-13〜）。 */
+  backup?: string;
   /** 用途ごとの AI（機能の設定より先に効く）。 */
   tasks?: Partial<Record<string, string>>;
   /** 用途ごとの控え（`"off"` = 控えを使わない、無ければ `resolveBackupFor` の既定）。 */
@@ -273,7 +280,9 @@ export function providerConfig(providerId: string, model: string): AiConfig | nu
  * 2. 環境変数 `AI_PROVIDER` / `AI_MODEL_FAST` / `AI_MODEL_RICH` / `AI_MODEL_RICH_PREMIUM`
  *    (`getAi`。どれも未設定なら 3)
  * 3. 合言葉の既定: スキャンは `latest-flash-lite`、ほかは `latest-flash`、Pro の項目作り直しは
- *    `latest-pro`(Google の最新の版へ実行時に置き換わる。`gemini-latest.server.ts`)
+ *    `latest-pro`(Google の最新の版へ実行時に置き換わる。`gemini-latest.server.ts`)。
+ *    何も選んでいない時の最後の既定だけ。2026-11-13 から、開発者が画面で選んだモデルを全部の
+ *    用途・機能に書く(合言葉は画面の選択肢から外した)。
  *
  * どこかが欠けていても必ず動く設定に落ちる — **設定ミスで機能を止めない**。
  * 呼ぶ所は `withModelFallback` で包み、モデルが無い(404)時は控えのモデルへ落とす。
@@ -324,7 +333,19 @@ export const DEFAULT_BACKUPS: ReadonlyArray<{
 ];
 
 /**
- * その用途の控え。開発者が選んだ物（`ai_models.backups[用途]`）→ 無ければ既定（`DEFAULT_BACKUPS`）。
+ * 開発者が選んだ控え: その用途の控え（`ai_models.backups[用途]`）→ 全部の用途の控え
+ * （`ai_models.backup`）。どちらも無ければ null（既定の控え）。
+ */
+export function chosenBackup(
+  ov: Pick<AiModelOverride, "backups" | "backup"> | null | undefined,
+  task: string | undefined,
+): ReturnType<typeof parseBackupValue> {
+  const own = task ? parseBackupValue(ov?.backups?.[task]) : null;
+  return own ?? parseBackupValue(ov?.backup);
+}
+
+/**
+ * その用途の控え。開発者が選んだ物（`ai_models.backups[用途]` → `ai_models.backup`）→ 無ければ既定（`DEFAULT_BACKUPS`）。
  * `"off"` なら null（控えを使わない）。選んだ会社の鍵が無ければ既定へ落ちる。
  */
 export async function resolveBackupFor(
@@ -333,7 +354,7 @@ export async function resolveBackupFor(
   primaryName: string,
 ): Promise<AiBackup | null> {
   const ov = await getAiModelOverride();
-  const chosen = task ? parseBackupValue(ov?.backups?.[task]) : null;
+  const chosen = chosenBackup(ov, task);
   if (chosen === OFF) return null;
   if (chosen) {
     const cfg = providerConfig(chosen.provider, chosen.model);
@@ -541,7 +562,7 @@ export async function getAiAttemptChain(feature: AiFeature, task?: AiTask): Prom
   await add(primaryName, primary.gateway, primary.modelFast); // getAiFor が機能の段に揃え済み
   // 開発者が選んだ控え（`ai_models.backups[用途]`）が先。`"off"` なら2番手は無し。
   const ov = await getAiModelOverride();
-  const chosen = task ? parseBackupValue(ov?.backups?.[task]) : null;
+  const chosen = chosenBackup(ov, task);
   if (chosen === OFF) return chain;
   if (chosen) {
     const cfg = providerConfig(chosen.provider, chosen.model);

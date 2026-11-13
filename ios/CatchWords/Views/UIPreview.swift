@@ -182,6 +182,8 @@ struct UIPreviewRoot: View {
             case "aisettings": AdminAiSettingsPreview()
             case "aistats": AdminAiStatsPreview()
             case "aicosts": AdminAiCostsPreview()
+            // 「AI を選ぶ」 (2026-11-13): Google's list newest first, New marks, a folded preview.
+            case "aipicker": AdminAiPickerPreview()
             case "auth": AuthView()
             // The same page (owner 2026-10-29): the sign-in side, and each side with its mail fields open.
             case "signin": AuthView(startSignIn: true)
@@ -1434,6 +1436,17 @@ private struct AdminAiCostsPreview: View {
     }
 }
 
+/// 「AI を選ぶ」 for every use (the sheet of the AI settings), with the same made-up settings.
+private struct AdminAiPickerPreview: View {
+    var body: some View {
+        if let settings = AdminAiSettingsPreview.settings {
+            AdminAiModelPicker(settings: settings, target: .all, previewOnly: true) {}
+        } else {
+            Text("AdminAiSettings mock did not decode")
+        }
+    }
+}
+
 /// The speed and accuracy card of the AI settings on its own (the whole screen is taller than one screenshot).
 private struct AdminAiStatsPreview: View {
     var body: some View {
@@ -1458,6 +1471,30 @@ private struct AdminAiSettingsPreview: View {
     {
       "isAdmin": true,
       "status": { "ok": true, "provider": "google", "error": null },
+      "main": { "value": "google:gemini-4-hydrogen", "provider": "google", "model": "gemini-4-hydrogen",
+                "name": "Gemini 4 Hydrogen", "price": { "inUsd": 1.5, "outUsd": 7.5, "custom": true }, "derived": false },
+      "backup": "auto",
+      "backupAuto": { "provider": "anthropic", "model": "claude-sonnet-5-5", "resolved": "claude-sonnet-5-5" },
+      "recent": { "ok": 12, "failed": 0, "avgMs": 4100 },
+      "cost30": { "usd": 7.95, "jpy": 1240, "unpricedCalls": 0, "usdJpy": 156 },
+      "undoAvailable": true,
+      "catalog": [
+        { "id": "google", "name": "Google Gemini", "hasKey": true, "error": null, "models": [
+          { "id": "gemini-4-hydrogen", "name": "Gemini 4 Hydrogen", "vision": true, "price": { "inUsd": 1.5, "outUsd": 7.5, "custom": true },
+            "inUse": true, "isNew": true, "folded": false },
+          { "id": "gemini-4-carbon", "name": "Gemini 4 Carbon", "vision": true, "price": null, "inUse": false, "isNew": true, "folded": false },
+          { "id": "gemini-4-argon", "name": "Gemini 4 Argon", "vision": true, "price": null, "inUse": false, "isNew": false, "folded": false },
+          { "id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "vision": true, "price": { "inUsd": 0.75, "outUsd": 3.75, "custom": false },
+            "inUse": false, "isNew": false, "folded": false },
+          { "id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash-Lite", "vision": true, "price": { "inUsd": 0.3, "outUsd": 2.5, "custom": false },
+            "inUse": false, "isNew": false, "folded": false },
+          { "id": "gemini-3.1-pro-preview", "name": "Gemini 3.1 Pro Preview", "vision": true, "price": null, "inUse": false, "isNew": false, "folded": true }
+        ] },
+        { "id": "openai", "name": "OpenAI (ChatGPT)", "hasKey": false, "error": null, "models": [] },
+        { "id": "openrouter", "name": "OpenRouter", "hasKey": true, "error": null, "models": [
+          { "id": "anthropic/claude-sonnet-4.5", "name": "anthropic/claude-sonnet-4.5", "vision": true, "price": null, "inUse": true, "isNew": false, "folded": false }
+        ] }
+      ],
       "features": [
         { "id": "scan", "tier": "flash-lite", "needsVision": true, "labelKey": "aiSet.feature.scan",
           "label": { "ja": "スキャン", "en": "Scan", "zh-TW": "掃描" },
@@ -1483,23 +1520,23 @@ private struct AdminAiSettingsPreview: View {
           "label": { "ja": "新しい機能" }, "value": "auto", "provider": null, "model": null, "resolved": null, "error": null }
       ],
       "tasks": [
-        { "id": "photo_candidates", "feature": "scan", "needsVision": true, "ios": true,
+        { "id": "photo_candidates", "feature": "scan", "group": "photo", "sameAsMain": true, "needsVision": true, "ios": true,
           "label": { "ja": "写真の単語の候補", "en": "Words from a photo", "zh-TW": "照片的單字候選" },
           "description": { "ja": "撮った写真から単語の候補を出す（写真を読む）", "en": "Suggests words for the photo just taken (reads the photo)", "zh-TW": "從剛拍的照片提出單字候選（讀取照片）" },
           "value": "auto", "backup": "auto", "provider": "google", "model": "latest-flash-lite", "resolved": "gemini-3.8-flash-lite",
           "backupProvider": "lovable", "backupModel": "google/gemini-2.5-flash", "backupResolved": "google/gemini-2.5-flash", "error": null },
-        { "id": "card", "feature": "card", "needsVision": false, "ios": true,
+        { "id": "card", "feature": "card", "group": "card", "sameAsMain": false, "needsVision": false, "ios": true,
           "label": { "ja": "単語カード", "en": "Word card", "zh-TW": "單字卡" },
           "description": { "ja": "解説・例文・分類など、カードの中身を作る", "en": "Writes the card: explanation, examples, category", "zh-TW": "產生單字卡的內容：解說、例句、分類" },
           "value": "openrouter:anthropic/claude-sonnet-4.5", "backup": "auto", "provider": "openrouter", "model": "anthropic/claude-sonnet-4.5",
           "resolved": "anthropic/claude-sonnet-4.5", "backupProvider": "lovable", "backupModel": "google/gemini-2.5-flash",
           "backupResolved": "google/gemini-2.5-flash", "error": null },
-        { "id": "section_regen", "feature": "card", "needsVision": false, "ios": true,
+        { "id": "section_regen", "feature": "card", "group": "card", "sameAsMain": true, "needsVision": false, "ios": true,
           "label": { "ja": "項目の作り直し", "en": "Section rewrite", "zh-TW": "重新產生項目" },
           "description": { "ja": "単語ページの項目の作り直し・空欄の補完・報告での直しの案", "en": "Rewrites a section of the word page, fills blanks, drafts fixes for reports", "zh-TW": "重新產生單字頁的項目、補上空白、回報時的修正案" },
           "value": "auto", "backup": "off", "provider": "google", "model": "latest-flash", "resolved": "gemini-3.8-flash",
           "backupProvider": null, "backupModel": null, "backupResolved": null, "error": null },
-        { "id": "report_locate", "feature": "audit", "needsVision": false, "ios": true,
+        { "id": "report_locate", "feature": "audit", "group": "report", "sameAsMain": true, "needsVision": false, "ios": true,
           "label": { "ja": "報告: 間違った項目を探す", "en": "Report: find the wrong part", "zh-TW": "回報：找出錯誤的項目" },
           "description": { "ja": "項目を選ばずに報告された時、どの項目が違うかを探す", "en": "Finds which section is wrong when a report names none", "zh-TW": "回報沒選項目時，找出哪個項目有錯" },
           "value": "openai:gpt-5-mini", "backup": "auto", "provider": "google", "model": "latest-flash", "resolved": "gemini-3.8-flash",
@@ -1511,8 +1548,8 @@ private struct AdminAiSettingsPreview: View {
       ],
       "providers": [
         { "id": "google", "name": "Google Gemini", "hasKey": true,
-          "models": ["latest-flash-lite", "latest-flash", "latest-pro", "gemini-3.8-flash", "gemini-3.8-flash-lite"],
-          "visionModels": ["latest-flash-lite", "latest-flash", "latest-pro", "gemini-3.8-flash", "gemini-3.8-flash-lite"], "error": null },
+          "models": ["gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.5-flash-lite"],
+          "visionModels": ["gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.5-flash-lite"], "error": null },
         { "id": "openai", "name": "OpenAI (ChatGPT)", "hasKey": false, "models": [], "visionModels": [], "error": null },
         { "id": "openrouter", "name": "OpenRouter", "hasKey": true,
           "models": ["anthropic/claude-sonnet-4.5", "openai/gpt-5-mini"], "visionModels": ["anthropic/claude-sonnet-4.5"], "error": null },
