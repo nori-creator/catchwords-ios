@@ -20,17 +20,21 @@ import {
 } from "@/lib/admin-user-stats";
 import { taipeiDay } from "./taipei-day";
 import { readAllPages } from "./pagination";
+import { daysBetween, userStatus } from "./analytics";
+import { appUsage, areaCounts, categoryCounts, heatGrid } from "./admin-user-insights";
+import { AI_PRICES_KEY, normalizePricesConfig, priceFor } from "./ai-costs";
 
 /**
  * **開発者だけ: 利用者ごとの詳しい情報**（オーナー指示 2026-09-27）。
  *
  * ## 見せる物・見せない物（法律とセキュリティの線）
- * 見せる: 設定、撮った数と日時、市区町村までの場所の名前、続けた日、スキャンから
- * 図鑑に入れるまでの速さ、復習の数と正答、滞在時間、離れる直前の画面、切り抜きと
- * 作り直しの回数、AI の呼び出し回数と費用の概算。
- * **見せない**: メールアドレス、正確な緯度経度、写真そのもの、日記や一言の本文
- * （本人の書いた文章）。サービスの改善に要らず、漏れた時の害が大きいため
- * （個人情報保護法の「利用目的の範囲」と「必要最小限」の考え方）。
+ * 見せる: 設定、撮った数と日時、**市と区まで**の場所（`placeArea`。番地・通り・学習者が書いた名前は出さない）、
+ * 続けた日、スキャンから図鑑に入れるまでの速さ、復習の数と正答、滞在時間、離れる直前の画面、開いた画面と
+ * 使った機能の回数、チュートリアルの段、アプリの版・機種・iOS の版・表示言語、図鑑の分類ごとの数、
+ * AI の呼び出し回数と費用。
+ * **見せない**: メールアドレス、正確な緯度経度、写真そのもの、撮った語、日記や一言の本文
+ * （本人の書いた文章）。プライバシーポリシー第2条（運営者が閲覧する範囲）のとおり
+ * （2026-11-13「今のプライバシーポリシーに反さないように設計して」。数え方は `admin-user-insights.ts`）。
  *
  * 呼べるのは `admin` の役を持つ人だけ（サーバで確かめる。画面の出し分けには頼らない）。
  */
@@ -168,11 +172,14 @@ async function buildDetail(userId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const all = <T>(q: () => any) =>
     readAllPages<T>((from, to) => q().order("id").range(from, to), ADMIN_READ);
-  const [profile, stickers, scans, history, reviews, usage, runs] = await Promise.all([
+  const since30 = new Date(Date.now() - 30 * 86400 * 1000).toISOString();
+  const [profile, stickers, scans, history, reviews, usage, runs, encounters, prices, reports, authUser] =
+    await Promise.all([
+    // 母語（native_language）は読まない: 2026-08-25 に表示言語と1つにまとめ、表示言語から決まる値になった。
     db
       .from("profiles")
       .select(
-        "id, display_name, avatar_url, created_at, native_language, ui_language, target_language, level_goal, current_level, pronunciation_strictness, review_mode, review_daily_limit, review_stage_focus, plan, album_bg, onboarded",
+        "id, display_name, avatar_url, created_at, ui_language, target_language, level_goal, current_level, review_daily_limit, plan, onboarded",
       )
       .eq("id", userId)
       .maybeSingle(),
@@ -181,9 +188,7 @@ async function buildDetail(userId: string) {
       (from, to) =>
         db
           .from("stickers")
-          .select(
-            "id, created_at, capture_type, location_name, cutout_image_url, words(headword, language)",
-          )
+          .select("id, created_at, capture_type, location_name, location_custom, cutout_image_url, words(category_key)")
           .eq("user_id", userId)
           .order("created_at", { ascending: false })
           .order("id")
@@ -213,13 +218,24 @@ async function buildDetail(userId: string) {
     all<unknown>(() =>
       db
         .from("usage_events")
-        .select("kind, created_at")
+        .select("kind, created_at, meta")
         .eq("user_id", userId)
         .gte("created_at", since),
     ),
-    all<unknown>(() => db.from("ai_runs").select("tokens_in, tokens_out").eq("user_id", userId)),
+    all<unknown>(() => db.from("ai_runs").select("tokens_in, tokens_out, loop, created_at, meta").eq("user_id", userId)),
+    // 再会（2回目以降に撮った）も、場所の数に入れる。名前は市と区に直してから数える。
+    all<unknown>(() =>
+      db.from("encounters").select("created_at, location_name, location_custom").eq("user_id", userId),
+    ),
+    db.from("app_config").select("value").eq("key", AI_PRICES_KEY).maybeSingle(),
+    db
+      .from("entry_reports")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("created_at", since30),
+    supabaseAdmin.auth.admin.getUserById(userId),
   ]);
-  warnIfTruncated("buildDetail", { stickers, scans, history, reviews, usage, runs });
+  warnIfTruncated("buildDetail", { stickers, scans, history, reviews, usage, runs, encounters });
   if (!profile.data) throw new Error("User not found");
 
   type St = {
@@ -227,18 +243,18 @@ async function buildDetail(userId: string) {
     created_at: string;
     capture_type: string | null;
     location_name: string | null;
+    location_custom: boolean | null;
     cutout_image_url: string | null;
-    words: { headword: string; language: string | null } | null;
+    words: { category_key: string | null } | null;
   };
   const st = stickers.rows as St[];
+  type En = { created_at: string; location_name: string | null; location_custom: boolean | null };
+  const en = encounters.rows as En[];
   const days = st.map((s) => dayKey(s.created_at));
   const byDay = new Map<string, number>();
   for (const d of days) byDay.set(d, (byDay.get(d) ?? 0) + 1);
-  const places = new Map<string, number>();
-  for (const s of st) {
-    const p = (s.location_name ?? "").trim();
-    if (p) places.set(p, (places.get(p) ?? 0) + 1);
-  }
+  // 場所は市と区まで（番地・通り・学習者が書いた名前は出さない。プライバシーポリシー第2条）。
+  const areas = areaCounts([...st, ...en]);
   const captureTypes: Record<string, number> = {};
   for (const s of st)
     captureTypes[s.capture_type ?? "photo"] = (captureTypes[s.capture_type ?? "photo"] ?? 0) + 1;
@@ -274,7 +290,7 @@ async function buildDetail(userId: string) {
   const rv = reviews.rows as Rv[];
   const now = Date.now();
 
-  type Ue = { kind: string; created_at: string };
+  type Ue = { kind: string; created_at: string; meta?: unknown };
   const ue = usage.rows as Ue[];
   const kinds: Record<string, number> = {};
   for (const e of ue) kinds[e.kind] = (kinds[e.kind] ?? 0) + 1;
@@ -295,8 +311,28 @@ async function buildDetail(userId: string) {
         ) % 24
       ]++;
 
-  type Ar = { tokens_in: number | null; tokens_out: number | null };
+  type Ar = { tokens_in: number | null; tokens_out: number | null; loop?: string; created_at?: string; meta?: unknown };
   const ar = runs.rows as Ar[];
+  // AI の1回ずつ（`ai_call`）: 直近30日の失敗と、登録した単価での費用（分析の画面と同じ計算）。
+  const priceTable = normalizePricesConfig((prices.data as { value?: unknown } | null)?.value ?? null);
+  let aiUsd30 = 0;
+  let aiCalls30 = 0;
+  let aiFailures30 = 0;
+  for (const r of ar) {
+    if (r.loop !== "ai_call" || !r.created_at || r.created_at < since30) continue;
+    const m = (r.meta && typeof r.meta === "object" ? r.meta : {}) as Record<string, unknown>;
+    aiCalls30 += 1;
+    if (m.ok === false) {
+      aiFailures30 += 1;
+      continue;
+    }
+    const model = typeof m.model === "string" ? m.model : null;
+    const p = model ? priceFor(model, priceTable) : null;
+    if (p) aiUsd30 += ((Number(m.in) || 0) * p.inUsd + (Number(m.out) || 0) * p.outUsd) / 1_000_000;
+  }
+  const failures30 = ue.filter(
+    (e) => e.created_at >= since30 && (e.kind.startsWith("save_failed_") || e.kind.startsWith("bg_failed_")),
+  ).length;
 
   // **グラフ用の細かい数**（2026-10-02「もっと詳しく、細かく、見やすく」）。どれも上で
   // 読んだ記録から作る（新しい問い合わせは足さない）。
@@ -307,20 +343,29 @@ async function buildDetail(userId: string) {
     response_ms: r.response_ms,
   }));
   const spans = sessionSpans(ue);
+  // 最後に使った時刻（開いた・撮った・再会・復習した、の新しい方。一覧の並びと同じ考え方）。
+  // 記録は数万件になりうるので、関数の引数に広げず1件ずつ比べる。
+  let lastActive: string | null = null;
+  for (const t of [st[0]?.created_at, ...en.map((e) => e.created_at), ...rh.map((r) => r.reviewed_at), ...ue.map((e) => e.created_at)])
+    lastActive = latestIso(lastActive, t);
+  const createdAt = String((profile.data as { created_at?: string }).created_at ?? new Date().toISOString());
+  const signup = dayKey(createdAt);
+  const opens = ue.filter((e) => e.kind === "session_start" || e.kind === "app_open").map((e) => e.created_at);
 
   return {
     profile: profile.data as Record<string, string | number | boolean | null>,
-    /** 最後に使った時刻（開いた・撮った・復習した、の新しい方。一覧の並びと同じ考え方）。 */
-    // 記録は数万件になりうるので、関数の引数に広げず1件ずつ比べる。
-    lastActive: [
-      st[0]?.created_at,
-      ...rh.map((r) => r.reviewed_at),
-      ...ue.map((e) => e.created_at),
-    ].reduce<string | null>((a, b) => latestIso(a, b), null),
-    /** 日ごとの動き（90日、古い順）。画面で 14 / 30 / 90 日に切って出す。 */
+    /** ログインの方法（google / apple / email）。メールアドレスは返さない。 */
+    provider:
+      ((authUser as { data?: { user?: { app_metadata?: { provider?: string } } | null } })?.data?.user?.app_metadata
+        ?.provider as string | undefined) ?? null,
+    lastActive,
+    /** 状態（分析の一覧と同じ決め方、`userStatus`）と、登録から何日目か。 */
+    status: userStatus(signup, st.length + en.length + rh.length > 0, lastActive ? dayKey(lastActive) : null, today),
+    dayNumber: daysBetween(signup, today) + 1,
+    /** 日ごとの動き（91日 = 13週、古い順）。画面のカレンダーと 14 / 30 / 90 日のグラフ。 */
     daily: dailyActivity({
       today,
-      days: 90,
+      days: 91,
       dayOf: dayKey,
       catches: st.map((s) => s.created_at),
       reviews: rhAt,
@@ -345,12 +390,28 @@ async function buildDetail(userId: string) {
       last: st.length ? st[0].created_at : null,
       last30: st.filter((s) => Date.parse(s.created_at) >= last30).length,
       byDay: [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 30),
-      topPlaces: [...places.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
+      /** 市と区ごとの数（古いアプリの「よく撮る場所」も、これで市と区までになる）。 */
+      topPlaces: areas.slice(0, 8).map((a) => [a.name, a.n] as [string, number]),
       captureTypes,
       cutouts: st.filter((s) => !!s.cutout_image_url).length,
-      recentWords: st
-        .slice(0, 12)
-        .map((s) => ({ at: s.created_at, word: s.words?.headword ?? "" })),
+      /** 再会（2回目以降に撮った）の数。 */
+      again: en.length,
+    },
+    /** 撮った場所（市と区まで、朝・昼・夜の内訳つき）。座標は返さない — 地図の円は iPhone が名前から置く。 */
+    areas,
+    /** 図鑑の分類（`words.category_key`）ごとの数。語そのものは返さない。 */
+    categories: categoryCounts(st.map((s) => s.words?.category_key)),
+    /** 使う時間帯（月〜日 × 0〜23 時、台湾時間）: 開いた・撮った・再会・復習した時刻。 */
+    heat: heatGrid([...opens, ...st.map((s) => s.created_at), ...en.map((e) => e.created_at), ...rh.map((r) => r.reviewed_at)]),
+    /** アプリから届いた記録（版・機種・チュートリアル・画面・機能・離れる直前の画面）。 */
+    app: appUsage(ue, new Date()),
+    /** 困ったこと（直近30日）。 */
+    trouble: {
+      aiCalls30,
+      aiFailures30,
+      aiUsd30: Math.round(aiUsd30 * 10000) / 10000,
+      failures30,
+      reports30: (reports as { count?: number | null }).count ?? 0,
     },
     streak: streaks(days, dayKey(new Date().toISOString())),
     speed: {

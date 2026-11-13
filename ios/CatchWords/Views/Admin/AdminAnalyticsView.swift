@@ -147,7 +147,7 @@ struct AdminAnalyticsView: View {
         case .users: usersTab(r)
         case .quality: quality(r)
         }
-        Text(L("メールアドレス・正確な場所・写真・本人の書いた文は出しません。場所は市と区まで。日付は台湾時間。"))
+        Text(L("出すのは数だけです。メールアドレス・正確な位置・写真・撮った語・本人の書いた文は出しません。場所は市と区まで。日付は台湾時間。"))
             .scaledFont(size: 11).foregroundStyle(Theme.muted)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 4)
@@ -164,18 +164,30 @@ struct AdminAnalyticsView: View {
     @ViewBuilder
     private func overview(_ r: AnalyticsReport) -> some View {
         let o = r.overview
+        let recent: [AnalyticsReport.Day] = Array(r.daily.suffix(14))
+        let highlights: [AnalyticsReport.Insight] = r.highlights ?? []
+        if !highlights.isEmpty {
+            AnalyticsCard {
+                CardTitle(title: L("要点"), sub: L("この\(r.range)日で、まず見ること"))
+                ForEach(highlights, id: \.code) { HighlightRow(insight: $0) }
+            }
+        }
         Grid(horizontalSpacing: 10, verticalSpacing: 10) {
             GridRow {
-                KpiTile(title: L("学習者"), hint: L("撮ったか復習した人"), metric: o.learners, unit: .people) {
+                KpiTile(title: L("学習者"), hint: L("撮ったか復習した人"), metric: o.learners, unit: .people,
+                        spark: recent.map { Double($0.learners.count) }) {
                     show(L("学習者"), o.learners.users)
                 }
-                KpiTile(title: L("新しい登録"), hint: L("この期間にアカウントを作った人"), metric: o.newUsers, unit: .people) {
+                KpiTile(title: L("新しい登録"), hint: L("この期間にアカウントを作った人"), metric: o.newUsers, unit: .people,
+                        spark: recent.map { Double($0.signups.count) }) {
                     show(L("新しい登録"), o.newUsers.users)
                 }
             }
             GridRow {
-                KpiTile(title: L("撮った数"), hint: L("新しい語と再会"), metric: o.catches, unit: .count, action: nil)
-                KpiTile(title: L("復習した数"), hint: L("答えた問題"), metric: o.reviews, unit: .count, action: nil)
+                KpiTile(title: L("撮った数"), hint: L("新しい語と再会"), metric: o.catches, unit: .count,
+                        spark: recent.map { Double($0.catches) }, action: nil)
+                KpiTile(title: L("復習した数"), hint: L("答えた問題"), metric: o.reviews, unit: .count,
+                        spark: recent.map { Double($0.reviews) }, action: nil)
             }
             GridRow {
                 KpiTile(title: L("登録した日に撮った"), hint: L("新しく登録した人のうち"), metric: o.firstDayCatch, unit: .rate) {
@@ -195,6 +207,44 @@ struct AdminAnalyticsView: View {
                 dayDetail(row)
             }
             ForEach(r.insights(for: "learners"), id: \.code) { InsightLine(insight: $0) }
+        }
+
+        AnalyticsCard {
+            CardTitle(title: L("最初の体験"), sub: L("この\(r.range)日に登録した \(r.funnel.cohort)人。赤い行で一番多く離れています。"))
+            if r.funnel.cohort == 0 {
+                EmptyChart(text: L("この期間に登録した人はいません"))
+            } else {
+                FunnelBars(steps: r.funnel.steps, worst: r.funnel.worst) { step, stopped in
+                    funnelTap(step, stopped)
+                }
+            }
+            ForEach(r.insights(for: "funnel"), id: \.code) { InsightLine(insight: $0) }
+        }
+
+        placesCard(r)
+    }
+
+    private func funnelTap(_ step: AnalyticsReport.Step, _ stopped: [String]) {
+        if stopped.isEmpty {
+            show(AnalyticsText.step(step.key), step.users)
+        } else {
+            people = AnalyticsPeople(title: AnalyticsText.step(step.key), ids: step.users,
+                                     secondTitle: L("ここで止まった人"), secondIds: stopped)
+        }
+    }
+
+    /// Where photos are taken: circles on a map, per city and district (never a street or a point).
+    private func placesCard(_ r: AnalyticsReport) -> some View {
+        let places: [AnalyticsReport.Place] = r.quality.places
+        return AnalyticsCard {
+            CardTitle(title: L("どこで撮っているか"), sub: L("市と区ごとの枚数。円が大きいほど多い。番地や1人ずつの位置は出しません。"))
+            if places.isEmpty {
+                EmptyChart(text: L("この期間に場所のある写真はありません"))
+            } else {
+                AdminAreaMap(spots: places.map { AdminAreaSpot(name: $0.name, n: $0.n) })
+                AdminRankList(rows: places.prefix(6).map { ($0.name, $0.n) })
+            }
+            ForEach(r.insights(for: "places"), id: \.code) { InsightLine(insight: $0) }
         }
     }
 
@@ -292,13 +342,8 @@ struct AdminAnalyticsView: View {
             if r.funnel.cohort == 0 {
                 EmptyChart(text: L("この期間に登録した人はいません"))
             } else {
-                FunnelBars(steps: r.funnel.steps) { step, stopped in
-                    if stopped.isEmpty {
-                        show(AnalyticsText.step(step.key), step.users)
-                    } else {
-                        people = AnalyticsPeople(title: AnalyticsText.step(step.key), ids: step.users,
-                                                 secondTitle: L("ここで止まった人"), secondIds: stopped)
-                    }
+                FunnelBars(steps: r.funnel.steps, worst: r.funnel.worst) { step, stopped in
+                    funnelTap(step, stopped)
                 }
             }
             ForEach(r.insights(for: "funnel"), id: \.code) { InsightLine(insight: $0) }
@@ -446,15 +491,6 @@ struct AdminAnalyticsView: View {
             ForEach(r.insights(for: "ai") + r.insights(for: "pick"), id: \.code) { InsightLine(insight: $0) }
         }
         AnalyticsCard {
-            CardTitle(title: L("どこで撮っているか"), sub: L("市と区まで。番地や1人ずつの場所は出しません。"))
-            if q.places.isEmpty {
-                EmptyChart(text: L("この期間に場所のある写真はありません"))
-            } else {
-                AdminRankList(rows: q.places.map { ($0.name, $0.n) })
-            }
-            ForEach(r.insights(for: "places"), id: \.code) { InsightLine(insight: $0) }
-        }
-        AnalyticsCard {
             CardTitle(title: L("広告と上限"), sub: L("1日の上限に届いた → 広告を出した → 見終えた。"))
             AdsFlow(ads: r.ads)
             AdminRow(label: L("保存・裏の処理の失敗"), value: AdminFormat.int(q.failures))
@@ -586,6 +622,97 @@ enum AnalyticsText {
         }
     }
 
+    /// A display language by its own name (es → Español), never the code (owner 2026-11-13).
+    static func language(_ code: String?) -> String? {
+        guard let code, !code.isEmpty else { return nil }
+        return DisplayLanguages.find(code)?.autonym ?? code
+    }
+
+    /// The TOCFL number in "TOCFL-5" / "5".
+    static func levelNumber(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let digits = raw.filter(\.isNumber)
+        return digits.isEmpty ? nil : digits
+    }
+
+    /// 「TOCFL 3 → 目標 5」 / 「目標 TOCFL 5」 / 「TOCFL 3」.
+    static func level(now: String?, goal: String?) -> String? {
+        let n: String? = levelNumber(now)
+        let g: String? = levelNumber(goal)
+        if let n, let g { return L("TOCFL \(n) → 目標 \(g)") }
+        if let g { return L("目標 TOCFL \(g)") }
+        if let n { return "TOCFL \(n)" }
+        return nil
+    }
+
+    static func plan(_ key: String?) -> String {
+        key == "pro" ? "Pro" : L("無料")
+    }
+
+    static func provider(_ key: String?) -> String? {
+        switch key {
+        case "google": "Google"
+        case "apple": "Apple"
+        case "email": L("メール")
+        default: nil
+        }
+    }
+
+    static func device(_ key: String?) -> String? {
+        switch key {
+        case "iphone": "iPhone"
+        case "ipad": "iPad"
+        case "duo": "iPhone Duo"
+        case "mac": "Mac"
+        default: nil
+        }
+    }
+
+    static func screen(_ key: String) -> String {
+        switch key {
+        case "home": L("ホーム")
+        case "dex": L("図鑑")
+        case "word": L("単語の頁")
+        case "camera", "capture": L("カメラ")
+        case "scan": L("スキャン")
+        case "review": L("復習")
+        case "memory": L("記憶の状態")
+        case "settings": L("設定")
+        case "onboarding": L("最初の質問")
+        default: L("その他")
+        }
+    }
+
+    /// The counted features, in the order they are shown (server `APP_FEATURES`).
+    static let features: [String] = ["lasso", "selfie", "search", "whole_photo", "pronounce", "regenerate"]
+
+    static func feature(_ key: String) -> String {
+        switch key {
+        case "lasso": L("囲んで切り抜き直す")
+        case "selfie": L("自撮り")
+        case "search": L("リストにない言葉を探す")
+        case "whole_photo": L("元の写真のまま")
+        case "pronounce": L("発音を再生")
+        case "regenerate": L("↻ 作り直し")
+        default: key
+        }
+    }
+
+    /// The tutorial's parts, in order (server `TOUR_PARTS`).
+    static let tourParts: [String] = ["camera", "home", "dex", "review", "word", "complete"]
+
+    static func tourPart(_ key: String) -> String {
+        switch key {
+        case "camera": L("撮る")
+        case "home": L("ホーム")
+        case "dex": L("図鑑")
+        case "review": L("復習")
+        case "word": L("単語の頁")
+        case "complete": L("完了")
+        default: key
+        }
+    }
+
     /// "2026-11-03" → 11/3 (月) in the display language.
     static func dayWithWeekday(_ key: String) -> String {
         guard let d = SupabaseDate.parse("\(key)T12:00:00+08:00") else { return AdminFormat.day(key) }
@@ -685,7 +812,7 @@ enum AnalyticsText {
 
 // MARK: - Pieces
 
-private struct AnalyticsCard<Content: View>: View {
+struct AnalyticsCard<Content: View>: View {
     var padding: CGFloat = 14
     @ViewBuilder let content: Content
 
@@ -698,7 +825,7 @@ private struct AnalyticsCard<Content: View>: View {
     }
 }
 
-private struct CardTitle: View {
+struct CardTitle: View {
     let title: String
     var sub: String? = nil
 
@@ -728,7 +855,7 @@ private struct AnalyticsNote: View {
 }
 
 /// The one-line reading under a chart, with its judgement as a coloured mark.
-private struct InsightLine: View {
+struct InsightLine: View {
     let insight: AnalyticsReport.Insight
 
     var body: some View {
@@ -750,6 +877,28 @@ private struct InsightLine: View {
     }
 }
 
+/// One of the 要点: the reading with a coloured stripe for its judgement (good / warn / bad).
+private struct HighlightRow: View {
+    let insight: AnalyticsReport.Insight
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(AnalyticsText.toneColor(insight.tone))
+                .frame(width: 4)
+            Text(AnalyticsText.sentence(insight))
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(Theme.foreground)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 2)
+            Spacer(minLength: 0)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("analytics.highlight.\(insight.code)")
+    }
+}
+
 private enum KpiUnit { case people, count, rate }
 
 /// A number, its change against the span before, and 「誰？」 when the people are known.
@@ -758,13 +907,17 @@ private struct KpiTile: View {
     let hint: String?
     let metric: AnalyticsReport.Metric
     let unit: KpiUnit
+    /// The last days of the number, drawn as a small line (owner 2026-11-13).
+    let spark: [Double]?
     let action: (() -> Void)?
 
-    init(title: String, hint: String?, metric: AnalyticsReport.Metric, unit: KpiUnit, action: (() -> Void)?) {
+    init(title: String, hint: String?, metric: AnalyticsReport.Metric, unit: KpiUnit, spark: [Double]? = nil,
+         action: (() -> Void)?) {
         self.title = title
         self.hint = hint
         self.metric = metric
         self.unit = unit
+        self.spark = spark
         self.action = action
     }
 
@@ -795,6 +948,9 @@ private struct KpiTile: View {
             Text(valueText).scaledFont(size: 28, weight: .heavy, monospacedDigit: true)
                 .foregroundStyle(Theme.foreground).lineLimit(1).minimumScaleFactor(0.6)
             delta
+            if let spark, spark.count > 1 {
+                AdminSparkline(values: spark)
+            }
             if let hint {
                 Text(hint).scaledFont(size: 10).foregroundStyle(Theme.muted).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -908,7 +1064,7 @@ private struct WhoButton: View {
     }
 }
 
-private struct EmptyChart: View {
+struct EmptyChart: View {
     let text: String
 
     var body: some View {
@@ -921,6 +1077,8 @@ private struct EmptyChart: View {
 /// The first steps as bars that shrink step by step, with how many were lost between each.
 private struct FunnelBars: View {
     let steps: [AnalyticsReport.Step]
+    /// The step after the biggest loss: its line is red and says so.
+    var worst: Int? = nil
     let onTap: (AnalyticsReport.Step, [String]) -> Void
 
     var body: some View {
@@ -929,10 +1087,18 @@ private struct FunnelBars: View {
             ForEach(Array(steps.enumerated()), id: \.element.id) { i, s in
                 let stopped: [String] = Self.stopped(at: i, in: steps)
                 if i > 0, !stopped.isEmpty {
-                    Text(L("−\(stopped.count)人"))
-                        .scaledFont(size: 11, weight: .bold, monospacedDigit: true)
-                        .foregroundStyle(Theme.destructive)
-                        .padding(.leading, 4)
+                    if i == worst {
+                        Label(L("−\(stopped.count)人 · ここで一番多く離れた"), systemImage: "arrow.down.right")
+                            .scaledFont(size: 12, weight: .bold, monospacedDigit: true)
+                            .foregroundStyle(Theme.destructive)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Theme.destructive.opacity(0.1), in: Capsule())
+                    } else {
+                        Text(L("−\(stopped.count)人"))
+                            .scaledFont(size: 11, weight: .bold, monospacedDigit: true)
+                            .foregroundStyle(Theme.destructive)
+                            .padding(.leading, 4)
+                    }
                 }
                 Button { onTap(s, stopped) } label: {
                     VStack(alignment: .leading, spacing: 4) {
@@ -1092,6 +1258,9 @@ private struct UserRow: View {
             }
             Spacer(minLength: 4)
             if !compact {
+                if let recent = user.recent, !recent.isEmpty {
+                    AdminMiniBars(values: recent)
+                }
                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.muted)
             }
         }
@@ -1110,12 +1279,16 @@ private struct UserRow: View {
             .background(color.opacity(0.14), in: Capsule())
     }
 
+    /// Español · TOCFL 3 → 目標 5 · 撮った 86 · 最後 11/13 — the language by its name, never its code.
     private var line: String {
-        var parts = [L("撮った \(user.catches)"), L("復習 \(user.reviews)")]
+        var parts: [String] = []
+        if let lang = AnalyticsText.language(user.uiLanguage) { parts.append(lang) }
+        if let level = AnalyticsText.level(now: user.levelNow, goal: user.levelGoal) { parts.append(level) }
+        parts.append(L("撮った \(user.catches)"))
+        parts.append(L("復習 \(user.reviews)"))
         if let a = user.accuracy { parts.append(L("正答 \(Int(a))%")) }
         parts.append(L("最後 \(user.lastActive.map(AdminFormat.day) ?? "—")"))
         if let s = AnalyticsText.stopped(user.stoppedAt) { parts.append(s) }
-        if let lang = user.uiLanguage { parts.append(lang) }
         return parts.joined(separator: " · ")
     }
 }

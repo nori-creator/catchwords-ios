@@ -64,8 +64,16 @@ export const APP_EVENTS = [
   "ad_failed",
   "notification_open",
   "widget_open",
+  // 機能を使った回数（2026-11-13、開発者の「分析」のその人の頁）。種類（`meta.feature`）だけで、写真・語・文は送らない。
+  "feature_use",
 ] as const;
 export type AppEventKind = (typeof APP_EVENTS)[number];
+
+/**
+ * `feature_use` の種類（`meta.feature`）。囲んで切り抜き直す・自撮り・「リストにない言葉を探す」・元の写真のまま・
+ * 発音の再生・↻ 作り直し。プライバシーポリシー第1条の「使った画面」・第2条の「画面ごとの利用」の数として数える。
+ */
+export const APP_FEATURES = ["lasso", "selfie", "search", "whole_photo", "pronounce", "regenerate"] as const;
 
 /**
  * 記録に添えてよい物（`usage_events.meta`、移行 `20261105120000_analytics.sql`）。**鍵も形もここで決めた物だけ**
@@ -85,6 +93,8 @@ export const AppEventMeta = z
     screen: z
       .enum(["home", "dex", "word", "camera", "review", "memory", "settings", "onboarding", "other"])
       .optional(),
+    /** 使った機能（feature_use）。 */
+    feature: z.enum(APP_FEATURES).optional(),
     /** 段の名前（onboarding_step / tutorial_step / 通知の種類 / 上限の種類）。英小文字と _ だけ。 */
     step: z.string().regex(/^[a-z0-9_]{1,40}$/).optional(),
     /** 段の番号・数。 */

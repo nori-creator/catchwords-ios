@@ -114,6 +114,8 @@ export type AnalyticsUserRow = {
   learning_days: number;
   last_active: string | null;
   excluded: ExcludeReason | null;
+  /** 直近14日（古い順）の1日ごとの「撮った数＋復習した数」。一覧の小さな棒（2026-11-13）。 */
+  recent: number[];
 };
 
 export type AnalyticsReport = {
@@ -134,7 +136,8 @@ export type AnalyticsReport = {
     week_return: Metric;
   };
   daily: Array<{ day: string; learners: string[]; catches: number; reviews: number; signups: string[] }>;
-  funnel: { cohort: number; steps: Array<{ key: string; users: string[] }> };
+  /** `worst` = 一番多く人が減った段の番号（前の段との差。減っていなければ null）。 */
+  funnel: { cohort: number; steps: Array<{ key: string; users: string[] }>; worst: number | null };
   cohorts: Array<{ week: string; size: number; cells: Array<{ pct: number; users: string[] } | null> }>;
   users: AnalyticsUserRow[];
   quality: {
@@ -149,6 +152,11 @@ export type AnalyticsReport = {
   };
   ads: { limit_hit: number; offered: number; watched: number; failed: number };
   insights: Insight[];
+  /**
+   * 「今月の要点」（2026-11-13）: 解説の中から、悪い → 注意 → 良い の順に最大3つ（情報だけの物と
+   * 人数が少ない注意は入れない）。文は画面の表（`AnalyticsText.sentence`）。
+   */
+  highlights: Insight[];
 };
 
 /* ---------------------------------------------------------------- 日付 */
@@ -222,6 +230,30 @@ export const APP_SENT_KINDS = new Set([
   "widget_open",
 ]);
 const FAILURE_PREFIXES = ["save_failed_", "bg_failed_"];
+
+/**
+ * 利用者の状態（一覧とその人の頁で同じ決め方）。登録から7日未満 = 新しい、1度も学んでいない = まだ、
+ * 最後に来た日から 7日以内 = 続けている、8〜21日 = 離れそう、22日以上 = 離れた。
+ */
+export function userStatus(signup: string, learned: boolean, last: string | null, today: string): UserStatus {
+  if (daysBetween(signup, today) < 7) return "new";
+  if (!learned) return "never";
+  const idle = last ? daysBetween(last, today) : Infinity;
+  return idle <= 7 ? "active" : idle <= 21 ? "at_risk" : "lapsed";
+}
+
+/** 解説から「今月の要点」を選ぶ（悪い → 注意 → 良い、各グラフ1つまで、最大3つ）。 */
+export function pickHighlights(insights: Insight[], max = 3): Insight[] {
+  const rank: Record<Tone, number> = { bad: 0, warn: 1, good: 2, info: 9 };
+  const seen = new Set<string>();
+  return insights
+    .map((i, at) => ({ i, at }))
+    .filter(({ i }) => i.tone !== "info" && i.chart !== "sample")
+    .sort((a, b) => rank[a.i.tone] - rank[b.i.tone] || a.at - b.at)
+    .filter(({ i }) => (seen.has(i.chart) ? false : (seen.add(i.chart), true)))
+    .slice(0, max)
+    .map(({ i }) => i);
+}
 
 /* ---------------------------------------------------------------- 本体 */
 
@@ -373,8 +405,19 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
   const s3 = s2.filter((id) => (catchesBy.get(id) ?? []).length > 0);
   const s4 = s3.filter((id) => (reviewsBy.get(id)?.days.length ?? 0) > 0);
   const s5 = s4.filter((id) => [...(seenDays.get(id) ?? [])].some((d) => d > signupDay.get(id)!));
+  const funnelSteps = [s1, s2, s3, s4, s5];
+  let worst: number | null = null;
+  let worstLost = 0;
+  for (let i = 1; i < funnelSteps.length; i++) {
+    const lost = funnelSteps[i - 1].length - funnelSteps[i].length;
+    if (lost > worstLost) {
+      worst = i;
+      worstLost = lost;
+    }
+  }
   const funnel = {
     cohort: s1.length,
+    worst,
     steps: [
       { key: "signup", users: s1 },
       { key: "onboarded", users: s2 },
@@ -406,14 +449,9 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
   }
 
   // 利用者
-  const statusOf = (u: AnalyticsUserIn, last: string | null): UserStatus => {
-    const age = daysBetween(signupDay.get(u.id)!, today);
-    const learned = (learnDays.get(u.id)?.size ?? 0) > 0;
-    if (age < 7) return "new";
-    if (!learned) return "never";
-    const idle = last ? daysBetween(last, today) : Infinity;
-    return idle <= 7 ? "active" : idle <= 21 ? "at_risk" : "lapsed";
-  };
+  const statusOf = (u: AnalyticsUserIn, last: string | null): UserStatus =>
+    userStatus(signupDay.get(u.id)!, (learnDays.get(u.id)?.size ?? 0) > 0, last, today);
+  const recentDays = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
   const order: Record<UserStatus, number> = { new: 0, active: 1, at_risk: 2, lapsed: 3, never: 4 };
   const users: AnalyticsUserRow[] = input.users
     .map((u) => {
@@ -442,6 +480,9 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
         learning_days: learnDays.get(u.id)?.size ?? 0,
         last_active: last,
         excluded: reasons.get(u.id) ?? null,
+        recent: recentDays.map(
+          (d) => cs.filter((x) => x === d).length + (rv?.days ?? []).filter((x) => x === d).length,
+        ),
       };
     })
     .sort(
@@ -510,7 +551,7 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
     places: [...areas]
       .map(([name, n]) => ({ name, n }))
       .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name))
-      .slice(0, 8),
+      .slice(0, 12),
   };
   const ads = {
     limit_hit: kindCount((k) => k === "limit_hit", inWin),
@@ -519,7 +560,7 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
     failed: kindCount((k) => k === "ad_failed", inWin),
   };
 
-  const report: Omit<AnalyticsReport, "insights"> = {
+  const report: Omit<AnalyticsReport, "insights" | "highlights"> = {
     generated_at: input.now.toISOString(),
     today,
     range,
@@ -535,7 +576,8 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
     quality,
     ads,
   };
-  return { ...report, insights: insightsFor(report) };
+  const insights = insightsFor(report);
+  return { ...report, insights, highlights: pickHighlights(insights) };
 }
 
 /* ---------------------------------------------------------------- 解説 */
@@ -544,7 +586,7 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsReport {
  * 各グラフの下の1行。数から「何が言えるか」を決める（文は画面の表示言語の表）。
  * 1つのグラフに1行。数が足りなくて言えない時も、言えないことを1行で言う。
  */
-export function insightsFor(r: Omit<AnalyticsReport, "insights">): Insight[] {
+export function insightsFor(r: Omit<AnalyticsReport, "insights" | "highlights">): Insight[] {
   const out: Insight[] = [];
   const o = r.overview;
   const L = o.learners.value ?? 0;

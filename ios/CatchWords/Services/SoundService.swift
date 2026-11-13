@@ -448,6 +448,7 @@ final class SoundService {
     /// speaks at its usual pace times it.
     func speak(_ text: String, rate: Double = 1) {
         guard !text.isEmpty else { return }
+        AppEvents.feature(.pronounce)   // the developer's 分析: a play, never the text
         speakToken += 1
         let token = speakToken
         voicePlayer?.stop()

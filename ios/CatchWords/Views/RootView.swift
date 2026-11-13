@@ -170,6 +170,8 @@ struct RootView: View {
             await auth.bootstrap()
         }
         .onChange(of: auth.phase) { _, phase in
+            // A cold launch is active before the account is known: its visit starts once signed in.
+            if phase == .signedIn, scenePhase == .active { AppEvents.opened() }
             if phase == .signedOut {
                 // Nothing of the account that just left may stay for the next one: the stores, the
                 // pictures in memory, the widgets' snapshot, the review Live Activity and the reminders
@@ -208,8 +210,11 @@ struct RootView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
+            // The developer's 分析: one visit from the front to the back (`AppEvents`, numbers only).
+            if phase == .background, auth.phase == .signedIn { AppEvents.left() }
             // おまかせ reminders follow yesterday's first open and the cards coming due.
             guard phase == .active, auth.phase == .signedIn else { return }
+            AppEvents.opened()
             if profile.loadFailed { Task { await profile.load() } }
             ReminderService.recordAppOpen()
             PendingRetry.shared.kick()   // waiting photos that are due (a no-op until sign-in has finished)

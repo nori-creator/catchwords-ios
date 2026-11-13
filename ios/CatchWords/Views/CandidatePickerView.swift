@@ -815,6 +815,7 @@ struct CandidatePickerView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         } else {
             Button {
+                AppEvents.feature(.search)
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) { searchOpen = true }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(280))
