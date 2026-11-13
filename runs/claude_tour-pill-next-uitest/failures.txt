@@ -1,0 +1,1 @@
+CatchWords / test_1_ja_zh(): FullTourTests.swift:109: Failed to swipe up Target Application 'com.nori.catchwords': Timed out while evaluating UI query.
