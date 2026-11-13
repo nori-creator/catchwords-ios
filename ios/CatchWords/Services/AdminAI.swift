@@ -77,8 +77,25 @@ nonisolated struct AdminAiSettings: Decodable, Sendable {
     var providers: [AdminAiProvider]
     var image: AdminAiImage?
     var tts: AdminAiTts?
+    /// 「AI を選ぶ」: every provider's models, newest first, with New / in use / folded (server 2026-11-13).
+    var catalog: [AdminAiCatalogProvider]
+    /// 「使う AI」: what 「全部の用途をこの AI にする」 chose (else the model most uses run on). nil: all on the default.
+    var main: AdminAiMain?
+    /// The one backup of every use: `"auto"` (the default backup), `"off"` or `"provider:model"`.
+    var backup: String
+    /// What the default backup is when `backup` is `"auto"` (the word card's).
+    var backupAuto: AdminAiBackupAuto?
+    /// The AI calls of the last hour.
+    var recent: AdminAiRecent
+    /// What the last 30 days cost (calls with a known price only).
+    var cost30: AdminAiCost30
+    /// 「全部の用途をこの AI にする」 can be undone once.
+    var undoAvailable: Bool
 
-    enum CodingKeys: String, CodingKey { case isAdmin, status, features, tasks, providers, image, tts }
+    enum CodingKeys: String, CodingKey {
+        case isAdmin, status, features, tasks, providers, image, tts
+        case catalog, main, backup, backupAuto, recent, cost30, undoAvailable
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -89,6 +106,195 @@ nonisolated struct AdminAiSettings: Decodable, Sendable {
         providers = c.adminList(AdminAiProvider.self, .providers)
         image = (try? c.decodeIfPresent(AdminAiImage.self, forKey: .image)) ?? nil
         tts = (try? c.decodeIfPresent(AdminAiTts.self, forKey: .tts)) ?? nil
+        catalog = c.adminList(AdminAiCatalogProvider.self, .catalog)
+        main = (try? c.decodeIfPresent(AdminAiMain.self, forKey: .main)) ?? nil
+        let b = c.adminStr(.backup)
+        backup = b.isEmpty ? "auto" : b
+        backupAuto = (try? c.decodeIfPresent(AdminAiBackupAuto.self, forKey: .backupAuto)) ?? nil
+        recent = ((try? c.decodeIfPresent(AdminAiRecent.self, forKey: .recent)) ?? nil) ?? AdminAiRecent()
+        cost30 = ((try? c.decodeIfPresent(AdminAiCost30.self, forKey: .cost30)) ?? nil) ?? AdminAiCost30()
+        undoAvailable = c.adminBool(.undoAvailable)
+    }
+}
+
+/// One provider in 「AI を選ぶ」.
+nonisolated struct AdminAiCatalogProvider: Decodable, Sendable, Identifiable {
+    var id: String
+    var name: String
+    var hasKey: Bool
+    var error: String?
+    var models: [AdminAiCatalogModel]
+
+    enum CodingKeys: String, CodingKey { case id, name, hasKey, error, models }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.adminStr(.id)
+        let n = c.adminStr(.name)
+        name = n.isEmpty ? id : n
+        hasKey = c.adminBool(.hasKey)
+        error = c.adminOptStr(.error)
+        models = c.adminList(AdminAiCatalogModel.self, .models)
+    }
+}
+
+/// One model in 「AI を選ぶ」 (saved as `provider:id`).
+nonisolated struct AdminAiCatalogModel: Decodable, Sendable, Identifiable {
+    var id: String
+    /// The provider's own name for it (`Gemini 4 Hydrogen`), else the id.
+    var name: String
+    /// Reads photos (may be chosen for the photo uses).
+    var vision: Bool
+    /// US dollars per million tokens; nil: no price entered yet.
+    var price: AdminAiModelPrice?
+    var inUse: Bool
+    /// First seen by the server in the last 14 days.
+    var isNew: Bool
+    /// Under 「古い版・試験版」.
+    var folded: Bool
+
+    enum CodingKeys: String, CodingKey { case id, name, vision, price, inUse, isNew, folded }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.adminStr(.id)
+        let n = c.adminStr(.name)
+        name = n.isEmpty ? id : n
+        vision = c.adminBool(.vision)
+        price = (try? c.decodeIfPresent(AdminAiModelPrice.self, forKey: .price)) ?? nil
+        inUse = c.adminBool(.inUse)
+        isNew = c.adminBool(.isNew)
+        folded = c.adminBool(.folded)
+    }
+}
+
+nonisolated struct AdminAiModelPrice: Decodable, Sendable {
+    var inUsd: Double
+    var outUsd: Double
+    var custom: Bool
+
+    enum CodingKeys: String, CodingKey { case inUsd, outUsd, custom }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        inUsd = c.adminNum(.inUsd) ?? 0
+        outUsd = c.adminNum(.outUsd) ?? 0
+        custom = c.adminBool(.custom)
+    }
+}
+
+/// 「使う AI」.
+nonisolated struct AdminAiMain: Decodable, Sendable {
+    /// `provider:model`.
+    var value: String
+    var provider: String
+    var model: String
+    var name: String
+    var price: AdminAiModelPrice?
+    /// Counted from the uses' settings, not saved with 「全部の用途をこの AI にする」.
+    var derived: Bool
+
+    enum CodingKeys: String, CodingKey { case value, provider, model, name, price, derived }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        value = c.adminStr(.value)
+        provider = c.adminStr(.provider)
+        model = c.adminStr(.model)
+        let n = c.adminStr(.name)
+        name = n.isEmpty ? model : n
+        price = (try? c.decodeIfPresent(AdminAiModelPrice.self, forKey: .price)) ?? nil
+        derived = c.adminBool(.derived)
+    }
+}
+
+nonisolated struct AdminAiBackupAuto: Decodable, Sendable {
+    var provider: String
+    var model: String
+    var resolved: String
+
+    enum CodingKeys: String, CodingKey { case provider, model, resolved }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        provider = c.adminStr(.provider)
+        model = c.adminStr(.model)
+        let r = c.adminStr(.resolved)
+        resolved = r.isEmpty ? model : r
+    }
+}
+
+nonisolated struct AdminAiRecent: Decodable, Sendable {
+    var ok: Int = 0
+    var failed: Int = 0
+    /// nil: no successful call in the hour.
+    var avgMs: Double?
+
+    enum CodingKeys: String, CodingKey { case ok, failed, avgMs }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ok = Int(c.adminNum(.ok) ?? 0)
+        failed = Int(c.adminNum(.failed) ?? 0)
+        avgMs = c.adminNum(.avgMs)
+    }
+}
+
+nonisolated struct AdminAiCost30: Decodable, Sendable {
+    var usd: Double = 0
+    var jpy: Double = 0
+    var unpricedCalls: Int = 0
+    var usdJpy: Double = 156
+
+    enum CodingKeys: String, CodingKey { case usd, jpy, unpricedCalls, usdJpy }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        usd = c.adminNum(.usd) ?? 0
+        jpy = c.adminNum(.jpy) ?? 0
+        unpricedCalls = Int(c.adminNum(.unpricedCalls) ?? 0)
+        usdJpy = c.adminNum(.usdJpy) ?? 156
+    }
+}
+
+/// `adminTestAiModel` → `result`: one call to the model, not counted in the production log.
+nonisolated struct AdminAiModelTest: Decodable, Sendable {
+    var ok: Bool
+    var ms: Double
+    var error: String?
+
+    enum CodingKeys: String, CodingKey { case ok, ms, error }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ok = c.adminBool(.ok)
+        ms = c.adminNum(.ms) ?? 0
+        error = c.adminOptStr(.error)
+    }
+}
+
+/// `adminEstimateAiCost` → `result`: the last 30 days' tokens priced now and with the chosen model.
+nonisolated struct AdminAiCostEstimate: Decodable, Sendable {
+    var isAdmin: Bool
+    var calls: Int
+    var nowJpy: Double
+    /// nil: the chosen model has no price yet.
+    var afterJpy: Double?
+    var unpricedNow: Int
+
+    enum CodingKeys: String, CodingKey { case isAdmin, calls, nowJpy, afterJpy, unpricedNow }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        isAdmin = c.adminBool(.isAdmin)
+        calls = Int(c.adminNum(.calls) ?? 0)
+        nowJpy = c.adminNum(.nowJpy) ?? 0
+        afterJpy = c.adminNum(.afterJpy)
+        unpricedNow = Int(c.adminNum(.unpricedNow) ?? 0)
     }
 }
 
@@ -150,6 +356,10 @@ nonisolated struct AdminAiFeature: Decodable, Sendable {
 nonisolated struct AdminAiTaskSetting: Decodable, Sendable {
     var id: String
     var feature: String
+    /// The group on the screen: `photo` / `card` / `review` / `journal` / `report` (server 2026-11-13).
+    var group: String
+    /// Runs on 「使う AI」.
+    var sameAsMain: Bool
     var needsVision: Bool
     var ios: Bool
     var label: [String: String]
@@ -167,7 +377,7 @@ nonisolated struct AdminAiTaskSetting: Decodable, Sendable {
     var error: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, feature, needsVision, ios, label, description, value, backup, provider, model, resolved
+        case id, feature, group, sameAsMain, needsVision, ios, label, description, value, backup, provider, model, resolved
         case backupProvider, backupModel, backupResolved, error
     }
 
@@ -175,6 +385,9 @@ nonisolated struct AdminAiTaskSetting: Decodable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = c.adminStr(.id)
         feature = c.adminStr(.feature)
+        let g = c.adminStr(.group)
+        group = g.isEmpty ? "report" : g
+        sameAsMain = c.adminBool(.sameAsMain)
         needsVision = c.adminBool(.needsVision)
         ios = c.adminBool(.ios)
         label = c.adminDict(.label)

@@ -44,6 +44,53 @@ export const adminSetAiTask = createServerFn({ method: "POST" })
     return mod.setAdminAiTask(d, data);
   });
 
+/**
+ * 全部の用途と機能を1つの AI にする（2026-11-13〜）。`{ value: "会社:モデル" }`。
+ * 前の設定は1回だけ戻せる（`adminUndoAiModels`）。
+ */
+export const adminSetAiAll = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => input as { value: string })
+  .handler(async ({ context, data }) => {
+    const { mod, deps: d } = await deps(context);
+    return mod.setAdminAiAll(d, data);
+  });
+
+/** 「全部の用途をこの AI にする」の前へ1回だけ戻す。 */
+export const adminUndoAiModels = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { mod, deps: d } = await deps(context);
+    return mod.undoAdminAiModels(d);
+  });
+
+/** 全部の用途の控え。`{ backup: "auto" | "off" | "会社:モデル" }`。 */
+export const adminSetAiBackup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => input as { backup: string })
+  .handler(async ({ context, data }) => {
+    const { mod, deps: d } = await deps(context);
+    return mod.setAdminAiBackup(d, data);
+  });
+
+/** そのモデルを試しに1回呼ぶ（本番の記録に残さない）。`{ value }` → `{ ok, ms, error, value }`。 */
+export const adminTestAiModel = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => input as { value: string })
+  .handler(async ({ context, data }) => {
+    const { mod, deps: d } = await deps(context);
+    return mod.testAdminAiModel(d, data);
+  });
+
+/** 直近30日の量のまま、全部をそのモデルにしたら費用がどうなるか。`{ value }`。 */
+export const adminEstimateAiCost = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => input as { value: string })
+  .handler(async ({ context, data }) => {
+    const { mod, deps: d } = await deps(context);
+    return mod.estimateAdminAiCost(d, data);
+  });
+
 /** 用途ごと・モデルごと・日ごとの AI の費用（`ai-costs.ts`）。`{ days: 1 | 7 | 30 }`。 */
 export const adminGetAiCosts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

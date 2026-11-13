@@ -28,17 +28,32 @@ import {
   OFF,
   backupValues,
   buildAiModelsConfig,
+  globalBackupValue,
+  mainValue,
   normalizeBackupValue,
   parseBackupValue,
+  taskGroup,
   taskInfo,
   taskValues,
+  type AiTaskGroup,
 } from "./ai-task-settings";
+import {
+  MODEL_SEEN_KEY,
+  buildCatalogModels,
+  estimateSwitchCost,
+  mergeModelSeen,
+  modelsInUse,
+  normalizeModelSeen,
+  recentAiCalls,
+  type CatalogProvider,
+} from "./ai-model-catalog";
 import {
   AI_COST_DAYS,
   AI_PRICES_KEY,
   computeAiCosts,
   isPriceModelLabel,
   normalizePricesConfig,
+  priceFor,
   type AiCostDays,
   type AiCostReport,
   type AiCostRow,
@@ -67,7 +82,17 @@ import {
 /** 管理者でない人が書こうとした時の文言（`native-fn.ts` が 403 にする）。 */
 export const ADMIN_ONLY_MESSAGE = "Forbidden: 管理者だけが使えます";
 
-export type AppConfigKey = "ai_models" | "image_generation" | "tts_voice" | typeof AI_PRICES_KEY;
+export type AppConfigKey =
+  | "ai_models"
+  | "image_generation"
+  | "tts_voice"
+  | typeof AI_PRICES_KEY
+  /** 「全部の用途をこの AI にする」の前の `ai_models`（1回だけ戻せる）。`{ value, at }`。 */
+  | typeof AI_MODELS_PREV_KEY
+  /** サーバが初めて見たモデルの日（New の印）。`ai-model-catalog.ts`。 */
+  | typeof MODEL_SEEN_KEY;
+
+export const AI_MODELS_PREV_KEY = "ai_models_prev";
 
 /** AI の会社の一覧の1行（鍵の値は持たない）。 */
 export type AiProviderListing = {
@@ -80,7 +105,12 @@ export type AiProviderListing = {
   visionModels: string[];
   /** 一覧を取れなかった理由（鍵はある）。 */
   error: string | null;
+  /** 会社が教えてくれた画面の名前（ID → 名前。Google だけ）。 */
+  labels?: Record<string, string>;
 };
+
+/** 試しに1回呼んだ結果。 */
+export type ModelTryResult = { ok: boolean; ms: number; error: string | null };
 
 export type AdminAiDeps = {
   isAdmin: () => Promise<boolean>;
@@ -105,6 +135,8 @@ export type AdminAiDeps = {
   ttsDefaultEngine: () => string;
   /** 保存の後に、ためてある設定を捨てる（次の呼び出しから新しい設定で動く）。 */
   afterWrite?: (key: AppConfigKey) => void;
+  /** そのモデルを試しに1回呼ぶ（本番の記録 `ai_call` には残さない）。 */
+  tryModel?: (provider: string, model: string) => Promise<ModelTryResult>;
 };
 
 /**
@@ -177,6 +209,10 @@ export type TaskDescription =
 export type AdminAiTaskRow = {
   id: AiTask;
   feature: AiFeature;
+  /** 画面の「用途ごと」のまとまり（写真・カード・復習・日記・報告と点検）。 */
+  group: AiTaskGroup;
+  /** 「使う AI」と同じ AI で動いているか（用途の設定 → 機能の設定で比べる）。 */
+  sameAsMain: boolean;
   needsVision: boolean;
   ios: boolean;
   label: Label;
@@ -216,6 +252,28 @@ export type AdminAiSettings =
       /** 用途ごとの AI と控え（2026-10-14〜）。 */
       tasks: AdminAiTaskRow[];
       providers: AiProviderListing[];
+      /** 「AI を選ぶ」の一覧（会社ごと、新しい順。2026-11-13〜）。 */
+      catalog: CatalogProvider[];
+      /** 「使う AI」（全部の用途をこの AI にした物。無ければいちばん多く使われている物）。 */
+      main: {
+        value: string;
+        provider: string;
+        model: string;
+        name: string;
+        price: { inUsd: number; outUsd: number; custom: boolean } | null;
+        /** 保存した「使う AI」ではなく、用途の設定から数えた物。 */
+        derived: boolean;
+      } | null;
+      /** 全部の用途の控え（`"auto"` = 既定の控え、`"off"`、`"会社:モデル"`）。 */
+      backup: string;
+      /** 既定の控えで動いている時の中身（単語カードの控え）。 */
+      backupAuto: { provider: string; model: string; resolved: string } | null;
+      /** 直近1時間の AI の呼び出し。 */
+      recent: { ok: number; failed: number; avgMs: number | null };
+      /** 直近30日の費用（値段の分かる回だけ）と、値段の分からない回。 */
+      cost30: { usd: number; jpy: number; unpricedCalls: number; usdJpy: number };
+      /** 「全部の用途をこの AI にする」を1回戻せる。 */
+      undoAvailable: boolean;
       image: {
         provider: ImageProviderId;
         model: string;
@@ -285,12 +343,21 @@ export function ttsLanguageRows(config: TtsVoiceConfig): Record<string, TtsLangu
 export async function getAdminAiSettings(deps: AdminAiDeps): Promise<AdminAiSettings> {
   // 管理者でなければ、**何も読まずに**返す（会社の一覧・鍵の有無も見せない）。
   if (!(await deps.isAdmin())) return { isAdmin: false };
-  const [aiRaw, imageRaw, ttsRaw, providers] = await Promise.all([
-    deps.readConfig("ai_models"),
-    deps.readConfig("image_generation"),
-    deps.readConfig("tts_voice"),
-    deps.aiProviders(),
-  ]);
+  const now = new Date();
+  const since30 = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  const [aiRaw, imageRaw, ttsRaw, providers, pricesRaw, seenRaw, prevRaw, calls] =
+    await Promise.all([
+      deps.readConfig("ai_models"),
+      deps.readConfig("image_generation"),
+      deps.readConfig("tts_voice"),
+      deps.aiProviders(),
+      deps.readConfig(AI_PRICES_KEY).catch(() => null),
+      deps.readConfig(MODEL_SEEN_KEY).catch(() => null),
+      deps.readConfig(AI_MODELS_PREV_KEY).catch(() => null),
+      deps.aiCallRows(since30).catch(() => ({ rows: [] as AiCostRow[], truncated: false })),
+    ]);
+  const prices = normalizePricesConfig(pricesRaw);
+  const main = mainFrom(aiRaw);
   const values = featureValues(aiRaw);
   const features = await Promise.all(
     AI_FEATURES.map(async (f): Promise<AdminAiFeatureRow> => {
@@ -326,6 +393,7 @@ export async function getAdminAiSettings(deps: AdminAiDeps): Promise<AdminAiSett
       const backup = parseBackupValue(backupRaw) ? backupRaw : AUTO;
       const d = await deps.describeTask(t.feature, t.id);
       const ok = "provider" in d ? d : null;
+      const effective = tValues[t.id] ?? values[t.feature] ?? AUTO;
       const spec = parseFeatureValue(value);
       const chosenBackup = parseBackupValue(backup);
       let error: string | null = "error" in d ? d.error : null;
@@ -341,6 +409,8 @@ export async function getAdminAiSettings(deps: AdminAiDeps): Promise<AdminAiSett
       return {
         id: t.id,
         feature: t.feature,
+        group: taskGroup(t.feature),
+        sameAsMain: main !== null && effective === main.value,
         needsVision: t.needsVision,
         ios: t.ios,
         label: t.label,
@@ -363,12 +433,76 @@ export async function getAdminAiSettings(deps: AdminAiDeps): Promise<AdminAiSett
   const imageKeys = deps.imageKeys();
 
   const ttsConfig = cleanTtsConfig(ttsRaw ?? {});
+
+  // サーバが初めて見たモデルを覚える（New の印）。一覧の読めなかった会社は足さない。
+  const seenLabels = providers
+    .filter((p) => p.hasKey && !p.error)
+    .flatMap((p) => p.models.map((m) => `${p.id}:${m}`));
+  const merged = mergeModelSeen(normalizeModelSeen(seenRaw), seenLabels, now);
+  if (merged.changed) {
+    await deps.writeConfig(MODEL_SEEN_KEY, merged.seen).catch((e) => {
+      console.warn("[admin-ai] model seen not saved", e instanceof Error ? e.message : e);
+    });
+  }
+  const inUse = modelsInUse(aiRaw);
+  if (main) inUse.add(main.value);
+  const catalog: CatalogProvider[] = providers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    hasKey: p.hasKey,
+    error: p.error,
+    models: buildCatalogModels({
+      provider: p.id,
+      ids: p.models,
+      names: p.labels ?? {},
+      vision: (m) => canReadImages(p.id, m),
+      inUse,
+      seen: merged.seen,
+      prices,
+      now,
+    }),
+  }));
+  const mainRow = main
+    ? catalog.find((p) => p.id === main.provider)?.models.find((m) => m.id === main.model)
+    : undefined;
+  const mainPrice = main ? priceFor(main.value, prices) : null;
+  const card = tasks.find((t) => t.id === "card");
+  const recent = recentAiCalls(calls.rows, new Date(now.getTime() - 3_600_000));
+  const spent = estimateSwitchCost(calls.rows, prices, main?.value ?? "none:none");
+
   return {
     isAdmin: true,
     status: deps.aiStatus(),
     features,
     tasks,
     providers,
+    catalog,
+    main: main
+      ? {
+          ...main,
+          name: mainRow?.name ?? main.model,
+          price: mainPrice
+            ? { inUsd: mainPrice.inUsd, outUsd: mainPrice.outUsd, custom: mainPrice.custom }
+            : null,
+        }
+      : null,
+    backup: globalBackupValue(aiRaw) ?? AUTO,
+    backupAuto:
+      card?.backupProvider && card.backupModel
+        ? {
+            provider: card.backupProvider,
+            model: card.backupModel,
+            resolved: card.backupResolved ?? card.backupModel,
+          }
+        : null,
+    recent,
+    cost30: {
+      usd: spent.nowUsd,
+      jpy: Math.round(spent.nowUsd * prices.usdJpy),
+      unpricedCalls: spent.unpricedNow,
+      usdJpy: prices.usdJpy,
+    },
+    undoAvailable: prevValue(prevRaw) !== undefined,
     image: {
       provider: effective.provider,
       model: effective.model,
@@ -444,7 +578,13 @@ export async function setAdminAiFeature(
   else features[feature] = value;
   await deps.writeConfig(
     "ai_models",
-    buildAiModelsConfig({ features, tasks: taskValues(raw), backups: backupValues(raw) }),
+    buildAiModelsConfig({
+      features,
+      tasks: taskValues(raw),
+      backups: backupValues(raw),
+      main: mainValue(raw),
+      backup: globalBackupValue(raw),
+    }),
   );
   deps.afterWrite?.("ai_models");
   return { ok: true, feature, value };
@@ -518,7 +658,13 @@ export async function setAdminAiTask(
   }
   await deps.writeConfig(
     "ai_models",
-    buildAiModelsConfig({ features: featureValues(raw), tasks, backups }),
+    buildAiModelsConfig({
+      features: featureValues(raw),
+      tasks,
+      backups,
+      main: mainValue(raw),
+      backup: globalBackupValue(raw),
+    }),
   );
   deps.afterWrite?.("ai_models");
   return {
@@ -526,6 +672,202 @@ export async function setAdminAiTask(
     task: info.id,
     value: tasks[info.id] ?? AUTO,
     backup: backups[info.id] ?? AUTO,
+  };
+}
+
+// ---- 使う AI を1つ選ぶ（2026-11-13〜） ------------------------------------------
+
+/**
+ * 「使う AI」: 保存した物（`ai_models.main`）→ 無ければ用途・機能の設定でいちばん多い `会社:モデル`。
+ * どれも無ければ null（全部が既定で動いている）。
+ */
+export function mainFrom(
+  raw: unknown,
+): { value: string; provider: string; model: string; derived: boolean } | null {
+  const saved = mainValue(raw);
+  const split = (v: string) => {
+    const spec = parseFeatureValue(v)!;
+    return { value: v, provider: spec.provider, model: spec.model };
+  };
+  if (saved) return { ...split(saved), derived: false };
+  const counts = new Map<string, number>();
+  for (const v of [...Object.values(taskValues(raw)), ...Object.values(featureValues(raw))]) {
+    if (!parseFeatureValue(v)?.provider) continue;
+    counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [v, n] of counts) if (!best || n > counts.get(best)!) best = v;
+  return best ? { ...split(best), derived: true } : null;
+}
+
+/** 戻せる前の設定（`{ value, at }` の `value`）。戻せなければ undefined。 */
+function prevValue(raw: unknown): unknown {
+  const r = raw as { value?: unknown } | null;
+  if (!r || typeof r !== "object" || !("value" in r) || r.value === null) return undefined;
+  return r.value;
+}
+
+export const SetAiAllInput = z.object({ value: z.string().max(200) });
+
+/**
+ * **全部の用途と機能を1つの AI にする**（オーナー 2026-11-13「AI の設定から変更できるように」）。
+ * 用途は iOS に無い物も含めて全部（`AI_TASK_INFOS`）。控え（用途ごと・全部）はそのまま。
+ * 前の設定を `ai_models_prev` に残し、1回だけ戻せる（`undoAdminAiModels`）。
+ * 写真を読む用途があるので、写真を読めないモデルは断る。
+ */
+export async function setAdminAiAll(
+  deps: AdminAiDeps,
+  input: unknown,
+): Promise<{ ok: true; value: string; tasks: number; features: number }> {
+  await assertAdmin(deps);
+  const data = SetAiAllInput.parse(input);
+  let value: string;
+  try {
+    value = normalizeFeatureValue(data.value);
+  } catch (e) {
+    throw new BadRequestError(e instanceof Error ? e.message : String(e));
+  }
+  if (value === AUTO || !parseFeatureValue(value)?.provider)
+    throw new BadRequestError("「会社:モデル」を送ってください。");
+  await checkModelChoice(deps, value, { needsVision: true }, "写真を読む用途");
+  const raw = await deps.readConfig("ai_models");
+  await deps.writeConfig(AI_MODELS_PREV_KEY, {
+    value: raw ?? { features: {} },
+    at: new Date().toISOString(),
+  });
+  const features: Partial<Record<AiFeature, string>> = {};
+  for (const f of AI_FEATURES) features[f.id] = value;
+  const tasks: Record<string, string> = {};
+  for (const t of AI_TASK_INFOS) tasks[t.id] = value;
+  await deps.writeConfig(
+    "ai_models",
+    buildAiModelsConfig({
+      features,
+      tasks,
+      backups: backupValues(raw),
+      main: value,
+      backup: globalBackupValue(raw),
+    }),
+  );
+  deps.afterWrite?.("ai_models");
+  return {
+    ok: true,
+    value,
+    tasks: Object.keys(tasks).length,
+    features: Object.keys(features).length,
+  };
+}
+
+/** 「全部の用途をこの AI にする」の前へ1回だけ戻す。 */
+export async function undoAdminAiModels(deps: AdminAiDeps): Promise<{ ok: true }> {
+  await assertAdmin(deps);
+  const prev = prevValue(await deps.readConfig(AI_MODELS_PREV_KEY));
+  if (prev === undefined) throw new BadRequestError("戻せる設定がありません。");
+  await deps.writeConfig("ai_models", prev);
+  await deps.writeConfig(AI_MODELS_PREV_KEY, { value: null, at: new Date().toISOString() });
+  deps.afterWrite?.("ai_models");
+  return { ok: true };
+}
+
+export const SetAiBackupInput = z.object({ backup: z.string().max(200) });
+
+/**
+ * **全部の用途の控え**（`"auto"` = 既定の控え、`"off"`、`"会社:モデル"`）。用途ごとの控えがあれば、
+ * その用途はそちらが先。写真を読む用途もこの控えに回るので、写真を読めないモデルは断る。
+ */
+export async function setAdminAiBackup(
+  deps: AdminAiDeps,
+  input: unknown,
+): Promise<{ ok: true; backup: string }> {
+  await assertAdmin(deps);
+  const data = SetAiBackupInput.parse(input);
+  let backup: string;
+  try {
+    backup = normalizeBackupValue(data.backup);
+  } catch (e) {
+    throw new BadRequestError(e instanceof Error ? e.message : String(e));
+  }
+  if (backup !== AUTO && backup !== OFF)
+    await checkModelChoice(deps, backup, { needsVision: true }, "控え");
+  const raw = await deps.readConfig("ai_models");
+  await deps.writeConfig(
+    "ai_models",
+    buildAiModelsConfig({
+      features: featureValues(raw),
+      tasks: taskValues(raw),
+      backups: backupValues(raw),
+      main: mainValue(raw),
+      backup: backup === AUTO ? null : backup,
+    }),
+  );
+  deps.afterWrite?.("ai_models");
+  return { ok: true, backup };
+}
+
+export const AiModelValueInput = z.object({ value: z.string().max(200) });
+
+/**
+ * **選んだモデルを試しに1回呼ぶ**（替える前の確認。本番の記録には残さない）。
+ * 鍵の無い会社・形の違う値は断る。結果は `{ ok, ms, error }`。
+ */
+export async function testAdminAiModel(
+  deps: AdminAiDeps,
+  input: unknown,
+): Promise<{ ok: boolean; ms: number; error: string | null; value: string }> {
+  await assertAdmin(deps);
+  const data = AiModelValueInput.parse(input);
+  const spec = parseFeatureValue(data.value);
+  if (!spec?.provider) throw new BadRequestError("「会社:モデル」を送ってください。");
+  await checkModelChoice(deps, data.value.trim(), { needsVision: false }, "");
+  if (!deps.tryModel) throw new BadRequestError("このサーバでは試せません。");
+  const r = await deps.tryModel(spec.provider, spec.model);
+  return { ...r, value: `${spec.provider}:${spec.model}` };
+}
+
+/**
+ * **替えたら費用がどうなるか**（直近30日の使った量のまま、全部の用途をそのモデルにした場合）。
+ * 円は費用の表と同じ為替。値段が分からなければ `afterUsd` は null。
+ */
+export async function estimateAdminAiCost(
+  deps: AdminAiDeps,
+  input: unknown,
+  now: Date = new Date(),
+): Promise<
+  | { isAdmin: false }
+  | {
+      isAdmin: true;
+      days: 30;
+      usdJpy: number;
+      calls: number;
+      nowUsd: number;
+      afterUsd: number | null;
+      nowJpy: number;
+      afterJpy: number | null;
+      unpricedNow: number;
+      truncated: boolean;
+    }
+> {
+  if (!(await deps.isAdmin())) return { isAdmin: false };
+  const data = AiModelValueInput.parse(input);
+  const spec = parseFeatureValue(data.value);
+  if (!spec?.provider) throw new BadRequestError("「会社:モデル」を送ってください。");
+  const since = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  const [prices, read] = await Promise.all([
+    deps.readConfig(AI_PRICES_KEY).then(normalizePricesConfig),
+    deps.aiCallRows(since),
+  ]);
+  const e = estimateSwitchCost(read.rows, prices, `${spec.provider}:${spec.model}`);
+  return {
+    isAdmin: true,
+    days: 30,
+    usdJpy: prices.usdJpy,
+    calls: e.calls,
+    nowUsd: e.nowUsd,
+    afterUsd: e.afterUsd,
+    nowJpy: Math.round(e.nowUsd * prices.usdJpy),
+    afterJpy: e.afterUsd === null ? null : Math.round(e.afterUsd * prices.usdJpy),
+    unpricedNow: e.unpricedNow,
+    truncated: read.truncated,
   };
 }
 
@@ -762,7 +1104,9 @@ export async function liveAiProviders(): Promise<AiProviderListing[]> {
       if (!key) return done([]);
       // Lovable の口はモデルの一覧を出さない。動くと分かっている物を並べる。
       if (id === "lovable") return done([...LOVABLE_MODELS]);
-      const keywords = id === "google" ? ["latest-flash-lite", "latest-flash", "latest-pro"] : [];
+      // 「いつも最新（合言葉）」は 2026-11-13 に選択肢から外した（開発者が New を見て手で選ぶ）。
+      // 保存済みの合言葉は今までどおり動く（`gemini-latest.server.ts`）。
+      const keywords: string[] = [];
       try {
         const headers: Record<string, string> =
           id === "anthropic"
@@ -773,7 +1117,14 @@ export async function liveAiProviders(): Promise<AiProviderListing[]> {
           signal: AbortSignal.timeout(8000),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return done([...keywords, ...parseModelList(await res.json()).map((m) => m.id)]);
+        const listed = parseModelList(await res.json());
+        const labels: Record<string, string> = {};
+        for (const m of listed) if (m.label !== m.id) labels[m.id] = m.label;
+        if (id === "google") {
+          const { geminiDisplayNames } = await import("./gemini-latest.server");
+          Object.assign(labels, await geminiDisplayNames({ apiKey: key.value }).catch(() => ({})));
+        }
+        return { ...done([...keywords, ...listed.map((m) => m.id)]), labels };
       } catch (e) {
         return done(keywords, e instanceof Error ? e.message : String(e));
       }
@@ -875,6 +1226,25 @@ export function realAdminAiDeps(context: { supabase: unknown; userId: string }):
     ttsDefaultEngine: () =>
       process.env.GOOGLE_TTS_API_KEY ? "Google Cloud TTS" : "OpenAI-compatible TTS",
     afterWrite: (key) => void forgetCaches(key),
+    tryModel: async (provider, model) => {
+      const { providerConfig } = await import("./ai-provider.server");
+      const cfg = providerConfig(provider, model);
+      if (!cfg) return { ok: false, ms: 0, error: `${provider} の鍵がサーバにありません` };
+      const { generateText } = await import("ai");
+      const t0 = Date.now();
+      try {
+        // 本番の記録（`ai_call`）に残さない: 測る包み（`measuredModel`）を通さずに呼ぶ。
+        await generateText({
+          model: cfg.gateway(model),
+          prompt: "Reply with the single word OK.",
+          abortSignal: AbortSignal.timeout(30_000),
+        });
+        return { ok: true, ms: Date.now() - t0, error: null };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return { ok: false, ms: Date.now() - t0, error: msg.slice(0, 300) };
+      }
+    },
   };
 }
 

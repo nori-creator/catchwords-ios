@@ -11394,5 +11394,383 @@
   "es": "Buscar una palabra que no aparece",
   "ko": "목록에 없는 단어 찾기",
   "vi": "Tìm từ không có trong danh sách"
+ },
+ "100万トークン　入力 {1}・出力 {2}": {
+  "en": "Per 1M tokens: input {1} · output {2}",
+  "zh-TW": "每 100 萬詞元：輸入 {1}，輸出 {2}",
+  "es": "Por 1 M de tokens: entrada {1} · salida {2}",
+  "ko": "100만 토큰당 입력 {1} · 출력 {2}",
+  "vi": "Mỗi 1 triệu token: đầu vào {1} · đầu ra {2}"
+ },
+ "AI は動いています": {
+  "en": "AI is working",
+  "zh-TW": "AI 運作正常",
+  "es": "La IA está funcionando",
+  "ko": "AI가 작동 중이에요",
+  "vi": "AI đang hoạt động"
+ },
+ "{1} つ別": {
+  "en": "{1} different",
+  "zh-TW": "{1} 個不同",
+  "es": "{1} distintos",
+  "ko": "{1}개 다름",
+  "vi": "{1} khác"
+ },
+ "{1}　写真を読める": {
+  "en": "{1} · Reads photos",
+  "zh-TW": "{1}　能讀照片",
+  "es": "{1} · Lee fotos",
+  "ko": "{1} · 사진 읽기 가능",
+  "vi": "{1} · Đọc được ảnh"
+ },
+ "{1}の控え": {
+  "en": "Backup for {1}",
+  "zh-TW": "{1}的備援",
+  "es": "Respaldo de {1}",
+  "ko": "{1}의 백업",
+  "vi": "Dự phòng cho {1}"
+ },
+ "{1}（値段未登録 {2} 回）": {
+  "en": "{1} ({2} calls without a price)",
+  "zh-TW": "{1}（{2} 次未登錄價格）",
+  "es": "{1} ({2} llamadas sin precio)",
+  "ko": "{1} (가격 미등록 {2}회)",
+  "vi": "{1} ({2} lượt chưa có giá)"
+ },
+ "このモデルの値段が未登録のため、替えた後の費用は出せません": {
+  "en": "This model has no price yet, so the cost after switching can't be shown",
+  "zh-TW": "這個模型尚未登錄價格，無法算出更換後的費用",
+  "es": "Este modelo aún no tiene precio, así que no se puede mostrar el costo tras el cambio",
+  "ko": "이 모델은 가격이 등록되지 않아 바꾼 뒤의 비용을 낼 수 없어요",
+  "vi": "Mô hình này chưa có giá nên không tính được chi phí sau khi đổi"
+ },
+ "このモデルは動きませんでした": {
+  "en": "This model didn't work",
+  "zh-TW": "這個模型無法運作",
+  "es": "Este modelo no funcionó",
+  "ko": "이 모델은 작동하지 않았어요",
+  "vi": "Mô hình này không hoạt động"
+ },
+ "この会社の鍵がサーバにありません": {
+  "en": "The server has no key for this provider",
+  "zh-TW": "伺服器沒有這家公司的金鑰",
+  "es": "El servidor no tiene clave de este proveedor",
+  "ko": "서버에 이 회사의 키가 없어요",
+  "vi": "Máy chủ không có khóa của nhà cung cấp này"
+ },
+ "この用途だけ（{1}）": {
+  "en": "Only this use ({1})",
+  "zh-TW": "只有這個用途（{1}）",
+  "es": "Solo este uso ({1})",
+  "ko": "이 용도만 ({1})",
+  "vi": "Chỉ mục đích này ({1})"
+ },
+ "この用途の控えにする（{1}）": {
+  "en": "Make it this use's backup ({1})",
+  "zh-TW": "設為這個用途的備援（{1}）",
+  "es": "Usar como respaldo de este uso ({1})",
+  "ko": "이 용도의 백업으로 ({1})",
+  "vi": "Đặt làm dự phòng cho mục đích này ({1})"
+ },
+ "ほかの AI": {
+  "en": "Other AI",
+  "zh-TW": "其他 AI",
+  "es": "Otra IA",
+  "ko": "다른 AI",
+  "vi": "AI khác"
+ },
+ "まだ選んでいません（サーバの既定の AI で動いています）": {
+  "en": "Not chosen yet (running on the server's default AI)",
+  "zh-TW": "尚未選擇（正以伺服器預設的 AI 運作）",
+  "es": "Aún no elegido (funciona con la IA predeterminada del servidor)",
+  "ko": "아직 선택하지 않았어요 (서버의 기본 AI로 작동 중)",
+  "vi": "Chưa chọn (đang chạy bằng AI mặc định của máy chủ)"
+ },
+ "モデルを探す": {
+  "en": "Search models",
+  "zh-TW": "搜尋模型",
+  "es": "Buscar modelos",
+  "ko": "모델 찾기",
+  "vi": "Tìm mô hình"
+ },
+ "今": {
+  "en": "Now",
+  "zh-TW": "目前",
+  "es": "Ahora",
+  "ko": "지금",
+  "vi": "Hiện tại"
+ },
+ "今の費用には、値段未登録のモデルの {1} 回が入っていません": {
+  "en": "The current cost leaves out {1} calls to models without a price",
+  "zh-TW": "目前的費用不含未登錄價格模型的 {1} 次",
+  "es": "El costo actual no incluye {1} llamadas a modelos sin precio",
+  "ko": "지금 비용에는 가격 미등록 모델의 {1}회가 들어 있지 않아요",
+  "vi": "Chi phí hiện tại chưa tính {1} lượt của mô hình chưa có giá"
+ },
+ "使う AI": {
+  "en": "AI in use",
+  "zh-TW": "使用的 AI",
+  "es": "IA en uso",
+  "ko": "사용하는 AI",
+  "vi": "AI đang dùng"
+ },
+ "使わない": {
+  "en": "None",
+  "zh-TW": "不使用",
+  "es": "Ninguno",
+  "ko": "사용 안 함",
+  "vi": "Không dùng"
+ },
+ "使用中": {
+  "en": "In use",
+  "zh-TW": "使用中",
+  "es": "En uso",
+  "ko": "사용 중",
+  "vi": "Đang dùng"
+ },
+ "値段を入れる": {
+  "en": "Enter price",
+  "zh-TW": "輸入價格",
+  "es": "Introducir precio",
+  "ko": "가격 입력",
+  "vi": "Nhập giá"
+ },
+ "値段未登録": {
+  "en": "No price yet",
+  "zh-TW": "未登錄價格",
+  "es": "Sin precio",
+  "ko": "가격 미등록",
+  "vi": "Chưa có giá"
+ },
+ "入力（米ドル / 100万トークン）": {
+  "en": "Input (USD / 1M tokens)",
+  "zh-TW": "輸入（美元／100 萬詞元）",
+  "es": "Entrada (USD / 1 M tokens)",
+  "ko": "입력 (USD / 100만 토큰)",
+  "vi": "Đầu vào (USD / 1 triệu token)"
+ },
+ "全部の用途": {
+  "en": "Every use",
+  "zh-TW": "所有用途",
+  "es": "Todos los usos",
+  "ko": "모든 용도",
+  "vi": "Mọi mục đích"
+ },
+ "全部の用途をこの AI にする": {
+  "en": "Use this AI for everything",
+  "zh-TW": "所有用途都改用這個 AI",
+  "es": "Usar esta IA para todo",
+  "ko": "모든 용도를 이 AI로",
+  "vi": "Dùng AI này cho mọi mục đích"
+ },
+ "全部の用途を替えた場合の費用です": {
+  "en": "Cost if every use switches",
+  "zh-TW": "這是所有用途都更換時的費用",
+  "es": "Costo si se cambian todos los usos",
+  "ko": "모든 용도를 바꿨을 때의 비용이에요",
+  "vi": "Chi phí nếu đổi mọi mục đích"
+ },
+ "写真を読めないため、ここには選べません": {
+  "en": "Can't read photos, so it can't be chosen here",
+  "zh-TW": "無法讀取照片，這裡不能選",
+  "es": "No lee fotos, así que no se puede elegir aquí",
+  "ko": "사진을 읽지 못해 여기서는 고를 수 없어요",
+  "vi": "Không đọc được ảnh nên không chọn được ở đây"
+ },
+ "出力（米ドル / 100万トークン）": {
+  "en": "Output (USD / 1M tokens)",
+  "zh-TW": "輸出（美元／100 萬詞元）",
+  "es": "Salida (USD / 1 M tokens)",
+  "ko": "출력 (USD / 100만 토큰)",
+  "vi": "Đầu ra (USD / 1 triệu token)"
+ },
+ "別の AI にした用途がある所だけ青い印が付きます。押すと中の用途が並び、1つずつ替えられます。": {
+  "en": "Groups with a use on a different AI are marked in blue. Tap a group to list its uses and change them one by one.",
+  "zh-TW": "只有含有改用其他 AI 的用途的群組會以藍色標示。點一下會列出其中的用途，可逐一更換。",
+  "es": "Los grupos con algún uso en otra IA se marcan en azul. Toca un grupo para ver sus usos y cambiarlos uno a uno.",
+  "ko": "다른 AI로 바꾼 용도가 있는 묶음만 파란색으로 표시돼요. 누르면 안의 용도가 나오고 하나씩 바꿀 수 있어요.",
+  "vi": "Nhóm có mục đích dùng AI khác được đánh dấu màu xanh. Chạm vào nhóm để xem các mục đích và đổi từng cái."
+ },
+ "別の AI にしている用途（{1} つ）も替わります。替えた後、前の設定に1回だけ戻せます。": {
+  "en": "Uses on a different AI ({1}) change too. After switching, you can go back to the previous settings once.",
+  "zh-TW": "改用其他 AI 的用途（{1} 個）也會更換。更換後可以回到之前的設定一次。",
+  "es": "Los usos con otra IA ({1}) también cambian. Tras el cambio, puedes volver a la configuración anterior una vez.",
+  "ko": "다른 AI로 바꾼 용도({1}개)도 바뀌어요. 바꾼 뒤 이전 설정으로 한 번 되돌릴 수 있어요.",
+  "vi": "Các mục đích đang dùng AI khác ({1}) cũng sẽ đổi. Sau khi đổi, bạn có thể quay lại cài đặt trước một lần."
+ },
+ "前の設定に戻す": {
+  "en": "Back to previous settings",
+  "zh-TW": "回到之前的設定",
+  "es": "Volver a la configuración anterior",
+  "ko": "이전 설정으로 되돌리기",
+  "vi": "Quay lại cài đặt trước"
+ },
+ "古い版・試験版（{1}）": {
+  "en": "Older and preview versions ({1})",
+  "zh-TW": "舊版與試用版（{1}）",
+  "es": "Versiones antiguas y de prueba ({1})",
+  "ko": "이전 버전·시험 버전 ({1})",
+  "vi": "Bản cũ và bản thử ({1})"
+ },
+ "同じ": {
+  "en": "Same",
+  "zh-TW": "相同",
+  "es": "Igual",
+  "ko": "같음",
+  "vi": "Giống"
+ },
+ "報告と点検": {
+  "en": "Reports and checks",
+  "zh-TW": "回報與檢查",
+  "es": "Reportes y revisiones",
+  "ko": "신고와 점검",
+  "vi": "Báo cáo và kiểm tra"
+ },
+ "控えにする": {
+  "en": "Make it the backup",
+  "zh-TW": "設為備援",
+  "es": "Usar como respaldo",
+  "ko": "백업으로 설정",
+  "vi": "Đặt làm dự phòng"
+ },
+ "新しいモデルが {1} つ出ました": {
+  "en": "{1} new models are out",
+  "zh-TW": "推出了 {1} 個新模型",
+  "es": "Hay {1} modelos nuevos",
+  "ko": "새 모델이 {1}개 나왔어요",
+  "vi": "Có {1} mô hình mới"
+ },
+ "新しい順": {
+  "en": "Newest first",
+  "zh-TW": "由新到舊",
+  "es": "Más nuevos primero",
+  "ko": "최신순",
+  "vi": "Mới nhất trước"
+ },
+ "替えた後": {
+  "en": "After",
+  "zh-TW": "更換後",
+  "es": "Después",
+  "ko": "바꾼 뒤",
+  "vi": "Sau khi đổi"
+ },
+ "替えた後、前の設定に1回だけ戻せます。": {
+  "en": "After switching, you can go back to the previous settings once.",
+  "zh-TW": "更換後可以回到之前的設定一次。",
+  "es": "Tras el cambio, puedes volver a la configuración anterior una vez.",
+  "ko": "바꾼 뒤 이전 설정으로 한 번 되돌릴 수 있어요.",
+  "vi": "Sau khi đổi, bạn có thể quay lại cài đặt trước một lần."
+ },
+ "替えました": {
+  "en": "Switched",
+  "zh-TW": "已更換",
+  "es": "Cambiado",
+  "ko": "바꿨어요",
+  "vi": "Đã đổi"
+ },
+ "替える前の確認": {
+  "en": "Before switching",
+  "zh-TW": "更換前的確認",
+  "es": "Antes de cambiar",
+  "ko": "바꾸기 전 확인",
+  "vi": "Kiểm tra trước khi đổi"
+ },
+ "用途ごと": {
+  "en": "By use",
+  "zh-TW": "依用途",
+  "es": "Por uso",
+  "ko": "용도별",
+  "vi": "Theo mục đích"
+ },
+ "画像を作る": {
+  "en": "Image generation",
+  "zh-TW": "產生圖片",
+  "es": "Generar imágenes",
+  "ko": "이미지 만들기",
+  "vi": "Tạo ảnh"
+ },
+ "直近1時間　成功 {1} 回・失敗 {2} 回・平均 {3} 秒": {
+  "en": "Last hour: {1} succeeded · {2} failed · {3} s average",
+  "zh-TW": "最近 1 小時：成功 {1} 次，失敗 {2} 次，平均 {3} 秒",
+  "es": "Última hora: {1} correctas · {2} fallidas · {3} s de media",
+  "ko": "최근 1시간 성공 {1}회 · 실패 {2}회 · 평균 {3}초",
+  "vi": "1 giờ qua: {1} thành công · {2} thất bại · trung bình {3} giây"
+ },
+ "直近1時間の呼び出しはありません": {
+  "en": "No calls in the last hour",
+  "zh-TW": "最近 1 小時沒有呼叫",
+  "es": "Sin llamadas en la última hora",
+  "ko": "최근 1시간 동안 호출이 없어요",
+  "vi": "Không có lượt gọi trong 1 giờ qua"
+ },
+ "直近30日の費用": {
+  "en": "Cost, last 30 days",
+  "zh-TW": "最近 30 天的費用",
+  "es": "Costo de los últimos 30 días",
+  "ko": "최근 30일 비용",
+  "vi": "Chi phí 30 ngày qua"
+ },
+ "直近30日の量で比べた費用（月）": {
+  "en": "Monthly cost at the last 30 days' usage",
+  "zh-TW": "以最近 30 天用量比較的費用（每月）",
+  "es": "Costo mensual con el uso de los últimos 30 días",
+  "ko": "최근 30일 사용량으로 비교한 비용 (월)",
+  "vi": "Chi phí theo tháng với lượng dùng 30 ngày qua"
+ },
+ "自動（{1}）": {
+  "en": "Automatic ({1})",
+  "zh-TW": "自動（{1}）",
+  "es": "Automático ({1})",
+  "ko": "자동 ({1})",
+  "vi": "Tự động ({1})"
+ },
+ "自動（既定の控え）": {
+  "en": "Automatic (default backup)",
+  "zh-TW": "自動（預設備援）",
+  "es": "Automático (respaldo predeterminado)",
+  "ko": "자동 (기본 백업)",
+  "vi": "Tự động (dự phòng mặc định)"
+ },
+ "落ちた時の控え": {
+  "en": "Backup when it fails",
+  "zh-TW": "失敗時的備援",
+  "es": "Respaldo si falla",
+  "ko": "실패할 때의 백업",
+  "vi": "Dự phòng khi lỗi"
+ },
+ "落ちた時の控え（全部の用途）": {
+  "en": "Backup when it fails (every use)",
+  "zh-TW": "失敗時的備援（所有用途）",
+  "es": "Respaldo si falla (todos los usos)",
+  "ko": "실패할 때의 백업 (모든 용도)",
+  "vi": "Dự phòng khi lỗi (mọi mục đích)"
+ },
+ "見本の画面では試しません": {
+  "en": "Not tested on the sample screen",
+  "zh-TW": "範例畫面不會測試",
+  "es": "No se prueba en la pantalla de muestra",
+  "ko": "예시 화면에서는 시험하지 않아요",
+  "vi": "Không thử trên màn hình mẫu"
+ },
+ "試しに1回呼びました：成功・{1} 秒": {
+  "en": "Test call: succeeded · {1} s",
+  "zh-TW": "試呼叫一次：成功，{1} 秒",
+  "es": "Llamada de prueba: correcta · {1} s",
+  "ko": "시험 호출 1회: 성공 · {1}초",
+  "vi": "Gọi thử 1 lần: thành công · {1} giây"
+ },
+ "試しに1回呼んでいます…": {
+  "en": "Making a test call…",
+  "zh-TW": "正在試呼叫一次…",
+  "es": "Haciendo una llamada de prueba…",
+  "ko": "시험 삼아 한 번 호출하는 중…",
+  "vi": "Đang gọi thử 1 lần…"
+ },
+ "試しに呼んで動いたモデルだけ選べます。": {
+  "en": "Only a model that answered the test call can be chosen.",
+  "zh-TW": "只能選擇試呼叫成功的模型。",
+  "es": "Solo se puede elegir un modelo que respondió a la prueba.",
+  "ko": "시험 호출에서 작동한 모델만 고를 수 있어요.",
+  "vi": "Chỉ chọn được mô hình đã trả lời khi gọi thử."
  }
 }

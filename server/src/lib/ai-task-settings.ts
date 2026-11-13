@@ -288,7 +288,35 @@ export type AiModelsConfig = {
   features?: Partial<Record<string, string>>;
   tasks?: Record<string, string>;
   backups?: Record<string, string>;
+  /**
+   * 「使う AI」— 開発者が「全部の用途をこの AI にする」で選んだ `"会社:モデル"`（2026-11-13〜）。
+   * 振り分けには使わない（全部の用途・機能に同じ値が書いてある）。画面の一番上に出すための印。
+   */
+  main?: string;
+  /**
+   * 全部の用途の控え（2026-11-13〜）。`"off"` か `"会社:モデル"`。用途ごとの控え（`backups`）が
+   * あればそちらが先。無ければ既定の控え（`DEFAULT_BACKUPS`）。
+   */
+  backup?: string;
 };
+
+/** 画面の「用途ごと」のまとまり（2026-11-13）。機能で分ける。 */
+export type AiTaskGroup = "photo" | "card" | "review" | "journal" | "report";
+
+export function taskGroup(feature: AiFeature): AiTaskGroup {
+  switch (feature) {
+    case "scan":
+      return "photo";
+    case "card":
+      return "card";
+    case "review":
+      return "review";
+    case "journal":
+      return "journal";
+    default:
+      return "report";
+  }
+}
 
 function strings(raw: unknown, keep: (k: string) => boolean): Record<string, string> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -311,18 +339,37 @@ export function backupValues(raw: unknown): Record<string, string> {
   return strings(b, (k) => !!taskInfo(k));
 }
 
+/** 「使う AI」の値（`"会社:モデル"`。無ければ null）。 */
+export function mainValue(raw: unknown): string | null {
+  const v = (raw as { main?: unknown } | null)?.main;
+  const spec = parseFeatureValue(v);
+  return spec?.provider && typeof v === "string" ? v.trim() : null;
+}
+
+/** 全部の用途の控え（`"off"` か `"会社:モデル"`。無ければ null = 既定の控え）。 */
+export function globalBackupValue(raw: unknown): string | null {
+  const v = (raw as { backup?: unknown } | null)?.backup;
+  const b = parseBackupValue(v);
+  if (b === OFF) return OFF;
+  return b && typeof v === "string" ? v.trim() : null;
+}
+
 /**
  * 保存する `ai_models` を組む。**空の表は書かない**（古い全体の上書き — `provider` / `fast` 等 —
- * はここで消える）。
+ * はここで消える）。「使う AI」（`main`）と全部の控え（`backup`）は渡された時だけ残す。
  */
 export function buildAiModelsConfig(parts: {
   features: Partial<Record<string, string>>;
   tasks: Record<string, string>;
   backups: Record<string, string>;
+  main?: string | null;
+  backup?: string | null;
 }): AiModelsConfig {
   const out: AiModelsConfig = { features: parts.features };
   if (Object.keys(parts.tasks).length) out.tasks = parts.tasks;
   if (Object.keys(parts.backups).length) out.backups = parts.backups;
+  if (parts.main) out.main = parts.main;
+  if (parts.backup) out.backup = parts.backup;
   return out;
 }
 

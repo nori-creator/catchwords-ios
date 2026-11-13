@@ -1,9 +1,11 @@
 /**
  * **いちばん新しい安定版の Gemini を、Google 公式のモデル一覧から実行時に選ぶ。**
  *
- * オーナー指示(2026-10-09)「常に最新の Gemini を自動で使う」。秘密(env)に
- * `gemini-3.1-flash-lite` のように版を書くと、新しい版が出ても誰かが書き換える
- * まで古いままになる。
+ * オーナー指示(2026-10-09)「常に最新の Gemini を自動で使う」で作った。**2026-11-13 に取りやめ**:
+ * Google の名前に flash / pro が付かなくなり(`gemini-4-hydrogen` など)、下の選び方では新しい
+ * モデルが見えない。今は開発者が「AI の設定」で一覧(New の印つき)から手で選び、選んだ値を
+ * 全部の用途に書く。ここは、古い保存の値(合言葉)と、何も選んでいない時の既定のためだけに残す。
+ * 画面に出すモデルの名前(`displayName`)も、ここで読んだ一覧から渡す(`geminiDisplayNames`)。
  *
  * ## `-latest` の別名は使わない
  * 2026-07-27 の障害: `gemini-flash-latest` などの別名は OpenAI 互換の口では
@@ -58,11 +60,54 @@ export function pickLatestGemini(models: readonly unknown[], tier: GeminiTier): 
 type CacheEntry = { at: number; ttl: number; value: string | null };
 const cache = new Map<GeminiTier, CacheEntry>();
 let inflight: Promise<unknown[] | null> | null = null;
+/** 最後に読めた一覧そのもの（画面の名前に使う）。 */
+let listCache: { at: number; models: unknown[] } | null = null;
 
 /** 試験用: 覚えている結果を消す。 */
 export function resetGeminiLatestCache(): void {
   cache.clear();
   inflight = null;
+  listCache = null;
+}
+
+/**
+ * 一覧の中身から、`generateContent` を持つモデルの「ID → 画面の名前（`displayName`）」。
+ * **通信をしない純粋な関数**。名前の無い物は入れない。
+ */
+export function geminiNamesFrom(models: readonly unknown[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const raw of models) {
+    if (!raw || typeof raw !== "object") continue;
+    const m = raw as ModelEntry & { displayName?: unknown };
+    if (typeof m.name !== "string" || !m.name.startsWith("models/")) continue;
+    const methods = Array.isArray(m.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
+    if (!methods.includes("generateContent")) continue;
+    if (typeof m.displayName === "string" && m.displayName.trim())
+      out[m.name.slice("models/".length)] = m.displayName.trim();
+  }
+  return out;
+}
+
+/**
+ * 開発者の画面に出す Gemini の名前（例 `gemini-4-hydrogen` → `Gemini 4 Hydrogen`）。
+ * Google 公式の一覧（6 時間覚える）から。読めなければ空（画面は ID をそのまま出す）。
+ */
+export async function geminiDisplayNames(
+  opts: { apiKey?: string; fetch?: typeof fetch; now?: () => number } = {},
+): Promise<Record<string, string>> {
+  const now = opts.now ?? Date.now;
+  if (listCache && now() - listCache.at < OK_TTL_MS) return geminiNamesFrom(listCache.models);
+  const apiKey = opts.apiKey ?? defaultKey();
+  if (!apiKey) return {};
+  if (!inflight) {
+    inflight = fetchModelList(apiKey, opts.fetch ?? fetch).finally(() => {
+      inflight = null;
+    });
+  }
+  const models = await inflight;
+  if (!models) return {};
+  listCache = { at: now(), models };
+  return geminiNamesFrom(models);
 }
 
 function defaultKey(): string | undefined {
@@ -139,6 +184,7 @@ export async function resolveLatestGemini(
   }
   const models = await inflight;
   const at = now();
+  if (models) listCache = { at, models };
   if (!models) {
     cache.set(tier, { at, ttl: FAIL_TTL_MS, value: null });
     return null;
