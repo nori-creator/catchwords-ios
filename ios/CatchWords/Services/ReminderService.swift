@@ -128,7 +128,7 @@ enum ReminderService {
             if let dex, let pick = ReminderQuiz.pick(stickers: dex.stickers, due: due, at: p.at) {
                 content.title = L("これ、中国語で言えますか？")
                 content.subtitle = ReminderQuiz.takenLine(pick.sticker)
-                content.body = ReminderQuiz.body(reason: p.reason, others: pick.others)
+                content.body = ReminderQuiz.body(reason: p.reason, others: pick.others)  // lang-ok: L() strings of the app, numbers only
                 if let picture = await NotificationPicture.attachment(path: ReminderQuiz.picturePath(pick.sticker), dex: dex) {
                     content.attachments = [picture]
                 }
