@@ -519,11 +519,12 @@ struct MainTabView: View {
         }
     }
 
-    /// A tapped reminder: the review tab, or the word a place reminder was about.
+    /// A tapped reminder: the review tab (a picture quiz: with its word's question first), or a widget's word.
     private func openNotification(_ route: NotificationRoute?) {
         guard let route else { return }
         // Cold launch: the dex isn't read yet, so the word can't be found — keep the route until it is.
         if case .sticker(_) = route, !dex.hasLoaded { return }
+        if case .quiz(_) = route, !dex.hasLoaded { return }
         NotificationRouter.shared.pending = nil
         switch route {
         case .review:
@@ -539,6 +540,12 @@ struct MainTabView: View {
             } else {
                 router.tab = .review
             }
+        case .quiz(let id):
+            // The word the picture asked about comes first (ReviewView `applyReviewNow`, as 「いま復習する」);
+            // a word deleted since: the round as it is.
+            router.detailSticker = nil
+            router.tab = .review
+            if dex.sticker(id: id) != nil { router.reviewNow = id }
         case .pendingPhotos:
             // Like the home banner: the camera opens its 「解析待ち」 list.
             router.detailSticker = nil

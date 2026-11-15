@@ -10,8 +10,17 @@ final class NotificationRouteTests: XCTestCase {
         XCTAssertEqual(NotificationRouter.route(for: "review-2"), .review)
     }
 
-    func test_placeReminderOpensItsWord() {
-        XCTAssertEqual(NotificationRouter.route(for: "place-abc-123"), .sticker("abc-123"))
+    /// A picture quiz (owner 2026-11-15): the tap opens that word's 4-choice question first.
+    func test_reviewQuizOpensItsWordsQuestion() {
+        let id = ReminderService.reviewIdentifier(index: 1, stickerId: "7C15-86CD")
+        XCTAssertEqual(id, "review-1@7C15-86CD")
+        XCTAssertEqual(NotificationRouter.route(for: id), .quiz("7C15-86CD"))
+        XCTAssertEqual(ReminderService.reviewIdentifier(index: 0, stickerId: nil), "review-0")
+        XCTAssertEqual(NotificationRouter.route(for: "review-0@"), .review)
+    }
+
+    func test_placeReminderOpensItsWordsQuestion() {
+        XCTAssertEqual(NotificationRouter.route(for: "place-abc-123"), .quiz("abc-123"))
     }
 
     func test_albumAndPendingPhotos() {

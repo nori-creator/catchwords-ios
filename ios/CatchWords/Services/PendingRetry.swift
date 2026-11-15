@@ -218,7 +218,7 @@ final class PendingRetry {
             records[id] = done
             saveRecords()
             PendingQueue.shared.updateReason(id: id, reason: L("解析が終わりました。タップして単語を選べます"))
-            await notifyDone(id: id, word: found.first?.headword)
+            await notifyDone(id: id, candidates: found.count, image: image)
             return .next
         } catch {
             guard isQueued(id) else { return .next }
@@ -340,9 +340,11 @@ final class PendingRetry {
 
     // MARK: - Notification
 
-    /// 「解析が終わりました：◯◯」 — only when the learner already allowed notifications (never asks here).
-    /// In the foreground it shows as a banner too (NotificationRouter `willPresent`).
-    private func notifyDone(id: String, word: String?) async {
+    /// 「さっきの写真の単語を選べます」 with the photo (owner 2026-11-15, mock-up section 3: before, the title was only
+    /// 「CatchWords」 and there was no picture) — only when the learner already allowed notifications (never asks here).
+    /// No word is named: none is chosen yet (that happens in the app, from the candidates). In the foreground it shows
+    /// as a banner too (NotificationRouter `willPresent`).
+    private func notifyDone(id: String, candidates: Int, image: UIImage) async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
@@ -350,12 +352,9 @@ final class PendingRetry {
         default: return
         }
         let content = UNMutableNotificationContent()
-        content.title = "CatchWords"
-        if let word, !word.isEmpty {
-            content.body = L("解析が終わりました：\(word)")
-        } else {
-            content.body = L("解析が終わりました。写真から単語を選べます")
-        }
+        content.title = L("さっきの写真の単語を選べます")
+        content.body = candidates > 0 ? L("候補が\(candidates)つ見つかりました。タップして選ぶ") : L("タップして選ぶ")
+        if let picture = await NotificationPicture.attachment(image: image) { content.attachments = [picture] }
         content.sound = .default
         try? await center.add(UNNotificationRequest(identifier: Self.notificationPrefix + id, content: content, trigger: nil))
     }

@@ -140,11 +140,11 @@ struct RootView: View {
                         if (UserDefaults.standard.string(forKey: ReminderService.modeKey) ?? "off") != "off" {
                             _ = await ReminderService.requestPermission()
                         }
-                        await ReminderService.refresh(due: dex.upcomingDueTimes)
+                        await ReminderService.refresh(dex: dex)
                         // Place reminders are this account's (cleared on sign-out): set them again from its
                         // own catches when the setting is on.
                         if UserDefaults.standard.bool(forKey: ReminderService.placeKey), dex.hasLoaded {
-                            await ReminderService.applyPlaces(enabled: true, stickers: dex.stickers)
+                            await ReminderService.applyPlaces(enabled: true, stickers: dex.stickers, dex: dex)
                         }
                     }
             case .failed(let reason):
@@ -202,10 +202,10 @@ struct RootView: View {
             // sign-out (the language goes back to the iPhone's): that account's reminders were just cleared.
             guard auth.phase == .signedIn else { return }
             Task {
-                await ReminderService.refresh(due: dex.upcomingDueTimes)
+                await ReminderService.refresh(dex: dex)
                 // Place reminders carry their text too (only from a loaded dex: an empty one would clear them).
                 if UserDefaults.standard.bool(forKey: ReminderService.placeKey), dex.hasLoaded {
-                    await ReminderService.applyPlaces(enabled: true, stickers: dex.stickers)
+                    await ReminderService.applyPlaces(enabled: true, stickers: dex.stickers, dex: dex)
                 }
             }
         }
@@ -218,7 +218,7 @@ struct RootView: View {
             if profile.loadFailed { Task { await profile.load() } }
             ReminderService.recordAppOpen()
             PendingRetry.shared.kick()   // waiting photos that are due (a no-op until sign-in has finished)
-            Task { await ReminderService.refresh(due: dex.upcomingDueTimes) }
+            Task { await ReminderService.refresh(dex: dex) }
             // Back after a while: picture links older than 5 hours are made again, and the review is made ready.
             dex.refreshStaleLinks()
             if dex.hasLoaded { Task { await review.preload(dex: dex, limit: profile.effectiveReviewLimit) } }

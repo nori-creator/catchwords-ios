@@ -123,7 +123,7 @@ struct HomeView: View {
         }
         // Again when the display language changes: the scheduled notification carries its text.
         .task(id: "\(profile.createdAt?.timeIntervalSince1970 ?? 0)|\(LanguageState.shared.lang)") {
-            if let start = profile.createdAt { await Milestone.scheduleNotification(start: start) }
+            if let start = profile.createdAt { await Milestone.scheduleNotification(start: start, dex: dex) }
         }
         .sheet(isPresented: $calendarOpen, onDismiss: {
             // Closed by a swipe down: the same pon back as a word's page closing (owner 2026-10-20), as it ends. × and a
