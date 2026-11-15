@@ -104,6 +104,7 @@ jobs:
             -only-testing:CatchWordsTests/CatchScanTests \
             -only-testing:CatchWordsTests/ReadingAndCategoryTests \
             -only-testing:CatchWordsTests/NotificationRouteTests \
+            -only-testing:CatchWordsTests/ReminderQuizTests \
             -only-testing:CatchWordsTests/SentencesTests \
             -only-testing:CatchWordsTests/ExampleSceneTests \
             -only-testing:CatchWordsTests/NameRegisterTests \

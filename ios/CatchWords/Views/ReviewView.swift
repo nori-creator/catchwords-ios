@@ -274,6 +274,8 @@ struct ReviewView: View {
         let answered = answer != nil
         store.bringForward(s, review: dex.reviews[s.id], currentAnswered: answered)
         if answered { goNext() }
+        // Up to the question (a reminder's picture quiz opens here with the screen scrolled anywhere).
+        showQuizRequest += 1
     }
 
     /// The height the quiz card may take so it ends above the tab bar: the screen (inside the safe area) minus the

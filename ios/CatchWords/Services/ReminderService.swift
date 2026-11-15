@@ -109,19 +109,37 @@ enum ReminderService {
 
     /// Replaces every pending review reminder. Custom times repeat daily; おまかせ plans the next
     /// ones from the cards coming due and yesterday's first open (re-planned each time the app opens).
-    static func applyReview(mode: String, times: [String], due: [Date] = []) async {
+    ///
+    /// Each one is a picture quiz (owner 2026-11-15, mock-up https://claude.ai/artifact/2bhi7kCCLAuD9923QRLEr9:
+    /// 「問題を、クイズを、ユーザーに与えて、なんだっけってユーザーが思い出すようなきっかけを与えたい。で、その通知を
+    /// タップしたら復習の4択の問題のそこに飛ぶようにして」): the word due first by then, as its picture, never its
+    /// headword; tapped, its 4-choice question comes first (`NotificationRoute.quiz`). With no due word that has a
+    /// picture (or no dex yet, as at onboarding), the plain reminder as before.
+    static func applyReview(mode: String, times: [String], dex: DexStore?) async {
         let center = UNUserNotificationCenter.current()
         let pending = await center.pendingNotificationRequests()
         center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(reviewPrefix) })
         guard mode == "custom" || mode == "ai" else { return }
         let cal = Calendar.current
-        for (i, p) in plan(mode: mode, times: times, due: due, opens: opens(), now: Date()).enumerated() {
+        let due = dex.map { ReminderQuiz.dueByWord($0) } ?? [:]
+        for (i, p) in plan(mode: mode, times: times, due: Array(due.values), opens: opens(), now: Date()).enumerated() {
             let content = UNMutableNotificationContent()
-            content.title = "CatchWords"
-            content.body = switch p.reason {  // lang-ok: the app's own enum, each case an L() string
-            case .srs: L("思い出しどきの単語がたまっています。今なら記憶に残りやすい時間です")
-            case .habit: L("いつもの時間です。1枚だけでも思い出してみよう")
-            case .custom: L("今日の復習が待っています。1枚だけでも思い出してみよう")
+            var quizWord: String?
+            if let dex, let pick = ReminderQuiz.pick(stickers: dex.stickers, due: due, at: p.at) {
+                content.title = L("これ、中国語で言えますか？")
+                content.subtitle = ReminderQuiz.takenLine(pick.sticker)
+                content.body = ReminderQuiz.body(reason: p.reason, others: pick.others)  // lang-ok: L() strings of the app, numbers only
+                if let picture = await NotificationPicture.attachment(path: ReminderQuiz.picturePath(pick.sticker), dex: dex) {
+                    content.attachments = [picture]
+                }
+                quizWord = pick.sticker.id
+            } else {
+                content.title = "CatchWords"
+                content.body = switch p.reason {  // lang-ok: the app's own enum, each case an L() string
+                case .srs: L("思い出しどきの単語がたまっています。今なら記憶に残りやすい時間です")
+                case .habit: L("いつもの時間です。1枚だけでも思い出してみよう")
+                case .custom: L("今日の復習が待っています。1枚だけでも思い出してみよう")
+                }
             }
             content.sound = .default
             let trigger: UNCalendarNotificationTrigger
@@ -130,14 +148,23 @@ enum ReminderService {
             } else {
                 trigger = UNCalendarNotificationTrigger(dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: p.at), repeats: false)
             }
-            try? await center.add(UNNotificationRequest(identifier: "\(reviewPrefix)\(i)", content: content, trigger: trigger))
+            try? await center.add(UNNotificationRequest(identifier: reviewIdentifier(index: i, stickerId: quizWord),
+                                                        content: content, trigger: trigger))
         }
     }
 
+    /// 「review-0」, or 「review-0@<sticker id>」 for a picture quiz (`NotificationRouter.route(for:)` reads it back).
+    static func reviewIdentifier(index: Int, stickerId: String?) -> String {
+        "\(reviewPrefix)\(index)" + (stickerId.map { "\(quizMark)\($0)" } ?? "")
+    }
+
+    /// Between a review reminder's number and the word it asks about.
+    static let quizMark = "@"
+
     /// Re-plans with the current setting (app opened, reviews graded).
-    static func refresh(due: [Date]) async {
+    static func refresh(dex: DexStore) async {
         let d = UserDefaults.standard
-        await applyReview(mode: d.string(forKey: modeKey) ?? "off", times: parseTimes(d.string(forKey: timesKey) ?? defaultTime), due: due)
+        await applyReview(mode: d.string(forKey: modeKey) ?? "off", times: parseTimes(d.string(forKey: timesKey) ?? defaultTime), dex: dex)
     }
 
     // MARK: Account sync (web user_metadata.notification_preferences)
@@ -159,8 +186,10 @@ enum ReminderService {
         d.set((times.isEmpty ? [defaultTime] : times).joined(separator: ","), forKey: timesKey)
     }
 
-    /// One arrival notification per recent catch location (max 20, 150 m radius).
-    static func applyPlaces(enabled: Bool, stickers: [Sticker]) async {
+    /// One arrival notification per recent catch location (max 20, 150 m radius): a picture quiz on the word caught
+    /// there (owner 2026-11-15 — before, the notification named the word, so there was nothing left to recall).
+    /// Tapped, that word's 4-choice question comes first (`NotificationRoute.quiz`, from the identifier).
+    static func applyPlaces(enabled: Bool, stickers: [Sticker], dex: DexStore? = nil) async {
         let center = UNUserNotificationCenter.current()
         let pending = await center.pendingNotificationRequests()
         center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(placePrefix) })
@@ -168,7 +197,8 @@ enum ReminderService {
         LocationService.shared.requestPermissionIfNeeded()
         var used: [CLLocation] = []
         for s in stickers {
-            guard used.count < 20, let la = s.lat, let lo = s.lng, let head = s.word?.headword else { continue }
+            // Not the bundled sample (its place is a made-up spot in 西門町).
+            guard used.count < 20, let la = s.lat, let lo = s.lng, s.word != nil, !s.isSample else { continue }
             let here = CLLocation(latitude: la, longitude: lo)
             if used.contains(where: { $0.distance(from: here) < 200 }) { continue }
             used.append(here)
@@ -176,8 +206,12 @@ enum ReminderService {
             region.notifyOnEntry = true
             region.notifyOnExit = false
             let content = UNMutableNotificationContent()
-            content.title = L("ここで覚えた単語")
-            content.body = L("\(LocationService.shownPlace(s.locationName) ?? L("この場所"))で「\(head)」をキャッチしました。覚えていますか？")
+            content.title = L("ここで撮った物、中国語で言えますか？")
+            content.subtitle = ReminderQuiz.takenLine(s)
+            content.body = L("タップして答える")
+            if let dex, let picture = await NotificationPicture.attachment(path: ReminderQuiz.picturePath(s), dex: dex) {
+                content.attachments = [picture]
+            }
             content.sound = .default
             let trigger = UNLocationNotificationTrigger(region: region, repeats: false)
             try? await center.add(UNNotificationRequest(identifier: region.identifier, content: content, trigger: trigger))

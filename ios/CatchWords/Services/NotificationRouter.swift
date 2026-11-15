@@ -7,6 +7,9 @@ enum NotificationRoute: Equatable {
     /// The milestone album (web /home?memorial=N): home, where its entry sits on the page.
     case home
     case sticker(String)
+    /// A picture-quiz reminder (review or place, owner 2026-11-15): the review tab with that word's 4-choice question
+    /// first (`AppRouter.reviewNow`), due or not, then the round as usual.
+    case quiz(String)
     /// 「解析が終わりました」 (PendingRetry): the 「解析待ち」 list on the camera, to pick the word.
     case pendingPhotos
 }
@@ -25,10 +28,16 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     /// Where a notification's identifier leads (nil: not one of ours).
     static func route(for id: String) -> NotificationRoute? {
         if id.hasPrefix(ReminderService.placeIdentifierPrefix) {
-            return .sticker(String(id.dropFirst(ReminderService.placeIdentifierPrefix.count)))
+            let word = String(id.dropFirst(ReminderService.placeIdentifierPrefix.count))
+            return word.isEmpty ? .review : .quiz(word)
         }
         if id == Milestone.notificationId { return .home }
-        if id.hasPrefix(ReminderService.reviewIdentifierPrefix) { return .review }
+        if id.hasPrefix(ReminderService.reviewIdentifierPrefix) {
+            // 「review-0@<sticker id>」: the word the picture asked about. A plain 「review-0」: the round.
+            guard let mark = id.range(of: ReminderService.quizMark) else { return .review }
+            let word = String(id[mark.upperBound...])
+            return word.isEmpty ? .review : .quiz(word)
+        }
         if id.hasPrefix(PendingRetry.notificationPrefix) { return .pendingPhotos }
         return nil
     }

@@ -12192,5 +12192,110 @@
   "es": "Pantalla antes de salir",
   "ko": "떠나기 직전 화면",
   "vi": "Màn hình trước khi rời đi"
+ },
+ "これ、中国語で言えますか？": {
+  "en": "Can you say this in Chinese?",
+  "zh-TW": "這個用中文怎麼說？",
+  "es": "¿Sabes decir esto en chino?",
+  "ko": "이거 중국어로 말할 수 있어요?",
+  "vi": "Bạn nói được cái này bằng tiếng Trung không?"
+ },
+ "ここで撮った物、中国語で言えますか？": {
+  "en": "You took a photo of this here. Can you say it in Chinese?",
+  "zh-TW": "在這裡拍的東西，用中文怎麼說？",
+  "es": "Lo fotografiaste aquí. ¿Sabes decirlo en chino?",
+  "ko": "여기서 찍은 이것, 중국어로 말할 수 있어요?",
+  "vi": "Thứ bạn chụp ở đây, nói bằng tiếng Trung được không?"
+ },
+ "{1}・{2}で撮った物": {
+  "en": "Taken on {1} · {2}",
+  "zh-TW": "{1} 在{2}拍的",
+  "es": "Fotografiado el {1} · {2}",
+  "ko": "{1} · {2}에서 찍은 것",
+  "vi": "Chụp ngày {1} · tại {2}"
+ },
+ "{1}に撮った物": {
+  "en": "Taken on {1}",
+  "zh-TW": "{1}拍的",
+  "es": "Fotografiado el {1}",
+  "ko": "{1}에 찍은 것",
+  "vi": "Chụp ngày {1}"
+ },
+ "ほかに{1}語が思い出しどきです（約{2}分）": {
+  "en": "{1} more are ready to recall (about {2} min)",
+  "zh-TW": "還有 {1} 個字該回想了（約 {2} 分鐘）",
+  "es": "{1} más listas para recordar (unos {2} min)",
+  "ko": "다른 단어 {1}개도 떠올릴 때예요 (약 {2}분)",
+  "vi": "Còn {1} từ khác đến lúc nhớ lại (khoảng {2} phút)"
+ },
+ "今が思い出しどきです": {
+  "en": "Now is the time to recall it",
+  "zh-TW": "現在正是回想的時候",
+  "es": "Ahora es el momento de recordarla",
+  "ko": "지금이 떠올릴 때예요",
+  "vi": "Bây giờ là lúc nhớ lại"
+ },
+ "いつもの時間です。ほかに{1}語（約{2}分）": {
+  "en": "Your usual time. {1} more (about {2} min)",
+  "zh-TW": "老時間到了。還有 {1} 個字（約 {2} 分鐘）",
+  "es": "Tu hora de siempre. {1} más (unos {2} min)",
+  "ko": "늘 하던 시간이에요. 다른 단어 {1}개 (약 {2}분)",
+  "vi": "Đến giờ quen thuộc rồi. Còn {1} từ khác (khoảng {2} phút)"
+ },
+ "いつもの時間です。この1語から": {
+  "en": "Your usual time. Start with this one",
+  "zh-TW": "老時間到了。從這個字開始",
+  "es": "Tu hora de siempre. Empieza por esta",
+  "ko": "늘 하던 시간이에요. 이 단어부터",
+  "vi": "Đến giờ quen thuộc rồi. Bắt đầu từ từ này"
+ },
+ "今日の復習：ほかに{1}語（約{2}分）": {
+  "en": "Today's review: {1} more (about {2} min)",
+  "zh-TW": "今天的複習：還有 {1} 個字（約 {2} 分鐘）",
+  "es": "Repaso de hoy: {1} más (unos {2} min)",
+  "ko": "오늘의 복습: 다른 단어 {1}개 (약 {2}분)",
+  "vi": "Ôn tập hôm nay: còn {1} từ khác (khoảng {2} phút)"
+ },
+ "今日の復習：この1語から": {
+  "en": "Today's review: start with this one",
+  "zh-TW": "今天的複習：從這個字開始",
+  "es": "Repaso de hoy: empieza por esta",
+  "ko": "오늘의 복습: 이 단어부터",
+  "vi": "Ôn tập hôm nay: bắt đầu từ từ này"
+ },
+ "タップして答える": {
+  "en": "Tap to answer",
+  "zh-TW": "點一下作答",
+  "es": "Toca para responder",
+  "ko": "탭해서 답하기",
+  "vi": "Chạm để trả lời"
+ },
+ "さっきの写真の単語を選べます": {
+  "en": "Pick the word from your last photo",
+  "zh-TW": "可以選剛才那張照片的單字了",
+  "es": "Ya puedes elegir la palabra de tu última foto",
+  "ko": "방금 찍은 사진의 단어를 고를 수 있어요",
+  "vi": "Bạn có thể chọn từ trong tấm ảnh vừa chụp"
+ },
+ "候補が{1}つ見つかりました。タップして選ぶ": {
+  "en": "{1} options found. Tap to choose",
+  "zh-TW": "找到 {1} 個候選。點一下選擇",
+  "es": "Encontramos {1} opciones. Toca para elegir",
+  "ko": "후보 {1}개를 찾았어요. 탭해서 고르기",
+  "vi": "Tìm thấy {1} gợi ý. Chạm để chọn"
+ },
+ "タップして選ぶ": {
+  "en": "Tap to choose",
+  "zh-TW": "點一下選擇",
+  "es": "Toca para elegir",
+  "ko": "탭해서 고르기",
+  "vi": "Chạm để chọn"
+ },
+ "これまでに撮った{1}語を1冊にまとめました": {
+  "en": "All {1} words you've caught so far, in one book",
+  "zh-TW": "把至今拍下的 {1} 個字整理成一本",
+  "es": "Las {1} palabras que has atrapado hasta hoy, en un solo libro",
+  "ko": "지금까지 찍은 단어 {1}개를 한 권에 담았어요",
+  "vi": "{1} từ bạn đã chụp đến nay, gom vào một cuốn"
  }
 }

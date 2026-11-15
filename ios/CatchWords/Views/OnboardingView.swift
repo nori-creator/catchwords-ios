@@ -569,7 +569,7 @@ struct OnboardingView: View {
         let times = reminderMode == "custom" ? ["08:00", "20:00"] : []
         UserDefaults.standard.set(reminderMode, forKey: ReminderService.modeKey)
         if !times.isEmpty { UserDefaults.standard.set(times.joined(separator: ","), forKey: ReminderService.timesKey) }
-        await ReminderService.applyReview(mode: reminderMode, times: times)
+        await ReminderService.applyReview(mode: reminderMode, times: times, dex: nil)
 
         let picked = OnboardingLevels.resolve(now: levelNow, goal: levelGoal)
         let current = ProfileStore.remap("TOCFL-\(picked.now)", to: targetLanguage)

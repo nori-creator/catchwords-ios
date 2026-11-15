@@ -94,14 +94,27 @@ enum Milestone {
         UserDefaults.standard.set(Array(list.suffix(20)), forKey: seenStorageKey(for: userId))
     }
 
+    /// The album notification's picture: the word reviewed most (its review's repetitions), else the newest one.
+    static func coverWord(_ dex: DexStore) -> Sticker? {
+        let words = dex.stickers.filter {
+            $0.word != nil && !$0.isSample && !DexStore.isProvisional($0.id) && ReminderQuiz.picturePath($0) != nil
+        }
+        func reps(_ s: Sticker) -> Int { dex.reviews[s.id]?.repetitions ?? 0 }
+        if let top = words.max(by: { reps($0) != reps($1) ? reps($0) < reps($1) : $0.takenAt < $1.takenAt }), reps(top) > 0 {
+            return top
+        }
+        return words.max { $0.takenAt < $1.takenAt }
+    }
+
     /// Account deletion: that account's closed albums.
     static func removeRecord(userId: String?) {
         guard let userId else { return }
         UserDefaults.standard.removeObject(forKey: seenStorageKey(for: userId))
     }
 
-    /// One local notification at 19:30 on today's milestone (if still ahead) or the next one.
-    static func scheduleNotification(start: Date, now: Date = Date()) async {
+    /// One local notification at 19:30 on today's milestone (if still ahead) or the next one. With the words caught so
+    /// far and the picture of the most reviewed one (owner 2026-11-15, mock-up section 4).
+    static func scheduleNotification(start: Date, dex: DexStore? = nil, now: Date = Date()) async {
         let cal = Calendar.current
         func at(_ d: Date) -> Date { cal.date(bySettingHour: hour, minute: minute, second: 0, of: d) ?? d }
         var target: (n: Int, at: Date)?
@@ -117,7 +130,15 @@ enum Milestone {
         center.removePendingNotificationRequests(withIdentifiers: [notificationId])
         let content = UNMutableNotificationContent()
         content.title = L("\(target.n)日目の記念アルバムができました")
-        content.body = L("使い始めて\(target.n)日。これまでの思い出を1冊にまとめました")
+        if let dex, dex.wordCount > 0 {
+            content.body = L("これまでに撮った\(dex.wordCount)語を1冊にまとめました")
+            if let word = coverWord(dex),
+               let picture = await NotificationPicture.attachment(path: ReminderQuiz.picturePath(word), dex: dex) {
+                content.attachments = [picture]
+            }
+        } else {
+            content.body = L("使い始めて\(target.n)日。これまでの思い出を1冊にまとめました")
+        }
         content.sound = .default
         let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: target.at)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)

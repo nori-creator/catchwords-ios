@@ -631,7 +631,7 @@ struct SettingsView: View {
             reminderMode = mode
             SaveStatus.shared.saved()
             let times = ReminderService.parseTimes(reminderTimes)
-            await ReminderService.applyReview(mode: mode, times: times, due: dex.upcomingDueTimes)
+            await ReminderService.applyReview(mode: mode, times: times, dex: dex)
             await ReminderService.saveToAccount(mode: mode, times: times)
         }
     }
@@ -640,7 +640,7 @@ struct SettingsView: View {
         reminderTimes = list.joined(separator: ",")
         SaveStatus.shared.saved()
         Task {
-            await ReminderService.applyReview(mode: reminderMode, times: list, due: dex.upcomingDueTimes)
+            await ReminderService.applyReview(mode: reminderMode, times: list, dex: dex)
             await ReminderService.saveToAccount(mode: reminderMode, times: list)
         }
     }
@@ -654,7 +654,7 @@ struct SettingsView: View {
             }
             placeRemind = on
             SaveStatus.shared.saved()
-            await ReminderService.applyPlaces(enabled: on, stickers: dex.stickers)
+            await ReminderService.applyPlaces(enabled: on, stickers: dex.stickers, dex: dex)
         }
     }
 
