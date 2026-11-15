@@ -22,23 +22,42 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().delegate = self
     }
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    /// Where a notification's identifier leads (nil: not one of ours).
+    static func route(for id: String) -> NotificationRoute? {
+        if id.hasPrefix(ReminderService.placeIdentifierPrefix) {
+            return .sticker(String(id.dropFirst(ReminderService.placeIdentifierPrefix.count)))
+        }
+        if id == Milestone.notificationId { return .home }
+        if id.hasPrefix(ReminderService.reviewIdentifierPrefix) { return .review }
+        if id.hasPrefix(PendingRetry.notificationPrefix) { return .pendingPhotos }
+        return nil
+    }
+
+    // The completion-handler forms, not the `async` ones: iOS calls an `async` delegate method off the main thread
+    // and, when it returns, the system's completion handler ran on that thread too. UIKit then updates its state
+    // snapshot from there and asserts (`-[UIApplication _performBlockAfterCATransactionCommitSynchronizes:]`):
+    // tapping a review reminder crashed the app (TestFlight 1.0.6 (1094), 2026-11-15). Both answers go back on main.
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
         let id = response.notification.request.identifier
-        await MainActor.run {
-            if id.hasPrefix(ReminderService.placeIdentifierPrefix) {
-                pending = .sticker(String(id.dropFirst(ReminderService.placeIdentifierPrefix.count)))
-            } else if id == Milestone.notificationId {
-                pending = .home
-            } else if id.hasPrefix(ReminderService.reviewIdentifierPrefix) {
-                pending = .review
-            } else if id.hasPrefix(PendingRetry.notificationPrefix) {
-                pending = .pendingPhotos
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if let route = Self.route(for: id) { self.pending = route }
             }
+            completionHandler()
         }
     }
 
     /// A reminder that fires while the app is open still shows as a banner.
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        DispatchQueue.main.async { completionHandler([.banner, .sound]) }
     }
 }

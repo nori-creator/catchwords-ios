@@ -103,6 +103,7 @@ jobs:
             -only-testing:CatchWordsTests/MeaningGlossTests \
             -only-testing:CatchWordsTests/CatchScanTests \
             -only-testing:CatchWordsTests/ReadingAndCategoryTests \
+            -only-testing:CatchWordsTests/NotificationRouteTests \
             -only-testing:CatchWordsTests/SentencesTests \
             -only-testing:CatchWordsTests/ExampleSceneTests \
             -only-testing:CatchWordsTests/NameRegisterTests \
