@@ -85,7 +85,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
         case .webImages: L("ネットの画像")
         case .example: L("例文")
         case .examplesExtra: L("追加の例文")
-        case .usageChunks: L("使い方チャンク")  // 版25 (owner 2026-10-24): the chunks' own card again
+        case .usageChunks: L("使い方")  // owner 2026-11-16 「使い方チャンクという項目の名前を 使い方に変更して」 (版25 had 「使い方チャンク」)
         case .measureWords: L("量詞")
         case .forms: L("活用")
         case .countability: L("数え方と冠詞")
