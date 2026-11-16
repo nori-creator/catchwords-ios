@@ -202,8 +202,15 @@ struct ForgettingCurveSheet: View {
         let ticks = MemoryChartStyle.ticks(yMin: yMin)
         let start = d.past.first?.date ?? origin
         let end = d.future.last?.date ?? d.today.date
+        // What the bands' names keep clear of: both lines, each review's rise, the review points on 100 % and 「今日 n%」.
+        var lines = MemoryChartStyle.occupied(line: d.past.map { (date: $0.date, value: max(yMin, $0.value)) })
+        lines += MemoryChartStyle.occupied(line: d.future.map { (date: $0.date, value: max(yMin, $0.value)) })
+        lines += d.jumps.map { MemoryChartStyle.Occupied(from: $0.date, to: $0.date, lo: max(yMin, $0.value), hi: 100) }
+        let todayTag: [(date: Date, value: Double)] = [(date: d.today.date, value: max(yMin, d.today.value))]
+        let labels = MemoryChartStyle.bandLabels(bands, from: start, to: end, yMin: yMin, yTop: yTop,
+                                                 plotHeight: chartHeight - 24, occupied: lines, tagged: todayTag)
         return Chart {
-            MemoryChartStyle.bandMarks(bands, from: start, to: end, yMin: yMin, plotHeight: chartHeight - 24)
+            MemoryChartStyle.bandMarks(bands, from: start, to: end)
             ForEach(d.future) { p in
                 LineMark(x: .value("date", p.date), y: .value("%", max(yMin, p.value)), series: .value("s", "future"))
                     .foregroundStyle(Theme.primary)
@@ -231,6 +238,7 @@ struct ForgettingCurveSheet: View {
                             .frame(width: 9, height: 9)
                     }
             }
+            MemoryChartStyle.bandLabelMarks(labels, from: start, to: end)
             if let picked {
                 RuleMark(x: .value("date", picked.date))
                     .foregroundStyle(Theme.muted.opacity(0.5))

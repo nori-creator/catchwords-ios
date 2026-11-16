@@ -148,10 +148,32 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// characters, 「162 Heping East Road」 elsewhere. nil = the placemark has no street.
     nonisolated static func street(_ p: CLPlacemark, withNumber: Bool) -> String? {
         guard let road = properName(p.thoroughfare) else { return nil }
-        guard withNumber, let number = properName(p.subThoroughfare) else { return road }
-        // The number as part of the street's name: Han (台灣・日本) writes it after the street without a space.
+        return streetLine(road: road, number: withNumber ? p.subThoroughfare : nil, country: p.isoCountryCode)
+    }
+
+    /// The street and its number put together (`street`, kept apart so it can be tested without a placemark).
+    /// Apple gives a Taiwanese house number as 「No. 3-1」 on every screen, so 「鄭州路 No. 3-1」 showed instead of the
+    /// local 「鄭州路3-1號」 (owner 2026-11-16, the screenshots in six languages). A street written in Han characters takes
+    /// its number after it with no space and no 「No.」; in Taiwan, Hong Kong, Macau and China (or an unknown country,
+    /// when the street has no kana) the number ends in 號 (号 in China), as the address is written there. A Japanese
+    /// street keeps its number as Apple has it, and a street in Latin letters is left alone (「162 Heping East Road」).
+    nonisolated static func streetLine(road: String, number: String?, country: String?) -> String {
+        guard let number = properName(number) else { return road }
         let han = road.unicodeScalars.contains { $0.properties.isIdeographic }
-        return han ? road + number : number + " " + road
+        guard han else { return number + " " + road }
+        var n = Substring(number)
+        // 「No. 3-1」「No.3-1」「No 3-1」「NO. 3」 → 「3-1」: only when a digit follows, so a name starting with "No" stays.
+        if n.prefix(2).lowercased() == "no" {
+            let rest = n.dropFirst(2).drop(while: { $0 == "." || $0 == " " || $0 == "\u{3000}" })
+            if rest.first?.isNumber == true { n = rest }
+        }
+        let digits = String(n)
+        let kana = road.unicodeScalars.contains { (0x3040...0x30FF).contains($0.value) }
+        let code = country?.uppercased()
+        let chinese = code.map { ["TW", "HK", "MO", "CN"].contains($0) } ?? !kana
+        let marked = digits.contains("號") || digits.contains("号")  // l10n-ignore (the address as written there)
+        guard chinese, !marked, digits.last?.isNumber == true else { return road + digits }
+        return road + digits + (code == "CN" ? "号" : "號")  // l10n-ignore (the address as written there)
     }
 
     /// A named place near a point, for the learner to pick (`PlaceEditSheet`).
