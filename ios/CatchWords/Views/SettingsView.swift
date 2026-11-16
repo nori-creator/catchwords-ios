@@ -184,7 +184,7 @@ struct SettingsView: View {
         let levels = ProfileStore.levels(for: profile.targetLanguage)
         return SettingsCard(title: L("言語")) {
             VStack(alignment: .leading, spacing: 10) {
-                label(L("母語"))
+                label(L("表示言語"))
                 // The display language itself (the screen's language), not the profile's copy: before the profile is read
                 // (offline) that copy is still its default, Japanese — 「日本語」 on a Spanish screen.
                 wheelRow(ProfileStore.nativeOptions.first { $0.value == L10n.lang }?.label ?? L10n.current.autonym) { openWheel(.native) }
@@ -800,7 +800,7 @@ enum WheelField: Identifiable {
     var id: Self { self }
     var title: String {
         switch self {
-        case .native: L("母語")
+        case .native: L("表示言語")
         case .target: L("学習言語")
         case .current: L("今のレベル")
         case .goal: L("目標レベル")
