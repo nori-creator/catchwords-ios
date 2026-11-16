@@ -47,6 +47,9 @@ export function meaningRule(targetName: string, explanationLanguageName: string)
     "    （その物・その事を短く言い表す）",
     // R17「湯咖哩の英語の…単語の意味が長すぎる」— 説明文の形で返る回があった。
     `  **長さの上限: 日本語・中国語なら15字、韓国語なら10字、英語なら4語、スペイン語・ベトナム語なら5語まで。** 文にしない（読点・コンマで続けない）。`,
+    // オーナー 2026-11-16（訳の見直し）: タグと4択の問いに "MRT, the metro" のような長い意味が出ていた。
+    `  **${explanationLanguageName}のアプリが見出しに使う、いちばん短い自然な呼び名にする。** 同格・言い換え・補足を付けない` +
+      `（✗「MRT, the metro」✗「bento, a boxed meal」→ ○「MRT」○「bento」）。補足は注記の欄に書く。`,
     NO_PADDING,
   ].join("\n");
 }
@@ -64,7 +67,7 @@ const CAP_LATIN = 40;
 
 /** 英語の指示文に入れる長さの上限（`meaningRule` と同じ数）。チュートリアルの AI が使う。 */
 export const MEANING_LENGTH_RULE_EN =
-  "meaning_ja is a short gloss, not a definition: at most 15 characters in Japanese or Chinese, 10 in Korean, or at most 4 words in English (5 in Spanish or Vietnamese). No sentences, no commas or 。 chaining, no parenthetical notes.";
+  "meaning_ja is a short gloss, not a definition: at most 15 characters in Japanese or Chinese, 10 in Korean, or at most 4 words in English (5 in Spanish or Vietnamese). No sentences, no commas or 。 chaining, no parenthetical notes, no appositions (not \"MRT, the metro\" — just \"MRT\").";
 
 function isLatinText(s: string): boolean {
   // ASCII 全域（制御文字を含む）と Latin-1 拡張・ベトナム語の2つ印の文字（ạ ầ ở — U+1E00–1EFF）だけで
