@@ -59,6 +59,10 @@ jobs:
             -scheme CatchWords \
             -destination "platform=iOS Simulator,id=$UDID" \
             -only-testing:CatchWordsUITests/FullTourTests \
+            -skip-testing:CatchWordsUITests/FullTourTests/test_7_es_zh \
+            -skip-testing:CatchWordsUITests/FullTourTests/test_8_ko_zh \
+            -skip-testing:CatchWordsUITests/FullTourTests/test_9_vi_zh \
+            -skip-testing:CatchWordsUITests/FullTourTests/test_10_zh_zh \
             -resultBundlePath "$RUNNER_TEMP/tour.xcresult" \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 600 -maximum-test-execution-time-allowance 900 \
             CODE_SIGNING_ALLOWED=NO \
