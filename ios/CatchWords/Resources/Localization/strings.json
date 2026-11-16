@@ -204,7 +204,7 @@
  },
  "Dcardで見る": {
   "en": "See it on Dcard",
-  "zh-TW": "在 Dcard 上看",
+  "zh-TW": "在 Dcard 看",
   "es": "Ver en Dcard",
   "ko": "Dcard에서 보기",
   "vi": "Xem trên Dcard"
@@ -274,7 +274,7 @@
  },
  "Threads で見る": {
   "en": "See it on Threads",
-  "zh-TW": "在 Threads 上看",
+  "zh-TW": "在 Threads 看",
   "es": "Ver en Threads",
   "ko": "Threads에서 보기",
   "vi": "Xem trên Threads"
@@ -309,14 +309,14 @@
  },
  "YouGlishで発音例": {
   "en": "Hear it on YouGlish",
-  "zh-TW": "在 YouGlish 聽發音範例",
+  "zh-TW": "YouGlish 發音範例",
   "es": "Escuchar en YouGlish",
   "ko": "YouGlish에서 발음 예시 듣기",
   "vi": "Ví dụ phát âm trên YouGlish"
  },
  "YouTubeで聞く": {
   "en": "Hear it on YouTube",
-  "zh-TW": "在 YouTube 上聽",
+  "zh-TW": "在 YouTube 聽",
   "es": "Escuchar en YouTube",
   "ko": "YouTube에서 듣기",
   "vi": "Nghe trên YouTube"
@@ -589,7 +589,7 @@
  },
  "あと{1}語、もう少し": {
   "en": "{1} words to go — almost there",
-  "zh-TW": "還剩 {1} 個字，再加油",
+  "zh-TW": "再 {1} 個單字，加油！",
   "es": "¡Ya casi! {1} más",
   "ko": "단어 {1}개 남았어요, 조금만 더",
   "vi": "Còn {1} từ nữa, sắp xong rồi"
@@ -1170,7 +1170,7 @@
  },
  "まちがえた{1}語をもう一度": {
   "en": "Retry the {1} words you missed",
-  "zh-TW": "再試一次答錯的 {1} 個字",
+  "zh-TW": "再練習答錯的 {1} 個單字",
   "es": "Repetir las que fallaste ({1})",
   "ko": "틀린 단어 {1}개 다시 풀기",
   "vi": "Làm lại {1} từ bạn trả lời sai"
@@ -1688,7 +1688,7 @@
  },
  "プライバシー": {
   "en": "Privacy",
-  "zh-TW": "隱私",
+  "zh-TW": "隱私權政策",
   "es": "Privacidad",
   "ko": "개인정보 처리방침",
   "vi": "Quyền riêng tư"
@@ -1996,7 +1996,7 @@
  },
  "今日の1枚を撮る": {
   "en": "Take today's photo",
-  "zh-TW": "拍下今天的一張",
+  "zh-TW": "拍下今天的第一張",
   "es": "Tomar la foto de hoy",
   "ko": "오늘의 한 장 찍기",
   "vi": "Chụp ảnh hôm nay"
@@ -2626,7 +2626,7 @@
  },
  "単語を撮りに行く": {
   "en": "Catch more words",
-  "zh-TW": "去拍單字",
+  "zh-TW": "去拍照收集單字",
   "es": "Ir a atrapar palabras",
   "ko": "단어 캐치하러 가기",
   "vi": "Đi chụp từ mới"
@@ -2920,7 +2920,7 @@
  },
  "学ぶ目的を\n教えてください": {
   "en": "What brings you\nhere?",
-  "zh-TW": "你學語言的目的是？",
+  "zh-TW": "請告訴我們\n你學中文的目的",
   "es": "¿Para qué\nquieres aprender?",
   "ko": "배우는 목적을\n알려 주세요",
   "vi": "Hãy cho biết\nmục đích học của bạn"
@@ -2983,7 +2983,7 @@
  },
  "実際の使われ方": {
   "en": "Seen in the wild",
-  "zh-TW": "實際用法",
+  "zh-TW": "真實用例",
   "es": "Uso real",
   "ko": "실제 쓰임",
   "vi": "Dùng ngoài đời thực"
@@ -7358,7 +7358,7 @@
  },
  "街で出会う言葉を、ステッカーに。": {
   "en": "Turn the words you meet around town into stickers.",
-  "zh-TW": "把街上遇見的單字，變成貼紙。",
+  "zh-TW": "把街上看到的東西，變成單字貼紙。",
   "es": "Convierte en stickers las palabras que encuentras por la ciudad.",
   "ko": "거리에서 만나는 단어를 스티커로.",
   "vi": "Biến những gì bạn gặp trên phố thành nhãn dán từ vựng."
@@ -7834,14 +7834,14 @@
  },
  "{1}の基本5語": {
   "en": "{1} · 5 essentials",
-  "zh-TW": "{1}的基本 5 個詞",
+  "zh-TW": "{1}的 5 個基本單字",
   "es": "{1}: las 5 básicas",
   "ko": "{1} 기본 단어 5개",
   "vi": "{1}: 5 từ cơ bản"
  },
  "あと{1}語でコンプリート": {
   "en": "{1} more to complete the set",
-  "zh-TW": "再 {1} 個就全部收集",
+  "zh-TW": "再 {1} 個就收齊了",
   "es": "{1} más para completarlo",
   "ko": "{1}개 더 모으면 완성",
   "vi": "Còn {1} từ nữa là đủ bộ"
@@ -8072,7 +8072,7 @@
  },
  "「{1}」で見つかった言葉": {
   "en": "Words found for “{1}”",
-  "zh-TW": "用「{1}」找到的詞",
+  "zh-TW": "搜尋「{1}」找到的單字",
   "es": "Palabras encontradas para “{1}”",
   "ko": "‘{1}’ 검색 결과",
   "vi": "Từ tìm được cho “{1}”"
@@ -9024,7 +9024,7 @@
  },
  "使われ方": {
   "en": "In the wild",
-  "zh-TW": "實際用法",
+  "zh-TW": "真實用例",
   "es": "Uso real",
   "ko": "쓰임",
   "vi": "Đời thực"
@@ -9073,7 +9073,7 @@
  },
  "{1}人目": {
   "en": "No. {1}",
-  "zh-TW": "第 {1} 位",
+  "zh-TW": "第 {1} 人",
   "es": "N.º {1}",
   "ko": "{1}번째",
   "vi": "Người thứ {1}"
@@ -9094,7 +9094,7 @@
  },
  "「{1}」を獲得したのは": {
   "en": "You caught “{1}”",
-  "zh-TW": "獲得「{1}」的人之中",
+  "zh-TW": "收集到「{1}」的",
   "es": "Atrapaste “{1}” antes que nadie",
   "ko": "‘{1}’ 단어를 캐치한 건",
   "vi": "Bạn đã bắt được “{1}”"
@@ -9178,7 +9178,7 @@
  },
  "毎日の小さな1枚が、ここまで来ました": {
   "en": "One small photo a day brought you here",
-  "zh-TW": "每天的一小張，累積到了這裡",
+  "zh-TW": "每天拍一張，一路累積到現在",
   "es": "Una pequeña foto cada día te trajo hasta aquí",
   "ko": "하루 한 장이 쌓여 여기까지 왔어요",
   "vi": "Mỗi ngày một tấm ảnh nhỏ đã đưa bạn đến đây"
@@ -9290,7 +9290,7 @@
  },
  "いまのレベル": {
   "en": "Your current level",
-  "zh-TW": "目前的等級",
+  "zh-TW": "目前等級",
   "es": "Tu nivel actual",
   "ko": "현재 레벨",
   "vi": "Trình độ hiện tại"
@@ -9759,7 +9759,7 @@
  },
  "ログインして、集めた単語の続きから。": {
   "en": "Sign in and pick up where you left off.",
-  "zh-TW": "登入後，接著學習收集的單字。",
+  "zh-TW": "登入後，繼續學習你收集的單字。",
   "es": "Inicia sesión y sigue donde lo dejaste.",
   "ko": "로그인하고 모은 단어를 이어서 공부해요.",
   "vi": "Đăng nhập để học tiếp những từ đã thu thập."
@@ -10830,7 +10830,7 @@
  },
  "案内を見る": {
   "en": "Show tip",
-  "zh-TW": "顯示說明",
+  "zh-TW": "查看說明",
   "es": "Ver la guía",
   "ko": "안내 보기",
   "vi": "Xem hướng dẫn"
@@ -11376,7 +11376,7 @@
  },
  "毎日出会ういろんなものを撮って、あなただけの単語帳を育てよう": {
   "en": "Snap the things you come across every day and grow a wordbook that's all your own.",
-  "zh-TW": "拍下每天遇見的各種東西，讓專屬你的單字本一天天長大吧",
+  "zh-TW": "拍下每天遇見的東西，打造專屬你的單字本吧",
   "es": "Toma fotos de todo lo que encuentres cada día y haz crecer tu propio cuaderno de palabras.",
   "ko": "매일 만나는 여러 물건을 찍으며 나만의 단어장을 채워 가세요.",
   "vi": "Hãy chụp những thứ bạn gặp mỗi ngày để dần xây nên sổ từ vựng của riêng bạn."
@@ -11390,7 +11390,7 @@
  },
  "リストにない言葉を探す": {
   "en": "Search for a word not listed",
-  "zh-TW": "搜尋不在清單上的詞",
+  "zh-TW": "搜尋清單以外的單字",
   "es": "Buscar una palabra que no está en la lista",
   "ko": "목록에 없는 단어 찾기",
   "vi": "Tìm từ không có trong danh sách"
