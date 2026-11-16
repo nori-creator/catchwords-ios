@@ -308,7 +308,7 @@
   "vi": "Xem trên Yahoo! Chiebukuro"
  },
  "YouGlishで発音例": {
-  "en": "Pronunciation samples on YouGlish",
+  "en": "Hear it on YouGlish",
   "zh-TW": "在 YouGlish 聽發音範例",
   "es": "Escuchar en YouGlish",
   "ko": "YouGlish에서 발음 예시 듣기",
@@ -630,7 +630,7 @@
   "vi": "Lung lay"
  },
  "いくつでも選べます。例文の場面をあなたに合わせます。": {
-  "en": "Choose any. We’ll tailor example situations to you.",
+  "en": "Pick as many as you like. We'll tailor the examples to you.",
   "zh-TW": "可以複選，例句情境會配合你的目標。",
   "es": "Puedes elegir varias. Adaptaremos los ejemplos a lo que necesitas.",
   "ko": "여러 개 고를 수 있어요. 고른 목적에 맞춰 예문 상황을 정해 드려요.",
@@ -945,14 +945,14 @@
   "vi": "Dùng hình này"
  },
  "この言葉、{1}に{2}でゲットしています。": {
-  "en": "You got this word on {1} at {2}.",
+  "en": "You caught this word on {1} in {2}.",
   "zh-TW": "這個單字，你{1}在{2}收集過。",
   "es": "Atrapaste esta palabra el {1} en {2}.",
   "ko": "{1}에 {2}에서 처음 캐치한 단어예요.",
   "vi": "Bạn đã bắt được từ này vào {1} tại {2}."
  },
  "この言葉、{1}にゲットしています。": {
-  "en": "You got this word on {1}.",
+  "en": "You caught this word on {1}.",
   "zh-TW": "這個單字你在{1}收集過。",
   "es": "Atrapaste esta palabra el {1}.",
   "ko": "{1}에 처음 캐치한 단어예요.",
@@ -1134,7 +1134,7 @@
   "vi": "Có thể thay bằng từ khác"
  },
  "また明日の復習で会いましょう。": {
-  "en": "See you at tomorrow's review.",
+  "en": "See you tomorrow for your next review.",
   "zh-TW": "明天複習時再見。",
   "es": "Nos vemos en el repaso de mañana.",
   "ko": "내일 복습에서 또 만나요.",
@@ -1603,7 +1603,7 @@
   "vi": "Chạm để quay lại"
  },
  "タップで自撮りへ": {
-  "en": "Tap for the selfie",
+  "en": "Tap to see your selfie",
   "zh-TW": "點一下看自拍",
   "es": "Toca para ver la selfie",
   "ko": "탭하여 셀카 보기",
@@ -2625,7 +2625,7 @@
   "vi": "Khi bạn quay lại gần nơi đã chụp một từ, ứng dụng sẽ gửi thông báo nhắc lại từ đó"
  },
  "単語を撮りに行く": {
-  "en": "Go catch words",
+  "en": "Catch more words",
   "zh-TW": "去拍單字",
   "es": "Ir a atrapar palabras",
   "ko": "단어 캐치하러 가기",
@@ -3367,7 +3367,7 @@
   "vi": "Chụp và bắt từ không giới hạn"
  },
  "撮影地": {
-  "en": "Where it was taken",
+  "en": "Photo location",
   "zh-TW": "拍攝地點",
   "es": "Lugar de la foto",
   "ko": "촬영 장소",
@@ -3388,7 +3388,7 @@
   "vi": "Chụp một trang sách giáo khoa hoặc danh sách tự làm để nhập tất cả các từ cùng lúc và ôn tập riêng với bộ sưu tập."
  },
  "教育部國語辭典簡編本": {
-  "en": "MOE Concised Mandarin Chinese Dictionary",
+  "en": "MOE Dictionary",
   "zh-TW": "教育部國語辭典簡編本",
   "es": "Diccionario oficial de Taiwán",
   "ko": "교육부 국어사전 간편본 (대만)",
@@ -4788,7 +4788,7 @@
   "vi": "Kết nối đã hết thời gian chờ. Hãy thử lại ở nơi có sóng tốt hơn."
  },
  "通信できませんでした。電波のよい場所でもう一度お試しください。": {
-  "en": "Couldn't connect. Please try again where the signal is better.",
+  "en": "Couldn't connect. Try again somewhere with a better signal.",
   "zh-TW": "無法連線。請到訊號較好的地方再試一次。",
   "es": "No se pudo conectar. Inténtalo de nuevo donde haya mejor señal.",
   "ko": "인터넷에 연결할 수 없어요. 신호가 좋은 곳에서 다시 시도해 주세요.",
@@ -4886,7 +4886,7 @@
   "vi": "Chọn mục bị sai"
  },
  "選ぶ": {
-  "en": "Pick",
+  "en": "Choose",
   "zh-TW": "選擇",
   "es": "Elegir",
   "ko": "선택",
@@ -5033,7 +5033,7 @@
   "vi": "Từ đồng nghĩa"
  },
  "類義語・反義語・関連語": {
-  "en": "Synonyms, antonyms & related",
+  "en": "Related words",
   "zh-TW": "近義詞、反義詞、相關詞",
   "es": "Sinónimos, antónimos y palabras relacionadas",
   "ko": "유의어·반의어·관련어",
@@ -5803,7 +5803,7 @@
   "vi": "Đang quét ảnh"
  },
  "名前を調べています": {
-  "en": "Looking up the names",
+  "en": "Finding the words…",
   "zh-TW": "正在查詢名稱",
   "es": "Buscando nombres…",
   "ko": "이름을 찾고 있어요",
@@ -7833,7 +7833,7 @@
   "vi": "Từ bạn chọn sẽ được đưa vào bộ sưu tập"
  },
  "{1}の基本5語": {
-  "en": "{1} · the basic 5",
+  "en": "{1} · 5 essentials",
   "zh-TW": "{1}的基本 5 個詞",
   "es": "{1}: las 5 básicas",
   "ko": "{1} 기본 단어 5개",
@@ -8120,14 +8120,14 @@
   "vi": "Chưa lưu được"
  },
  "この単語は図鑑に残してあります。つながると自動でもう一度保存します。": {
-  "en": "This word stays in your collection. It will be saved again automatically once you're connected.",
+  "en": "This word is still in your collection. It'll save automatically when you're back online.",
   "zh-TW": "這個單字會留在圖鑑裡，連上網路後會自動再儲存一次。",
   "es": "Esta palabra sigue en tu colección. Se guardará automáticamente cuando tengas conexión.",
   "ko": "이 단어는 도감에 남겨 두었어요. 연결되면 자동으로 다시 저장해요.",
   "vi": "Từ này vẫn nằm trong bộ sưu tập. Khi có kết nối, ứng dụng sẽ tự động lưu lại."
  },
  "もう一度保存": {
-  "en": "Save again",
+  "en": "Try again",
   "zh-TW": "再儲存一次",
   "es": "Guardar de nuevo",
   "ko": "다시 저장",
@@ -8981,7 +8981,7 @@
   "vi": "OK"
  },
  "Google検索": {
-  "en": "Google search",
+  "en": "Search on Google",
   "zh-TW": "Google 搜尋",
   "es": "Buscar en Google",
   "ko": "Google 검색",
@@ -9023,7 +9023,7 @@
   "vi": "Cụm từ"
  },
  "使われ方": {
-  "en": "In use",
+  "en": "In the wild",
   "zh-TW": "實際用法",
   "es": "Uso real",
   "ko": "쓰임",
@@ -9156,7 +9156,7 @@
   "vi": "Hạng {1} trong toàn bộ người dùng"
  },
  "全ユーザーの中で、あなたが初めてです": {
-  "en": "You're the first user to catch it",
+  "en": "You're the first person to catch it",
   "zh-TW": "在所有使用者中，你是第一個",
   "es": "Eres la primera persona en toda la app",
   "ko": "전체 사용자 중 가장 먼저 캐치했어요",
@@ -9219,7 +9219,7 @@
   "vi": "Top {1}% người dùng"
  },
  "継続率{1}%（{2}日のうち{3}日学びました）": {
-  "en": "Consistency {1}% (you studied {3} of {2} days)",
+  "en": "You studied {3} of the last {2} days ({1}%)",
   "zh-TW": "持續率 {1}%（{2} 天中學習了 {3} 天）",
   "es": "Constancia del {1}% (estudiaste {3} de {2} días)",
   "ko": "지속률 {1}% ({2}일 중 {3}일 공부했어요)",
@@ -9289,7 +9289,7 @@
   "vi": "Mọi khoảnh khắc\nđều thành bài học"
  },
  "いまのレベル": {
-  "en": "Your level now",
+  "en": "Your current level",
   "zh-TW": "目前的等級",
   "es": "Tu nivel actual",
   "ko": "현재 레벨",
@@ -9352,14 +9352,14 @@
   "vi": "Mẫu"
  },
  "TOCFLを受けたことがない、よく知らない": {
-  "en": "Never taken TOCFL, or not sure",
+  "en": "Haven't taken the TOCFL, or not sure",
   "zh-TW": "沒考過 TOCFL，或不太清楚",
   "es": "Nunca hice el TOCFL o no lo conozco bien",
   "ko": "TOCFL을 본 적이 없거나 잘 몰라요",
   "vi": "Chưa thi TOCFL hoặc chưa biết rõ"
  },
  "あなたに合った難しさで出すので、ムダなく覚えられます。": {
-  "en": "Content matches your level, so no effort is wasted.",
+  "en": "Everything is pitched at your level, so no effort goes to waste.",
   "zh-TW": "依你的程度出題，學得更有效率。",
   "es": "Todo se adapta a tu nivel, así aprendes sin perder tiempo.",
   "ko": "내 수준에 맞는 난이도로 나와서 효율적으로 외울 수 있어요.",
@@ -9765,21 +9765,21 @@
   "vi": "Đăng nhập để học tiếp những từ đã thu thập."
  },
  "撮った場所（{1}回）": {
-  "en": "Where it was taken ({1} times)",
+  "en": "All locations ({1})",
   "zh-TW": "拍攝地點（{1} 次）",
   "es": "Dónde la fotografiaste ({1} veces)",
   "ko": "촬영 장소 ({1}회)",
   "vi": "Nơi chụp ({1} lần)"
  },
  "場所を直す": {
-  "en": "Fix the place",
+  "en": "Edit location",
   "zh-TW": "修改地點",
   "es": "Corregir el lugar",
   "ko": "장소 수정",
   "vi": "Sửa địa điểm"
  },
  "場所を追加": {
-  "en": "Edit location",
+  "en": "Add location",
   "zh-TW": "新增地點",
   "es": "Añadir lugar",
   "ko": "장소 추가",
