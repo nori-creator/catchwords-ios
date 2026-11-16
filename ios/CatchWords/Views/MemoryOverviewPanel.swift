@@ -166,28 +166,107 @@ enum MemoryChartStyle {
         Theme.memoryLevels[level].mix(with: Theme.foreground, by: 0.45)
     }
 
-    /// The bands under the lines (drawn first), each named at its left when it is tall enough for the text.
+    /// The bands under the lines (drawn first). Their names are drawn after the lines (`bandLabelMarks`).
     @ChartContentBuilder
-    static func bandMarks(_ bands: [Band], from: Date, to: Date, yMin: Double, plotHeight: CGFloat) -> some ChartContent {
+    static func bandMarks(_ bands: [Band], from: Date, to: Date) -> some ChartContent {
         ForEach(bands) { b in
             RectangleMark(xStart: .value("date", from), xEnd: .value("date", to),
                           yStart: .value("%", b.lo), yEnd: .value("%", b.hi))
                 .foregroundStyle(bandFill(b.level))
-                .annotation(position: .overlay, alignment: .leading, spacing: 0) {
-                    if CGFloat((b.hi - b.lo) / max(1, 100 - yMin)) * plotHeight >= 11 {
-                        Text(MemoryBadge.labels[b.level])
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(bandInk(b.level))
-                            .lineLimit(1)
-                            .padding(.leading, 6)
-                    }
-                }
         }
         // A thin line of the card's colour between two bands.
         ForEach(bands.filter { $0.hi < 100 }) { b in
             RuleMark(y: .value("%", b.hi))
                 .foregroundStyle(Theme.card)
                 .lineStyle(StrokeStyle(lineWidth: 1))
+        }
+    }
+
+    /// Something drawn on the plot that a band's name keeps clear of: a stretch of a line (from one point to the next,
+    /// the values between them) or a review's rise (one day, from the line up to 100 %).
+    struct Occupied {
+        let from: Date
+        let to: Date
+        let lo: Double
+        let hi: Double
+    }
+
+    /// Each stretch between two neighbouring points of a line.
+    static func occupied(line: [(date: Date, value: Double)]) -> [Occupied] {
+        if line.count == 1, let p = line.first { return [Occupied(from: p.date, to: p.date, lo: p.value, hi: p.value)] }
+        return zip(line, line.dropFirst()).map { a, b in
+            Occupied(from: min(a.date, b.date), to: max(a.date, b.date), lo: min(a.value, b.value), hi: max(a.value, b.value))
+        }
+    }
+
+    enum LabelSide { case leading, trailing }
+
+    /// A band's name and the end of the band it goes to.
+    struct BandLabel: Identifiable {
+        let band: Band
+        let side: LabelSide
+        var id: Int { band.level }
+    }
+
+    /// Which end of the band its name goes to: the one the line keeps away from. The names sat at the left, under the
+    /// line and its points (a word's curve starts there at 100 %), and could not be read (owner 2026-11-16). A name is
+    /// at most about a third of the plot wide (≈ 90 pt of a phone's plot) and 16 pt high round the band's middle.
+    /// `tagged`: points with a label over them (「今日 n%」), whose label is kept clear too. When both ends are taken,
+    /// the end with less of the line on it (the name's own pill then hides the bit of line under it).
+    static func labelSide(_ b: Band, from: Date, to: Date, yMin: Double, yTop: Double, plotHeight: CGFloat,
+                          occupied: [Occupied], tagged: [(date: Date, value: Double)] = []) -> LabelSide {
+        let span = to.timeIntervalSince(from)
+        guard span > 0, plotHeight > 0 else { return .leading }
+        let perPoint = (yTop - yMin) / Double(plotHeight)
+        let mid = (b.lo + b.hi) / 2
+        let lo = max(b.lo, mid - 8 * perPoint)
+        let hi = min(b.hi, mid + 8 * perPoint)
+        var taken = occupied
+        for t in tagged {
+            taken.append(Occupied(from: t.date.addingTimeInterval(-span * 0.1), to: t.date.addingTimeInterval(span * 0.1),
+                                  lo: t.value, hi: t.value + 26 * perPoint))
+        }
+        let reach = span * 0.34
+        // How much of the name's box the line runs across (a rise, which has no length, counts a little).
+        func cover(_ x0: Date, _ x1: Date) -> Double {
+            taken.reduce(0) { sum, o in
+                guard o.to >= x0, o.from <= x1, o.hi >= lo, o.lo <= hi else { return sum }
+                return sum + max(min(o.to, x1).timeIntervalSince(max(o.from, x0)), span * 0.01)
+            }
+        }
+        let lead = cover(from, from.addingTimeInterval(reach))
+        let trail = cover(to.addingTimeInterval(-reach), to)
+        return trail < lead ? .trailing : .leading
+    }
+
+    /// The bands' names: only where the band is tall enough for the text, each at the end the line keeps away from.
+    static func bandLabels(_ bands: [Band], from: Date, to: Date, yMin: Double, yTop: Double, plotHeight: CGFloat,
+                           occupied: [Occupied], tagged: [(date: Date, value: Double)] = []) -> [BandLabel] {
+        bands.compactMap { b in
+            guard CGFloat((b.hi - b.lo) / max(1, yTop - yMin)) * plotHeight >= 11 else { return nil }
+            let side = labelSide(b, from: from, to: to, yMin: yMin, yTop: yTop, plotHeight: plotHeight,
+                                 occupied: occupied, tagged: tagged)
+            return BandLabel(band: b, side: side)
+        }
+    }
+
+    /// The names drawn after the lines and points, each on a small pill of its band's colour, so no line runs over one.
+    @ChartContentBuilder
+    static func bandLabelMarks(_ labels: [BandLabel], from: Date, to: Date) -> some ChartContent {
+        ForEach(labels) { l in
+            RectangleMark(xStart: .value("date", from), xEnd: .value("date", to),
+                          yStart: .value("%", l.band.lo), yEnd: .value("%", l.band.hi))
+                .foregroundStyle(Color.clear)
+                .annotation(position: .overlay, alignment: l.side == .leading ? .leading : .trailing, spacing: 0) {
+                    Text(MemoryBadge.labels[l.band.level])
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(bandInk(l.band.level))
+                        .lineLimit(1)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(bandFill(l.band.level), in: Capsule())
+                        .padding(l.side == .leading ? .leading : .trailing, 2)
+                }
         }
     }
 }
@@ -270,8 +349,13 @@ struct RetentionMiniChart: View {
         let todayDate = data.series.first(where: { $0.dayOffset == 0 })?.date ?? Date()
         let picked: RetentionPoint? = scrubDate.flatMap { Self.nearest($0, in: past + future) }
         let scrubbing = picked != nil
+        var lines = MemoryChartStyle.occupied(line: past.map { (date: $0.date, value: $0.value ?? 0) })
+        lines += MemoryChartStyle.occupied(line: future.map { (date: $0.date, value: $0.value ?? 0) })
+        let todayTag: [(date: Date, value: Double)] = data.today.map { [(date: todayDate, value: Double($0))] } ?? []
+        let labels = MemoryChartStyle.bandLabels(bands, from: first, to: last, yMin: yMin, yTop: 100,
+                                                 plotHeight: height - 22, occupied: lines, tagged: todayTag)
         return Chart {
-            MemoryChartStyle.bandMarks(bands, from: first, to: last, yMin: yMin, plotHeight: height - 22)
+            MemoryChartStyle.bandMarks(bands, from: first, to: last)
             ForEach(future) { p in
                 LineMark(x: .value("date", p.date), y: .value("%", p.value ?? 0), series: .value("s", "future"))
                     .foregroundStyle(Theme.primary)
@@ -299,6 +383,7 @@ struct RetentionMiniChart: View {
                         }
                     }
             }
+            MemoryChartStyle.bandLabelMarks(labels, from: first, to: last)
             if let picked {
                 RuleMark(x: .value("date", picked.date))
                     .foregroundStyle(Theme.muted.opacity(0.5))
