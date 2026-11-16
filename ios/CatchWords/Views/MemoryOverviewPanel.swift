@@ -229,7 +229,7 @@ enum MemoryChartStyle {
         let reach = span * 0.34
         // How much of the name's box the line runs across (a rise, which has no length, counts a little).
         func cover(_ x0: Date, _ x1: Date) -> Double {
-            taken.reduce(0) { sum, o in
+            taken.reduce(0.0) { sum, o in
                 guard o.to >= x0, o.from <= x1, o.hi >= lo, o.lo <= hi else { return sum }
                 return sum + max(min(o.to, x1).timeIntervalSince(max(o.from, x0)), span * 0.01)
             }
