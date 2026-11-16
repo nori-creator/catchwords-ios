@@ -2703,21 +2703,21 @@
  },
  "台湾華語": {
   "en": "Taiwanese Mandarin",
-  "zh-TW": "台灣華語",
+  "zh-TW": "繁體字（台灣）",
   "es": "Chino mandarín de Taiwán",
   "ko": "대만 중국어",
   "vi": "Tiếng Hoa Đài Loan"
  },
  "台湾華語で調べる": {
   "en": "Look it up in Taiwanese Mandarin",
-  "zh-TW": "用台灣華語查",
+  "zh-TW": "用中文查",
   "es": "Buscar en chino mandarín de Taiwán",
   "ko": "대만 중국어로 찾아보기",
   "vi": "Tra bằng tiếng Hoa Đài Loan"
  },
  "台湾華語を学習中": {
   "en": "Learning Taiwanese Mandarin",
-  "zh-TW": "正在學台灣華語",
+  "zh-TW": "正在學中文",
   "es": "Aprendiendo chino mandarín de Taiwán",
   "ko": "대만 중국어 학습 중",
   "vi": "Đang học tiếng Hoa Đài Loan"
@@ -4201,7 +4201,7 @@
  },
  "繁体字（台湾華語）の単語を入れてください。": {
   "en": "Please enter a word in Traditional Chinese (Taiwanese Mandarin).",
-  "zh-TW": "請輸入繁體字（台灣華語）的單字。",
+  "zh-TW": "請輸入繁體字的中文單字。",
   "es": "Escribe una palabra en chino tradicional (chino mandarín de Taiwán).",
   "ko": "중국어 번체(대만 중국어) 단어를 입력하세요.",
   "vi": "Hãy nhập một từ bằng chữ phồn thể (tiếng Hoa Đài Loan)."
@@ -4334,7 +4334,7 @@
  },
  "街で見つけた物が、台湾華語になる。": {
   "en": "What you find around town becomes words you learn.",
-  "zh-TW": "在街上發現的東西，都能變成台灣華語。",
+  "zh-TW": "在街上看到的東西，都能變成中文單字。",
   "es": "Lo que encuentras por la calle se convierte en chino mandarín de Taiwán.",
   "ko": "거리에서 찾은 물건이 대만 중국어가 돼요.",
   "vi": "Những thứ bạn thấy trên phố trở thành tiếng Hoa Đài Loan."
@@ -7946,7 +7946,7 @@
  },
  "台湾華語の単語が見つかりませんでした。別の言葉で試してください": {
   "en": "No Taiwanese Mandarin word was found. Try a different word.",
-  "zh-TW": "找不到台灣華語的單字。請換個詞試試。",
+  "zh-TW": "找不到對應的中文單字。請換個詞試試。",
   "es": "No se encontró ninguna palabra en chino mandarín de Taiwán. Prueba con otra palabra.",
   "ko": "대만 중국어 단어를 찾지 못했어요. 다른 말로 시도해 보세요.",
   "vi": "Không tìm thấy từ tiếng Hoa Đài Loan nào. Hãy thử từ khác."
@@ -9472,7 +9472,7 @@
  },
  "物を撮ると、台湾華語の名前と発音が出ます。\nまずは1枚、撮ってみよう。": {
   "en": "Take a photo of something to see and hear its name in Taiwanese Mandarin.\nStart with just one.",
-  "zh-TW": "拍下東西，就會出現它的台灣華語名稱和發音。\n先拍一張看看吧。",
+  "zh-TW": "拍下東西，就會出現它的中文名稱和發音。\n先拍一張看看吧。",
   "es": "Toma una foto de algo y verás su nombre en chino mandarín de Taiwán y su pronunciación.\nPrueba con una.",
   "ko": "물건을 찍으면 대만 중국어 이름과 발음이 나와요.\n먼저 한 장 찍어 보세요.",
   "vi": "Chụp một đồ vật để thấy tên tiếng Hoa Đài Loan và cách đọc.\nHãy thử chụp một tấm."
