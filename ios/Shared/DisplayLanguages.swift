@@ -69,7 +69,7 @@ nonisolated enum DisplayLanguages {
             degreeGlosses: ["很": "very", "超": "super", "非常": "extremely", "有點": "a little", "蠻": "pretty", "好": "so"]
         ),
         DisplayLanguage(
-            code: "zh-TW", autonym: "繁體中文", nameJa: "繁体字中国語", flag: "🇹🇼",
+            code: "zh-TW", autonym: "繁體中文（台灣）", nameJa: "繁体字中国語", flag: "🇹🇼",
             localeID: "zh_Hant_TW", lproj: "zh-Hant", devicePrefixes: ["zh-hant", "zh-tw", "zh-hk", "zh-mo"], script: .han,
             listSeparator: "，", openBracket: "（", closeBracket: "）", placeSeparator: " ",
             glossLimit: 12, legalDocs: true,

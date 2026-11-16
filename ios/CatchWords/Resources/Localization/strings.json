@@ -2703,7 +2703,7 @@
  },
  "台湾華語": {
   "en": "Taiwanese Mandarin",
-  "zh-TW": "繁體字（台灣）",
+  "zh-TW": "繁體中文（台灣）",
   "es": "Chino mandarín de Taiwán",
   "ko": "대만 중국어",
   "vi": "Tiếng Hoa Đài Loan"
@@ -4194,7 +4194,7 @@
  },
  "繁体字中国語": {
   "en": "Traditional Chinese",
-  "zh-TW": "繁體中文",
+  "zh-TW": "繁體中文（台灣）",
   "es": "Chino tradicional",
   "ko": "중국어 번체",
   "vi": "Tiếng Trung phồn thể"
@@ -4208,7 +4208,7 @@
  },
  "繁體字（台灣）": {
   "en": "Mandarin (Taiwan)",
-  "zh-TW": "繁體字（台灣）",
+  "zh-TW": "繁體中文（台灣）",
   "es": "Mandarín (Taiwán)",
   "ko": "중국어 번체(대만)",
   "vi": "Tiếng Trung phồn thể (Đài Loan)"
