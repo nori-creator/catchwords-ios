@@ -47,6 +47,13 @@ export type ExplainLanguageInfo = {
   readonly markerLetters: string;
   /** 英語の指示文に添える、その言語の書き方の決まり。 */
   readonly writingRule: string;
+  /**
+   * **単語の中身（意味・例文の訳・型の訳と解説・量詞の注・関連語・メモ）を、その言語で自然に書く決まり**
+   * （オーナー 2026-11-16「直訳ではなくて最も自然な訳を表示したい」）。本番の行で見つかった直訳・誤訳・
+   * 文体の混ざりの例を、その言語の読者の指示にだけ入れる（`reader-style.ts` の `readerStyleRule`）。
+   * 話し方は画面の訳と同じ（es は tú・中南米寄りの中立、ko は 해요체、vi は bạn、en は米国）。
+   */
+  readonly contentStyle: string;
 };
 
 export const EXPLAIN_LANGUAGES = [
@@ -60,6 +67,11 @@ export const EXPLAIN_LANGUAGES = [
     markerWords: [],
     markerLetters: "",
     writingRule: "",
+    contentStyle:
+      "日本語: 解説・注記・メモ（文で書く欄）はすべて「です・ます」でそろえる（「だ・である」を混ぜない）。" +
+      "型の訳・関連語の gloss・場面の札は「です」を付けない短い句。型の訳は辞書形（✗「リモコンを押す」→ ○「リモコンのボタンを押す」）。" +
+      "硬い直訳語を作らず、日本人がふだん使う呼び名にする（✗「都市高速鉄道」→ ○「MRT」）。" +
+      "文中の中国語の前後に空白を入れず、句読点は全角（、。 — 半角の「,」を使わない）。",
   },
   {
     code: "en",
@@ -113,6 +125,11 @@ export const EXPLAIN_LANGUAGES = [
     ],
     markerLetters: "",
     writingRule: "",
+    contentStyle:
+      "English: US English (sidewalk, trash can, cell phone). Natural collocations, not word for word: " +
+      '✗ "very delicious" → ○ "really good"; ✗ "order one teppan noodles" → ○ "order the teppanyaki noodles". ' +
+      "Use articles and plurals correctly. Call each dish or object by one name in every field: its usual English name if it has one, " +
+      'otherwise one romanized name — never "soup dumplings" in one field and "xiaolongbao" in another.',
   },
   {
     code: CHINESE_EXPLANATION_LANGUAGE,
@@ -124,6 +141,11 @@ export const EXPLAIN_LANGUAGES = [
     markerWords: [],
     markerLetters: "",
     writingRule: "",
+    contentStyle:
+      "繁體中文（台灣）: Taiwan wording and full-width punctuation (，。、「」 — no half-width \",\", no spaces around Chinese words). No Japanese forms, words or the 「・」 dot " +
+      "(✗ 日常会話 → ○ 日常會話; ✗ 天然石 → the Taiwan term). In a sentence call the language 中文, not 台灣華語. " +
+      "meaning_ja is never the headword and never contains it — say what it is in other words (✗ 防曬乳 →「防曬乳」→ ○「防曬用的乳液」). " +
+      "Never define a related word with itself. A measure_words note says when that measure word is used, never just the word (✗「一個」).",
   },
   {
     code: "es",
@@ -177,7 +199,12 @@ export const EXPLAIN_LANGUAGES = [
       "alguien",
     ],
     markerLetters: "ñ¿¡",
-    writingRule: "Use neutral international Spanish and address the learner as tú.",
+    writingRule: "Use neutral Spanish leaning Latin American, and address the learner as tú.",
+    contentStyle:
+      "Spanish: full sentences with their articles and prepositions (not telegraphic). Say it as a native speaker would, not a calque: " +
+      "✗ «bueno para el cuerpo» → ○ «bueno para la salud»; ✗ «cambiarse a pantuflas» → ○ «ponerse las pantuflas»; " +
+      "小聲一點 → ○ «habla más bajo» (not «despacio»). Never drop a Chinese phrase into the Spanish sentence (✗ «quitarse los zapatos y 換拖鞋»). " +
+      "One word per object in every field (not chancletas here and chanclas there). No exaggeration (✗ «obligatorio», «inseparable», «sumamente»).",
   },
   {
     code: "ko",
@@ -189,6 +216,10 @@ export const EXPLAIN_LANGUAGES = [
     markerWords: [],
     markerLetters: "",
     writingRule: "Write Korean in Hangul only — no Hanja, no Japanese — in the polite 해요체.",
+    contentStyle:
+      "Korean: every note and explanation in 해요체 (never mixed with ~다); glosses and scene labels are short phrases. " +
+      "Call the thing by its Korean name instead of attaching particles straight to Chinese characters (✗ 珍珠奶茶를 → ○ 버블티를); " +
+      "quote a Chinese word only when explaining it (‘戴’는 …). Korean word order, not the Chinese one.",
   },
   {
     code: "vi",
@@ -229,6 +260,10 @@ export const EXPLAIN_LANGUAGES = [
     ],
     markerLetters: "ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịĩọỏốồổỗộớờởỡợũụủứừửữựỳỵỷỹ",
     writingRule: "Write Vietnamese with full diacritics.",
+    contentStyle:
+      "Vietnamese: natural spoken register, address the learner as bạn. Do not render 請 as «làm ơn» by default — in a polite request " +
+      "Vietnamese usually drops it or says «cho mình…», «mời…», «…nhé». Translate the meaning, not word by word " +
+      "(難得 → «khó lắm mới có dịp…», not «Hiếm khi»).",
   },
 ] as const satisfies readonly ExplainLanguageInfo[];
 
