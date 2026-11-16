@@ -33,13 +33,22 @@
 | 意味 | Meaning | 意思 | Significado | 뜻 | Nghĩa |
 | 量詞 | Measure words | 量詞 | Clasificadores | 양사 | Lượng từ |
 | 図鑑 | Collection | 圖鑑 | Colección | 도감 | Bộ sưu tập |
-| 切り抜き / 切り抜く | cut-out / cut out | 去背圖 / 去背 | recorte / recortar | 컷아웃 / 오려내다 | ảnh tách nền / tách nền |
+| 切り抜き / 切り抜く | cut-out / cut out | 去背圖 / 去背 | recorte / recortar | 오려낸 이미지 / 오려내다 | ảnh tách nền / tách nền |
 | ステッカー | sticker | 貼紙 | sticker | 스티커 | nhãn dán |
 | 復習 | review | 複習 | repaso | 복습 | ôn tập |
-| 忘却曲線 | forgetting curve | 遺忘曲線 | curva del olvido | 망각 곡선 | đường cong lãng quên |
+| 忘却曲線・記憶の曲線 | forgetting curve | 遺忘曲線 | curva del olvido | 망각 곡선 | đường cong lãng quên |
 | キャッチ（撮って集める） | catch | 捕捉 | atrapar | 캐치 | bắt |
 | 表示言語 | app language | 顯示語言 | idioma de la app | 앱 언어 | ngôn ngữ ứng dụng |
 | 目標レベル | target level | 目標等級 | nivel objetivo | 목표 레벨 | trình độ mục tiêu |
 | 囲んで切り抜き直す | Circle to cut out | 圈選重新去背 | Rodear para recortar de nuevo | 둘러서 다시 오려내기 | Khoanh để tách nền lại |
 | 元の写真のまま | Use original photo | 使用原始照片 | Usar la foto original | 원본 사진 그대로 | Dùng ảnh gốc |
 | ログイン / 新規登録 | Sign in / Sign up | 登入 / 註冊 | Iniciar sesión / Registrarse | 로그인 / 회원가입 | Đăng nhập / Đăng ký |
+
+## 2026-11-16 に決めた訳（オーナー「それぞれの最も自然な言い方を選んで」）
+- ko の「切り抜き」は 오려낸 이미지。외래어 컷아웃 は使わない。
+- en の「記憶の曲線」は Forgetting curve。忘却曲線と同じ呼び方にした。
+- es は中立のスペイン語で、中南米寄りにする。Mantén presionado（pulsado は使わない）。保存先は Fotos（carrete は使わない）。
+- 変えないもの：
+  - es・vi の図鑑：Colección / Bộ sưu tập
+  - vi のステッカー：nhãn dán（iOS の言い方）
+  - zh-TW のチャンク：搭配

@@ -339,7 +339,7 @@
   "en": "The same cut-outs as iPhone Photos make your collection beautiful",
   "zh-TW": "和 iPhone 照片相同的去背，讓圖鑑更漂亮",
   "es": "Recortes como los de Fotos del iPhone para una colección más bonita",
-  "ko": "iPhone 사진 앱과 같은 컷아웃으로 도감이 더 아름다워져요",
+  "ko": "iPhone 사진 앱처럼 깔끔하게 오려내서 도감이 더 예뻐져요",
   "vi": "Ảnh tách nền giống ứng dụng Ảnh trên iPhone giúp bộ sưu tập thêm đẹp"
  },
  "{1}%おトク": {
@@ -1374,7 +1374,7 @@
  "カメラロールに保存": {
   "en": "Save to Photos",
   "zh-TW": "儲存到照片 App",
-  "es": "Guardar en el carrete",
+  "es": "Guardar en Fotos",
   "ko": "카메라 롤에 저장",
   "vi": "Lưu vào thư viện ảnh"
  },
@@ -2418,28 +2418,28 @@
   "en": "Cut-out",
   "zh-TW": "去背圖",
   "es": "Recorte",
-  "ko": "컷아웃",
+  "ko": "오려낸 이미지",
   "vi": "Ảnh tách nền"
  },
  "切り抜きの保存に失敗しました。": {
   "en": "Couldn't save the cut-out.",
   "zh-TW": "去背圖儲存失敗。",
   "es": "No se pudo guardar el recorte.",
-  "ko": "컷아웃을 저장하지 못했어요.",
+  "ko": "오려낸 이미지를 저장하지 못했어요.",
   "vi": "Không thể lưu ảnh tách nền."
  },
  "切り抜きを見る": {
   "en": "See the cut-out",
   "zh-TW": "查看去背圖",
   "es": "Ver el recorte",
-  "ko": "컷아웃 보기",
+  "ko": "오려낸 이미지 보기",
   "vi": "Xem ảnh tách nền"
  },
  "切り抜きモード": {
   "en": "Cut-out mode",
   "zh-TW": "去背模式",
   "es": "Modo recorte",
-  "ko": "컷아웃 모드",
+  "ko": "오려내기 모드",
   "vi": "Chế độ tách nền"
  },
  "切替": {
@@ -4406,7 +4406,7 @@
   "en": "Unlimited subject cut-outs",
   "zh-TW": "主體去背也不限次數",
   "es": "Recortes del sujeto ilimitados",
-  "ko": "피사체 컷아웃도 무제한",
+  "ko": "피사체 오려내기도 무제한",
   "vi": "Tách nền chủ thể không giới hạn"
  },
  "被写体を切り抜く": {
@@ -4571,7 +4571,7 @@
   "vi": "Phân bố ghi nhớ"
  },
  "記憶の曲線": {
-  "en": "Memory curve",
+  "en": "Forgetting curve",
   "zh-TW": "記憶曲線",
   "es": "Curva de memoria",
   "ko": "기억 곡선",
@@ -7283,7 +7283,7 @@
   "en": "Photos without a cut-out",
   "zh-TW": "沒有去背的照片",
   "es": "Fotos sin recorte",
-  "ko": "컷아웃 없는 사진",
+  "ko": "오려내지 않은 사진",
   "vi": "Ảnh chưa tách nền"
  },
  "今日の復習（読み込み済み）": {
@@ -8941,7 +8941,7 @@
  "長押しはこの 0.7 倍": {
   "en": "Long-press plays at 0.7× this speed",
   "zh-TW": "長按會以這個速度的 0.7 倍播放",
-  "es": "Mantén pulsado para oírlo a 0,7×",
+  "es": "Mantén presionado para oírlo a 0,7×",
   "ko": "길게 누르면 이 속도의 0.7배로 재생",
   "vi": "Nhấn giữ để phát ở 0,7× tốc độ này"
  },
@@ -9866,14 +9866,14 @@
   "en": "Use this cut-out",
   "zh-TW": "使用這張去背圖",
   "es": "Usar este recorte",
-  "ko": "이 컷아웃 사용",
+  "ko": "이 이미지로 할게요",
   "vi": "Dùng ảnh tách nền này"
  },
  "切り抜きを直しました": {
   "en": "Cut-out updated",
   "zh-TW": "已更新去背圖",
   "es": "Recorte actualizado",
-  "ko": "컷아웃을 바꿨어요",
+  "ko": "오려낸 이미지를 바꿨어요",
   "vi": "Đã cập nhật ảnh tách nền"
  },
  "もう少し大きく囲んでください": {
@@ -10166,7 +10166,7 @@
  "長押しで「数えない」の印を付け外しできます（あなたの試験用の別アカウントなど）。匿名・管理者・試験用のメールは自動で外します。": {
   "en": "Long-press to leave someone out or count them again (e.g. your own test account). Anonymous, admin and test-email accounts are left out automatically.",
   "zh-TW": "長按可加上或取消「不計入」（例如你自己的測試帳號）。匿名、管理者與測試用電子郵件會自動排除。",
-  "es": "Mantén pulsado para excluir o volver a contar a alguien (p. ej., tu cuenta de prueba). Las cuentas anónimas, de administrador y de correo de prueba se excluyen solas.",
+  "es": "Mantén presionado para excluir o volver a contar a alguien (p. ej., tu cuenta de prueba). Las cuentas anónimas, de administrador y de correo de prueba se excluyen solas.",
   "ko": "길게 눌러 '집계 제외'를 켜고 끌 수 있습니다(내 테스트용 계정 등). 익명, 관리자, 테스트용 이메일은 자동으로 제외합니다.",
   "vi": "Nhấn giữ để loại ra hoặc tính lại một người (ví dụ tài khoản thử của bạn). Tài khoản ẩn danh, quản trị và email thử được tự động loại ra."
  },
