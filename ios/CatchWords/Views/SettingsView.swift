@@ -133,8 +133,8 @@ struct SettingsView: View {
                 avatarItem = nil
             }
         }
-        .confirmationDialog(L("サインアウトしますか？"), isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button(L("サインアウト"), role: .destructive) { auth.signOut() }
+        .confirmationDialog(L("ログアウトしますか？"), isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button(L("ログアウト"), role: .destructive) { auth.signOut() }
                 .accessibilityIdentifier("settings.signOut.confirm")
             // Without it the system adds its own "Cancel" in the iPhone's language, not the app's.
             Button(L("キャンセル"), role: .cancel) {}
@@ -229,7 +229,7 @@ struct SettingsView: View {
                 ChoicePills(options: [("object", L("元の写真")), ("cutout", L("切り抜き")), ("selfie", L("自撮り"))],
                             selection: saving(Binding(get: { photoPref == "auto" ? "cutout" : photoPref }, set: { photoPref = $0 })))
                     .accessibilityIdentifier("settings.homePhoto")
-                label(L("1日の復習枚数")).padding(.top, 6)
+                label(L("1日の復習数")).padding(.top, 6)
                 ChoicePills(
                     options: [("10", "10"), ("20", "20"), ("30", "30"), ("50", "50"), ("0", L("無制限"))],
                     selection: Binding(
@@ -275,9 +275,9 @@ struct SettingsView: View {
     private var appearanceSection: some View {
         SettingsCard(title: L("外観")) {
             VStack(alignment: .leading, spacing: 10) {
-                label(L("画面の明るさ"))
+                label(L("外観モード"))
                 ChoicePills(
-                    options: [("light", L("ライト")), ("dark", L("ダーク")), ("system", L("システム"))],
+                    options: [("light", L("ライト")), ("dark", L("ダーク")), ("system", L("自動"))],
                     selection: Binding(get: { themePref }, set: { v in
                         withAnimation(.easeInOut(duration: 0.35)) { themePref = v }
                         SaveStatus.shared.saved()
@@ -296,7 +296,7 @@ struct SettingsView: View {
     }
 
     private var feelSection: some View {
-        SettingsCard(title: L("音と手ざわり")) {
+        SettingsCard(title: L("サウンドと触覚")) {
             VStack(alignment: .leading, spacing: 10) {
                 label(L("効果音"))
                 // Its own preview (the land bounce) is its sound: no choice tick on top of it.
@@ -444,7 +444,7 @@ struct SettingsView: View {
     private var accountButtons: some View {
         VStack(spacing: 20) {
             Button { confirmSignOut = true } label: {
-                Label(L("サインアウト"), systemImage: "rectangle.portrait.and.arrow.right")
+                Label(L("ログアウト"), systemImage: "rectangle.portrait.and.arrow.right")
                     .scaledFont(size: 17, weight: .semibold).foregroundStyle(Theme.foreground)
                     .frame(maxWidth: .infinity, minHeight: 54)
                     .background(Theme.card, in: Capsule())

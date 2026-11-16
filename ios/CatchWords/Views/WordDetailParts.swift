@@ -687,7 +687,7 @@ struct SwapCoachMark: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(L("点線の枠の語は、押すとほかの語に入れ替えられます"))
+            Text(L("点線の語は、押すと別の語に替えられます"))
                 .scaledFont(size: 13, weight: .semibold)
                 .foregroundStyle(Theme.card)
                 .fixedSize(horizontal: false, vertical: true)

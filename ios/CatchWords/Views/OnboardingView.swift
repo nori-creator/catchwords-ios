@@ -191,7 +191,7 @@ struct OnboardingView: View {
     private var questionHint: String {
         [L("メニューや説明に使う言語です。"), L("街で出会ったことばを、この言語で学びます。"), L("あなたのペースで。あとから変更できます。"),
          L("いくつでも選べます。例文の場面をあなたに合わせます。"),
-         L("いまのレベルと目標に、例文やチャンクの難しさを合わせます。あとから設定で変更できます。")][step]
+         L("今のレベルと目標に合わせて、例文や使い方の難しさを決めます。あとから設定で変更できます。")][step]
     }
 
     /// The rows of the question, coming in one after another once `shown`.
@@ -665,8 +665,8 @@ enum LevelWheelField: Identifiable {
 
     var title: String {
         switch self {
-        case .now: L("いまのレベル")
-        case .goal: L("目標のレベル")
+        case .now: L("今のレベル")
+        case .goal: L("目標レベル")
         }
     }
 
@@ -825,7 +825,7 @@ private struct LevelSheet: View {
                                 .background(Theme.secondary, in: Capsule())
                         }
                     }
-                    Text(level.map(TOCFLLevel.describe) ?? L("TOCFLを受けたことがない、よく知らない"))
+                    Text(level.map(TOCFLLevel.describe) ?? L("未受験・よく分からない"))
                         .scaledFont(size: 13).foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }

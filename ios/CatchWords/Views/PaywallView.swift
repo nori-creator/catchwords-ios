@@ -60,7 +60,7 @@ struct PaywallView: View {
                             .scaledFont(size: 26, weight: .bold)
                             .foregroundStyle(Theme.foreground)
                             .multilineTextAlignment(.center)
-                        Text(PlanStore.catchLimitEnabled && plan.remainingToday == 0 ? L("今日の無料キャッチ（3回）を使い切りました。") : L("Proなら、見つけた瞬間に何度でも。"))
+                        Text(PlanStore.catchLimitEnabled && plan.remainingToday == 0 ? L("今日の無料キャッチ（3回）を使い切りました。") : L("Proなら、見つけたらその場で何度でもキャッチ。"))
                             .scaledFont(size: 17)
                             .foregroundStyle(Theme.muted)
                             .multilineTextAlignment(.center)

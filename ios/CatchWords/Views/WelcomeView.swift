@@ -358,7 +358,7 @@ struct WelcomeView: View {
                 .disabled(trimmedEmail.isEmpty || password.isEmpty)
                 .accessibilityIdentifier("auth.submit")
             if !isSignUp {
-                Button(L("パスワードを忘れた")) {
+                Button(L("パスワードをお忘れの方")) {
                     Task { await auth.resetPassword(email: trimmedEmail) }
                 }
                 .buttonStyle(PressableStyle(scale: 0.97))

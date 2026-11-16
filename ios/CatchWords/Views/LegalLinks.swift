@@ -11,7 +11,7 @@ enum LegalLinks {
 
     /// Sign-in: 「続けることで、利用規約とプライバシーポリシーに同意したものとみなされます。」
     static func signInAgreement() -> AttributedString {
-        linked(L("続けることで、\(slot1)と\(slot2)に同意したものとみなされます。"), [
+        linked(L("続けると、\(slot1)と\(slot2)に同意したことになります。"), [
             (L("利用規約"), AppConfig.termsURL),
             (L("プライバシーポリシー"), AppConfig.privacyURL),
         ])

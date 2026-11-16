@@ -255,7 +255,7 @@ struct CatchChooseOverlay: View {
             .opacity(cardIn)
             .offset(y: CGFloat(1 - cardIn) * 40 * k)
 
-            Text(L("選ぶと、そのことばで図鑑に入ります"))
+            Text(L("選ぶと、その言い方で図鑑に入ります"))
                 .font(.system(size: 30 * k, weight: .medium))
                 .foregroundStyle(muted)
                 .frame(maxWidth: .infinity)
@@ -375,7 +375,7 @@ struct CatchChooseOverlay: View {
     /// way as under the photo (owner 2026-10-15).
     private var typeField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L("違う単語を入力"))
+            Text(L("リストにない言葉を探す"))
                 .scaledFont(size: 12, weight: .medium)
                 .foregroundStyle(muted)
             HStack(spacing: 8) {

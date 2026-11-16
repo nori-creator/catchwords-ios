@@ -55,13 +55,6 @@
   "ko": "하루 학습 시간",
   "vi": "Thời gian học mỗi ngày"
  },
- "1日の復習枚数": {
-  "en": "Cards per day",
-  "zh-TW": "每天複習的張數",
-  "es": "Tarjetas por día",
-  "ko": "하루 복습 카드 수",
-  "vi": "Số thẻ ôn tập mỗi ngày"
- },
  "3D プレビュー": {
   "en": "3D preview",
   "zh-TW": "3D 預覽",
@@ -237,13 +230,6 @@
   "ko": "Pro 이용 중이에요",
   "vi": "Bạn đang dùng Pro"
  },
- "Proなら、見つけた瞬間に何度でも。": {
-  "en": "With Pro, catch as many words as you find.",
-  "zh-TW": "有了 Pro，一看到就能拍，次數不限。",
-  "es": "Con Pro, atrapa palabras cada vez que encuentres algo.",
-  "ko": "Pro라면 발견한 순간 몇 번이든 캐치할 수 있어요.",
-  "vi": "Với Pro, gặp gì bắt nấy, không giới hạn."
- },
  "Proにアップグレード": {
   "en": "Upgrade to Pro",
   "zh-TW": "升級為 Pro",
@@ -272,13 +258,6 @@
   "ko": "Reddit에서 보기",
   "vi": "Xem trên Reddit"
  },
- "Threads で見る": {
-  "en": "See it on Threads",
-  "zh-TW": "在 Threads 看",
-  "es": "Ver en Threads",
-  "ko": "Threads에서 보기",
-  "vi": "Xem trên Threads"
- },
  "Weblio辞書": {
   "en": "Weblio Dictionary",
   "zh-TW": "Weblio 辭典",
@@ -306,13 +285,6 @@
   "es": "Ver en Yahoo! Chiebukuro",
   "ko": "Yahoo! Chiebukuro에서 보기",
   "vi": "Xem trên Yahoo! Chiebukuro"
- },
- "YouGlishで発音例": {
-  "en": "Hear it on YouGlish",
-  "zh-TW": "YouGlish 發音範例",
-  "es": "Escuchar en YouGlish",
-  "ko": "YouGlish에서 발음 예시 듣기",
-  "vi": "Ví dụ phát âm trên YouGlish"
  },
  "YouTubeで聞く": {
   "en": "Hear it on YouTube",
@@ -755,13 +727,6 @@
   "ko": "돈",
   "vi": "Tiền"
  },
- "きょうの復習": {
-  "en": "Today's review",
-  "zh-TW": "今天的複習",
-  "es": "Repaso de hoy",
-  "ko": "오늘의 복습",
-  "vi": "Ôn tập hôm nay"
- },
  "ここで覚えた単語": {
   "en": "A word you learned here",
   "zh-TW": "在這裡學到的單字",
@@ -943,20 +908,6 @@
   "es": "Usar esta imagen",
   "ko": "이 이미지 사용",
   "vi": "Dùng hình này"
- },
- "この言葉、{1}に{2}でゲットしています。": {
-  "en": "You caught this word on {1} in {2}.",
-  "zh-TW": "這個單字，你{1}在{2}收集過。",
-  "es": "Atrapaste esta palabra el {1} en {2}.",
-  "ko": "{1}에 {2}에서 처음 캐치한 단어예요.",
-  "vi": "Bạn đã bắt được từ này vào {1} tại {2}."
- },
- "この言葉、{1}にゲットしています。": {
-  "en": "You caught this word on {1}.",
-  "zh-TW": "這個單字你在{1}收集過。",
-  "es": "Atrapaste esta palabra el {1}.",
-  "ko": "{1}에 처음 캐치한 단어예요.",
-  "vi": "Bạn đã bắt được từ này vào {1}."
  },
  "この言葉に出会った記録": {
   "en": "Times you met this word",
@@ -1167,13 +1118,6 @@
   "es": "Aún no has elegido. Te preguntaremos antes de usar una función de IA.",
   "ko": "아직 선택하지 않았어요. AI 기능을 사용하기 전에 확인할게요.",
   "vi": "Chưa chọn. Bạn sẽ được hỏi trước khi dùng tính năng AI."
- },
- "まちがえた{1}語をもう一度": {
-  "en": "Retry the {1} words you missed",
-  "zh-TW": "再練習答錯的 {1} 個單字",
-  "es": "Repetir las que fallaste ({1})",
-  "ko": "틀린 단어 {1}개 다시 풀기",
-  "vi": "Làm lại {1} từ bạn trả lời sai"
  },
  "もう一度": {
   "en": "Try again",
@@ -1462,20 +1406,6 @@
   "ko": "코토뱅크",
   "vi": "Kotobank"
  },
- "サインアウト": {
-  "en": "Sign out",
-  "zh-TW": "登出",
-  "es": "Cerrar sesión",
-  "ko": "로그아웃",
-  "vi": "Đăng xuất"
- },
- "サインアウトしますか？": {
-  "en": "Sign out?",
-  "zh-TW": "要登出嗎？",
-  "es": "¿Cerrar sesión?",
-  "ko": "로그아웃할까요?",
-  "vi": "Đăng xuất?"
- },
  "サブスクリプションは期間終了の24時間前までに解約しない限り自動更新されます。解約はApp Storeのアカウント設定からいつでも行えます。": {
   "en": "Subscriptions renew automatically unless canceled at least 24 hours before the end of the period. You can cancel anytime in your App Store account settings.",
   "zh-TW": "除非在期間結束前 24 小時取消，訂閱會自動續訂。可以隨時在 App Store 帳號設定中取消。",
@@ -1517,13 +1447,6 @@
   "es": "Error del servidor ({1})",
   "ko": "서버 오류 ({1})",
   "vi": "Lỗi máy chủ ({1})"
- },
- "システム": {
-  "en": "System",
-  "zh-TW": "跟隨系統",
-  "es": "Sistema",
-  "ko": "시스템",
-  "vi": "Hệ thống"
  },
  "ジュエリー": {
   "en": "Jewelry",
@@ -1664,13 +1587,6 @@
   "es": "La contraseña debe tener al menos 6 caracteres.",
   "ko": "비밀번호는 6자 이상으로 설정해 주세요.",
   "vi": "Mật khẩu phải có ít nhất 6 ký tự."
- },
- "パスワードを忘れた": {
-  "en": "Forgot password",
-  "zh-TW": "忘記密碼",
-  "es": "Olvidé mi contraseña",
-  "ko": "비밀번호 찾기",
-  "vi": "Quên mật khẩu"
  },
  "パスワード設定用のメールを送りました。": {
   "en": "We sent you an email to set your password.",
@@ -2322,13 +2238,6 @@
   "es": "Ver detalles",
   "ko": "내용 보기",
   "vi": "Xem nội dung"
- },
- "再会{1}回目": {
-  "en": "Reunion #{1}",
-  "zh-TW": "第 {1} 次重逢",
-  "es": "Reencuentro n.º {1}",
-  "ko": "{1}번째 재회",
-  "vi": "Gặp lại lần thứ {1}"
  },
  "再会！": {
   "en": "Reunion!",
@@ -3387,13 +3296,6 @@
   "ko": "교과서나 직접 만든 목록을 촬영하면 거기 나열된 단어를 한꺼번에 가져와서 도감과 따로 복습할 수 있어요.",
   "vi": "Chụp một trang sách giáo khoa hoặc danh sách tự làm để nhập tất cả các từ cùng lúc và ôn tập riêng với bộ sưu tập."
  },
- "教育部國語辭典簡編本": {
-  "en": "MOE Dictionary",
-  "zh-TW": "教育部國語辭典簡編本",
-  "es": "Diccionario oficial de Taiwán",
-  "ko": "교육부 국어사전 간편본 (대만)",
-  "vi": "Từ điển Bộ Giáo dục Đài Loan"
- },
  "数えられない（不可算）": {
   "en": "Uncountable",
   "zh-TW": "不可數",
@@ -3989,13 +3891,6 @@
   "ko": "이미지를 읽지 못했어요.",
   "vi": "Không đọc được hình ảnh."
  },
- "画面の明るさ": {
-  "en": "Light / dark",
-  "zh-TW": "畫面明暗",
-  "es": "Claro / oscuro",
-  "ko": "화면 모드",
-  "vi": "Sáng / tối"
- },
  "発音のコツ": {
   "en": "Pronunciation tips",
   "zh-TW": "發音訣竅",
@@ -4163,13 +4058,6 @@
   "es": "Continuar",
   "ko": "계속하기",
   "vi": "Tiếp tục"
- },
- "続けることで、{1}と{2}に同意したものとみなされます。": {
-  "en": "By continuing, you agree to the {1} and the {2}.",
-  "zh-TW": "繼續即表示你同意{1}與{2}。",
-  "es": "Al continuar, aceptas {1} y {2}.",
-  "ko": "계속하면 {1} 및 {2}에 동의한 것으로 간주돼요.",
-  "vi": "Khi tiếp tục, bạn đồng ý với {1} và {2}."
  },
  "練習なので、記憶の記録は変わりません。": {
   "en": "This is practice — your memory record won't change.",
@@ -4864,13 +4752,6 @@
   "ko": "도구",
   "vi": "Dụng cụ"
  },
- "違う単語を入力": {
-  "en": "Type a different word",
-  "zh-TW": "輸入別的單字",
-  "es": "Escribir otra palabra",
-  "ko": "다른 단어 입력",
-  "vi": "Nhập từ khác"
- },
  "違う語が混ざっていたら、右の×で外してください。外した語は入りません。": {
   "en": "Drop anything that came out wrong with the × — dropped words are not saved.",
   "zh-TW": "有認錯的字，就用右邊的 × 移除。移除的字不會存進來。",
@@ -4989,13 +4870,6 @@
   "es": "Zapatos, bolsos y accesorios",
   "ko": "신발·가방·소품",
   "vi": "Giày, túi và phụ kiện"
- },
- "音と手ざわり": {
-  "en": "Sound & haptics",
-  "zh-TW": "聲音與觸覺回饋",
-  "es": "Sonido y vibración",
-  "ko": "사운드 및 햅틱",
-  "vi": "Âm thanh và rung"
  },
  "音読み": {
   "en": "on reading",
@@ -7321,13 +7195,6 @@
   "ko": "이 기기의 데이터",
   "vi": "Dữ liệu trên thiết bị này"
  },
- "画像・発音・図鑑の控えは、すぐ表示するために端末に保存しています。サインアウトすると消えます。": {
-  "en": "Pictures, voices and a copy of your collection are kept on this device so they show up instantly. Signing out removes them.",
-  "zh-TW": "圖片、發音與圖鑑的備份存在裝置上，以便立即顯示。登出後會刪除。",
-  "es": "Las imágenes, las pronunciaciones y la copia de la colección se guardan en este dispositivo para mostrarse al instante. Se borran al cerrar sesión.",
-  "ko": "이미지, 발음, 도감 사본은 바로 표시하기 위해 기기에 저장해요. 로그아웃하면 삭제돼요.",
-  "vi": "Hình ảnh, phát âm và bản sao bộ sưu tập được lưu trên thiết bị để hiển thị ngay. Chúng sẽ bị xóa khi bạn đăng xuất."
- },
  "確かめられませんでした": {
   "en": "Couldn't check",
   "zh-TW": "無法確認",
@@ -7391,13 +7258,6 @@
   "ko": "기록하지 못했어요\n{1}",
   "vi": "Không ghi lại được\n{1}"
  },
- "撮った写真、写真アプリから選んだ画像、「違う単語を入力」で入力した単語と撮った場所の市・区、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前、番地までの住所は送りません。": {
-  "en": "Photos you take, images you pick from the Photos app, words you type with “Type a different word” together with the city and district where you took the photo, notes you write when reporting a mistake, and settings such as your learning language and level. Your email address, name and street address are not sent.",
-  "zh-TW": "你拍的照片、從照片 App 選的圖片、用「輸入別的單字」輸入的單字和拍照地點的縣市與區、回報錯誤時寫的備註，以及學習語言、程度等設定。不會傳送電子郵件地址、名字和詳細地址（路名與門牌）。",
-  "es": "Las fotos que tomas, las imágenes que eliges en la app Fotos, las palabras que escribes con “Escribir otra palabra” junto con la ciudad y el distrito donde tomaste la foto, las notas que escribes al reportar un error y ajustes como el idioma que aprendes y tu nivel. No se envían tu correo electrónico, tu nombre ni tu dirección exacta.",
-  "ko": "촬영한 사진, 사진 앱에서 고른 이미지, ‘다른 단어 입력’으로 입력한 단어와 사진을 찍은 곳의 시·구, 오류를 신고할 때 쓴 메모, 학습 언어와 레벨 등의 설정. 이메일 주소, 이름, 번지까지의 주소는 보내지 않아요.",
-  "vi": "Ảnh bạn chụp, hình ảnh bạn chọn từ ứng dụng Ảnh, từ bạn nhập bằng “Nhập từ khác” cùng với thành phố và quận nơi bạn chụp ảnh, ghi chú bạn viết khi báo lỗi, và các cài đặt như ngôn ngữ đang học và trình độ. Địa chỉ email, tên và địa chỉ chi tiết (tên đường, số nhà) của bạn sẽ không được gửi."
- },
  "写っている物や入力した単語の判定、単語の解説と例文の作成、報告された誤りの修正のためだけに使います。当社が写真や入力した文章を AI の学習に使うことはありません。": {
   "en": "Only to recognize what is in a photo or the word you typed, to write word explanations and example sentences, and to fix mistakes you report. We never use your photos or the text you enter to train AI.",
   "zh-TW": "只用於辨識照片中的物品或輸入的單字、製作單字的解說與例句，以及修正回報的錯誤。我們不會把你的照片或輸入的文字用於訓練 AI。",
@@ -7405,33 +7265,12 @@
   "ko": "사진에 찍힌 물건이나 입력한 단어를 판별하고, 단어 해설과 예문을 만들고, 신고된 오류를 고치는 데에만 사용해요. 저희는 사진이나 입력한 글을 AI 학습에 사용하지 않아요.",
   "vi": "Chỉ dùng để nhận diện vật trong ảnh hoặc từ bạn nhập, soạn giải thích từ và câu ví dụ, và sửa lỗi bạn báo. Chúng tôi không bao giờ dùng ảnh hay văn bản bạn nhập để huấn luyện AI."
  },
- "カメラ、写真アプリの画像、「違う単語を入力」、単語の解説と例文の作成など、AI を使う機能は使えません（何も送りません）。集めた単語を見ることや復習は、そのまま使えます。あとから「設定」で同意することも、取り消すこともできます。": {
-  "en": "Features that use AI — the camera, images from the Photos app, “Type a different word”, and writing word explanations and example sentences — are unavailable (nothing is sent). You can still view your words and review them. You can agree, or withdraw your consent, later in Settings.",
-  "zh-TW": "相機、照片 App 的圖片、「輸入別的單字」、製作單字的解說與例句等使用 AI 的功能將無法使用（不會傳送任何資料）。瀏覽收集的單字與複習仍可照常使用。之後也可以在「設定」中同意或撤回同意。",
-  "es": "Las funciones que usan IA, como la cámara, las imágenes de la app Fotos, “Escribir otra palabra” y la creación de explicaciones de palabras y oraciones de ejemplo, no estarán disponibles (no se envía nada). Podrás seguir viendo y repasando las palabras que reuniste. Más adelante puedes aceptar o retirar tu consentimiento en “Ajustes”.",
-  "ko": "카메라, 사진 앱 이미지, ‘다른 단어 입력’, 단어 해설과 예문 작성 등 AI를 사용하는 기능은 쓸 수 없어요 (아무것도 보내지 않아요). 모은 단어 보기와 복습은 그대로 쓸 수 있어요. 나중에 ‘설정’에서 동의하거나 동의를 철회할 수도 있어요.",
-  "vi": "Các tính năng dùng AI như camera, hình ảnh từ ứng dụng Ảnh, “Nhập từ khác”, soạn giải thích từ và câu ví dụ sẽ không dùng được (không gửi gì cả). Bạn vẫn xem được các từ đã thu thập và ôn tập như bình thường. Sau này bạn có thể đồng ý hoặc rút lại sự đồng ý trong “Cài đặt”."
- },
  "CatchWords は、写真から単語を見つけたり、単語の解説や例文を作ったりするために、外部のAIサービスを使います。使い始める前に、送る内容を確かめて、同意するかを選んでください。": {
   "en": "CatchWords uses third-party AI services to find words in your photos and to write word explanations and example sentences. Before you start, please check what is sent and choose whether you agree.",
   "zh-TW": "CatchWords 會使用外部的 AI 服務，從照片找出單字，並製作單字的解說與例句。開始使用前，請確認傳送的內容，並選擇是否同意。",
   "es": "CatchWords usa servicios de IA externos para encontrar palabras en tus fotos y crear explicaciones de palabras y oraciones de ejemplo. Antes de empezar, revisa qué se envía y elige si aceptas.",
   "ko": "CatchWords는 사진에서 단어를 찾고 단어 해설과 예문을 만들기 위해 외부 AI 서비스를 사용해요. 시작하기 전에 보내는 내용을 확인하고 동의할지 선택해 주세요.",
   "vi": "CatchWords dùng dịch vụ AI bên ngoài để tìm từ trong ảnh của bạn và soạn giải thích từ cùng câu ví dụ. Trước khi bắt đầu, hãy kiểm tra nội dung được gửi đi và chọn có đồng ý hay không."
- },
- "カメラで撮った写真や写真アプリから選んだ画像は、単語を見つけるために外部のAIサービスに送られます。AIへのデータ送信に同意すると、カメラ、写真アプリの画像、「違う単語を入力」、単語の解説と例文の作成が使えます。": {
-  "en": "Photos you take with the camera and images you pick from the Photos app are sent to third-party AI services to find words. Agree to sending data to AI to use the camera, images from the Photos app, “Type a different word”, and word explanations and example sentences.",
-  "zh-TW": "用相機拍的照片和從照片 App 選的圖片，會傳送給外部的 AI 服務來找出單字。同意將資料傳送給 AI 後，即可使用相機、照片 App 的圖片、「輸入別的單字」，以及製作單字的解說與例句。",
-  "es": "Las fotos que tomas con la cámara y las imágenes que eliges en la app Fotos se envían a servicios de IA externos para encontrar palabras. Si aceptas enviar datos a la IA, podrás usar la cámara, las imágenes de la app Fotos, “Escribir otra palabra” y la creación de explicaciones de palabras y oraciones de ejemplo.",
-  "ko": "카메라로 찍은 사진과 사진 앱에서 고른 이미지는 단어를 찾기 위해 외부 AI 서비스로 보내져요. AI 데이터 전송에 동의하면 카메라, 사진 앱 이미지, ‘다른 단어 입력’, 단어 해설과 예문 작성을 사용할 수 있어요.",
-  "vi": "Ảnh bạn chụp bằng camera và hình ảnh bạn chọn từ ứng dụng Ảnh sẽ được gửi đến dịch vụ AI bên ngoài để tìm từ. Khi đồng ý gửi dữ liệu cho AI, bạn có thể dùng camera, hình ảnh từ ứng dụng Ảnh, “Nhập từ khác”, cũng như soạn giải thích từ và câu ví dụ."
- },
- "取り消すと、カメラ、写真アプリの画像、「違う単語を入力」、単語の解説と例文の作成など、AI を使う機能は使えなくなります。集めた単語と復習はそのまま使えます。": {
-  "en": "Features that use AI — the camera, images from the Photos app, “Type a different word”, and writing word explanations and example sentences — will stop working. Your words and reviews stay available.",
-  "zh-TW": "撤回後，相機、照片 App 的圖片、「輸入別的單字」、製作單字的解說與例句等使用 AI 的功能將無法使用。收集的單字與複習仍可照常使用。",
-  "es": "Si lo retiras, las funciones que usan IA, como la cámara, las imágenes de la app Fotos, “Escribir otra palabra” y la creación de explicaciones de palabras y oraciones de ejemplo, dejarán de funcionar. Las palabras que reuniste y los repasos seguirán disponibles.",
-  "ko": "철회하면 카메라, 사진 앱 이미지, ‘다른 단어 입력’, 단어 해설과 예문 작성 등 AI를 사용하는 기능을 쓸 수 없게 돼요. 모은 단어와 복습은 그대로 쓸 수 있어요.",
-  "vi": "Nếu rút lại, các tính năng dùng AI như camera, hình ảnh từ ứng dụng Ảnh, “Nhập từ khác”, soạn giải thích từ và câu ví dụ sẽ không dùng được nữa. Các từ đã thu thập và phần ôn tập vẫn dùng được như cũ."
  },
  "{1}秒": {
   "en": "{1}s",
@@ -7825,13 +7664,6 @@
   "ko": "사진 속 물건: {1}",
   "vi": "Trong ảnh: {1}"
  },
- "選ぶと、そのことばで図鑑に入ります": {
-  "en": "The one you choose goes into your collection",
-  "zh-TW": "選好的說法會放進圖鑑",
-  "es": "La que elijas se guardará en tu colección",
-  "ko": "선택한 단어로 도감에 추가돼요",
-  "vi": "Từ bạn chọn sẽ được đưa vào bộ sưu tập"
- },
  "{1}の基本5語": {
   "en": "{1} · 5 essentials",
   "zh-TW": "{1}的 5 個基本單字",
@@ -8069,13 +7901,6 @@
   "es": "Los motivos reales de los guardados fallidos y otros problemas. Solo los desarrolladores pueden verlo.",
   "ko": "저장 실패 등의 실제 원인이에요. 개발자만 볼 수 있어요.",
   "vi": "Nguyên nhân thực sự của việc lưu thất bại và các sự cố khác. Chỉ nhà phát triển mới xem được."
- },
- "「{1}」で見つかった言葉": {
-  "en": "Words found for “{1}”",
-  "zh-TW": "搜尋「{1}」找到的單字",
-  "es": "Palabras encontradas para “{1}”",
-  "ko": "‘{1}’ 검색 결과",
-  "vi": "Từ tìm được cho “{1}”"
  },
  "図鑑に保存しました": {
   "en": "Saved to your collection",
@@ -8966,13 +8791,6 @@
   "ko": "해설",
   "vi": "Giải thích"
  },
- "点線の枠の語は、押すとほかの語に入れ替えられます": {
-  "en": "Tap a word in a dotted box to swap it for another.",
-  "zh-TW": "點虛線框裡的詞，就能換成其他詞",
-  "es": "Toca una palabra en un recuadro punteado para cambiarla por otra.",
-  "ko": "점선 상자 안의 단어를 누르면 다른 단어로 바꿀 수 있어요",
-  "vi": "Chạm vào từ trong khung nét đứt để đổi sang từ khác."
- },
  "OK": {
   "en": "OK",
   "zh-TW": "好",
@@ -9092,13 +8910,6 @@
   "ko": "{1}일 동안 꾸준히 해 왔어요",
   "vi": "Bạn đã kiên trì {1} ngày"
  },
- "「{1}」を獲得したのは": {
-  "en": "You caught “{1}”",
-  "zh-TW": "收集到「{1}」的",
-  "es": "Atrapaste “{1}” antes que nadie",
-  "ko": "‘{1}’ 단어를 캐치한 건",
-  "vi": "Bạn đã bắt được “{1}”"
- },
  "これまでに獲得した単語": {
   "en": "Words you've caught so far",
   "zh-TW": "到目前為止獲得的單字",
@@ -9175,13 +8986,6 @@
   "es": "{2} más para tu próxima meta de {1} palabras",
   "ko": "다음 목표 {1}개까지 {2}개 남았어요",
   "vi": "Còn {2} từ nữa là đến mục tiêu {1} từ"
- },
- "毎日の小さな1枚が、ここまで来ました": {
-  "en": "One small photo a day brought you here",
-  "zh-TW": "每天拍一張，一路累積到現在",
-  "es": "Una pequeña foto cada día te trajo hasta aquí",
-  "ko": "하루 한 장이 쌓여 여기까지 왔어요",
-  "vi": "Mỗi ngày một tấm ảnh nhỏ đã đưa bạn đến đây"
  },
  "続けてきたことが、いちばんの力です": {
   "en": "Keeping at it is your greatest strength",
@@ -9288,13 +9092,6 @@
   "ko": "일상의 모든 순간이\n배움이 돼요",
   "vi": "Mọi khoảnh khắc\nđều thành bài học"
  },
- "いまのレベル": {
-  "en": "Your current level",
-  "zh-TW": "目前等級",
-  "es": "Tu nivel actual",
-  "ko": "현재 레벨",
-  "vi": "Trình độ hiện tại"
- },
  "わからない": {
   "en": "Not sure",
   "zh-TW": "不知道",
@@ -9308,13 +9105,6 @@
   "es": "Ir al repaso",
   "ko": "복습으로",
   "vi": "Đi ôn tập"
- },
- "目標のレベル": {
-  "en": "Your target level",
-  "zh-TW": "目標等級",
-  "es": "Tu nivel objetivo",
-  "ko": "목표 레벨",
-  "vi": "Trình độ mục tiêu"
  },
  "答え合わせ": {
   "en": "Check your answer",
@@ -9351,13 +9141,6 @@
   "ko": "샘플",
   "vi": "Mẫu"
  },
- "TOCFLを受けたことがない、よく知らない": {
-  "en": "Haven't taken the TOCFL, or not sure",
-  "zh-TW": "沒考過 TOCFL，或不太清楚",
-  "es": "Nunca hice el TOCFL o no lo conozco bien",
-  "ko": "TOCFL을 본 적이 없거나 잘 몰라요",
-  "vi": "Chưa thi TOCFL hoặc chưa biết rõ"
- },
  "あなたに合った難しさで出すので、ムダなく覚えられます。": {
   "en": "Everything is pitched at your level, so no effort goes to waste.",
   "zh-TW": "依你的程度出題，學得更有效率。",
@@ -9371,13 +9154,6 @@
   "es": "Abre tu primera palabra",
   "ko": "첫 단어를 열어 보세요",
   "vi": "Mở từ đầu tiên của bạn"
- },
- "いまのレベルと目標に、例文やチャンクの難しさを合わせます。あとから設定で変更できます。": {
-  "en": "Examples and patterns are matched to your current and target levels. You can change this later in Settings.",
-  "zh-TW": "例句和搭配的難度會配合你現在的程度和目標。之後可以在設定裡更改。",
-  "es": "Los ejemplos y expresiones se ajustan a tu nivel actual y a tu meta. Puedes cambiarlo después en Ajustes.",
-  "ko": "예문과 표현의 난이도를 현재 레벨과 목표에 맞춰요. 나중에 설정에서 바꿀 수 있어요.",
-  "vi": "Câu ví dụ và cụm từ sẽ được điều chỉnh theo trình độ hiện tại và mục tiêu của bạn. Bạn có thể đổi sau trong Cài đặt."
  },
  "アカウントをお持ちの方は": {
   "en": "Already have an account?",
@@ -12297,5 +12073,208 @@
   "es": "Las {1} palabras que has atrapado hasta hoy, en un solo libro",
   "ko": "지금까지 찍은 단어 {1}개를 한 권에 담았어요",
   "vi": "Gom {1} từ bạn đã chụp đến nay vào một cuốn album"
+ },
+ "撮った写真、写真アプリから選んだ画像、「リストにない言葉を探す」で入力した単語と撮った場所の市・区、誤りを報告するときに書いたメモ、学ぶ言語やレベルなどの設定。メールアドレスや名前、番地までの住所は送りません。": {
+  "en": "Photos you take, images you pick from the Photos app, words you type with “Type a different word” together with the city and district where you took the photo, notes you write when reporting a mistake, and settings such as your learning language and level. Your email address, name and street address are not sent.",
+  "zh-TW": "你拍的照片、從照片 App 選的圖片、用「輸入別的單字」輸入的單字和拍照地點的縣市與區、回報錯誤時寫的備註，以及學習語言、程度等設定。不會傳送電子郵件地址、名字和詳細地址（路名與門牌）。",
+  "es": "Las fotos que tomas, las imágenes que eliges en la app Fotos, las palabras que escribes con “Escribir otra palabra” junto con la ciudad y el distrito donde tomaste la foto, las notas que escribes al reportar un error y ajustes como el idioma que aprendes y tu nivel. No se envían tu correo electrónico, tu nombre ni tu dirección exacta.",
+  "ko": "촬영한 사진, 사진 앱에서 고른 이미지, ‘다른 단어 입력’으로 입력한 단어와 사진을 찍은 곳의 시·구, 오류를 신고할 때 쓴 메모, 학습 언어와 레벨 등의 설정. 이메일 주소, 이름, 번지까지의 주소는 보내지 않아요.",
+  "vi": "Ảnh bạn chụp, hình ảnh bạn chọn từ ứng dụng Ảnh, từ bạn nhập bằng “Nhập từ khác” cùng với thành phố và quận nơi bạn chụp ảnh, ghi chú bạn viết khi báo lỗi, và các cài đặt như ngôn ngữ đang học và trình độ. Địa chỉ email, tên và địa chỉ chi tiết (tên đường, số nhà) của bạn sẽ không được gửi."
+ },
+ "カメラ、写真アプリの画像、「リストにない言葉を探す」、単語の解説と例文の作成など、AI を使う機能は使えません（何も送りません）。集めた単語を見ることや復習は、そのまま使えます。あとから「設定」で同意することも、取り消すこともできます。": {
+  "en": "Features that use AI — the camera, images from the Photos app, “Type a different word”, and writing word explanations and example sentences — are unavailable (nothing is sent). You can still view your words and review them. You can agree, or withdraw your consent, later in Settings.",
+  "zh-TW": "相機、照片 App 的圖片、「輸入別的單字」、製作單字的解說與例句等使用 AI 的功能將無法使用（不會傳送任何資料）。瀏覽收集的單字與複習仍可照常使用。之後也可以在「設定」中同意或撤回同意。",
+  "es": "Las funciones que usan IA, como la cámara, las imágenes de la app Fotos, “Escribir otra palabra” y la creación de explicaciones de palabras y oraciones de ejemplo, no estarán disponibles (no se envía nada). Podrás seguir viendo y repasando las palabras que reuniste. Más adelante puedes aceptar o retirar tu consentimiento en “Ajustes”.",
+  "ko": "카메라, 사진 앱 이미지, ‘다른 단어 입력’, 단어 해설과 예문 작성 등 AI를 사용하는 기능은 쓸 수 없어요 (아무것도 보내지 않아요). 모은 단어 보기와 복습은 그대로 쓸 수 있어요. 나중에 ‘설정’에서 동의하거나 동의를 철회할 수도 있어요.",
+  "vi": "Các tính năng dùng AI như camera, hình ảnh từ ứng dụng Ảnh, “Nhập từ khác”, soạn giải thích từ và câu ví dụ sẽ không dùng được (không gửi gì cả). Bạn vẫn xem được các từ đã thu thập và ôn tập như bình thường. Sau này bạn có thể đồng ý hoặc rút lại sự đồng ý trong “Cài đặt”."
+ },
+ "カメラで撮った写真や写真アプリから選んだ画像は、単語を見つけるために外部のAIサービスに送られます。AIへのデータ送信に同意すると、カメラ、写真アプリの画像、「リストにない言葉を探す」、単語の解説と例文の作成が使えます。": {
+  "en": "Photos you take with the camera and images you pick from the Photos app are sent to third-party AI services to find words. Agree to sending data to AI to use the camera, images from the Photos app, “Type a different word”, and word explanations and example sentences.",
+  "zh-TW": "用相機拍的照片和從照片 App 選的圖片，會傳送給外部的 AI 服務來找出單字。同意將資料傳送給 AI 後，即可使用相機、照片 App 的圖片、「輸入別的單字」，以及製作單字的解說與例句。",
+  "es": "Las fotos que tomas con la cámara y las imágenes que eliges en la app Fotos se envían a servicios de IA externos para encontrar palabras. Si aceptas enviar datos a la IA, podrás usar la cámara, las imágenes de la app Fotos, “Escribir otra palabra” y la creación de explicaciones de palabras y oraciones de ejemplo.",
+  "ko": "카메라로 찍은 사진과 사진 앱에서 고른 이미지는 단어를 찾기 위해 외부 AI 서비스로 보내져요. AI 데이터 전송에 동의하면 카메라, 사진 앱 이미지, ‘다른 단어 입력’, 단어 해설과 예문 작성을 사용할 수 있어요.",
+  "vi": "Ảnh bạn chụp bằng camera và hình ảnh bạn chọn từ ứng dụng Ảnh sẽ được gửi đến dịch vụ AI bên ngoài để tìm từ. Khi đồng ý gửi dữ liệu cho AI, bạn có thể dùng camera, hình ảnh từ ứng dụng Ảnh, “Nhập từ khác”, cũng như soạn giải thích từ và câu ví dụ."
+ },
+ "取り消すと、カメラ、写真アプリの画像、「リストにない言葉を探す」、単語の解説と例文の作成など、AI を使う機能は使えなくなります。集めた単語と復習はそのまま使えます。": {
+  "en": "Features that use AI — the camera, images from the Photos app, “Type a different word”, and writing word explanations and example sentences — will stop working. Your words and reviews stay available.",
+  "zh-TW": "撤回後，相機、照片 App 的圖片、「輸入別的單字」、製作單字的解說與例句等使用 AI 的功能將無法使用。收集的單字與複習仍可照常使用。",
+  "es": "Si lo retiras, las funciones que usan IA, como la cámara, las imágenes de la app Fotos, “Escribir otra palabra” y la creación de explicaciones de palabras y oraciones de ejemplo, dejarán de funcionar. Las palabras que reuniste y los repasos seguirán disponibles.",
+  "ko": "철회하면 카메라, 사진 앱 이미지, ‘다른 단어 입력’, 단어 해설과 예문 작성 등 AI를 사용하는 기능을 쓸 수 없게 돼요. 모은 단어와 복습은 그대로 쓸 수 있어요.",
+  "vi": "Nếu rút lại, các tính năng dùng AI như camera, hình ảnh từ ứng dụng Ảnh, “Nhập từ khác”, soạn giải thích từ và câu ví dụ sẽ không dùng được nữa. Các từ đã thu thập và phần ôn tập vẫn dùng được như cũ."
+ },
+ "選ぶと、その言い方で図鑑に入ります": {
+  "en": "The one you choose goes into your collection",
+  "zh-TW": "選好的說法會放進圖鑑",
+  "es": "La que elijas se guardará en tu colección",
+  "ko": "선택한 단어로 도감에 추가돼요",
+  "vi": "Từ bạn chọn sẽ được đưa vào bộ sưu tập"
+ },
+ "「{1}」の検索結果": {
+  "en": "Words found for “{1}”",
+  "zh-TW": "搜尋「{1}」找到的單字",
+  "es": "Palabras encontradas para “{1}”",
+  "ko": "‘{1}’ 검색 결과",
+  "vi": "Từ tìm được cho “{1}”"
+ },
+ "{1}にキャッチした言葉です。": {
+  "en": "You caught this word on {1}.",
+  "zh-TW": "這個單字你在{1}收集過。",
+  "es": "Atrapaste esta palabra el {1}.",
+  "ko": "{1}에 처음 캐치한 단어예요.",
+  "vi": "Bạn đã bắt được từ này vào {1}."
+ },
+ "{1}に{2}でキャッチした言葉です。": {
+  "en": "You caught this word on {1} in {2}.",
+  "zh-TW": "這個單字，你{1}在{2}收集過。",
+  "es": "Atrapaste esta palabra el {1} en {2}.",
+  "ko": "{1}에 {2}에서 처음 캐치한 단어예요.",
+  "vi": "Bạn đã bắt được từ này vào {1} tại {2}."
+ },
+ "{1}回目の再会": {
+  "en": "Reunion #{1}",
+  "zh-TW": "第 {1} 次重逢",
+  "es": "Reencuentro n.º {1}",
+  "ko": "{1}번째 재회",
+  "vi": "Gặp lại lần thứ {1}"
+ },
+ "「{1}」をキャッチしたのは": {
+  "en": "You caught “{1}”",
+  "zh-TW": "收集到「{1}」的",
+  "es": "Atrapaste “{1}” antes que nadie",
+  "ko": "‘{1}’ 단어를 캐치한 건",
+  "vi": "Bạn đã bắt được “{1}”"
+ },
+ "毎日の1枚が、ここまで積み重なりました": {
+  "en": "One small photo a day brought you here",
+  "zh-TW": "每天拍一張，一路累積到現在",
+  "es": "Una pequeña foto cada día te trajo hasta aquí",
+  "ko": "하루 한 장이 쌓여 여기까지 왔어요",
+  "vi": "Mỗi ngày một tấm ảnh nhỏ đã đưa bạn đến đây"
+ },
+ "点線の語は、押すと別の語に替えられます": {
+  "en": "Tap a word in a dotted box to swap it for another.",
+  "zh-TW": "點虛線框裡的詞，就能換成其他詞",
+  "es": "Toca una palabra en un recuadro punteado para cambiarla por otra.",
+  "ko": "점선 상자 안의 단어를 누르면 다른 단어로 바꿀 수 있어요",
+  "vi": "Chạm vào từ trong khung nét đứt để đổi sang từ khác."
+ },
+ "YouGlishで聞く": {
+  "en": "Hear it on YouGlish",
+  "zh-TW": "YouGlish 發音範例",
+  "es": "Escuchar en YouGlish",
+  "ko": "YouGlish에서 발음 예시 듣기",
+  "vi": "Ví dụ phát âm trên YouGlish"
+ },
+ "教育部の国語辞典": {
+  "en": "MOE Dictionary",
+  "zh-TW": "教育部國語辭典簡編本",
+  "es": "Diccionario oficial de Taiwán",
+  "ko": "교육부 국어사전 간편본 (대만)",
+  "vi": "Từ điển Bộ Giáo dục Đài Loan"
+ },
+ "Threadsで見る": {
+  "en": "See it on Threads",
+  "zh-TW": "在 Threads 看",
+  "es": "Ver en Threads",
+  "ko": "Threads에서 보기",
+  "vi": "Xem trên Threads"
+ },
+ "パスワードをお忘れの方": {
+  "en": "Forgot password",
+  "zh-TW": "忘記密碼",
+  "es": "Olvidé mi contraseña",
+  "ko": "비밀번호 찾기",
+  "vi": "Quên mật khẩu"
+ },
+ "Web版（catchwords.lovable.app）と同じアカウントで、集めた単語と写真がそのまま使えます。\nGoogleで登録した方は、ログイン画面の「パスワードをお忘れの方」から同じアカウントにパスワードを設定できます。": {
+  "en": "Use the same account as the web app (catchwords.lovable.app) and your words and photos come with you.\nIf you signed up with Google, set a password for the same account from “Forgot password” on the login screen.",
+  "zh-TW": "使用與網頁版（catchwords.lovable.app）相同的帳號，收集的單字和照片都能直接使用。\n用 Google 註冊的人，可以在登入畫面的「忘記密碼」為同一個帳號設定密碼。",
+  "es": "Con la misma cuenta de la versión web (catchwords.lovable.app), puedes seguir usando las palabras y fotos que reuniste.\nSi te registraste con Google, puedes crear una contraseña para esa cuenta desde “Olvidé mi contraseña” en la pantalla de inicio de sesión.",
+  "ko": "웹 버전 (catchwords.lovable.app)과 같은 계정을 쓰면 모은 단어와 사진을 그대로 사용할 수 있어요.\nGoogle로 가입했다면 로그인 화면의 ‘비밀번호 찾기’에서 같은 계정에 비밀번호를 설정할 수 있어요.",
+  "vi": "Dùng cùng tài khoản với bản web (catchwords.lovable.app), bạn có thể dùng ngay các từ và ảnh đã thu thập.\nNếu đã đăng ký bằng Google, bạn có thể đặt mật khẩu cho cùng tài khoản đó từ “Quên mật khẩu” trên màn hình đăng nhập."
+ },
+ "ログアウト": {
+  "en": "Sign out",
+  "zh-TW": "登出",
+  "es": "Cerrar sesión",
+  "ko": "로그아웃",
+  "vi": "Đăng xuất"
+ },
+ "ログアウトしますか？": {
+  "en": "Sign out?",
+  "zh-TW": "要登出嗎？",
+  "es": "¿Cerrar sesión?",
+  "ko": "로그아웃할까요?",
+  "vi": "Đăng xuất?"
+ },
+ "画像・発音・図鑑の控えは、すぐ表示するために端末に保存しています。ログアウトすると消えます。": {
+  "en": "Pictures, voices and a copy of your collection are kept on this device so they show up instantly. Signing out removes them.",
+  "zh-TW": "圖片、發音與圖鑑的備份存在裝置上，以便立即顯示。登出後會刪除。",
+  "es": "Las imágenes, las pronunciaciones y la copia de la colección se guardan en este dispositivo para mostrarse al instante. Se borran al cerrar sesión.",
+  "ko": "이미지, 발음, 도감 사본은 바로 표시하기 위해 기기에 저장해요. 로그아웃하면 삭제돼요.",
+  "vi": "Hình ảnh, phát âm và bản sao bộ sưu tập được lưu trên thiết bị để hiển thị ngay. Chúng sẽ bị xóa khi bạn đăng xuất."
+ },
+ "外観モード": {
+  "en": "Appearance",
+  "zh-TW": "外觀",
+  "es": "Apariencia",
+  "ko": "화면 모드",
+  "vi": "Giao diện"
+ },
+ "サウンドと触覚": {
+  "en": "Sound & haptics",
+  "zh-TW": "聲音與觸覺回饋",
+  "es": "Sonido y vibración",
+  "ko": "사운드 및 햅틱",
+  "vi": "Âm thanh và rung"
+ },
+ "今のレベルと目標に合わせて、例文や使い方の難しさを決めます。あとから設定で変更できます。": {
+  "en": "Examples and patterns are matched to your current and target levels. You can change this later in Settings.",
+  "zh-TW": "例句和搭配的難度會配合你現在的程度和目標。之後可以在設定裡更改。",
+  "es": "Los ejemplos y expresiones se ajustan a tu nivel actual y a tu meta. Puedes cambiarlo después en Ajustes.",
+  "ko": "예문과 표현의 난이도를 현재 레벨과 목표에 맞춰요. 나중에 설정에서 바꿀 수 있어요.",
+  "vi": "Câu ví dụ và cụm từ sẽ được điều chỉnh theo trình độ hiện tại và mục tiêu của bạn. Bạn có thể đổi sau trong Cài đặt."
+ },
+ "例文と使い方を、今のレベルから目標レベルのあいだの難しさで作ります。": {
+  "en": "Examples and patterns are pitched between your current level and your target level.",
+  "zh-TW": "例句和搭配會依照你目前等級到目標等級之間的難度來產生。",
+  "es": "Los ejemplos y las expresiones se generan con una dificultad entre tu nivel actual y tu nivel objetivo.",
+  "ko": "예문과 표현은 현재 레벨과 목표 레벨 사이의 난이도로 만들어져요.",
+  "vi": "Câu ví dụ và cụm từ được tạo với độ khó nằm giữa trình độ hiện tại và trình độ mục tiêu của bạn."
+ },
+ "未受験・よく分からない": {
+  "en": "Haven't taken the TOCFL, or not sure",
+  "zh-TW": "沒考過 TOCFL，或不太清楚",
+  "es": "Nunca hice el TOCFL o no lo conozco bien",
+  "ko": "TOCFL을 본 적이 없거나 잘 몰라요",
+  "vi": "Chưa thi TOCFL hoặc chưa biết rõ"
+ },
+ "間違えた{1}語をもう一度": {
+  "en": "Retry the {1} words you missed",
+  "zh-TW": "再練習答錯的 {1} 個單字",
+  "es": "Repetir las que fallaste ({1})",
+  "ko": "틀린 단어 {1}개 다시 풀기",
+  "vi": "Làm lại {1} từ bạn trả lời sai"
+ },
+ "続けると、{1}と{2}に同意したことになります。": {
+  "en": "By continuing, you agree to the {1} and the {2}.",
+  "zh-TW": "繼續即表示你同意{1}與{2}。",
+  "es": "Al continuar, aceptas {1} y {2}.",
+  "ko": "계속하면 {1} 및 {2}에 동의한 것으로 간주돼요.",
+  "vi": "Khi tiếp tục, bạn đồng ý với {1} và {2}."
+ },
+ "Proなら、見つけたらその場で何度でもキャッチ。": {
+  "en": "With Pro, catch as many words as you find.",
+  "zh-TW": "有了 Pro，一看到就能拍，次數不限。",
+  "es": "Con Pro, atrapa palabras cada vez que encuentres algo.",
+  "ko": "Pro라면 발견한 순간 몇 번이든 캐치할 수 있어요.",
+  "vi": "Với Pro, gặp gì bắt nấy, không giới hạn."
+ },
+ "次の問題へ": {
+  "en": "Next question",
+  "zh-TW": "下一題",
+  "es": "Siguiente pregunta",
+  "ko": "다음 문제",
+  "vi": "Câu tiếp theo"
  }
 }

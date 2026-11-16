@@ -182,7 +182,7 @@ nonisolated struct PraiseMoment: Identifiable, Equatable {
         if let s = standing {
             if s.firstCatcher, (s.words?.total ?? 0) >= 3, !headword.isEmpty {
                 out.append(PraiseMoment(kind: .firstCatcher, from: 1, to: 1,
-                                        title: L("「\(headword)」を獲得したのは"),
+                                        title: L("「\(headword)」をキャッチしたのは"),
                                         format: { L("\($0)人目") },
                                         caption: L("全ユーザーの中で、あなたが初めてです"),
                                         note: note, image: image))
@@ -250,6 +250,6 @@ nonisolated struct PraiseMoment: Identifiable, Equatable {
     private static func effortNote(_ n: Int) -> String {
         [L("1枚ずつ撮り続けてきた積み重ねです"),
          L("身の回りのものが、少しずつ言葉になっています"),
-         L("毎日の小さな1枚が、ここまで来ました")][abs(n) % 3]
+         L("毎日の1枚が、ここまで積み重なりました")][abs(n) % 3]
     }
 }
