@@ -310,7 +310,7 @@
  "YouGlishで発音例": {
   "en": "Pronunciation samples on YouGlish",
   "zh-TW": "在 YouGlish 聽發音範例",
-  "es": "Ejemplos de pronunciación en YouGlish",
+  "es": "Escuchar en YouGlish",
   "ko": "YouGlish에서 발음 예시 듣기",
   "vi": "Ví dụ phát âm trên YouGlish"
  },
@@ -471,7 +471,7 @@
  "{1}枚・影 {2} / 100": {
   "en": "{1} cards · shadows {2} / 100",
   "zh-TW": "{1} 張，影子 {2} / 100",
-  "es": "{1} tarjetas · sombras {2} / 100",
+  "es": "{1} tarjetas · siluetas {2} / 100",
   "ko": "{1}장 · 그림자 {2} / 100",
   "vi": "{1} thẻ · bóng {2} / 100"
  },
@@ -499,7 +499,7 @@
  "{1}語を集めました": {
   "en": "You've collected {1} words",
   "zh-TW": "收集了 {1} 個單字",
-  "es": "Has reunido {1} palabras",
+  "es": "Ya reuniste {1} palabras",
   "ko": "단어 {1}개를 모았어요",
   "vi": "Bạn đã thu thập {1} từ"
  },
@@ -590,7 +590,7 @@
  "あと{1}語、もう少し": {
   "en": "{1} words to go — almost there",
   "zh-TW": "還剩 {1} 個字，再加油",
-  "es": "¡Ya casi! Faltan {1} palabras",
+  "es": "¡Ya casi! {1} más",
   "ko": "단어 {1}개 남았어요, 조금만 더",
   "vi": "Còn {1} từ nữa, sắp xong rồi"
  },
@@ -632,8 +632,8 @@
  "いくつでも選べます。例文の場面をあなたに合わせます。": {
   "en": "Choose any. We’ll tailor example situations to you.",
   "zh-TW": "可以複選，例句情境會配合你的目標。",
-  "es": "Elige todos los que quieras. Adaptaremos las situaciones de los ejemplos a ti.",
-  "ko": "여러 개 고를 수 있어요. 예문 상황을 취향에 맞춰 드려요.",
+  "es": "Puedes elegir varias. Adaptaremos los ejemplos a lo que necesitas.",
+  "ko": "여러 개 고를 수 있어요. 고른 목적에 맞춰 예문 상황을 정해 드려요.",
   "vi": "Chọn bao nhiêu cũng được. Tình huống trong câu ví dụ sẽ được điều chỉnh cho phù hợp với bạn."
  },
  "いつもの時間です。1枚だけでも思い出してみよう": {
@@ -947,15 +947,15 @@
  "この言葉、{1}に{2}でゲットしています。": {
   "en": "You got this word on {1} at {2}.",
   "zh-TW": "這個單字，你{1}在{2}收集過。",
-  "es": "Conseguiste esta palabra el {1} en {2}.",
-  "ko": "이 단어는 {1}에 {2}에서 획득했어요.",
+  "es": "Atrapaste esta palabra el {1} en {2}.",
+  "ko": "{1}에 {2}에서 처음 캐치한 단어예요.",
   "vi": "Bạn đã bắt được từ này vào {1} tại {2}."
  },
  "この言葉、{1}にゲットしています。": {
   "en": "You got this word on {1}.",
   "zh-TW": "這個單字你在{1}收集過。",
-  "es": "Conseguiste esta palabra el {1}.",
-  "ko": "이 단어는 {1}에 획득했어요.",
+  "es": "Atrapaste esta palabra el {1}.",
+  "ko": "{1}에 처음 캐치한 단어예요.",
   "vi": "Bạn đã bắt được từ này vào {1}."
  },
  "この言葉に出会った記録": {
@@ -991,7 +991,7 @@
   "zh-TW": "支持之後的功能開發",
   "es": "Ayuda a crear las próximas funciones",
   "ko": "앞으로의 기능 개발을 응원해요",
-  "vi": "Ủng hộ việc phát triển các tính năng mới"
+  "vi": "Giúp chúng tôi làm thêm tính năng mới"
  },
  "これまで": {
   "en": "So far",
@@ -1172,7 +1172,7 @@
   "en": "Retry the {1} words you missed",
   "zh-TW": "再試一次答錯的 {1} 個字",
   "es": "Repetir las que fallaste ({1})",
-  "ko": "틀린 단어 {1}개 다시 하기",
+  "ko": "틀린 단어 {1}개 다시 풀기",
   "vi": "Làm lại {1} từ bạn trả lời sai"
  },
  "もう一度": {
@@ -1690,7 +1690,7 @@
   "en": "Privacy",
   "zh-TW": "隱私",
   "es": "Privacidad",
-  "ko": "개인정보",
+  "ko": "개인정보 처리방침",
   "vi": "Quyền riêng tư"
  },
  "プライバシーポリシー": {
@@ -1999,7 +1999,7 @@
   "zh-TW": "拍下今天的一張",
   "es": "Tomar la foto de hoy",
   "ko": "오늘의 한 장 찍기",
-  "vi": "Chụp tấm ảnh hôm nay"
+  "vi": "Chụp ảnh hôm nay"
  },
  "今日のページはまだ白紙です。": {
   "en": "Today's page is still blank.",
@@ -2102,7 +2102,7 @@
  "仕事・キャリア": {
   "en": "Work & career",
   "zh-TW": "工作、職涯",
-  "es": "Trabajo y carrera",
+  "es": "Trabajo y carrera profesional",
   "ko": "일·커리어",
   "vi": "Công việc & sự nghiệp"
  },
@@ -2593,7 +2593,7 @@
   "en": "This photo becomes the cover on the word's page.",
   "zh-TW": "在單字詳細頁用這張照片當封面。",
   "es": "Esta foto será la portada en la página de la palabra.",
-  "ko": "단어 상세 화면에서 이 사진을 표지로 사용해요.",
+  "ko": "단어 페이지에서 이 사진을 대표 사진으로 써요.",
   "vi": "Ảnh này sẽ làm ảnh bìa ở trang chi tiết của từ."
  },
  "単語をひらく": {
@@ -2629,7 +2629,7 @@
   "zh-TW": "去拍單字",
   "es": "Ir a atrapar palabras",
   "ko": "단어 캐치하러 가기",
-  "vi": "Đi bắt từ"
+  "vi": "Đi chụp từ mới"
  },
  "単語を直しました": {
   "en": "Word updated",
@@ -3390,9 +3390,9 @@
  "教育部國語辭典簡編本": {
   "en": "MOE Concised Mandarin Chinese Dictionary",
   "zh-TW": "教育部國語辭典簡編本",
-  "es": "Diccionario conciso de mandarín (Ministerio de Educación de Taiwán)",
+  "es": "Diccionario oficial de Taiwán",
   "ko": "교육부 국어사전 간편본 (대만)",
-  "vi": "Từ điển Quốc ngữ giản biên (Bộ Giáo dục Đài Loan)"
+  "vi": "Từ điển Bộ Giáo dục Đài Loan"
  },
  "数えられない（不可算）": {
   "en": "Uncountable",
@@ -3937,7 +3937,7 @@
   "en": "Specified Commercial Transactions Act Notice",
   "zh-TW": "特定商業交易法標示",
   "es": "Aviso según la Ley de Transacciones Comerciales Específicas",
-  "ko": "특정상거래법에 따른 표기",
+  "ko": "일본 특정상거래법에 따른 표기",
   "vi": "Thông tin theo Luật Giao dịch Thương mại Đặc định"
  },
  "状態動詞": {
@@ -4174,9 +4174,9 @@
  "練習なので、記憶の記録は変わりません。": {
   "en": "This is practice — your memory record won't change.",
   "zh-TW": "這是練習，不會改變記憶紀錄。",
-  "es": "Es solo práctica: no afecta a tu registro de memoria.",
-  "ko": "연습이라서 기억 기록은 바뀌지 않아요.",
-  "vi": "Đây là luyện tập nên dữ liệu ghi nhớ không thay đổi."
+  "es": "Es solo práctica: no cuenta para tu progreso.",
+  "ko": "연습이라서 복습 기록에는 반영되지 않아요.",
+  "vi": "Đây chỉ là luyện tập, tiến độ ghi nhớ không bị thay đổi."
  },
  "縦軸＝いま思い出せる確率（写真の右上の%と同じ）": {
   "en": "Vertical axis = chance you can recall it now (same as the % on the photo)",
@@ -4196,7 +4196,7 @@
   "en": "Traditional Chinese",
   "zh-TW": "繁體中文（台灣）",
   "es": "Chino tradicional",
-  "ko": "중국어 번체",
+  "ko": "중국어 번체(대만)",
   "vi": "Tiếng Trung phồn thể"
  },
  "繁体字（台湾華語）の単語を入れてください。": {
@@ -4399,7 +4399,7 @@
   "en": "Choose your\napp language",
   "zh-TW": "選擇顯示語言",
   "es": "Elige el idioma\nde la app",
-  "ko": "앱 언어를\n선택하세요",
+  "ko": "앱 언어를\n선택해 주세요",
   "vi": "Chọn ngôn ngữ\nứng dụng"
  },
  "被写体の切り抜きも無制限": {
@@ -4791,7 +4791,7 @@
   "en": "Couldn't connect. Please try again where the signal is better.",
   "zh-TW": "無法連線。請到訊號較好的地方再試一次。",
   "es": "No se pudo conectar. Inténtalo de nuevo donde haya mejor señal.",
-  "ko": "연결할 수 없어요. 신호가 좋은 곳에서 다시 시도해 주세요.",
+  "ko": "인터넷에 연결할 수 없어요. 신호가 좋은 곳에서 다시 시도해 주세요.",
   "vi": "Không thể kết nối. Hãy thử lại ở nơi có sóng tốt hơn."
  },
  "通信に時間がかかっています。写真は端末に保存しました。": {
@@ -5805,7 +5805,7 @@
  "名前を調べています": {
   "en": "Looking up the names",
   "zh-TW": "正在查詢名稱",
-  "es": "Buscando los nombres",
+  "es": "Buscando nombres…",
   "ko": "이름을 찾고 있어요",
   "vi": "Đang tra tên gọi"
  },
@@ -7361,7 +7361,7 @@
   "zh-TW": "把街上遇見的單字，變成貼紙。",
   "es": "Convierte en stickers las palabras que encuentras por la ciudad.",
   "ko": "거리에서 만나는 단어를 스티커로.",
-  "vi": "Biến những từ bạn gặp trên phố thành nhãn dán."
+  "vi": "Biến những gì bạn gặp trên phố thành nhãn dán từ vựng."
  },
  "または": {
   "en": "or",
@@ -7829,7 +7829,7 @@
   "en": "The one you choose goes into your collection",
   "zh-TW": "選好的說法會放進圖鑑",
   "es": "La que elijas se guardará en tu colección",
-  "ko": "고른 표현이 도감에 들어가요",
+  "ko": "선택한 단어로 도감에 추가돼요",
   "vi": "Từ bạn chọn sẽ được đưa vào bộ sưu tập"
  },
  "{1}の基本5語": {
@@ -7842,7 +7842,7 @@
  "あと{1}語でコンプリート": {
   "en": "{1} more to complete the set",
   "zh-TW": "再 {1} 個就全部收集",
-  "es": "Faltan {1} para completar el set",
+  "es": "{1} más para completarlo",
   "ko": "{1}개 더 모으면 완성",
   "vi": "Còn {1} từ nữa là đủ bộ"
  },
@@ -8074,7 +8074,7 @@
   "en": "Words found for “{1}”",
   "zh-TW": "用「{1}」找到的詞",
   "es": "Palabras encontradas para “{1}”",
-  "ko": "‘{1}’에 대해 찾은 단어",
+  "ko": "‘{1}’ 검색 결과",
   "vi": "Từ tìm được cho “{1}”"
  },
  "図鑑に保存しました": {
@@ -8094,7 +8094,7 @@
  "まだ保存できていません：{1}\n図鑑に「保存待ち」で残してあります。あとで自動でもう一度保存します。": {
   "en": "Not saved yet: {1}\nIt stays in your collection as “waiting to save” and will be saved again automatically.",
   "zh-TW": "尚未儲存：{1}\n已在圖鑑中標為「等待儲存」，稍後會自動再儲存一次。",
-  "es": "Aún no se guardó: {1}\nQueda en tu colección como “Pendiente de guardar” y se volverá a guardar automáticamente más tarde.",
+  "es": "Aún no se guardó: {1}\nQueda en tu colección como “Pendiente de guardar” y se guardará automáticamente más tarde.",
   "ko": "아직 저장하지 못했어요: {1}\n도감에 ‘저장 대기’로 남겨 두었어요. 나중에 자동으로 다시 저장해요.",
   "vi": "Chưa lưu được: {1}\nTừ này vẫn nằm trong bộ sưu tập với trạng thái “Đang chờ lưu”. Ứng dụng sẽ tự động lưu lại sau."
  },
@@ -8122,7 +8122,7 @@
  "この単語は図鑑に残してあります。つながると自動でもう一度保存します。": {
   "en": "This word stays in your collection. It will be saved again automatically once you're connected.",
   "zh-TW": "這個單字會留在圖鑑裡，連上網路後會自動再儲存一次。",
-  "es": "Esta palabra sigue en tu colección. Se volverá a guardar automáticamente cuando tengas conexión.",
+  "es": "Esta palabra sigue en tu colección. Se guardará automáticamente cuando tengas conexión.",
   "ko": "이 단어는 도감에 남겨 두었어요. 연결되면 자동으로 다시 저장해요.",
   "vi": "Từ này vẫn nằm trong bộ sưu tập. Khi có kết nối, ứng dụng sẽ tự động lưu lại."
  },
@@ -8131,7 +8131,7 @@
   "zh-TW": "再儲存一次",
   "es": "Guardar de nuevo",
   "ko": "다시 저장",
-  "vi": "Lưu lại"
+  "vi": "Thử lưu lại"
  },
  "写真を送っている途中で接続が切れました（{1}）。": {
   "en": "The connection dropped while the photo was being sent ({1}).",
@@ -8494,7 +8494,7 @@
   "en": "This photo is used on the word page and in the Home album.",
   "zh-TW": "單字詳細頁和首頁相簿會使用這張照片。",
   "es": "Esta imagen se usa en la página de la palabra y en el álbum de Inicio.",
-  "ko": "단어 상세와 홈 앨범에서 이 사진을 사용해요.",
+  "ko": "단어 페이지와 홈 앨범에 이 사진이 표시돼요.",
   "vi": "Ảnh này được dùng ở trang từ và trong album Trang chủ."
  },
  "使い方パターン": {
@@ -9067,7 +9067,7 @@
  "{1}の単語を{2}語集めました": {
   "en": "You've collected {2} {1} words",
   "zh-TW": "收集了 {2} 個「{1}」的單字",
-  "es": "Has reunido {2} palabras de {1}",
+  "es": "Ya reuniste {2} palabras de {1}",
   "ko": "{1} 단어를 {2}개 모았어요",
   "vi": "Bạn đã thu thập {2} từ chủ đề {1}"
  },
@@ -9096,7 +9096,7 @@
   "en": "You caught “{1}”",
   "zh-TW": "獲得「{1}」的人之中",
   "es": "Atrapaste “{1}” antes que nadie",
-  "ko": "‘{1}’을(를) 획득한 건",
+  "ko": "‘{1}’ 단어를 캐치한 건",
   "vi": "Bạn đã bắt được “{1}”"
  },
  "これまでに獲得した単語": {
@@ -9139,28 +9139,28 @@
   "zh-TW": "在所有使用者之中",
   "es": "Entre todos los usuarios",
   "ko": "전체 사용자 중에서",
-  "vi": "Trong số tất cả người dùng"
+  "vi": "Trong toàn bộ người dùng"
  },
  "全ユーザー{1}人の中で": {
   "en": "Among all {1} users",
   "zh-TW": "在全部 {1} 位使用者之中",
-  "es": "Entre los {1} usuarios",
+  "es": "Entre {1} usuarios",
   "ko": "전체 사용자 {1}명 중에서",
-  "vi": "Trong số tất cả {1} người dùng"
+  "vi": "Trong tổng số {1} người dùng"
  },
  "全ユーザーの中で{1}位": {
   "en": "No. {1} among all users",
   "zh-TW": "在所有使用者中排第 {1} 名",
   "es": "Puesto {1} entre todos los usuarios",
   "ko": "전체 사용자 중 {1}위",
-  "vi": "Hạng {1} trong số tất cả người dùng"
+  "vi": "Hạng {1} trong toàn bộ người dùng"
  },
  "全ユーザーの中で、あなたが初めてです": {
   "en": "You're the first user to catch it",
   "zh-TW": "在所有使用者中，你是第一個",
-  "es": "De todos los usuarios, eres la primera persona",
-  "ko": "전체 사용자 중 가장 먼저 획득했어요",
-  "vi": "Bạn là người đầu tiên trong tất cả người dùng"
+  "es": "Eres la primera persona en toda la app",
+  "ko": "전체 사용자 중 가장 먼저 캐치했어요",
+  "vi": "Bạn là người đầu tiên bắt được từ này"
  },
  "学んだ日数は": {
   "en": "Days you've studied",
@@ -9172,7 +9172,7 @@
  "次の目標の{1}語まで、あと{2}語": {
   "en": "{2} more to your next goal of {1} words",
   "zh-TW": "距離下一個目標 {1} 個單字，還差 {2} 個",
-  "es": "Faltan {2} para tu próxima meta de {1} palabras",
+  "es": "{2} más para tu próxima meta de {1} palabras",
   "ko": "다음 목표 {1}개까지 {2}개 남았어요",
   "vi": "Còn {2} từ nữa là đến mục tiêu {1} từ"
  },
@@ -9180,7 +9180,7 @@
   "en": "One small photo a day brought you here",
   "zh-TW": "每天的一小張，累積到了這裡",
   "es": "Una pequeña foto cada día te trajo hasta aquí",
-  "ko": "매일의 작은 한 장이 여기까지 왔어요",
+  "ko": "하루 한 장이 쌓여 여기까지 왔어요",
   "vi": "Mỗi ngày một tấm ảnh nhỏ đã đưa bạn đến đây"
  },
  "続けてきたことが、いちばんの力です": {
@@ -9200,7 +9200,7 @@
  "集めた単語の数は": {
   "en": "Words you've collected",
   "zh-TW": "你收集的單字數",
-  "es": "Tus palabras reunidas",
+  "es": "En palabras reunidas",
   "ko": "모은 단어 수는",
   "vi": "Số từ bạn đã thu thập"
  },
@@ -9223,14 +9223,14 @@
   "zh-TW": "持續率 {1}%（{2} 天中學習了 {3} 天）",
   "es": "Constancia del {1}% (estudiaste {3} de {2} días)",
   "ko": "지속률 {1}% ({2}일 중 {3}일 공부했어요)",
-  "vi": "Tỷ lệ duy trì {1}% (bạn đã học {3} trên {2} ngày)"
+  "vi": "Độ chuyên cần {1}% (bạn đã học {3}/{2} ngày)"
  },
  "継続率は": {
   "en": "Your consistency",
   "zh-TW": "你的持續率",
-  "es": "Tu constancia",
+  "es": "En constancia",
   "ko": "지속률은",
-  "vi": "Tỷ lệ duy trì của bạn"
+  "vi": "Độ chuyên cần của bạn"
  },
  "エラーの記録": {
   "en": "Error reports",
@@ -9300,7 +9300,7 @@
   "zh-TW": "不知道",
   "es": "No lo sé",
   "ko": "잘 모르겠어요",
-  "vi": "Không rõ"
+  "vi": "Không chắc"
  },
  "復習へ": {
   "en": "Go to review",
@@ -9312,7 +9312,7 @@
  "目標のレベル": {
   "en": "Your target level",
   "zh-TW": "目標等級",
-  "es": "Tu meta",
+  "es": "Tu nivel objetivo",
   "ko": "목표 레벨",
   "vi": "Trình độ mục tiêu"
  },
@@ -9356,7 +9356,7 @@
   "zh-TW": "沒考過 TOCFL，或不太清楚",
   "es": "Nunca hice el TOCFL o no lo conozco bien",
   "ko": "TOCFL을 본 적이 없거나 잘 몰라요",
-  "vi": "Chưa thi TOCFL hoặc không rõ"
+  "vi": "Chưa thi TOCFL hoặc chưa biết rõ"
  },
  "あなたに合った難しさで出すので、ムダなく覚えられます。": {
   "en": "Content matches your level, so no effort is wasted.",
@@ -9389,7 +9389,7 @@
  "今の実力に近いレベルを選んでください。": {
   "en": "Pick the level closest to where you are now.",
   "zh-TW": "請選最接近你目前實力的等級。",
-  "es": "Elige el nivel más cercano al tuyo ahora.",
+  "es": "Elige el nivel que más se acerque al tuyo.",
   "ko": "지금 실력에 가장 가까운 레벨을 골라 주세요.",
   "vi": "Chọn trình độ gần nhất với bạn hiện nay."
  },
@@ -9461,7 +9461,7 @@
   "zh-TW": "請告訴我們\n你的 TOCFL 等級",
   "es": "Dinos tu\nnivel de TOCFL",
   "ko": "TOCFL 레벨을\n알려 주세요",
-  "vi": "Cho chúng tôi biết\ntrình độ TOCFL của bạn"
+  "vi": "Hãy cho biết\ntrình độ TOCFL của bạn"
  },
  "撮るだけで、\n単語が覚えられる": {
   "en": "Just take a photo\nand learn the word",
@@ -9473,9 +9473,9 @@
  "物を撮ると、台湾華語の名前と発音が出ます。\nまずは1枚、撮ってみよう。": {
   "en": "Take a photo of something to see and hear its name in Taiwanese Mandarin.\nStart with just one.",
   "zh-TW": "拍下東西，就會出現它的中文名稱和發音。\n先拍一張看看吧。",
-  "es": "Toma una foto de algo y verás su nombre en chino mandarín de Taiwán y su pronunciación.\nPrueba con una.",
+  "es": "Toma una foto de cualquier objeto y verás su nombre en chino mandarín de Taiwán y cómo se pronuncia.\n¡Empieza con tu primera foto!",
   "ko": "물건을 찍으면 대만 중국어 이름과 발음이 나와요.\n먼저 한 장 찍어 보세요.",
-  "vi": "Chụp một đồ vật để thấy tên tiếng Hoa Đài Loan và cách đọc.\nHãy thử chụp một tấm."
+  "vi": "Chụp một đồ vật là thấy ngay tên tiếng Hoa Đài Loan và cách phát âm.\nThử chụp một tấm nhé."
  },
  "物を画面に入れて、シャッター": {
   "en": "Frame it, then tap the shutter",
@@ -9599,14 +9599,14 @@
  "影を埋めるほど、言える物が増える": {
   "en": "Every shadow you fill is one more thing you can say",
   "zh-TW": "填滿越多影子，能說的東西就越多",
-  "es": "Cada sombra que llenas es algo más que sabes decir",
+  "es": "Cada silueta que completas es algo más que sabes decir",
   "ko": "그림자를 채울수록 말할 수 있는 게 늘어요",
   "vi": "Lấp càng nhiều bóng, càng nói được nhiều thứ"
  },
  "影にない物も、何でもキャッチできます。": {
   "en": "You can catch anything, even things without a shadow.",
   "zh-TW": "影子裡沒有的東西，也都能捕捉。",
-  "es": "Puedes atrapar cualquier cosa, aunque no esté entre las sombras.",
+  "es": "Puedes atrapar cualquier cosa, aunque no tenga silueta.",
   "ko": "그림자에 없는 것도 무엇이든 캐치할 수 있어요.",
   "vi": "Kể cả thứ không có bóng, bạn cũng bắt được."
  },
@@ -9733,7 +9733,7 @@
   "en": "Sign up with Google",
   "zh-TW": "使用 Google 註冊",
   "es": "Registrarse con Google",
-  "ko": "Google로 가입하기",
+  "ko": "Google로 등록",
   "vi": "Đăng ký bằng Google"
  },
  "Googleでログイン": {
@@ -9747,7 +9747,7 @@
   "en": "Sign up with email",
   "zh-TW": "使用電子郵件註冊",
   "es": "Registrarse con correo",
-  "ko": "이메일로 가입하기",
+  "ko": "이메일로 등록",
   "vi": "Đăng ký bằng email"
  },
  "おかえりなさい": {
@@ -9768,7 +9768,7 @@
   "en": "Where it was taken ({1} times)",
   "zh-TW": "拍攝地點（{1} 次）",
   "es": "Dónde la fotografiaste ({1} veces)",
-  "ko": "촬영 장소 ({1}번)",
+  "ko": "촬영 장소 ({1}회)",
   "vi": "Nơi chụp ({1} lần)"
  },
  "場所を直す": {
@@ -9837,7 +9837,7 @@
  "囲んで切り抜き直す": {
   "en": "Circle to cut out",
   "zh-TW": "圈選重新去背",
-  "es": "Rodear para recortar de nuevo",
+  "es": "Rodear y recortar",
   "ko": "둘러서 다시 오려내기",
   "vi": "Khoanh để tách nền lại"
  },
@@ -10929,7 +10929,7 @@
  "影は、まだ集めていない物": {
   "en": "Shadows are things you haven't collected yet",
   "zh-TW": "影子，是還沒收集到的東西",
-  "es": "Una sombra es algo que aún no has reunido",
+  "es": "Una silueta es algo que aún no has reunido",
   "ko": "그림자는 아직 모으지 않은 물건이에요",
   "vi": "Bóng mờ là thứ bạn chưa thu thập"
  },
@@ -11188,14 +11188,14 @@
  "影になっているのは、まだ集めていない物です": {
   "en": "Shadows are things you haven't collected yet",
   "zh-TW": "變成影子的，是還沒收集到的東西",
-  "es": "Las sombras son cosas que aún no has reunido",
+  "es": "Las siluetas son cosas que aún no has reunido",
   "ko": "그림자로 보이는 건 아직 모으지 않은 물건이에요",
   "vi": "Những bóng mờ là thứ bạn chưa thu thập"
  },
  "影にない物も、何でも撮って集められます。": {
   "en": "You can catch anything, even things without a shadow.",
   "zh-TW": "影子裡沒有的東西，也都可以拍下來收集。",
-  "es": "Puedes fotografiar y reunir cualquier cosa, aunque no esté entre las sombras.",
+  "es": "Puedes fotografiar y reunir cualquier cosa, aunque no tenga silueta.",
   "ko": "그림자에 없는 것도 무엇이든 찍어서 모을 수 있어요.",
   "vi": "Kể cả thứ không có bóng, bạn cũng chụp và thu thập được."
  },
@@ -11378,8 +11378,8 @@
   "en": "Snap the things you come across every day and grow a wordbook that's all your own.",
   "zh-TW": "拍下每天遇見的各種東西，讓專屬你的單字本一天天長大吧",
   "es": "Toma fotos de todo lo que encuentres cada día y haz crecer tu propio cuaderno de palabras.",
-  "ko": "매일 만나는 여러 가지 물건을 찍어서 나만의 단어장을 키워 보세요.",
-  "vi": "Hãy chụp những thứ bạn gặp mỗi ngày và nuôi lớn sổ từ vựng của riêng bạn."
+  "ko": "매일 만나는 여러 물건을 찍으며 나만의 단어장을 채워 가세요.",
+  "vi": "Hãy chụp những thứ bạn gặp mỗi ngày để dần xây nên sổ từ vựng của riêng bạn."
  },
  "元の写真のまま": {
   "en": "Use original photo",

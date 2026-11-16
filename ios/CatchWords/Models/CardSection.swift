@@ -66,7 +66,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
     /// The short name on the page's jump chips (§0): 意味・チャンク・例文・量詞・関連語・台湾メモ・使われ方.
     func shortTitle(for target: String) -> String {
         switch self {
-        case .usageChunks: L("チャンク")
+        case .usageChunks: L("使い方")  // the jump chip names the section it jumps to (heading 「使い方」 since 2026-11-16)
         case .relatedWords: L("関連語")
         case .realUsage: L("使われ方")
         default: title(for: target)
