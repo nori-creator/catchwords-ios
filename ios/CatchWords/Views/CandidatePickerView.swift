@@ -2,7 +2,7 @@ import SwiftUI
 
 /// After the shot: the photo with each word the AI found as a tag ON its object — deep inside the Vision instance
 /// its outline goes round (`CatchObject.anchor`; owner 2026-10-11 「しっかりもののうえに名前タグをおいて」), the AI's
-/// point only when Vision found no instance for it — and "違う単語を入力" underneath for a word that is not among them.
+/// point only when Vision found no instance for it — and "リストにない言葉を探す" underneath for a word that is not among them.
 /// A tap on a tag goes straight to the celebration (owner 2026-10-09: shoot → words → tap → done).
 /// - One tag per THING, named in the reader's own language (owner 2026-10-14: 「表示するのは母語にして」「表示する
 ///   タグは言い方ではなく、異なるものにして」): 鮮乳 / 牛奶 / 全脂鮮乳 were three tags for one bottle, in Mandarin.
@@ -689,7 +689,7 @@ struct CandidatePickerView: View {
         guard !words.isEmpty, vm.photo != nil else { return }
         let object = vm.searchObject
         let now = CCClock.now
-        let subtitle = L("「\(vm.typedQuery)」で見つかった言葉")
+        let subtitle = L("「\(vm.typedQuery)」の検索結果")
         let label = words.lazy.compactMap { CatchDexInfo.label(headword: $0.headword, stickers: dex.stickers) }.first
         if let f = flow, f.chosenAt == nil, f.closingAt == nil {
             var next = ChooseFlow(words: words, objects: words.map { _ in object ?? f.anchor }, subtitle: subtitle,
@@ -804,7 +804,7 @@ struct CandidatePickerView: View {
         TagPlacement.displayedRect(image: image, in: size, mode: .fill)
     }
 
-    // MARK: "違う単語を入力"
+    // MARK: "リストにない言葉を探す"
 
     /// 「リストにない言葉を探す」, one small line at the bottom (design A, owner 2026-11-12: the white card with its field
     /// was the brightest thing on the screen and read as what to do next); pressed, the field comes up as before.
@@ -897,7 +897,7 @@ struct CandidatePickerView: View {
 
     private var manualInput: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(L("違う単語を入力"))
+            Text(L("リストにない言葉を探す"))
                 .scaledFont(size: 13, weight: .medium)
                 .foregroundStyle(Theme.muted)
             HStack(spacing: 8) {

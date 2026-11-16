@@ -162,7 +162,7 @@ struct CatchCelebrationView: View {
             if dexLabel != nil || again != nil {
                 let cp = Film6.outCubic(Film6.seg(tc, Film6.catchT + 0.12, Film6.catchT + 0.42))
                 CatchDexChip(label: dexLabel, scale: k * 1080 / 393,
-                             badge: again.map { L("再会\($0.encounterCount + 1)回目") })
+                             badge: again.map { L("\($0.encounterCount + 1)回目の再会") })
                     .opacity(cp * a)
                     .position(x: W / 2, y: Film6.y(636, H) + CGFloat(1 - cp) * 14 * k)
             }
@@ -316,9 +316,9 @@ struct CatchCelebrationView: View {
     static func metLine(_ owned: OwnedWord) -> String {
         let date = owned.takenDate.map { $0.formatted(Date.FormatStyle(date: .long, time: .omitted).locale(L10n.locale)) } ?? ""
         if let place = LocationService.shownPlace(owned.locationName) {
-            return L("この言葉、\(date)に\(place)でゲットしています。")
+            return L("\(date)に\(place)でキャッチした言葉です。")
         }
-        return L("この言葉、\(date)にゲットしています。")
+        return L("\(date)にキャッチした言葉です。")
     }
 
     // MARK: Controls

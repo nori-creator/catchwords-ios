@@ -20,6 +20,12 @@ final class FullTourTests: XCTestCase {
     func test_4_en_ja() { tour(display: "en", learning: "ja") }
     func test_5_zh_en() { tour(display: "zh-TW", learning: "en") }
     func test_6_zh_ja() { tour(display: "zh-TW", learning: "ja") }
+    // The other display languages, learning 繁體中文（台灣） (the only language taught). Run by the translation sweep
+    // (.github/workflows/ios-l10n-sweep.yml, owner 2026-11-16 「すべての言語、すべての画面をチェックして」), skipped by ios-uitest.yml.
+    func test_7_es_zh() { tour(display: "es", learning: "zh-TW") }
+    func test_8_ko_zh() { tour(display: "ko", learning: "zh-TW") }
+    func test_9_vi_zh() { tour(display: "vi", learning: "zh-TW") }
+    func test_10_zh_zh() { tour(display: "zh-TW", learning: "zh-TW") }
 
     // MARK: - The tour
 
@@ -34,7 +40,7 @@ final class FullTourTests: XCTestCase {
             "-uiDemo", learning, "-uiDemoReset", "YES",
             "-ui.lang", display,
             "-onboarding.done", "YES", "-tour.pending", "NO",
-            "-AppleLanguages", "(\(appleLang))", "-AppleLocale", display == "zh-TW" ? "zh_TW" : (display == "en" ? "en_US" : "ja_JP"),
+            "-AppleLanguages", "(\(appleLang))", "-AppleLocale", ["zh-TW": "zh_TW", "en": "en_US", "es": "es_ES", "ko": "ko_KR", "vi": "vi_VN"][display] ?? "ja_JP",
         ]
         app.launch()
 
@@ -574,11 +580,12 @@ enum LanguageCheck {
             if (0x3100...0x312F).contains(v) || (0x31A0...0x31BF).contains(v) { bopomofo += 1 }
         }
         let uses = Set([display, learning])
-        if hangul > 0 { return "Korean text" }
+        if hangul > 0 && !uses.contains("ko") { return "Korean text" }
         if kana > 0 && !uses.contains("ja") { return "Japanese kana on a screen without Japanese" }
         if bopomofo > 0 && learning != "zh-TW" { return "zhuyin while not learning Mandarin" }
         if han > 0 && !uses.contains("ja") && !uses.contains("zh-TW") { return "Chinese characters on an English-only screen" }
-        if !uses.contains("en") {
+        // Spanish and Vietnamese are written in Latin letters too: their words cannot be told from English by script.
+        if !uses.contains("en") && !uses.contains("es") && !uses.contains("vi") {
             // Latin words (not pinyin, romaji or names) on a Japanese / Chinese screen.
             let words = text.split { !$0.isLetter && $0 != "'" }.map(String.init)
             for w in words where w.count >= 3 {

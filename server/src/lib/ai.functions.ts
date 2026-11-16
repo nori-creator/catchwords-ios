@@ -1,5 +1,6 @@
 import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { meaningRule, distinctionRule, shortMeaning, withShortMeaning } from "@/lib/meaning-rule";
+import { readerStyleRule } from "@/lib/reader-style";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import {
   hasSection as profileHasSection,
@@ -656,7 +657,7 @@ ${langRule}
 ${CATEGORY_CHOICE_RULES_JA}
 
 ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
-- **distinction は15文字以内**。meaning_ja も**短く**（言い換え1つ。説明文にしない）。
+- **distinction は15文字以内**。meaning_ja も**短く**（言い換え1つ。説明文にしない。同格を付けない — ✗「MRT, the metro」→ ○「MRT」）。
   候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
   「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
@@ -1192,7 +1193,7 @@ ${langRule}
   花・花束・草木は flower / plant、ケーキ・お菓子・パンは dessert、料理は food、飲み物は drink。物でない語（動詞・形容詞・抽象語）は other。
 - それぞれの image_query に、その物を写真で探すための**短い英語**（2〜4語。例: "lotus root"）を書く。
   物の形が無い語（動詞・形容詞・抽象語）でも、その意味が伝わる場面を短く。
-- meaning_ja は一行の短い訳だけ（その語の意味が分かる程度。使い方・場面・違いはここに書かない）。
+- meaning_ja は一行の短い訳だけ（その語の意味が分かる程度。使い方・場面・違いはここに書かない。同格を付けない — ✗「MRT, the metro」→ ○「MRT」）。
 - **headword は必ず${candProfile.promptName}の語だけ**（学習者が打った母語の文字・かな・ローマ字を入れない。
   打った語が母語なら、${candProfile.promptName}でいちばんよく使う語に訳して1つ目に置く）。
 - 実際に${candProfile.promptName}で使われている語だけ。${candProfile.capture.scriptRule}。
@@ -1503,10 +1504,18 @@ export const generateCard = createServerFn({ method: "POST" })
             `同じなら使わないので短くてよいが、必ず書く。`,
         ].join("\n")
       : examplePatternsRule({ ...patternBase, max: maxPatterns });
+    // 訳・解説を読む人の言語で自然に（直訳・混ぜ書き・訳語の揺れ・文体の混ざり・例文の文法の確かめ — `reader-style.ts`）。
+    const styleRule = readerStyleRule({
+      explainLang,
+      targetCode: cardLanguage,
+      targetName: cardProfile.promptName,
+      nl: NL,
+    });
     const prompt = `「${data.headword}」について、${cardProfile.promptName}の語彙カードを生成してください。
 
 ${langRule}
 ${levelRule}
+${styleRule}
 
 入力語の扱い:
 - 入力が${cardProfile.promptName}なら headword_zh にそのまま入れる。
@@ -2018,6 +2027,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
               ...patternBase,
               headword: resolvedHead,
               chunks: missing,
+              styleRule,
             }),
             AbortSignal.timeout(CHUNK_EXAMPLES_TIMEOUT_MS),
           );
@@ -2905,7 +2915,14 @@ async function runSectionRegen(
   const regenProfile = targetProfile(word.language as string | null);
   const targetName = regenProfile.promptName;
   const regenReadingNames = readingPromptNames(regenProfile);
-  const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
+  // 訳・解説の自然さ（生成と同じ指示 — `reader-style.ts`）。
+  const styleRule = readerStyleRule({
+    explainLang: regenLang,
+    targetCode: regenProfile.code,
+    targetName,
+    nl: NL,
+  });
+  const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。\n${styleRule}`;
   // 例文の2つの節に共通の材料（生成と同じ指示・同じ確かめ方）。
   const regenLevels = await getUserLevels(userId);
   const regenPatternBase = {

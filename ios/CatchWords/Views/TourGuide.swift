@@ -159,6 +159,13 @@ enum TourStep: String, Equatable {
     var litPlaceMovesOn: Bool { self == .dexCover || self == .dexMap }
     /// The 図鑑's view steps: its view buttons sit at the top, so the pill goes above the tab bar there.
     var isDexView: Bool { self == .dexCover || self == .dexMap || self == .dexGrid || self == .dexShadow }
+    /// The steps whose lit place starts at the top of the screen, right under the screen's own header, and runs far
+    /// down: the home's album (under 「CatchWords」 and the avatar, the newest photo at its top) and the word page's
+    /// section (scrolled up under the jump chips). A lit place near the top already sends the pill above the tab bar,
+    /// but these are tall, so their middle is low and the pill stayed at the top — on the header (owner 2026-11-16,
+    /// the screenshots: STEP 2 sat on 「CatchWords」 and the avatar, STEP 5 on the word page's title). Under the header
+    /// it would sit on the newest photo and on the lit section's title instead, so these go above the tab bar too.
+    var litFromTop: Bool { self == .homeAdded || self == .wordSection }
 
     /// The old device-wide flag "the first tour is still to run". Now only a hand-over: kept per account
     /// (`tour.pending.<userId>`, R6-05) like `OnboardingState`, so one account's unfinished tour never opens
@@ -368,7 +375,8 @@ struct TourLayer: View {
                         // A step that nothing on the screen moves on keeps its 次へ here (owner 2026-11-08 「白い案内が
                         // 消えるとどうやって次に進めばいいかわからない…そのような箇所がない場合は、白い案内が消えても次へ
                         // ボタンが表示されるように」): the learner taps the blue-lined place, or this 次へ.
-                        let low = step.isDexView || (hole.map { $0.midY < geo.size.height * 0.4 } ?? false)
+                        // The lit place near the top — and one that starts under the screen's header (`litFromTop`).
+                        let low = step.isDexView || step.litFromTop || (hole.map { $0.midY < geo.size.height * 0.4 } ?? false)
                         let pillNext = hole != nil && step.litPlaceMovesOn ? nil : step.nextLabel
                         let footY = geo.size.height - max(insets.bottom, 12) - bottomClearance
                         if low {

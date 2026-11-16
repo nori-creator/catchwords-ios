@@ -66,7 +66,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
     /// The short name on the page's jump chips (§0): 意味・チャンク・例文・量詞・関連語・台湾メモ・使われ方.
     func shortTitle(for target: String) -> String {
         switch self {
-        case .usageChunks: L("チャンク")
+        case .usageChunks: L("使い方")  // the jump chip names the section it jumps to (heading 「使い方」 since 2026-11-16)
         case .relatedWords: L("関連語")
         case .realUsage: L("使われ方")
         default: title(for: target)
@@ -85,7 +85,7 @@ nonisolated enum CardSection: String, CaseIterable, Codable, Identifiable, Senda
         case .webImages: L("ネットの画像")
         case .example: L("例文")
         case .examplesExtra: L("追加の例文")
-        case .usageChunks: L("使い方チャンク")  // 版25 (owner 2026-10-24): the chunks' own card again
+        case .usageChunks: L("使い方")  // owner 2026-11-16 「使い方チャンクという項目の名前を 使い方に変更して」 (版25 had 「使い方チャンク」)
         case .measureWords: L("量詞")
         case .forms: L("活用")
         case .countability: L("数え方と冠詞")

@@ -51,7 +51,7 @@ struct AIConsentSettingsSheet: View {
             if consent.isGranted {
                 if confirmWithdraw {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(L("取り消すと、カメラ、写真アプリの画像、「違う単語を入力」、単語の解説と例文の作成など、AI を使う機能は使えなくなります。集めた単語と復習はそのまま使えます。"))
+                        Text(L("取り消すと、カメラ、写真アプリの画像、「リストにない言葉を探す」、単語の解説と例文の作成など、AI を使う機能は使えなくなります。集めた単語と復習はそのまま使えます。"))
                             .scaledFont(size: 14)
                             .foregroundStyle(Theme.foreground)
                             .fixedSize(horizontal: false, vertical: true)

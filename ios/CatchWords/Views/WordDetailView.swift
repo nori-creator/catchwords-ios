@@ -2160,7 +2160,7 @@ struct WordDetailView: View {
         case "en":
             return [
                 UsageLink(icon: .youtube, label: L("YouTubeで聞く"), url: "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=US&hl=en"),
-                UsageLink(icon: .youglish, label: L("YouGlishで発音例"), url: "https://youglish.com/pronounce/\(path)/english/us"),
+                UsageLink(icon: .youglish, label: L("YouGlishで聞く"), url: "https://youglish.com/pronounce/\(path)/english/us"),
                 UsageLink(icon: .generic("💬"), label: L("Redditで見る"), url: "https://www.reddit.com/search/?q=\(q)"),
                 UsageLink(icon: .generic("📷"), label: L("Instagram で見る"), url: "https://www.instagram.com/explore/tags/\(path)/"),
                 UsageLink(icon: .google, label: L("英語のサイトで検索"), url: "https://www.google.com/search?q=\(q)&hl=en&gl=US&cr=countryUS&lr=lang_en"),
@@ -2169,7 +2169,7 @@ struct WordDetailView: View {
         case "ja":
             return [
                 UsageLink(icon: .youtube, label: L("YouTubeで聞く"), url: "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=JP&hl=ja"),
-                UsageLink(icon: .youglish, label: L("YouGlishで発音例"), url: "https://youglish.com/pronounce/\(path)/japanese"),
+                UsageLink(icon: .youglish, label: L("YouGlishで聞く"), url: "https://youglish.com/pronounce/\(path)/japanese"),
                 UsageLink(icon: .generic("💬"), label: L("Xで見る"), url: "https://x.com/search?q=\(q)&lang=ja"),
                 UsageLink(icon: .generic("🙋"), label: L("Yahoo!知恵袋で見る"), url: "https://chiebukuro.yahoo.co.jp/search?p=\(q)"),
                 UsageLink(icon: .google, label: L("日本のサイトで検索"), url: "https://www.google.com/search?q=\(q)&hl=ja&gl=JP&cr=countryJP&lr=lang_ja"),
@@ -2182,10 +2182,10 @@ struct WordDetailView: View {
             return [
                 UsageLink(icon: .youtube, label: L("YouTubeで聞く"), url: "https://www.youtube.com/results?search_query=\(q)&sp=EgIQAQ%253D%253D&gl=TW&hl=zh-TW"),
                 UsageLink(icon: .google, label: L("Google検索"), url: "https://www.google.com/search?q=\(q)&hl=zh-TW&gl=TW&cr=countryTW&lr=lang_zh-TW"),
-                UsageLink(icon: .threads, label: L("Threads で見る"), url: "https://www.threads.com/search?q=\(q)"),
+                UsageLink(icon: .threads, label: L("Threadsで見る"), url: "https://www.threads.com/search?q=\(q)"),
                 UsageLink(icon: .dcard, label: L("Dcardで見る"), url: "https://www.dcard.tw/search?query=\(q)"),
-                UsageLink(icon: .youglish, label: L("YouGlishで発音例"), url: "https://youglish.com/pronounce/\(path)/chinese/tw"),
-                UsageLink(icon: .moe, label: L("教育部國語辭典簡編本"), url: "https://dict.concised.moe.edu.tw/search.jsp?word=\(q)"),
+                UsageLink(icon: .youglish, label: L("YouGlishで聞く"), url: "https://youglish.com/pronounce/\(path)/chinese/tw"),
+                UsageLink(icon: .moe, label: L("教育部の国語辞典"), url: "https://dict.concised.moe.edu.tw/search.jsp?word=\(q)"),
             ]
         }
     }

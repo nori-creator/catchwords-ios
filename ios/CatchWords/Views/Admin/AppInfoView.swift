@@ -81,7 +81,7 @@ struct AppInfoView: View {
             } header: {
                 Text(L("この端末のデータ"))
             } footer: {
-                Text(L("画像・発音・図鑑の控えは、すぐ表示するために端末に保存しています。サインアウトすると消えます。"))
+                Text(L("画像・発音・図鑑の控えは、すぐ表示するために端末に保存しています。ログアウトすると消えます。"))
             }
         }
         .listStyle(.insetGrouped)

@@ -1131,6 +1131,8 @@ export function chunkExamplesRule(opts: {
   levelRule: string;
   chunkRoles: string;
   sceneMax?: number;
+  /** 訳を読む人の言語で自然に書く指示（`reader-style.ts`）。生成の本体と同じ物を渡す。 */
+  styleRule?: string;
 }): string {
   const { headword, targetName, nl, chunks, levelRule, chunkRoles } = opts;
   const sceneMax = opts.sceneMax ?? SCENE_MAX_CHARS.ja;
@@ -1146,6 +1148,7 @@ export function chunkExamplesRule(opts: {
     `e. ${REAL_NAMES_RULE}`,
     `scene: その文がまさに口にされる状況の短い1行（${nl}で${sceneMax}字以内）。scene_fits: 文だけを読んだネイティブが思い浮かべる場面と scene が同じなら true。`,
     levelRule,
+    ...(opts.styleRule ? [opts.styleRule] : []),
     `JSON だけを返す: {"example_patterns":[{"share":0,"sentence":"${targetName}の例文","translation":"自然な訳(${nl})","scene":"短い1行(${nl})","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`,
     `chunks は sentence をパーツ分解した [{text,pos}]（pos は ${chunkRoles}）。`,
   ].join("\n");

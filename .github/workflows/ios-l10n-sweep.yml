@@ -1,0 +1,197 @@
+# 全部の表示言語・全部の画面の写真を撮り、訳が自然かを見るための材料にする（オーナー 2026-11-16「すべての言語、すべての画面を
+# チェックして。すべてのアプリ内の機能を試して、すべて表示される言語がその言語において最も自然な表現かを…調べて」）。
+#
+# 何をするか（デモモード -uiDemo。本番には触れない）:
+#   tour   : 6 つの表示言語（ja・en・zh-TW・es・ko・vi）× 学習言語 繁體中文（台灣）で、アプリの機能を順に全部操作する
+#            （FullTourTests: ホーム → 図鑑 → 単語の頁 → 撮ってキャッチ → もう一度 → 文字で調べる → 復習 → 設定 →
+#            サインアウト → ログイン → 再起動）。1 画面ごとに撮る。2 つの job に分けて同時に走らせる。
+#   screens: iOS check の見本の画面（-uiPreview、開発者だけの画面は除く）を、6 つの表示言語すべてで 1 枚ずつ撮る。
+# 写真は縮めた JPEG にして ci-previews の runs/l10n-sweep-*/ と成果物に置く。
+#
+# 動かし方: l10n-sweep/ で始まるブランチに push する（または Actions から手で）。PR では走らない（時間がかかるため）。
+name: iOS l10n sweep（全言語・全画面の写真）
+
+on:
+  push:
+    branches: ['l10n-sweep/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tour:
+    runs-on: macos-26
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        part:
+          - { name: a, tests: "test_1_ja_zh test_3_en_zh test_10_zh_zh" }
+          - { name: b, tests: "test_7_es_zh test_8_ko_zh test_9_vi_zh" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
+
+      - name: シミュレーターを選んで起動する
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          runtimes = sorted((k for k in d if "iOS" in k), reverse=True)
+          for rt in runtimes:
+              phones = [x for x in d[rt] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]]
+              phones = phones or [x for x in d[rt] if x["name"].startswith("iPhone")]
+              if phones:
+                  print(phones[-1]["udid"]); break
+          ')
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: 全機能を操作する
+        working-directory: ios
+        run: |
+          set -o pipefail
+          UDID=$(cat "$RUNNER_TEMP/udid")
+          ONLY=""
+          for t in ${{ matrix.part.tests }}; do ONLY="$ONLY -only-testing:CatchWordsUITests/FullTourTests/$t"; done
+          ( sleep 5700; pkill -INT xcodebuild ) &
+          xcodebuild test \
+            -project CatchWords.xcodeproj \
+            -scheme CatchWords \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            $ONLY \
+            -resultBundlePath "$RUNNER_TEMP/tour.xcresult" \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 600 -maximum-test-execution-time-allowance 900 \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$RUNNER_TEMP/test.log" | grep -E "error:|Test Case|failed|passed|TEST (SUCCEEDED|FAILED)|BUILD FAILED" || true
+
+      - name: 写真を取り出して縮める
+        if: always()
+        run: |
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/shots"
+          mkdir -p "$OUT/raw"
+          [ -d "$RUNNER_TEMP/tour.xcresult" ] || { echo "結果がありません"; exit 0; }
+          xcrun xcresulttool export attachments --path "$RUNNER_TEMP/tour.xcresult" --output-path "$OUT/raw" || true
+          python3 - "$OUT" <<'PY'
+          import json, os, re, shutil, sys
+          out = sys.argv[1]; raw = os.path.join(out, "raw")
+          try: manifest = json.load(open(os.path.join(raw, "manifest.json")))
+          except Exception: manifest = []
+          shot = re.compile(r"^[a-z]{2}_[a-z]{2}_\d{2}_[A-Za-z0-9.-]+$")
+          for test in manifest:
+              for a in test.get("attachments", []):
+                  name = (a.get("suggestedHumanReadableName") or a.get("exportedFileName") or "").split("_0_")[0]
+                  if name.endswith(".png"): name = name[:-4]
+                  src = os.path.join(raw, a.get("exportedFileName", ""))
+                  if os.path.exists(src) and shot.match(name):
+                      shutil.copy(src, os.path.join(out, name + ".png"))
+          PY
+          rm -rf "$OUT/raw"
+          for f in "$OUT"/*.png; do sips -s format jpeg -s formatOptions 70 -Z 1400 "$f" --out "${f%.png}.jpg" >/dev/null && rm "$f"; done
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/tour.xcresult" > "$OUT/tests.json" 2>/dev/null || true
+          ls "$OUT" | wc -l
+
+      - name: ci-previews ブランチに置く
+        if: always()
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          [ -d "$RUNNER_TEMP/shots" ] || exit 0
+          CI_PREVIEWS_REPLACE=1 bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            "runs/l10n-sweep-tour-${{ matrix.part.name }}" "l10n sweep tour ${{ matrix.part.name }} @ ${{ github.sha }}" "$RUNNER_TEMP"/shots/*
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: l10n-sweep-tour-${{ matrix.part.name }}
+          path: ${{ runner.temp }}/shots
+          retention-days: 14
+
+  screens:
+    # A branch named l10n-sweep/tour-only-… runs the feature walk-throughs only.
+    if: ${{ !contains(github.ref_name, 'tour-only') }}
+    runs-on: macos-26
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        langs: ["ja en zh", "es ko vi"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
+
+      - name: シミュレーターを先に起動する
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          runtimes = sorted((k for k in d if "iOS" in k), reverse=True)
+          for rt in runtimes:
+              phones = [x for x in d[rt] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]]
+              phones = phones or [x for x in d[rt] if x["name"].startswith("iPhone")]
+              if phones:
+                  print(phones[-1]["udid"]); break
+          ')
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl boot "$UDID" || true
+
+      - name: シミュレーター用に組み立てる
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build -project CatchWords.xcodeproj -target CatchWords -configuration Debug -sdk iphonesimulator -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO SYMROOT="$RUNNER_TEMP/build" \
+            | tee "$RUNNER_TEMP/build.log" | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { echo "::error::組み立てに失敗しました"; exit 1; }
+
+      - name: 見本の画面を全言語で撮る
+        run: |
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/shots"; mkdir -p "$OUT"
+          UDID=$(cat "$RUNNER_TEMP/udid"); xcrun simctl bootstatus "$UDID" -b
+          APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl install "$UDID" "$APP"
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+          READY="$DATA/Library/Caches/ui-ready/preview"
+          for s in camera microphone photos location; do xcrun simctl privacy "$UDID" grant "$s" "$BUNDLE_ID" || true; done
+          # 名前 / 待つ秒（アニメーションの画面は終わりの方の 1 枚）。開発者だけの画面（AI の設定・分析・記録）は撮らない。
+          SCENES='tabbar 2|picker 2|cutout 7|reward 8|variants 6|get 9|get-again 9|landing 9|landing-again 9|analyzing 9|scanslow 13|hero 2|memorial 6|carousel 2|detail 3|settings 2|auth 3|signin 2|onboarding 3|paywall 2|dex 2|quiz 2|answer 2|done 3|homeload 1|chunks 2|tips 3|examples 3|sunscreen 3|unsaved 3|selfie 3|selfie-original 3|slides 8|choose 1|typed 1|picker4 6|picker4-nopos 6|praise 6|praise-first 6|praise-retention 6|review-ask 3|home-again 4|readings 2|readings-pinyin 2|map 3|regen 2|chunks-narrow 2|patterns 3|patterns-pinyin 3|patterns-pos 3|patterns-legacy 3|word25 3|word25-chunks 3|word25-pinyin 3|word25-examples 3|word25-pinyinex 4|word25-xl 3|word25-small 3|word25-related 3|word25-memo 3|word25-links 3|word25-review 3|word25-reviewzh 3|word25-panel 4|signin-mail 2|signup-mail 2|obgoals 2|oblevel 2|oblevel-wheel 2|obready 3|home-sample 4|dex-sample 3|dex-sample-cover 3|dex-sample-map 4|dex-sample-list 3|tour 2|tour-home 4|tour-dextab 2|tour-dexmap 3|tour-shadow 3|tour-word 4|tour-sections 4|tour-curve 3|tourdone 3|launch 7|launch-home 7|authopen 6|aiconsent 2'
+          for lang in ${{ matrix.langs }}; do
+            case "$lang" in en) al=en;; zh) al=zh-Hant;; es) al=es;; ko) al=ko;; vi) al=vi;; *) al=ja;; esac
+            IFS='|'; for spec in $SCENES; do
+              IFS=' '; set -- $spec; scene=$1; wait_s=$2
+              name="$scene-$lang"
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+              rm -f "$READY"
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW -AppleLanguages "($al)" >/dev/null || { echo "::warning::$name を開けませんでした"; continue; }
+              n=0; while [ ! -f "$READY" ] && [ $n -lt 60 ]; do sleep 0.25; n=$((n + 1)); done
+              sleep "$wait_s"
+              xcrun simctl io "$UDID" screenshot "$OUT/$name.png" >/dev/null 2>&1 || true
+              [ -f "$OUT/$name.png" ] && sips -s format jpeg -s formatOptions 70 -Z 1400 "$OUT/$name.png" --out "$OUT/$name.jpg" >/dev/null && rm "$OUT/$name.png"
+            done
+            IFS=' '
+          done
+          ls "$OUT" | wc -l
+
+      - name: ci-previews ブランチに置く
+        if: always()
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          [ -d "$RUNNER_TEMP/shots" ] || exit 0
+          part=$(echo "${{ matrix.langs }}" | tr ' ' '-')
+          CI_PREVIEWS_REPLACE=1 bash scripts/push_ci_previews.sh "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            "runs/l10n-sweep-screens-$part" "l10n sweep screens $part @ ${{ github.sha }}" "$RUNNER_TEMP"/shots/*
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: l10n-sweep-screens-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/shots
+          retention-days: 14

@@ -138,7 +138,7 @@ struct ReviewView: View {
                             }
                         }
                 )
-                .accessibilityAction(named: L("次へ")) { goNext() }
+                .accessibilityAction(named: L("次の問題へ")) { goNext() }
                 .tourAnchor(.reviewNext, if: router.tour == .reviewNext)
                 .modifier(AnswerSheetPlace(spread: spread, quizTop: quizTop, viewportHeight: viewportHeight, rail: router.usesRail))
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
@@ -298,7 +298,7 @@ struct ReviewView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(L("きょうの復習")).scaledFont(size: 26, weight: .heavy).foregroundStyle(Theme.foreground)
+                    Text(L("今日の復習")).scaledFont(size: 26, weight: .heavy).foregroundStyle(Theme.foreground)
                         .lineLimit(1).minimumScaleFactor(0.7)
                     Text(store.streak > 0 ? L("復習が\(store.streak)日続いています") : L("今日から復習を始めましょう"))
                         .scaledFont(size: 14).foregroundStyle(Theme.muted)
@@ -876,7 +876,7 @@ struct ReviewDone: View {
             VStack(spacing: 10) {
                 if missed > 0 {
                     Button(action: onRetry) {
-                        Label(L("まちがえた\(missed)語をもう一度"), systemImage: "arrow.counterclockwise")
+                        Label(L("間違えた\(missed)語をもう一度"), systemImage: "arrow.counterclockwise")
                             .scaledFont(size: 16, weight: .semibold).foregroundStyle(Theme.primaryInk)
                             .frame(maxWidth: .infinity, minHeight: 50)
                             .background(Theme.primary.opacity(0.1), in: Capsule())

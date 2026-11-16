@@ -66,7 +66,7 @@ struct AnswerPanel: View {
                         .buttonStyle(PressableStyle(scale: 0.98))
                     }
                     Button(action: onNext) {
-                        Text(L("次へ"))
+                        Text(L("次の問題へ"))
                             .scaledFont(size: 16, weight: .semibold)
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity, minHeight: 50)

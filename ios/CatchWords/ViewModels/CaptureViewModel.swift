@@ -23,7 +23,7 @@ final class CaptureViewModel {
     var shownPhoto: UIImage?
     var selfie: UIImage?
     var candidates: [Candidate] = []
-    /// The words found for what was typed ("違う単語を入力"), the everyday one first: the choose screen lists them
+    /// The words found for what was typed ("リストにない言葉を探す"), the everyday one first: the choose screen lists them
     /// (覚える単語を選ぶ), and they stay listed under the photo when it is closed.
     var typedCandidates: [Candidate] = []
     /// What was typed for `typedCandidates` (the choose screen's line under its title).
@@ -58,7 +58,7 @@ final class CaptureViewModel {
     var photoTakenAt: Date?
     let captureType: String = "photo"
     var restoredPendingId: String?
-    /// Inline error under "違う単語を入力" (web `input.notTargetLang`).
+    /// Inline error under "リストにない言葉を探す" (web `input.notTargetLang`).
     var searchError: String?
     /// One-line notice (web toast).
     var toast: String?
@@ -319,7 +319,7 @@ final class CaptureViewModel {
         return (error as? LocalizedError)?.errorDescription ?? L("解析に失敗しました。")
     }
 
-    /// "違う単語を入力" under the photo or on a thing's choose screen (`suggestWordCandidates`, any language — the
+    /// "リストにない言葉を探す" under the photo or on a thing's choose screen (`suggestWordCandidates`, any language — the
     /// display language or the learning language): the photo stays the sticker (`object`: the thing it was typed for,
     /// whose cut-out is used) and the screen stays put. Whatever was found — one word or several — opens the choose
     /// screen (覚える単語を選ぶ, owner 2026-10-15: a typed word went straight to the catch, so 犬 typed in Japanese became
