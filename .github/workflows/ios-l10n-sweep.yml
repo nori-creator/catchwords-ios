@@ -112,6 +112,8 @@ jobs:
           retention-days: 14
 
   screens:
+    # A branch named l10n-sweep/tour-only-… runs the feature walk-throughs only.
+    if: ${{ !contains(github.ref_name, 'tour-only') }}
     runs-on: macos-26
     timeout-minutes: 110
     strategy:

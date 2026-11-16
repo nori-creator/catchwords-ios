@@ -104,8 +104,12 @@ nonisolated final class DemoDatabase: @unchecked Sendable {
         var r = (requested ?? "").trimmingCharacters(in: .whitespaces)
         if r.isEmpty { r = L10n.lang }
         if r.lowercased().hasPrefix("zh") { r = "zh-TW" }
-        if !["ja", "en", "zh-TW"].contains(r) { r = "ja" }
-        if r == learning { r = learning == "ja" ? "en" : "ja" }
+        // Every display language the app offers (es / ko / vi too: their UI tests ran in Japanese before, 2026-11-16).
+        // The demo's word texts exist in ja / en / zh-TW only; other readers get those fields empty, as production
+        // does for a row written in another language (R23).
+        if !L10n.supported.contains(r) { r = "ja" }
+        // 繁體中文（台灣） may be the display language while learning it (owner 2026-10-20); en / ja may not.
+        if r == learning && r != "zh-TW" { r = learning == "ja" ? "en" : "ja" }
         return r
     }
 
