@@ -279,6 +279,7 @@ struct ChunkLineView: View {
             }
         }
         .fixedSize(horizontal: true, vertical: false)
+        .taiwanGlyphs(target.hasPrefix("zh"))
     }
 
     private func charSize(_ scale: CGFloat) -> CGFloat { detailFontSize(baseSize, dynamicTypeSize, pageTextScale) * scale }
@@ -369,6 +370,7 @@ struct ChunkLineView: View {
                 ForEach(choices, id: \.text) { c in
                     HStack(spacing: 10) {
                         Text(c.text).scaledFont(size: 18, weight: .semibold).foregroundStyle(Theme.foreground)
+                            .taiwanGlyphs(target.hasPrefix("zh"))
                         if !c.ja.isEmpty {
                             Text(c.ja).scaledFont(size: 14).foregroundStyle(Theme.muted)  // lang-ok: filtered in ReaderLanguage.resolve (alts)
                         }

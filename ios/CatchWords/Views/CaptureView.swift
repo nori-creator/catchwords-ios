@@ -1087,7 +1087,7 @@ struct PendingListView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 if let word = item.save?.candidate.headword {
                                     // A word whose save failed: it is in the dex already, waiting to be saved.
-                                    Text(L("保存待ち：\(word)"))
+                                    Text(Self.wordRun(L("保存待ち：\(word)"), word: word))
                                         .scaledFont(size: 15, weight: .semibold)
                                         .foregroundStyle(Theme.primaryInk)
                                 }
@@ -1119,5 +1119,14 @@ struct PendingListView: View {
             .navigationTitle(L("解析待ちの写真"))
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+
+    /// `line` with `word` (the learning language) in the Taiwan shapes, the rest in the display language's.
+    private static func wordRun(_ line: String, word: String) -> AttributedString {
+        var out = AttributedString(line)
+        if TaiwanGlyphs.hasHan(word), let r = out.range(of: word, options: .backwards) {
+            out[r].languageIdentifier = TaiwanGlyphs.identifier
+        }
+        return out
     }
 }

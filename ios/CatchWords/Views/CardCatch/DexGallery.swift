@@ -317,6 +317,7 @@ private struct DexSlotView: View {
                 .frame(minWidth: 0, maxWidth: .infinity)
                 .clipped()
                 .frame(height: nameHeight, alignment: .top)
+                .taiwanGlyphs(lang.hasPrefix("zh"))
         }
     }
 
@@ -403,6 +404,7 @@ struct DexCyclingPicture: View {
                                 .minimumScaleFactor(0.4)
                                 .multilineTextAlignment(.center)
                                 .padding(6)
+                                .taiwanGlyphs(for: headword)
                         }
                 }
                 ForEach(frames, id: \.self) { i in

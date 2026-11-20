@@ -160,6 +160,7 @@ struct DexCalendarView: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(s.word?.headword ?? "").scaledFont(size: 20, weight: .bold).foregroundStyle(Theme.foreground)
                                     .lineLimit(1).minimumScaleFactor(0.45)
+                                    .taiwanGlyphs(for: s.word?.headword ?? "")
                                 Text(s.word?.meaningJa ?? "").scaledFont(size: 13).foregroundStyle(Theme.muted)
                                     .lineLimit(2)
                                 if s.lat != nil || !(s.locationName ?? "").isEmpty {

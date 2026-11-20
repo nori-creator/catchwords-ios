@@ -1379,6 +1379,7 @@ struct DexMapView: View {
                         .foregroundStyle(isOn ? Theme.primaryInk : Theme.muted)
                     Text(s.word?.headword ?? "").scaledFont(size: 17, weight: .medium).foregroundStyle(Theme.foreground)
                         .lineLimit(1).minimumScaleFactor(0.45)
+                        .taiwanGlyphs(for: s.word?.headword ?? "")
                     if let cap = s.caption, !cap.isEmpty {
                         Text(cap).scaledFont(size: 15).foregroundStyle(Theme.muted).lineLimit(1)
                     } else {

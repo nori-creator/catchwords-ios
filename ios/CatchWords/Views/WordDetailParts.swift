@@ -244,6 +244,7 @@ struct ExampleSentenceView<Trailing: View>: View {
         .fixedSize()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(line.map { chars[$0] }.joined())
+        .taiwanGlyphs(for: sentence)
     }
 
     @ViewBuilder
@@ -327,7 +328,8 @@ struct ExampleSentenceView<Trailing: View>: View {
 
     private static func measure(_ text: String, size: CGFloat, weight: UIFont.Weight) -> CGFloat {
         let font = UIFont.systemFont(ofSize: size, weight: weight)
-        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        // Measured in the Taiwan shapes the line is drawn in (`TaiwanGlyphs`).
+        return ceil((text as NSString).size(withAttributes: [.font: font, TaiwanGlyphs.languageKey: TaiwanGlyphs.identifier]).width)
     }
 }
 
@@ -749,12 +751,14 @@ struct RubyWord: View {
             .fixedSize()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(text)
+            .taiwanGlyphs()
         } else {
             Text(text)
                 .font(.system(size: size, weight: weight))
                 .foregroundStyle(color)
                 .lineLimit(1)
                 .fixedSize()
+                .taiwanGlyphs(for: text)
         }
     }
 }

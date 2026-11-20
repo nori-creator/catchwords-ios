@@ -118,6 +118,7 @@ struct PinyinRubyLine: View {
         .alignmentGuide(.hanCenter) { d in d[.bottom] - size * 0.6 }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(units.map(\.char).joined())
+        .taiwanGlyphs()
     }
 }
 
@@ -210,6 +211,7 @@ struct ZhuyinWordView: View {
             mandarinRuby(size: size * 0.82)
             mandarinRuby(size: size * 0.68)
         }
+        .taiwanGlyphs()
     }
 
     @ViewBuilder private func mandarinRuby(size: CGFloat) -> some View {
@@ -329,6 +331,7 @@ struct SentenceRuby: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(units.map(\.char).joined())
+        .taiwanGlyphs()
     }
 
     /// The runs of characters that stay on one line: each occurrence of each of `words` (longest first, so 馬桶刷 is kept

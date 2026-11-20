@@ -27,6 +27,15 @@ struct PraiseCelebrationView: View {
     private static var kickers: [String] { [L("すごい！"), L("おめでとう"), L("やったね！")] }
     private var kicker: String { Self.kickers[abs(moment.to + moment.kind.rawValue.count) % Self.kickers.count] }
 
+    /// The title with the caught word (first catcher) in the Taiwan shapes, the rest in the display language's.
+    private var titleText: AttributedString {
+        var out = AttributedString(moment.title)
+        if let word = moment.word, TaiwanGlyphs.hasHan(word), let r = out.range(of: word, options: .backwards) {
+            out[r].languageIdentifier = TaiwanGlyphs.identifier
+        }
+        return out
+    }
+
     var body: some View {
         ZStack {
             RadialGradient(colors: [Color(hex: 0x1E2B55), Color(hex: 0x070B18)], center: .center, startRadius: 20, endRadius: 520)
@@ -57,7 +66,7 @@ struct PraiseCelebrationView: View {
                     .font(.system(size: 15, weight: .bold))
                     .tracking(4)
                     .foregroundStyle(Theme.gold)
-                Text(moment.title)
+                Text(titleText)
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.9))
                     .multilineTextAlignment(.center)

@@ -52,6 +52,7 @@ struct TodayWordView: View {
                 .foregroundStyle(WidgetStyle.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.45)
+                .taiwanGlyphs(for: word.headword)
         }
     }
 

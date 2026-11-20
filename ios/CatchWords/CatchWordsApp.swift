@@ -55,6 +55,7 @@ struct CatchWordsApp: App {
                 // "-en" / "-zh" in another display language; "-duo" / "-duoland" on iPhone Duo's inner screen, upright / sideways.
                 UIPreviewRoot(name: p.scene, duo: p.duo, land: p.land)
                     .environment(\.locale, L10n.locale)
+                    .displayLanguageGlyphs(L10n.current)
                     .environment(dex)
                     .environment(auth)
                     .environment(plan)
@@ -77,6 +78,7 @@ struct CatchWordsApp: App {
     private var app: some View {
             RootView()
                 .environment(\.locale, L10n.locale)
+                .displayLanguageGlyphs(L10n.current)  // Han shapes of the display language (TaiwanGlyphs.swift)
                 .environment(auth)
                 .environment(dex)
                 .environment(plan)

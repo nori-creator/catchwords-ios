@@ -206,6 +206,7 @@ struct SectionsPanel: View {
                         .foregroundStyle(Theme.foreground)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
+                        .taiwanGlyphs(for: sampleWord)
                     if !sampleMeaning.isEmpty {
                         Text(sampleMeaning)  // lang-ok: the word's meaning (ReaderLanguage.resolve)
                             .font(.system(size: AppTypeScale.scaled(14, for: dynamicTypeSize) * textScale))

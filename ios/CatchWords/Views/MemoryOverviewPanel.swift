@@ -80,6 +80,7 @@ struct MemoryOverviewPanel: View {
                     .scaledFont(size: 16, weight: .medium).foregroundStyle(Theme.foreground)
                     .lineLimit(1).minimumScaleFactor(0.45)
                     .frame(width: 76, alignment: .leading)
+                    .taiwanGlyphs(for: s.word?.headword ?? "")
                 GeometryReader { g in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Theme.secondary)

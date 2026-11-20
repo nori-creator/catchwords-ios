@@ -137,6 +137,8 @@ nonisolated struct PraiseMoment: Identifiable, Equatable {
     let note: String
     /// The first catcher: the cut-out of the thing just caught, shown above the words (owner 2026-10-25).
     var image: UIImage? = nil
+    /// The first catcher: the word inside `title`, drawn in the Taiwan shapes (`TaiwanGlyphs`).
+    var word: String? = nil
 
     static func == (a: PraiseMoment, b: PraiseMoment) -> Bool { a.id == b.id }
 
@@ -185,7 +187,7 @@ nonisolated struct PraiseMoment: Identifiable, Equatable {
                                         title: L("「\(headword)」をキャッチしたのは"),
                                         format: { L("\($0)人目") },
                                         caption: L("全ユーザーの中で、あなたが初めてです"),
-                                        note: note, image: image))
+                                        note: note, image: image, word: headword))
             }
             if let w = s.words, flatters(w) {
                 out.append(place(.wordsTop, w, title: L("集めた単語の数は"), note: note))

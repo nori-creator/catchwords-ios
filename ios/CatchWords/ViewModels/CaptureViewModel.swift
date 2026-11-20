@@ -830,11 +830,13 @@ final class CaptureViewModel {
             }
             let style = NSMutableParagraphStyle()
             style.alignment = .center
-            let attrs: [NSAttributedString.Key: Any] = [
+            var attrs: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: text.count > 3 ? 150 : 230, weight: .bold),
                 .foregroundColor: UIColor.white,
                 .paragraphStyle: style,
             ]
+            // The word in the Taiwan shapes (`TaiwanGlyphs`).
+            if TaiwanGlyphs.hasHan(text) { attrs[TaiwanGlyphs.languageKey] = TaiwanGlyphs.identifier }
             let str = NSAttributedString(string: text, attributes: attrs)
             let bounds = str.boundingRect(with: CGSize(width: size.width - 80, height: size.height), options: .usesLineFragmentOrigin, context: nil)
             str.draw(in: CGRect(x: 40, y: (size.height - bounds.height) / 2, width: size.width - 80, height: bounds.height))
