@@ -474,6 +474,7 @@ struct WordDetailView: View {
             Text(headword)
                 .scaledFont(size: 15, weight: .medium)
                 .foregroundStyle(Theme.muted)
+                .taiwanGlyphs(for: headword)
             if isProvisional {
                 HStack(spacing: 5) {
                     if isUnsaved && !dex.isRetrying(current.id) {

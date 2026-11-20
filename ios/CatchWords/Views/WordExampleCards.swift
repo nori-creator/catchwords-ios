@@ -176,6 +176,7 @@ struct ExampleBlock: View {
                         .foregroundStyle(Theme.foreground)
                         .lineSpacing(8)
                         .fixedSize(horizontal: false, vertical: true)
+                        .taiwanGlyphs(for: example.sentence)
                 }
                 if let t = example.translation, !t.isEmpty {
                     Text(t).scaledFont(size: 14).foregroundStyle(Theme.muted).lineSpacing(6)

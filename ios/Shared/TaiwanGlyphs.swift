@@ -49,6 +49,18 @@ extension View {
     }
 }
 
+extension View {
+    /// The app's own words in the display language's Han shapes, at the root: a Japanese screen on an iPhone set to
+    /// another language keeps Japanese shapes, a 繁體中文（台灣） screen on a Japanese iPhone gets the Taiwan ones. Only the
+    /// display languages written with Han characters (ja, zh-TW); the others are left as they were. Learning text sets
+    /// its own language (`taiwanGlyphs`), which wins inside.
+    func displayLanguageGlyphs(_ language: DisplayLanguage) -> some View {
+        let han = language.script == .kana || language.script == .han
+        return typesettingLanguage(Locale.Language(identifier: language.localeID.replacingOccurrences(of: "_", with: "-")),
+                                   isEnabled: han)
+    }
+}
+
 extension AttributedString {
     /// The learning language on every run (`Text(AttributedString)` that mixes it with other text).
     func taiwanGlyphs() -> AttributedString {

@@ -428,6 +428,7 @@ struct DiaryPageView: View {
                     }
                     .accessibilityAddTraits(staticPrint ? [] : .isButton)
                     .accessibilityHint(staticPrint ? "" : L("押すと書けます"))
+                    .taiwanGlyphs(target.hasPrefix("zh"))
             }
         }
         .padding(.vertical, lineGap / 2)

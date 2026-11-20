@@ -88,6 +88,7 @@ struct ForgettingCurveSheet: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Text(sticker.word?.headword ?? "").scaledFont(size: 26, weight: .heavy).foregroundStyle(Theme.foreground)
+                        .taiwanGlyphs(for: sticker.word?.headword ?? "")
                     Spacer()
                     Button { close() } label: {
                         Image(systemName: "xmark").font(.system(size: 18, weight: .medium)).foregroundStyle(Theme.muted)

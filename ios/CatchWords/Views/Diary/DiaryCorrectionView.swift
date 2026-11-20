@@ -17,6 +17,7 @@ struct SentenceNoteCard: View {
             Text(marked)
                 .font(.system(size: 15))
                 .fixedSize(horizontal: false, vertical: true)
+                .taiwanGlyphs(for: sentence)
             ForEach(Array(check.issues.enumerated()), id: \.offset) { _, issue in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -30,12 +31,14 @@ struct SentenceNoteCard: View {
                             .font(.system(size: 15, weight: .semibold))
                             .strikethrough(color: Self.wrongInk)
                             .foregroundStyle(Self.wrongInk)
+                            .taiwanGlyphs(for: issue.wrong)
                         Image(systemName: "arrow.right")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(ink.opacity(0.45))
                         Text(issue.fix)
                             .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(Self.fixInk)
+                            .taiwanGlyphs(for: issue.fix)
                     }
                     let why = ReaderLanguage.shown(issue.explain)
                     if !why.isEmpty {
@@ -56,6 +59,7 @@ struct SentenceNoteCard: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(ink)
                         .textSelection(.enabled)
+                        .taiwanGlyphs(for: check.natural)
                     let note = ReaderLanguage.shown(check.naturalNote)
                     if !note.isEmpty {
                         Text(note)
@@ -235,12 +239,14 @@ struct DiaryCorrectionView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .strikethrough(color: SentenceNoteCard.wrongInk)
                                 .foregroundStyle(SentenceNoteCard.wrongInk)
+                                .taiwanGlyphs(for: m.wrong)
                             Image(systemName: "arrow.right")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(Self.ink.opacity(0.45))
                             Text(m.fix)
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundStyle(SentenceNoteCard.fixInk)
+                                .taiwanGlyphs(for: m.fix)
                         }
                         let why = ReaderLanguage.shown(m.explain)
                         if !why.isEmpty {
@@ -297,6 +303,7 @@ struct DiaryCorrectionView: View {
                 .font(.system(size: AppTypeScale.scaled(size, for: dynamicTypeSize), weight: .medium))
                 .foregroundStyle(Self.ink)
                 .fixedSize(horizontal: false, vertical: true)
+                .taiwanGlyphs(for: text)
         }
     }
 }
