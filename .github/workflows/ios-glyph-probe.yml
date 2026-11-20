@@ -1,0 +1,33 @@
+# Temporary probe (remove before merging): which way of marking Chinese text gives Taiwan glyph shapes on a
+# Japanese-language device.
+name: Han glyph probe
+on:
+  push:
+    branches: [claude/han-glyph-probe]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          for rt in sorted((k for k in d if "iOS" in k), reverse=True):
+              p = [x for x in d[rt] if x["name"].startswith("iPhone")]
+              if p: print(p[-1]["udid"]); break
+          ')
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+      - name: Probe (Japanese device)
+        working-directory: ios
+        run: |
+          UDID=$(cat "$RUNNER_TEMP/udid")
+          xcodebuild test -project CatchWords.xcodeproj -scheme CatchWords \
+            -destination "platform=iOS Simulator,id=$UDID" -testLanguage ja -testRegion JP \
+            -only-testing:CatchWordsTests/HanGlyphProbeTests CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/t.log" | grep -E "PROBE|error:|TEST (SUCCEEDED|FAILED)" || true
+          grep "PROBE" "$RUNNER_TEMP/t.log" | sed 's/^/::notice::/' | head -20
