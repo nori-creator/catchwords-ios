@@ -65,8 +65,8 @@ import {
   sameSentence,
   examplePatternsRule,
   pickExamplePatterns,
-  coverChunks,
   chunkExamplesRule,
+  chunksWithoutExample,
   applyFixedMainExample,
   checkMainExampleLabel,
   chunksMatchSentence,
@@ -112,6 +112,7 @@ import {
   testPhotoRank,
 } from "./ai-test-photos";
 import { claude5ThinkingOff } from "./claude-thinking";
+import { chunkExamplesTimeout, fillChunkExamples } from "./chunk-example-fill";
 import {
   locateInstruction,
   objectsNeedingBoxes,
@@ -667,8 +668,6 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
 
 /** 枠だけを聞き直す1回の締め切り（答えは短いので、1番手の候補より短く）。 */
 const LOCATE_TIMEOUT_MS = 8_000;
-/** 型の例文を足す小さな呼び出しの締め切り（`coverChunks`）。過ぎたらカードはそのまま返す。 */
-const CHUNK_EXAMPLES_TIMEOUT_MS = 8_000;
 
 type SuggestionItem = z.infer<typeof SuggestionSchema>["suggestions"][number];
 
@@ -1503,7 +1502,12 @@ export const generateCard = createServerFn({ method: "POST" })
             `headword_zh が「${data.headword}」と違う語になった時だけ、その語のメインの例文として使う（その時は headword_zh の語を入れた文にする）。` +
             `同じなら使わないので短くてよいが、必ず書く。`,
         ].join("\n")
-      : examplePatternsRule({ ...patternBase, max: maxPatterns });
+      : examplePatternsRule({
+          ...patternBase,
+          max: maxPatterns,
+          // 型も同じ返事で書かせる時は、例文を型と対にする（型1つにつき例文1つ、型の順）。
+          ...(want("usage_chunks") ? { pairChunks: "same_reply" as const } : {}),
+        });
     // 訳・解説を読む人の言語で自然に（直訳・混ぜ書き・訳語の揺れ・文体の混ざり・例文の文法の確かめ — `reader-style.ts`）。
     const styleRule = readerStyleRule({
       explainLang,
@@ -2016,41 +2020,26 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
         readerLang: explainLang,
         withExtra: want("examples_extra"),
       };
-      const covered = coverChunks(card, { ...coverOpts, patterns: card.example_patterns });
-      card = covered.card;
-      if (covered.missing.length > 0 && coverOpts.withExtra) {
-        const started = Date.now();
-        const missing = covered.missing.map((i) => keptChunks[i]);
-        try {
-          const reply = await cardTargets[0].generate(
-            chunkExamplesRule({
-              ...patternBase,
-              headword: resolvedHead,
-              chunks: missing,
-              styleRule,
-            }),
-            AbortSignal.timeout(CHUNK_EXAMPLES_TIMEOUT_MS),
-          );
-          const parsed = z
-            .object({ example_patterns: z.array(ExamplePatternSchema).catch([]) })
-            .catch({ example_patterns: [] })
-            .parse(parseJsonFromAiText(reply.text ?? ""));
-          const again = coverChunks(card, { ...coverOpts, patterns: parsed.example_patterns });
-          card = again.card;
-          console.info("generateCard: 型の例文を足した", {
-            headword: resolvedHead,
-            asked: missing.length,
-            still: again.missing.length,
-            ms: Date.now() - started,
-          });
-        } catch (e) {
-          console.warn("generateCard: 型の例文を足せなかった", {
-            headword: resolvedHead,
-            asked: missing.length,
-            ms: Date.now() - started,
-            error: e instanceof Error ? e.message.slice(0, 120) : "failed",
-          });
-        }
+      // 締め切りは残り時間から（iOS は 60 秒で切る）。前の 8 秒は 28 回中 27 回時間切れだった（`chunk-example-fill.ts`）。
+      const fill = await fillChunkExamples(card, {
+        ...coverOpts,
+        patterns: card.example_patterns,
+        rule: (missing) =>
+          chunkExamplesRule({ ...patternBase, headword: resolvedHead, chunks: missing, styleRule }),
+        generate: (p, signal) => cardTargets[0].generate(p, signal),
+        parse: parseJsonFromAiText,
+        timeoutMs: chunkExamplesTimeout(Date.now() - cardStartedAt),
+      });
+      card = fill.card;
+      if (fill.asked > 0 || fill.missing.length > 0) {
+        (fill.missing.length > 0 ? console.warn : console.info)("generateCard: 型の例文", {
+          headword: resolvedHead,
+          chunks: keptChunks.length,
+          asked: fill.asked,
+          still: fill.missing.length,
+          ms: fill.ms,
+          ...(fill.error ? { error: fill.error } : {}),
+        });
       }
     }
 
@@ -2745,6 +2734,7 @@ async function runSectionRegen(
   mode: "write" | "propose",
 ): Promise<{ ok: true; section: RegenSection; filled: boolean; proposal?: SectionProposal }> {
   const { supabase, userId } = context;
+  const regenStartedAt = Date.now();
   /**
    * **発音のコツ・覚え方・語源と部首はもう作らない**（オーナー決定 2026-10-15、`NOT_GENERATED_SECTIONS`）。
    * iOS 1.0.0 など古い版が空の節を埋めに来ても、AI・枠・Pro の確認なしにすぐ空で返す。
@@ -2967,6 +2957,14 @@ async function runSectionRegen(
       : "";
   // 帯の行の札は、その文を作った時に一緒に書く（ここで後から付けない）。
   const needMainLabel = !levelBand && mainUsable && !readerMainScene && !sharedSceneForReader;
+  /**
+   * **型と例文は対**（2026-11-20、`chunk-example-fill.ts`）。帯の行（画面が出す例文・チャンクの行）で、片方だけを
+   * 作り直す時も対を保つ: 例文を作り直す時は今の型を指示文に書き、使い方を作り直した時は新しい型の例文を足す。
+   * 帯の付かない古い語の行は今までどおり（↻ を押すと帯の行になり、ここを通る）。
+   */
+  const pairChunksOnRow: UsageChunk[] = levelBand
+    ? ((normalizeExtras(word.extras)?.usage_chunks ?? []) as UsageChunk[])
+    : [];
   /** 人が確かめた語（verified）の例文は書き換えないので、例文を作り直す時もその文を決まった文として扱う。 */
   const fixedExampleMain = data.section === "example" && word.source === "verified" && mainUsable;
   const mainLabelRule = (extraOpts: { translation: boolean }) =>
@@ -3053,13 +3051,15 @@ async function runSectionRegen(
             }),
         }
       : {
-          prompt: `${base}\n${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS })}\n${chunkRule(word.language as string | null)}\n${EXAMPLE_PATTERNS_JSON(targetName, NL)}`,
+          // 今の型を書いて、型1つにつき例文1つを頼む（型を知らせないと、型を含まない例文が返る）。
+          prompt: `${base}\n${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS, ...(pairChunksOnRow.length > 0 ? { pairChunks: pairChunksOnRow } : {}) })}\n${chunkRule(word.language as string | null)}\n${EXAMPLE_PATTERNS_JSON(targetName, NL)}`,
           schema: z
             .object({ example_patterns: z.array(ExamplePatternSchema).min(1) })
             .transform((r, ctx) => {
               const picked = pickExamplePatterns(r.example_patterns, {
                 ...regenPickBase,
                 max: MAX_EXAMPLE_PATTERNS,
+                ...(pairChunksOnRow.length > 0 ? { chunks: pairChunksOnRow } : {}),
               });
               const [main, ...rest] = picked;
               if (!main) {
@@ -3306,6 +3306,86 @@ async function runSectionRegen(
     const { withChunkReadings } = await import("./chunk-readings.server");
     out.usage_chunks = withChunkReadings(out.usage_chunks as UsageChunk[], regenProfile.code);
   }
+  /**
+   * **型と例文を対に保つ**（帯の行だけ。`chunk-example-fill.ts`）。
+   * - 例文を作り直した: 今の型のうち、新しい例文に入っていない物の例文を足す（同じ返事の生のパターン → 小さな呼び出し）。
+   * - 使い方を作り直した・穴埋めした: 新しい型のうち、今の例文に入っていない物の例文を足す（今の例文は変えない）。
+   * 足す分は `pairExtras`（使い方の節の時。例文の節の時は `out` に入れる）。書けなければそのまま。
+   */
+  let pairExtras: Record<string, unknown> = {};
+  let pairMain: { sentence: string; translation: string } | null = null;
+  if (levelBand && (data.section === "usage_chunks" || data.section === "example")) {
+    const rowExtras = (normalizeExtras(word.extras) ?? {}) as Record<string, unknown>;
+    const forChunks = data.section === "usage_chunks";
+    const chunks = forChunks ? ((out.usage_chunks ?? []) as UsageChunk[]) : pairChunksOnRow;
+    const before = forChunks
+      ? {
+          example_sentence: ((word.example_sentence as string | null) ?? "").trim(),
+          example_translation: ((word.example_translation as string | null) ?? "").trim(),
+          extras: { examples_extra: (rowExtras.examples_extra as unknown[] | undefined) ?? [] } as Record<string, unknown>,
+        }
+      : {
+          example_sentence: String(out.example_sentence ?? mainSentence).trim(),
+          example_translation: String(out.example_translation ?? "").trim(),
+          extras: out,
+        };
+    const sentencesBefore = [
+      before.example_sentence,
+      ...((before.extras.examples_extra as Array<{ zh?: string }> | undefined) ?? []).map((e) => e?.zh ?? ""),
+    ].filter((t) => t.trim());
+    if (chunks.length > 0 && chunksWithoutExample(chunks, sentencesBefore).length > 0) {
+      const raw = z
+        .object({ example_patterns: z.array(ExamplePatternSchema).catch([]) })
+        .catch({ example_patterns: [] })
+        .parse(forChunks ? {} : parseJsonFromAiText(result.text));
+      const fill = await fillChunkExamples(before, {
+        chunks,
+        headword: head,
+        language: regenProfile.code,
+        readerLang: regenLang,
+        withExtra: true,
+        patterns: raw.example_patterns,
+        rule: (missing) =>
+          chunkExamplesRule({ ...regenPatternBase, chunks: missing, styleRule }),
+        generate: (p, signal) =>
+          withModelFallback(ai, model, (m) =>
+            generateText({ model: ai.gateway(m), prompt: p, abortSignal: signal, maxRetries: 0 }),
+          ),
+        parse: parseJsonFromAiText,
+        timeoutMs: chunkExamplesTimeout(Date.now() - regenStartedAt),
+      });
+      (fill.missing.length > 0 ? console.warn : console.info)("regenerateCardSection: 型の例文", {
+        headword: head,
+        section: data.section,
+        chunks: chunks.length,
+        asked: fill.asked,
+        still: fill.missing.length,
+        ms: fill.ms,
+        ...(fill.error ? { error: fill.error } : {}),
+      });
+      const after = (fill.card.extras ?? {}) as Record<string, unknown>;
+      if (forChunks) {
+        const { withChunkReadingsInExtras } = await import("./chunk-readings.server");
+        const added: Record<string, unknown> = {};
+        const extraAfter = (after.examples_extra as unknown[] | undefined) ?? [];
+        if (extraAfter.length > ((before.extras.examples_extra as unknown[] | undefined) ?? []).length) {
+          added.examples_extra = extraAfter;
+          added.example_pattern_count = after.example_pattern_count;
+        }
+        // メインの例文が無かった行は、足した1つ目がメインになる（札・パーツも）。
+        const mainAfter = String(fill.card.example_sentence ?? "").trim();
+        if (!before.example_sentence && mainAfter) {
+          pairMain = { sentence: mainAfter, translation: String(fill.card.example_translation ?? "") };
+          for (const k of ["example_scene", "example_chunks", "example_scene_for", "example_v", "example_pattern_count"]) {
+            if (after[k] != null) added[k] = after[k];
+          }
+        }
+        pairExtras = withChunkReadingsInExtras(added as never, regenProfile.code) as Record<string, unknown>;
+      } else {
+        out = { ...out, examples_extra: after.examples_extra, example_pattern_count: after.example_pattern_count };
+      }
+    }
+  }
   // 例文の札にも（`example_chunks`・追加の例文の `chunks`）。
   if (data.section === "example" || data.section === "examples_extra") {
     const { withChunkReadingsInExtras } = await import("./chunk-readings.server");
@@ -3322,7 +3402,16 @@ async function runSectionRegen(
       scrubForeignNotes(out as Parameters<typeof scrubForeignNotes>[0], regenLang),
       regenLang,
     ),
+    // 使い方を作り直した時に足した例文（同じ掃除を通す）。
+    ...scrubExtrasForReader(
+      scrubForeignNotes(pairExtras as Parameters<typeof scrubForeignNotes>[0], regenLang),
+      regenLang,
+    ),
   };
+  if (pairMain) {
+    baseUpdate.example_sentence = pairMain.sentence;
+    baseUpdate.example_translation = readerText(pairMain.translation, regenLang, pairMain.sentence);
+  }
   /**
    * 作り直した意味。**読む人の言語でない意味は使わない**。指示文は共有の意味（別の言語のことがある）を
    * 「(意味: …)」として渡すので、それを写しただけの答えも使わない（共有の行がこの人の言語の行でない時）。
