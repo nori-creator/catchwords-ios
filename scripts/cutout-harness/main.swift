@@ -53,6 +53,9 @@ struct CaseFile: Decodable {
         /// Run the case once for each of `boxVariants` (the AI's box tight, loose, small, shifted; its point off the
         /// thing) — a cut-out must hold however the box falls on a given try (owner 2026-11-03).
         let variants: Bool?
+        /// Print and save the diagnosis of holes (`holes`): Vision's whole-photo instances, each thing's raw
+        /// instance cut-out, the crop-refined one and the final one, with the transparent pixels enclosed in each.
+        let diagnose: Bool?
     }
     let photos: [Photo]
     let cases: [Case]
@@ -222,6 +225,84 @@ func measure(_ a: [UInt8], ref: [UInt8], others: [[UInt8]], box: CGRect?, cut: I
                    straight: worst, straightAt: worstAt,
                    rectangle: rect, leak: opaque == 0 ? 0 : Double(leaked) / Double(opaque))
 }
+
+// MARK: Holes (diagnosis only: `diagnose` cases)
+
+/// Transparent pixels (alpha ≤ 8) of a cut-out not connected to its image's border: holes inside the cut-out.
+struct Holes {
+    let opaque: Int
+    let enclosed: Int
+    let components: Int
+    let largest: Int
+    /// The largest hole's bounding box, 0–1 of the photo.
+    let largestBox: CGRect?
+
+    var text: String {
+        let share = opaque == 0 ? 0 : Double(enclosed) / Double(opaque) * 100
+        var s = String(format: "enclosed transparent px %d (%.2f%% of %d opaque px), %d holes", enclosed, share, opaque, components)
+        if let b = largestBox {
+            s += String(format: ", largest %d px at (%.3f,%.3f %.3f×%.3f of the photo)", largest, b.minX, b.minY, b.width, b.height)
+        }
+        return s
+    }
+}
+
+func holes(_ cut: InstanceMasks.Cut?) -> Holes? {
+    guard let cut else { return nil }
+    let cg = cut.cg, w = cg.width, h = cg.height
+    guard w > 0, h > 0 else { return nil }
+    let a = alpha(of: cg, in: CGRect(x: 0, y: 0, width: w, height: h), width: w, height: h)
+    var opaque = 0
+    for v in a where v > 8 { opaque += 1 }
+    var seen = [Bool](repeating: false, count: w * h)
+    var stack: [Int] = []
+    func push(_ i: Int) {
+        if !seen[i] && a[i] <= 8 { seen[i] = true; stack.append(i) }
+    }
+    func spread() -> (size: Int, minX: Int, minY: Int, maxX: Int, maxY: Int) {
+        var size = 0, minX = Int.max, minY = Int.max, maxX = -1, maxY = -1
+        while let i = stack.popLast() {
+            size += 1
+            let x = i % w, y = i / w
+            minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+            if x > 0 { push(i - 1) }
+            if x < w - 1 { push(i + 1) }
+            if y > 0 { push(i - w) }
+            if y < h - 1 { push(i + w) }
+        }
+        return (size, minX, minY, maxX, maxY)
+    }
+    for x in 0..<w { push(x); push((h - 1) * w + x) }
+    for y in 0..<h { push(y * w); push(y * w + w - 1) }
+    _ = spread()
+    var enclosed = 0, comps = 0, largest = 0
+    var largestBox: CGRect?
+    for i in 0..<(w * h) where !seen[i] && a[i] <= 8 {
+        push(i)
+        let c = spread()
+        comps += 1
+        enclosed += c.size
+        if c.size > largest {
+            largest = c.size
+            let b = cut.box
+            largestBox = CGRect(x: b.minX + CGFloat(c.minX) / CGFloat(w) * b.width, y: b.minY + CGFloat(c.minY) / CGFloat(h) * b.height,
+                                width: CGFloat(c.maxX - c.minX + 1) / CGFloat(w) * b.width,
+                                height: CGFloat(c.maxY - c.minY + 1) / CGFloat(h) * b.height)
+        }
+    }
+    return Holes(opaque: opaque, enclosed: enclosed, components: comps, largest: largest, largestBox: largestBox)
+}
+
+/// The cut-out on magenta (holes show), for the diagnosis images.
+func onMagenta(_ cg: CGImage) -> CGImage {
+    let ctx = rgba(width: cg.width, height: cg.height)
+    ctx.setFillColor(CGColor(red: 1, green: 0, blue: 1, alpha: 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+    return ctx.makeImage()!
+}
+
+func boxText(_ b: CGRect) -> String { String(format: "(%.3f,%.3f %.3f×%.3f)", b.minX, b.minY, b.width, b.height) }
 
 // MARK: The sheet: photo with boxes | before | after
 
@@ -441,6 +522,60 @@ for c in allCases {
         let expected = t.expect == "none" ? " (expected: none — \(t.why ?? ""))" : ""
         rows.append(Row(id: caseID, thing: t.name, before: describe(oldPlans[i].cut), after: describe(plans[i].cut) + (plans[i].refine != nil ? " + region" : "") + (made.cut == nil ? ", no cut-out" : "") + expected,
                         note: made.note, measure: m, oldMeasure: om, failures: fails))
+    }
+    if c.diagnose == true {
+        // Vision's instances on the whole photo: their share of the photo, their box and their holes.
+        print("    diag \(caseID): Vision whole-photo instances \(labelsFound) (grid \(grid.width)×\(grid.height))")
+        for l8 in labelsFound {
+            let l = Int(l8)
+            var n = 0, minX = Int.max, minY = Int.max, maxX = -1, maxY = -1
+            for gy in 0..<grid.height {
+                for gx in 0..<grid.width where Int(grid.mask[gy * grid.width + gx]) == l {
+                    n += 1
+                    minX = min(minX, gx); maxX = max(maxX, gx); minY = min(minY, gy); maxY = max(maxY, gy)
+                }
+            }
+            let b = CGRect(x: CGFloat(minX) / CGFloat(grid.width), y: CGFloat(minY) / CGFloat(grid.height),
+                           width: CGFloat(maxX - minX + 1) / CGFloat(grid.width), height: CGFloat(maxY - minY + 1) / CGFloat(grid.height))
+            let inst = masks.cut(instance: l)
+            print(String(format: "    diag   instance %d: %.1f%% of the photo, box %@; cut(instance:) %@", l,
+                         Double(n) / Double(grid.width * grid.height) * 100, boxText(b), holes(inst)?.text ?? "nil"))
+            if let inst { savePNG(onMagenta(inst.cg), out.appendingPathComponent("\(caseID).instance\(l).png")) }
+            // Which things' boxes it covers.
+            for (i, t) in c.things.enumerated() {
+                guard let tb = boxes[i] else { continue }
+                var inBox = 0, onIt = 0
+                let x0 = Int(tb.minX * CGFloat(grid.width)), x1 = min(grid.width, Int(ceil(tb.maxX * CGFloat(grid.width))))
+                let y0 = Int(tb.minY * CGFloat(grid.height)), y1 = min(grid.height, Int(ceil(tb.maxY * CGFloat(grid.height))))
+                for gy in y0..<max(y0, y1) { for gx in x0..<max(x0, x1) { inBox += 1; if Int(grid.mask[gy * grid.width + gx]) == l { onIt += 1 } } }
+                print(String(format: "    diag     covers %.0f%% of thing %d %@'s box", inBox == 0 ? 0 : Double(onIt) / Double(inBox) * 100, i + 1, t.name))
+            }
+        }
+        for (i, t) in c.things.enumerated() {
+            let p = plans[i]
+            print("    diag thing \(i + 1) \(t.name): plan \(describe(p.cut))\(p.refine != nil ? " + region" : "")"
+                  + (p.sharedWith.isEmpty ? "" : ", shared with \(p.sharedWith.map { String($0 + 1) })")
+                  + " — note: \(rendered[i].note ?? "-")")
+            let labels: [Int]
+            switch p.cut {
+            case .instance(let l): labels = [l]
+            case .union(let ls): labels = ls
+            case .part(let ls, let keep):
+                labels = ls
+                print("    diag   part keeps \(keep.count) of the instance's grid px")
+            case .noMask: labels = []
+            }
+            let raw = labels.isEmpty ? nil : masks.cut(instances: IndexSet(labels))
+            let again = raw.flatMap { masks.refined($0) }
+            let finalCut = rendered[i].cut
+            print("    diag   raw cut(instance:) \(labels): \(raw.map { boxText($0.box) } ?? "-") \(holes(raw)?.text ?? "nil")")
+            print("    diag   refined(raw) (Vision on a crop round it): \(again.map { boxText($0.box) } ?? "-") \(holes(again)?.text ?? "nil")")
+            print("    diag   final (render): \(finalCut.map { boxText($0.box) } ?? "-") \(holes(finalCut)?.text ?? "nil")")
+            let stem = "\(caseID).\(i + 1)"
+            if let raw { savePNG(onMagenta(raw.cg), out.appendingPathComponent("\(stem).raw.png")) }
+            if let again { savePNG(onMagenta(again.cg), out.appendingPathComponent("\(stem).refined.png")) }
+            if let finalCut { savePNG(onMagenta(finalCut.cg), out.appendingPathComponent("\(stem).final.png")) }
+        }
     }
     // A sheet for every plain case, and for a variant only when it failed (hundreds of variants).
     let failedHere = rows.suffix(c.things.count).contains { !$0.failures.isEmpty }

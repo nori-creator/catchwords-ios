@@ -10,7 +10,9 @@
     {"file": "boba.jpg", "licence": "CatchWords' own picture (docs/design/catch-concepts/film/assets/photo_1080.jpg); CC0 for this test", "source": "this repository"},
     {"file": "glasses-bottle.jpg", "licence": "Made for this test (make_photos.py: drawn glasses and the dex's own bottle photo on a drawn table); CC0", "source": "this repository"},
     {"file": "keys-remote.jpg", "licence": "Made for this test (make_photos.py: the dex's own keys and remote photos on a drawn table); CC0", "source": "this repository"},
-    {"file": "lint-roller.jpg", "licence": "The owner's own photo (2026-11-03, the 滾筒黏毛器 whose cut-out was its handle alone), cut from the owner's iPad screenshot; contributed by the owner for this test.", "source": "owner upload 305c2026 (screenshot of the original photo), cropped to the photo"}
+    {"file": "lint-roller.jpg", "licence": "The owner's own photo (2026-11-03, the 滾筒黏毛器 whose cut-out was its handle alone), cut from the owner's iPad screenshot; contributed by the owner for this test.", "source": "owner upload 305c2026 (screenshot of the original photo), cropped to the photo"},
+    {"file": "umbrella.jpg", "licence": "The owner's own photo (2026-11-20), contributed by the owner for this test.", "source": "owner upload ed4ba48d (1512×2016), scaled to 1200×1600 — the size the app gives Vision (3024×4032 at most 1600 px)"},
+    {"file": "clipper.jpg", "licence": "The owner's own photo (2026-11-20), contributed by the owner for this test.", "source": "owner upload 9348ec92 (1512×2016), scaled to 1200×1600 — the size the app gives Vision (3024×4032 at most 1600 px)"}
   ],
   "cases": [
     {"id": "dorayaki-box-right", "photo": "dorayaki.jpg", "what": "The dorayaki and the carton behind it, both named, boxes right.",
@@ -85,6 +87,23 @@
     {"id": "lint-roller-roller-named", "photo": "lint-roller.jpg", "what": "The lint roller and its roller named apart (the roller's own point and box on the roller).",
      "things": [
        {"name": "滾筒黏毛器", "point": [495, 541], "box_2d": [264, 273, 821, 727], "reference": "lint-roller.roller.png"},
-       {"name": "黏毛紙", "point": [499, 318], "box_2d": [265, 275, 370, 723], "check": false}]}
+       {"name": "黏毛紙", "point": [499, 318], "box_2d": [265, 275, 370, 723], "check": false}]},
+    {"id": "umbrella-capture-a", "photo": "umbrella.jpg", "diagnose": true, "what": "A folded umbrella, its wooden handle and strap named apart (owner 2026-11-20, capture A as the device logged it): the umbrella's cut-out lost its inner handle (a hole).",
+     "things": [
+       {"name": "雨傘", "point": [479, 587], "box_2d": [174, 205, 1000, 753]},
+       {"name": "木柄", "point": [640, 752], "box_2d": [655, 551, 849, 729]},
+       {"name": "傘繩", "point": [734, 910], "box_2d": [820, 713, 1000, 755]}]},
+    {"id": "umbrella-capture-b", "photo": "umbrella.jpg", "diagnose": true, "what": "The same umbrella, capture B as the device logged it (a different shot; boxes as given): umbrella, handle, strap and sleeve.",
+     "things": [
+       {"name": "雨傘", "point": [481, 540], "box_2d": [176, 238, 903, 723]},
+       {"name": "木柄", "point": [629, 664], "box_2d": [597, 561, 731, 697]},
+       {"name": "傘帶", "point": [704, 804], "box_2d": [705, 685, 903, 723]},
+       {"name": "傘套", "point": [362, 372], "box_2d": [176, 238, 568, 485]}]},
+    {"id": "clipper-capture-1", "photo": "clipper.jpg", "diagnose": true, "what": "A white nail clipper on a grey table (owner 2026-11-20, first capture's box): the grey metal between lever and body is part of it, not a gap.",
+     "things": [
+       {"name": "指甲剪", "point": [473, 500], "box_2d": [382, 231, 617, 715]}]},
+    {"id": "clipper-capture-2", "photo": "clipper.jpg", "diagnose": true, "what": "The same clipper, the second capture's box (a different shot; box as given).",
+     "things": [
+       {"name": "指甲剪", "point": [513, 540], "box_2d": [438, 253, 642, 773]}]}
   ]
 }
