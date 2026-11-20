@@ -62,6 +62,59 @@ export function containsChunk(
   });
 }
 
+/**
+ * 画面が例文を型の番号の下に出す時の、型の部品どうしの間の字数の上限（iOS `ChunkRules.chunkPlace` の `maxGap`）。
+ */
+export const CHUNK_PART_MAX_GAP = 4;
+
+/**
+ * **その文が画面でその型の例文として出るか**（iOS `ChunkRules.chunkPlace` と同じ決まり）。
+ * - 続けて入っている（`containsChunk`。入れ替えの候補に替えた形も）→ 出る。
+ * - 部品が離れていても、型の順に並び、部品どうしの間が `CHUNK_PART_MAX_GAP` 字以内 → 出る
+ *   （「撐＋雨傘」と「一起撐這把雨傘走吧」、「小籠包＋配＋薑絲」と「小籠包一定要配薑絲」）。
+ * - 順が逆（「燙＋襯衫」と「把這件襯衫燙平」）・部品が無い → 出ない。
+ *
+ * サーバが「例文の無い型」を数える時はこれで数える。前は続けて入っている時だけ数えていたので、画面には
+ * 出ている例文を「無い」と数えて余計に書かせていた（2026-11-20 雨傘「撐＋雨傘」）。
+ */
+export function showsChunk(sentence: string, chunk: ChunkLike | null | undefined): boolean {
+  if (!chunk) return false;
+  if (containsChunk(sentence, [chunk])) return true;
+  const s = [...(sentence ?? "").replace(/\s+/g, "")];
+  const parts = (chunk?.parts ?? []).filter((p) => (p?.text ?? "").trim());
+  if (parts.length < 2 || s.length === 0) return false;
+  const own = parts.map((p) => (p.text ?? "").trim());
+  // 入れ替えの候補は1か所ずつ替える（画面と同じ）。
+  const candidates: string[][] = [own];
+  parts.forEach((p, i) => {
+    for (const a of p.alts ?? []) {
+      const t = (a?.text ?? "").trim();
+      if (!t || t === own[i]) continue;
+      const swapped = [...own];
+      swapped[i] = t;
+      candidates.push(swapped);
+    }
+  });
+  const firstRun = (piece: string[], from: number): number => {
+    for (let i = from; i + piece.length <= s.length; i++) {
+      if (piece.every((ch, k) => s[i + k] === ch)) return i;
+    }
+    return -1;
+  };
+  return candidates.some((texts) => {
+    let from = 0;
+    let started = false;
+    for (const t of texts) {
+      const piece = [...t];
+      const at = firstRun(piece, from);
+      if (at < 0 || (started && at - from > CHUNK_PART_MAX_GAP)) return false;
+      started = true;
+      from = at + piece.length;
+    }
+    return true;
+  });
+}
+
 /** モデルが返すパターン1つ（`example_patterns` の要素）。型違いは落とさず空にする。 */
 export const ExamplePatternSchema = z.object({
   situation: z.string().catch(""),
@@ -585,19 +638,60 @@ export function examplePatternsRule(opts: {
   sourceRule: string;
   chunkRoles: string;
   sceneMax?: number;
+  /**
+   * **例文を型（チャンク）と対にする**（2026-11-20、オーナー「チャンクと例文の数が合わないミスが多い」）。
+   * - `"same_reply"`: 同じ返事に usage_chunks を書く呼び出し（カードの生成）。
+   * - 型の並び: もう在る型に合わせて例文だけを作り直す呼び出し（例文の ↻）。
+   *
+   * 前は「型1つにつき例文1つ」が手順 4 の中の1文で、手順 2・3・6 の「似た場面は分けない・数を合わせるために
+   * 場面を作らない」とぶつかっていた（本番 32 枚のうち 7 枚で、型を含まない例文が書かれた）。対にする時は、
+   * 数と順を手順 3 で決め、文の中の型の形（順のまま・続けて）を ✗/○ の例で示す。
+   */
+  pairChunks?: "same_reply" | readonly ChunkLike[];
 }): string {
   const { headword, targetName, nl, max, levelRule, sourceRule, chunkRoles } = opts;
   const sceneMax = opts.sceneMax ?? SCENE_MAX_CHARS.ja;
+  const listed = Array.isArray(opts.pairChunks) ? (opts.pairChunks as readonly ChunkLike[]) : null;
+  const paired = max > 1 && (opts.pairChunks === "same_reply" || (listed?.length ?? 0) > 0);
+  const theChunks = listed
+    ? `次の使い方の型（画面の①②③…）`
+    : `同じ返事の usage_chunks（使い方の型）`;
+  const freeCount =
+    `パターンは**よく使う順に1〜${max}個**。本当に別々の状況でよく使う時だけ複数にする。` +
+    `その語がふだん1つの状況でしか使われないなら1個でよい。**数を合わせるために場面を作らない。**`;
   const howMany =
     max <= 1
       ? `パターンを考えたうえで、**いちばんよく使うパターン1つだけ**を配列に入れて返す。`
-      : `パターンは**よく使う順に1〜${max}個**。本当に別々の状況でよく使う時だけ複数にする。` +
-        `その語がふだん1つの状況でしか使われないなら1個でよい。**数を合わせるために場面を作らない。**`;
+      : paired
+        ? `**例文の数は、${theChunks}の数と同じにする。型の順に、i 番目の例文は i 番目の型を使う**` +
+          `（画面は型①の下に例文①、型②の下に例文②を出す。型に例文が無いと、その型だけ例文の無いまま出る）。` +
+          `型ごとに、その型をネイティブがいちばんよく口にする場面を1つ選ぶ。**型が違えば、場面が近くても別の例文として書く**` +
+          `（2 と 6 の「似たパターン」の決まりより、型1つにつき例文1つを先にする）。` +
+          (listed ? `` : `usage_chunks が空の時だけ: ${freeCount}`)
+        : freeCount;
+  const chunkList = listed
+    ? [
+        `  使い方の型（この順。[ ] の中は入れ替えの候補で、どれか1つを使う）:`,
+        ...listed.map((c, i) => `    ${i + 1}. ${chunkText(c)}`),
+      ]
+    : [];
+  const inSentence = paired
+    ? `     **各例文は、その番号の型の部品を、型の順のまま・間に別の字を入れずに続けて含める**（入れ替えの語は候補の1つに替えてよい）。` +
+      `✗ 型「燙＋襯衫」に「我先把這件襯衫燙平」（順が逆で、間に字が入る）→ ○「明天要面試，我今晚先燙襯衫喔」/ ` +
+      `✗ 型「收＋雨傘」に「雨傘先放在門口吧」（型の字が無い）→ ○「到店門口了，我們先收雨傘吧」。` +
+      `画面の「例文」には型を使った例文だけを型の番号①②③で出す — 型を含まない例文は出ない` +
+      `（オーナー 2026-10-26「例文はチャンク専用」）。`
+    : `     **同じ返事に usage_chunks（使い方の型）があるなら、型1つにつき例文1つ、型の順に書き、各例文はその型を字をそのまま続けて含める**` +
+      `（入れ替えの語は alts の1つに替えてよい）。画面の「例文」には型を使った例文だけを型の番号①②③で出す — 型を含まない例文は出ない` +
+      `（オーナー 2026-10-26「例文はチャンク専用」）。`;
   return [
     `- example_patterns: 【例文の絶対ルール — 1つでも破った文は配列に入れない】`,
     `  a. 自分が目の前の誰かに言う一人称のセリフ。説明文・看板・アナウンス・小説の地の文・三人称の描写は禁止。`,
     `  b. 句読点を除いて ${EXAMPLE_MAX_HAN}字以内（12字以上）。長い文は画面で2行に入らない。`,
-    `  c. 「${headword}」をそのまま含む。同じ返事に usage_chunks があれば、そのうち1つを字のまま続けて含む。`,
+    paired
+      ? `  c. 「${headword}」をそのまま含む。i 番目の例文は、${theChunks}の i 番目を字のまま続けて含む。`
+      : `  c. 「${headword}」をそのまま含む。同じ返事に usage_chunks があれば、そのうち1つを字のまま続けて含む。`,
+    ...chunkList,
     `  d. その語をネイティブが実際に口にする場面だけ（✗ 馬桶 で「請問馬桶在哪裡？」— 場所を聞くなら 廁所）。`,
     `  e. ${REAL_NAMES_RULE}`,
     `  詳しい手順:`,
@@ -616,9 +710,7 @@ export function examplePatternsRule(opts: {
       `語気助詞（喔/耶/啦/吧/啊）は自然な時だけ。`,
     `     **中身は、その場面で台湾の人がいちばん自然に・よく言う、実用的な文にする。** 実在の店・場所・行事・文化などの名前は e の決まりどおり` +
       `（自然な時は入れる・不自然なら入れない）。名前を入れても ${EXAMPLE_MAX_HAN}字以内は守る。`,
-    `     **同じ返事に usage_chunks（使い方の型）があるなら、型1つにつき例文1つ、型の順に書き、各例文はその型を字をそのまま続けて含める**` +
-      `（入れ替えの語は alts の1つに替えてよい）。画面の「例文」には型を使った例文だけを型の番号①②③で出す — 型を含まない例文は出ない` +
-      `（オーナー 2026-10-26「例文はチャンク専用」）。`,
+    inSentence,
     `     **重ね言葉にしない。** 見出し語がもう量詞・名詞の字を含む時、同じ字を量詞にして重ねない` +
       `（✗「送了一束花束」「這束花束」→ ○「送了一個花束」「這個花束好漂亮」/ ✗「一杯杯子」→ ○「一個杯子」）。` +
       `ネイティブが言わない言い回し・意味の重なる語の組み合わせを書かない。`,
@@ -1043,7 +1135,7 @@ function exampleSentences(card: CardLike): string[] {
   return [card.example_sentence ?? "", ...extra.map((e) => e?.zh ?? "")].filter((s) => s.trim());
 }
 
-/** どの例文にも字のまま入っていない型の番号（型の順）。 */
+/** 画面で例文が出ない型の番号（型の順）。型が文に入っているかは画面と同じ決まり（`showsChunk`）。 */
 export function chunksWithoutExample(
   chunks: readonly ChunkLike[] | null | undefined,
   sentences: readonly string[],
@@ -1052,7 +1144,7 @@ export function chunksWithoutExample(
   // 2つの型を含む文が1つしか無いと2つ目の型には例文が出なかった（2026-11-03 点検 M-単1）。
   const used = new Set<number>();
   return (chunks ?? []).flatMap((c, i) => {
-    const at = sentences.findIndex((s, k) => !used.has(k) && containsChunk(s, [c]));
+    const at = sentences.findIndex((s, k) => !used.has(k) && showsChunk(s, c));
     if (at < 0) return [i];
     used.add(at);
     return [];
@@ -1082,10 +1174,18 @@ export function coverChunks<T extends CardLike>(
     const hasMain = !!(out.example_sentence ?? "").trim();
     if (hasMain && !opts.withExtra) break;
     const used = exampleSentences(out);
-    const [hit] = pickExamplePatterns(
-      (opts.patterns ?? []).filter((p) => containsChunk(p.sentence ?? "", [chunks[i]])),
-      { headword: opts.headword, language: opts.language, readerLang: opts.readerLang, max: MAX_EXAMPLE_PATTERNS },
-    ).filter((e) => !used.some((s) => sameSentence(s, e.sentence)));
+    // 続けて入っている文を先に（画面で型が1行にまとまる）。無ければ、部品が離れて入っている文。
+    const holding = (opts.patterns ?? []).filter((p) => showsChunk(p.sentence ?? "", chunks[i]));
+    const pick = (from: readonly ExamplePattern[]) =>
+      pickExamplePatterns(from, {
+        headword: opts.headword,
+        language: opts.language,
+        readerLang: opts.readerLang,
+        max: MAX_EXAMPLE_PATTERNS,
+      }).filter((e) => !used.some((s) => sameSentence(s, e.sentence)))[0];
+    const hit =
+      pick(holding.filter((p) => containsChunk(p.sentence ?? "", [chunks[i]]))) ??
+      pick(holding.filter((p) => !containsChunk(p.sentence ?? "", [chunks[i]])));
     if (!hit) continue;
     if (!hasMain) {
       const keep = (out.extras?.examples_extra as unknown[] | undefined) ?? [];
