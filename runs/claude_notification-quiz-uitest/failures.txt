@@ -1,0 +1,1 @@
+CatchWords / test_1_ja_zh(): FullTourTests.swift:522: Failed to get matching snapshot: Timed out while evaluating UI query.

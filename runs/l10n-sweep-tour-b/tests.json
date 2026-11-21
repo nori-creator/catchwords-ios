@@ -1,0 +1,101 @@
+{
+  "devices" : [
+    {
+      "architecture" : "arm64",
+      "deviceId" : "FCC5F673-7BEC-4A7D-8F2A-4DC35E2668EC",
+      "deviceName" : "iPhone 17 Pro",
+      "modelName" : "iPhone 17 Pro",
+      "osBuildNumber" : "23F77",
+      "osVersion" : "26.5",
+      "platform" : "iOS Simulator"
+    }
+  ],
+  "testNodes" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "name" : "FullTourTests.swift:528: Failed to get matching snapshot: Timed out while evaluating UI query.",
+                      "nodeType" : "Failure Message"
+                    },
+                    {
+                      "name" : "[Internal] Thread running at User-interactive quality-of-service class waiting on a lower QoS thread running at Default quality-of-service class. Investigate ways to avoid priority inversions",
+                      "nodeType" : "Runtime Warning"
+                    }
+                  ],
+                  "duration" : "5m 39s",
+                  "durationInSeconds" : 339.04961705207825,
+                  "name" : "test_7_es_zh()",
+                  "nodeIdentifier" : "FullTourTests/test_7_es_zh()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/CatchWords/CatchWordsUITests/FullTourTests/test_7_es_zh",
+                  "nodeType" : "Test Case",
+                  "result" : "Failed"
+                },
+                {
+                  "children" : [
+                    {
+                      "name" : "FullTourTests.swift:528: Failed to get matching snapshot: Timed out while evaluating UI query.",
+                      "nodeType" : "Failure Message"
+                    },
+                    {
+                      "name" : "[Internal] Thread running at User-interactive quality-of-service class waiting on a lower QoS thread running at Default quality-of-service class. Investigate ways to avoid priority inversions",
+                      "nodeType" : "Runtime Warning"
+                    }
+                  ],
+                  "duration" : "5m 8s",
+                  "durationInSeconds" : 308.90482103824615,
+                  "name" : "test_8_ko_zh()",
+                  "nodeIdentifier" : "FullTourTests/test_8_ko_zh()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/CatchWords/CatchWordsUITests/FullTourTests/test_8_ko_zh",
+                  "nodeType" : "Test Case",
+                  "result" : "Failed"
+                },
+                {
+                  "children" : [
+                    {
+                      "name" : "FullTourTests.swift:528: Failed to get matching snapshot: Timed out while evaluating UI query.",
+                      "nodeType" : "Failure Message"
+                    },
+                    {
+                      "name" : "[Internal] Thread running at User-interactive quality-of-service class waiting on a lower QoS thread running at Default quality-of-service class. Investigate ways to avoid priority inversions",
+                      "nodeType" : "Runtime Warning"
+                    }
+                  ],
+                  "duration" : "5m 14s",
+                  "durationInSeconds" : 314.0099769830704,
+                  "name" : "test_9_vi_zh()",
+                  "nodeIdentifier" : "FullTourTests/test_9_vi_zh()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/CatchWords/CatchWordsUITests/FullTourTests/test_9_vi_zh",
+                  "nodeType" : "Test Case",
+                  "result" : "Failed"
+                }
+              ],
+              "name" : "FullTourTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/CatchWords/CatchWordsUITests/FullTourTests",
+              "nodeType" : "Test Suite",
+              "result" : "Failed"
+            }
+          ],
+          "name" : "CatchWordsUITests",
+          "nodeIdentifierURL" : "test://com.apple.xcode/CatchWords/CatchWordsUITests",
+          "nodeType" : "UI test bundle",
+          "result" : "Failed"
+        }
+      ],
+      "name" : "CatchWords",
+      "nodeType" : "Test Plan",
+      "result" : "Failed"
+    }
+  ],
+  "testPlanConfigurations" : [
+    {
+      "configurationId" : "1",
+      "configurationName" : "Test Scheme Action"
+    }
+  ]
+}
