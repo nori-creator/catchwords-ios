@@ -43,6 +43,10 @@
        {"name": "杯子", "point": [470, 300], "box_2d": [40, 285, 780, 660], "reference": "coffee.cup.png"},
        {"name": "盤子", "point": [300, 800], "box_2d": [190, 125, 965, 805], "check": false},
        {"name": "湯匙", "point": [610, 700], "box_2d": [165, 540, 815, 700], "reference": "coffee.spoon.png", "check": false}]},
+    {"id": "coffee-cup-inside-saucer-box", "photo": "coffee.jpg", "diagnose": true, "what": "The risk of 案1 (2026-11-21): a cup on its saucer, both named, the cup's box tight enough to count as a part inside the saucer's box (one Vision instance). The saucer then keeps the whole instance, the cup in it; the cup still gets its share.",
+     "things": [
+       {"name": "杯子", "point": [470, 300], "box_2d": [45, 290, 700, 680], "reference": "coffee.cup.png"},
+       {"name": "盤子", "point": [300, 800], "box_2d": [190, 125, 965, 805], "check": false}]},
     {"id": "coffee-cup-box-small", "photo": "coffee.jpg", "what": "The cup alone, its box 30% smaller.",
      "things": [
        {"name": "杯子", "point": [472, 410], "box_2d": [151, 341, 669, 604], "reference": "coffee.cup.png"}]},
