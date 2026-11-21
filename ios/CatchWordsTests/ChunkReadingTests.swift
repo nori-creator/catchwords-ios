@@ -249,7 +249,7 @@ final class UsagePatternTests: XCTestCase {
     // MARK: - C27 The headword's short form (owner 2026-11-21: 帶傘・撐傘・收傘 for 雨傘)
 
     func testShortFormIsReadAndStandsForTheHeadword() throws {
-        let c = try chunk(#"{"parts":[{"text":"帶","pos":"V"},{"text":"傘","pos":"N"}],"ja":"傘を持っていく","short_form":"傘"}"#)
+        let c = try JSONDecoder().decode(UsageChunk.self, from: Data(#"{"parts":[{"text":"帶","pos":"V"},{"text":"傘","pos":"N"}],"ja":"傘を持っていく","short_form":"傘"}"#.utf8))
         XCTAssertEqual(c.shortForm, "傘")
         XCTAssertEqual(c.headForm("雨傘"), "傘")
         XCTAssertTrue(c.usesShortForm("雨傘"))
@@ -263,7 +263,7 @@ final class UsagePatternTests: XCTestCase {
 
     func testShortFormOnlyWhenItIsARunOfTheHeadwordAndABlock() throws {
         // No short_form: the headword as before.
-        let plain = try chunk(#"{"parts":[{"text":"撐","pos":"V"},{"text":"雨傘","pos":"N"}],"ja":"傘をさす"}"#)
+        let plain = try JSONDecoder().decode(UsageChunk.self, from: Data(#"{"parts":[{"text":"撐","pos":"V"},{"text":"雨傘","pos":"N"}],"ja":"傘をさす"}"#.utf8))
         XCTAssertNil(plain.shortForm)
         XCTAssertEqual(plain.headForm("雨傘"), "雨傘")
         XCTAssertFalse(plain.usesShortForm("雨傘"))
