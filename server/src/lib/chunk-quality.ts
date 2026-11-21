@@ -14,6 +14,7 @@ import { isBrokenUsageChunk, withoutSeparatorParts, DEGREE_CHOICES } from "./chu
 import { isGenericChunk, isWeakPartnerChunk, WEAK_FRAME } from "./generic-chunks";
 import { readerText } from "./note-language";
 import { posGroup } from "./pos";
+import { chunkHeadForm } from "./short-form";
 import { normalizeTargetLanguage } from "./target-lang";
 
 /**
@@ -39,6 +40,10 @@ import { normalizeTargetLanguage } from "./target-lang";
  * - `self_check` … AI 自身が `fits: false` と答えた型（指示文で自己点検させる）。
  * - `headword_not_token` … 見出し語が**1つの札として**入っていない（桃 のカードに 買一盒桃子 /
  *   床 のカードに 起床 / 手 のカードに 手機 — 字は入っているが別の語）。
+ *   **例外: 見出し語の短い形**（2026-11-21 雨傘 → 帶傘・撐傘・收傘、`short-form.ts`）。AI が型に `short_form`
+ *   を付け、それが見出し語の字の連続した一部で、1つの札として入っていれば、その字を見出し語の代わりに見る。
+ * - `short_form` … `short_form` を付けたのに、見出し語の一部でない・札として入っていない（車 を 腳踏車 の型に、など
+ *   形の崩れた物。意味の変わる略し方は指示文で止める）。
  * - `single_token` … 札が1つだけ（吃早午餐・電風扇・起床 — 語であって使い方ではない）。
  * - `compound_split` … 見出し語と1〜2字の名詞を並べただけ（門＋口・手＋機・楊桃＋汁・鬆餅＋機 — 1語を
  *   割った物。飲み物の注文の言い方 半糖・去冰 は除く）。
@@ -66,6 +71,7 @@ export type ChunkDropReason =
   | "sentence"
   | "foreign_script"
   | "headword_not_token"
+  | "short_form"
   | "compound_split"
   | "measure_word"
   | "redundant_measure"
@@ -461,17 +467,22 @@ export function gateUsageChunks(
       drop("too_long");
       continue;
     }
+    // その型の中で見出し語の役をする字（見出し語、または受け取れる短い形 — `short-form.ts`）。
+    let h = head;
     if (zh) {
-      if (!parts.some((p) => p.text === head)) {
-        drop("headword_not_token");
+      const form = chunkHeadForm({ parts, short_form: c.short_form }, head, ctx.language);
+      if (!form) {
+        const askedShort = (c.short_form ?? "").trim() && !parts.some((p) => p.text === head);
+        drop(askedShort ? "short_form" : "headword_not_token");
         continue;
       }
-      if (parts.length >= 3 && SUBJECT_HEAD.test(parts[0].text) && parts[1].text === head) {
+      h = form;
+      if (parts.length >= 3 && SUBJECT_HEAD.test(parts[0].text) && parts[1].text === h) {
         drop("sentence");
         continue;
       }
       const measure = parts.find(
-        (p) => p.text !== head && isMeasurePart(p, measureCores, ctx.language),
+        (p) => p.text !== h && isMeasurePart(p, measureCores, ctx.language),
       );
       if (measure) {
         drop(isRedundantMeasure(measure, head) ? "redundant_measure" : "measure_word");
@@ -480,7 +491,7 @@ export function gateUsageChunks(
       if (
         parts.length === 2 &&
         parts.every((p) => posGroup(p.pos || "N") === "n") &&
-        parts.some((p) => p.text !== head && [...p.text].length <= 2 && !ORDER_PHRASES.has(p.text))
+        parts.some((p) => p.text !== h && [...p.text].length <= 2 && !ORDER_PHRASES.has(p.text))
       ) {
         drop("compound_split");
         continue;
@@ -495,15 +506,15 @@ export function gateUsageChunks(
         continue;
       }
     }
-    if (isGenericChunk(parts, head, ctx.language)) {
+    if (isGenericChunk(parts, h, ctx.language)) {
       drop("generic");
       continue;
     }
-    if (isBrokenUsageChunk({ parts, ja: c.ja }, head, ctx.language)) {
+    if (isBrokenUsageChunk({ parts, ja: c.ja }, h, ctx.language)) {
       drop("broken");
       continue;
     }
-    if (zh && endsWithEchoVerb(parts, head)) {
+    if (zh && endsWithEchoVerb(parts, h)) {
       drop("echo_verb");
       continue;
     }
@@ -539,7 +550,8 @@ export function gateUsageChunks(
     }
     seenText.add(text);
     if (jaKey) seenJa.add(jaKey);
-    kept.push(tidyForStorage({ ...c, parts }, ctx));
+    const stored = tidyForStorage({ ...c, parts }, { ...ctx, headword: h });
+    kept.push(h !== head ? { ...stored, short_form: h } : stored);
   }
   // 弱い相手（喝＋〜・〜＋很＋甜・拿＋〜）: 強い型が2つ以上あれば落とし、無ければ最後へ（並びは頻度順のまま保つ）。
   // 目標 1・2 級の人（`allowSimplePartners`）には簡単な動詞の型（吃＋小籠包）を**1つまで**通す。程度の語の型
@@ -547,7 +559,7 @@ export function gateUsageChunks(
   // 指示文の「簡単な動詞の型は1つまで」「很＋甜 は書かない」に門を合わせる）。
   let simpleLeft = ctx.allowSimplePartners ? 1 : 0;
   const weak = kept.map((k) => {
-    if (!isWeakPartnerChunk(k.parts, head, ctx.language)) return false;
+    if (!isWeakPartnerChunk(k.parts, k.short_form ?? head, ctx.language)) return false;
     const degree = (k.parts ?? []).some((p) => {
       const t = (p?.text ?? "").trim();
       return WEAK_FRAME.has(t) || [...WEAK_FRAME].some((d) => t.startsWith(d) && t.length > d.length);

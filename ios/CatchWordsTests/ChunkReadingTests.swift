@@ -245,4 +245,44 @@ final class UsagePatternTests: XCTestCase {
         // Never smaller than 0.52.
         XCTAssertTrue(ChunkLineView.fit(natural: 900, room: 300, looseExtra: 40) == (true, 0.52))
     }
+
+    // MARK: - C27 The headword's short form (owner 2026-11-21: 帶傘・撐傘・收傘 for 雨傘)
+
+    func testShortFormIsReadAndStandsForTheHeadword() throws {
+        let c = try chunk(#"{"parts":[{"text":"帶","pos":"V"},{"text":"傘","pos":"N"}],"ja":"傘を持っていく","short_form":"傘"}"#)
+        XCTAssertEqual(c.shortForm, "傘")
+        XCTAssertEqual(c.headForm("雨傘"), "傘")
+        XCTAssertTrue(c.usesShortForm("雨傘"))
+        // The short block is the word: blue, never a swap; the verb is its partner.
+        XCTAssertEqual(ChunkRules.role(c.parts[1], headword: c.headForm("雨傘"), target: "zh-TW"), .head)
+        XCTAssertEqual(ChunkRules.role(c.parts[0], headword: c.headForm("雨傘"), target: "zh-TW"), .partner)
+        // Kept through a save and a load.
+        let again = try JSONDecoder().decode(UsageChunk.self, from: JSONEncoder().encode(c))
+        XCTAssertEqual(again.shortForm, "傘")
+    }
+
+    func testShortFormOnlyWhenItIsARunOfTheHeadwordAndABlock() throws {
+        // No short_form: the headword as before.
+        let plain = try chunk(#"{"parts":[{"text":"撐","pos":"V"},{"text":"雨傘","pos":"N"}],"ja":"傘をさす"}"#)
+        XCTAssertNil(plain.shortForm)
+        XCTAssertEqual(plain.headForm("雨傘"), "雨傘")
+        XCTAssertFalse(plain.usesShortForm("雨傘"))
+        // Not a run of the headword (陽傘 is a parasol), or not one of the blocks: the headword.
+        let other = UsageChunk(parts: [ChunkPart(text: "撐", pos: "V"), ChunkPart(text: "陽傘", pos: "N")], ja: "", shortForm: "陽傘")
+        XCTAssertEqual(other.headForm("雨傘"), "雨傘")
+        let joined = UsageChunk(parts: [ChunkPart(text: "帶傘", pos: "V")], ja: "", shortForm: "傘")
+        XCTAssertEqual(joined.headForm("雨傘"), "雨傘")
+        // The headword itself is a block: the headword wins.
+        let both = UsageChunk(parts: [ChunkPart(text: "撐", pos: "V"), ChunkPart(text: "雨傘", pos: "N")], ja: "", shortForm: "傘")
+        XCTAssertEqual(both.headForm("雨傘"), "雨傘")
+    }
+
+    func testShortFormChunkFindsItsExample() {
+        let take = UsageChunk(parts: [ChunkPart(text: "帶", pos: "V"), ChunkPart(text: "傘", pos: "N")], ja: "", shortForm: "傘")
+        let close = UsageChunk(parts: [ChunkPart(text: "收", pos: "V"), ChunkPart(text: "傘", pos: "N")], ja: "", shortForm: "傘")
+        let pairs = ChunkRules.chunkExamples(sentences: ["進去之前先收傘，不要滴到地上。", "外面在下雨，出門記得帶傘喔！"],
+                                             chunks: [take, close], target: "zh-TW")
+        XCTAssertEqual(pairs.map(\.example), [1, 0], "each chunk numbers the example that holds it")
+        XCTAssertEqual(pairs.map(\.hit.chunk), [0, 1])
+    }
 }

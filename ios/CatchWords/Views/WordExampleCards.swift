@@ -72,9 +72,11 @@ struct DetailExamplesCard: View {
         SectionCard(title: CardSection.example.title, icon: CardSection.example.icon) {
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(Array(examples.enumerated()), id: \.offset) { i, ex in
-                    DetailExampleRow(example: ex, index: i, headword: headword, language: language,
-                                     hit: hits.flatMap { $0.indices.contains(i) ? $0[i] : nil }
-                                        ?? ChunkRules.exampleHit(sentence: ex.sentence, chunks: chunks, target: language),
+                    let hit = hits.flatMap { $0.indices.contains(i) ? $0[i] : nil }
+                        ?? ChunkRules.exampleHit(sentence: ex.sentence, chunks: chunks, target: language)
+                    // An example of a chunk that uses the word's short form (C27, 帶傘 for 雨傘) marks that form blue.
+                    let head = hit.flatMap { chunks.indices.contains($0.chunk) ? chunks[$0.chunk].headForm(headword) : nil } ?? headword
+                    DetailExampleRow(example: ex, index: i, headword: head, language: language, hit: hit,
                                      pinyin: showsPinyin ? pinyin(for: ex.sentence) : nil,
                                      flashing: flash == i)
                         .id("example-\(i)")

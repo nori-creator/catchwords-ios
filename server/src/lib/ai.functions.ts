@@ -40,6 +40,7 @@ import {
   type UsageChunk,
 } from "./extras";
 import { chunkVerifyMode, describeChunkGate, gateUsageChunks } from "./chunk-quality";
+import { chunkShortFormRule } from "./short-form";
 import { allowsSimplePartners } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
 import {
@@ -1549,18 +1550,19 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。空文
 
 チャンク分解の共通ルール: parts/chunks は {text: ${cardProfile.promptName}のパーツ, pos: 品詞} の配列。
 ${cardProfile.chunkPrompt.posRule}
-「${data.headword}」自体は必ずどれかのパーツとして含める。${NO_PLUS_PART_RULE}
+「${data.headword}」自体は必ずどれかのパーツとして含める（使い方の型の「見出し語の短い形」の例外は usage_chunks に書いたとおり）。${NO_PLUS_PART_RULE}
 
 ${
   want("usage_chunks")
     ? `- usage_chunks: ${chunkHardRules(data.headword, NL, levelGoal)}
-  ${chunkCountRule(data.headword)} 各 {parts:[{text,pos,slot,ja,pinyin,zhuyin,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない), note, fits, why}。
+  ${chunkShortFormRule(data.headword, cardProfile.code)}
+  ${chunkCountRule(data.headword)} 各 {parts:[{text,pos,slot,ja,pinyin,zhuyin,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない), note, short_form?, fits, why}。
   ${chunkNoteRule(NL)}
   ${chunkSenseRule(data.headword, "上の meaning_ja に書いた意味")}
   ${formulaChunkRule(cardProfile.code)}
   ${specificChunkRule(data.headword, levelGoal)}
   **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
-  そのまま声に出せる形にする。「${data.headword}」自体を必ず**1つのパーツとして**含める（別の語の中に埋めない）。
+  そのまま声に出せる形にする。「${data.headword}」自体を必ず**1つのパーツとして**含める（別の語の中に埋めない。短い形の例外は上のとおり）。
   ${cardProfile.chunkPrompt.styleRule}
   **${learnerL1}が崩しやすい型を優先する**（ただし ja は訳だけ — 注意書きを混ぜない）。
   ${CHUNK_SELF_CHECK_RULE}
@@ -1625,7 +1627,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       `extras{ ` +
       [
         want("usage_chunks") &&
-          "usage_chunks[{parts:[{text,pos,slot,ja?,pinyin?,zhuyin?,alts?:[{text,ja,pinyin?,zhuyin?}]}],ja,note,fits,why}]",
+          "usage_chunks[{parts:[{text,pos,slot,ja?,pinyin?,zhuyin?,alts?:[{text,ja,pinyin?,zhuyin?}]}],ja,note,short_form?,fits,why}]",
         // 口語/書面の札（register_tag / register_scale）はもう頼まない（オーナー決定 2026-10-15）。
         "usage_context, frequency_level, encounter_labels[{kind,label}]",
         "scene_weights, season_months, region_scope, region_scope_kind, image_query, image_avoid[]",
@@ -2507,7 +2509,8 @@ function chunkHardRules(headword: string, nl: string, levelGoal: string): string
   const simpleOk = allowsSimplePartners(levelGoal);
   return [
     `【使い方チャンクの絶対ルール — 1つでも破った型は配列に入れない】`,
-    `1. 「${headword}」をそのまま1つのパーツとして必ず入れる（slot にしない・別の語の中に埋めない）。`,
+    `1. 「${headword}」をそのまま1つのパーツとして必ず入れる（slot にしない・別の語の中に埋めない）。` +
+      `例外は下の「見出し語の短い形」だけ（台湾華語）。`,
     `2. パーツは2〜4個、字は合計8字以内。主語・句点（。！？）・量詞（一個/一杯/一條…）を入れない。`,
     `3. パーツを左から続けて読むと、台湾のネイティブがそのまま言う正しい句になる。` +
       `✗ 跌倒＋膝蓋 / ✗ 擦＋手帕＋汗水 / ✗ 站＋在＋手扶梯 → ○ 撞到＋膝蓋 / ○ 用＋手帕＋擦汗 / ○ 站＋在＋手扶梯＋上。`,
@@ -2665,7 +2668,7 @@ const JA_SECTION_RULES = {
 function specificChunkRule(headword: string, levelGoal: string): string {
   return (
     // オーナー報告 2026-10-01「チャンクに学ぶべき単語の芒果がない」— 「芒果」の型に「很+甜」だけが来た。
-    `**どの型にも「${headword}」自身（日本語・英語は活用形でもよい）を必ず1つのパーツとして入れる。**` +
+    `**どの型にも「${headword}」自身（日本語・英語は活用形でもよい）を必ず1つのパーツとして入れる**（台湾華語の「見出し語の短い形」の例外だけは別）。` +
     `✗「很甜」（「${headword}」が無い — 周りの語だけでは、その語の使い方を教えていない）。\n` +
     `**どの語にも付く組み合わせを書かない。**\n` +
     `✗「買${headword}」「喜歡${headword}」「有${headword}」のように、買う・好き・持っている だけを` +
@@ -2928,6 +2931,8 @@ async function runSectionRegen(
     headword: head,
     language: regenProfile.code,
     readerLang: regenLang,
+    // 短い形を使う型（雨傘 → 帶傘）の例文は、見出し語の代わりに短い形を含んでいてよい（`sentenceHoldsHeadword`）。
+    shortFormChunks: (normalizeExtras(word.extras)?.usage_chunks ?? []) as UsageChunk[],
   };
   /**
    * メインの例文と、**その文のために書かれた札**（画面が見ている読む人の行 → 共有の行の順）。
@@ -3139,7 +3144,7 @@ async function runSectionRegen(
         }),
     },
     usage_chunks: {
-      prompt: `${base}\n${chunkHardRules(head, NL, regenLevelGoal)}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${chunkNoteRule(NL)}\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","note":"ひと言解説","fits":true,"why":""}]}`,
+      prompt: `${base}\n${chunkHardRules(head, NL, regenLevelGoal)}\n${chunkShortFormRule(head, regenProfile.code)}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${chunkNoteRule(NL)}\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","note":"ひと言解説","short_form":"(短い形を使う型だけ)","fits":true,"why":""}]}`,
       // 部品の形は `extras.ts` の1つ（`ja`・`alts` を落とさない）。返ってきた型は生成と同じ門を通す
       // （`chunk-quality.ts`）。1つも残らなければ「作れなかった」— 崩れた型を書くより、空のまま次に任せる。
       schema: RegenUsageChunksSchema.transform((r, ctx) => {

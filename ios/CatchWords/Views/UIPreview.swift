@@ -174,6 +174,9 @@ struct UIPreviewRoot: View {
             case "word25-review": Word25Preview(variant: "review")
             case "word25-reviewzh": Word25Preview(variant: "reviewzh")
             case "word25-panel": Word25Preview(variant: "panel")
+            // A word whose chunks use its short form (雨傘 → 帶傘・撐傘・收傘, owner 2026-11-21): the note under the chunks.
+            case "shortform": ShortFormPreview(focus: .usageChunks)
+            case "shortform-examples": ShortFormPreview(focus: .example)
             case "jadetail": LanguageCardPreview(kind: .ja)
             case "quiz": ReviewPreview(learning: "zh-TW", answered: false)
             case "answer": ReviewPreview(learning: "zh-TW", answered: true)
@@ -2432,6 +2435,86 @@ private struct DuoCanvas<Content: View>: View {
 }
 
 #if DEBUG
+/// A word whose chunks use its short form (`-uiPreview shortform…`, owner 2026-11-21, docs/chunk-rules.md C27): 雨傘 with
+/// 帶＋傘・撐＋傘・收＋傘 (`short_form` 傘). The short block is blue like the word, the note under the chunks says natives
+/// shorten it, and each example is numbered under its chunk with 傘 in blue.
+struct ShortFormPreview: View {
+    let focus: CardSection
+
+    private static func pick(_ ja: String, en: String, zh: String, es: String, ko: String, vi: String) -> String {
+        switch L10n.lang {
+        case "en": en
+        case "zh-TW": zh
+        case "es": es
+        case "ko": ko
+        case "vi": vi
+        default: ja
+        }
+    }
+
+    private static let readings: [Character: (String, String)] = [
+        "帶": ("dài", "ㄉㄞˋ"), "撐": ("chēng", "ㄔㄥ"), "收": ("shōu", "ㄕㄡ"), "傘": ("sǎn", "ㄙㄢˇ"), "雨": ("yǔ", "ㄩˇ"),
+    ]
+
+    private static func part(_ text: String, _ pos: String, ja: String = "") -> [String: Any] {
+        var p: [String: Any] = ["text": text, "pos": pos,
+                                "pinyin": text.map { readings[$0]?.0 ?? "" }.joined(separator: " "),
+                                "zhuyin": text.map { readings[$0]?.1 ?? "" }.joined(separator: " ")]
+        if !ja.isEmpty { p["ja"] = ja }
+        return p
+    }
+
+    private static var sticker: Sticker {
+        let short = part("傘", "N")
+        let chunks: [[String: Any]] = [
+            ["parts": [part("帶", "V", ja: pick("持っていく", en: "take", zh: "帶", es: "llevar", ko: "챙기다", vi: "mang")), short],
+             "ja": pick("傘を持っていく", en: "take an umbrella", zh: "帶傘", es: "llevar paraguas", ko: "우산을 챙기다", vi: "mang ô"),
+             "short_form": "傘"],
+            ["parts": [part("撐", "V", ja: pick("さす", en: "hold up", zh: "撐", es: "abrir", ko: "쓰다", vi: "che")), short],
+             "ja": pick("傘をさす", en: "hold up an umbrella", zh: "撐傘", es: "abrir el paraguas", ko: "우산을 쓰다", vi: "che ô"),
+             "short_form": "傘"],
+            ["parts": [part("收", "V", ja: pick("たたむ", en: "close", zh: "收", es: "cerrar", ko: "접다", vi: "gập")), short],
+             "ja": pick("傘をたたむ", en: "close an umbrella", zh: "收傘", es: "cerrar el paraguas", ko: "우산을 접다", vi: "gập ô"),
+             "short_form": "傘"],
+        ]
+        let main = "外面在下雨，出門記得帶傘喔！"
+        let words1 = ["外面", "在", "下雨", "，", "出門", "記得", "帶", "傘", "喔", "！"]
+        let words2 = ["雨", "好", "大", "，", "我們", "一起", "撐", "傘", "走", "吧", "。"]
+        let words3 = ["進去", "之前", "先", "收", "傘", "，", "不要", "滴", "到", "地上", "。"]
+        let extra: [[String: Any]] = [
+            ["zh": words2.joined(), "chunks": words2.map { ["text": $0, "pos": ""] },
+             "ja": pick("雨がすごいね、一緒に傘に入って行こう。", en: "It's pouring. Let's share the umbrella.", zh: "",
+                        es: "Está lloviendo mucho. Vamos juntos bajo el paraguas.", ko: "비가 많이 오네. 같이 우산 쓰고 가자.",
+                        vi: "Mưa to quá, mình che ô đi chung nhé.")],
+            ["zh": words3.joined(), "chunks": words3.map { ["text": $0, "pos": ""] },
+             "ja": pick("入る前に傘をたたんで。床に垂れないように。", en: "Close your umbrella before going in so it doesn't drip on the floor.",
+                        zh: "", es: "Cierra el paraguas antes de entrar, que no gotee en el suelo.",
+                        ko: "들어가기 전에 우산 접어. 바닥에 물 떨어지지 않게.", vi: "Gập ô lại trước khi vào nhé, kẻo nhỏ nước xuống sàn.")],
+        ]
+        var extras: [String: Any] = ["explain_lang": L10n.lang]
+        extras["usage_chunks"] = chunks
+        extras["example_chunks"] = words1.map { ["text": $0, "pos": ""] }
+        extras["examples_extra"] = extra
+        var obj: [String: Any] = ["id": "w-umbrella", "headword": "雨傘", "language": "zh-TW", "reading_zhuyin": "ㄩˇ ㄙㄢˇ",
+                                  "pinyin": "yǔsǎn", "part_of_speech": "N"]
+        obj["meaning_ja"] = pick("傘", en: "umbrella", zh: "下雨時撐的傘", es: "paraguas", ko: "우산", vi: "ô")
+        obj["example_sentence"] = main
+        obj["example_translation"] = pick("外は雨だよ。出かけるなら傘を忘れないでね！", en: "It's raining out. Don't forget your umbrella!",
+                                          zh: "", es: "Está lloviendo. ¡No olvides el paraguas al salir!",
+                                          ko: "밖에 비 와. 나갈 때 우산 꼭 챙겨!", vi: "Ngoài trời đang mưa, ra ngoài nhớ mang ô nhé!")
+        obj["extras"] = extras
+        let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
+        let word = (try? JSONDecoder().decode(Word.self, from: data))
+            .map { ReaderLanguage.resolve($0, explanation: nil, readerMeaning: nil, reader: L10n.lang) }
+        return Sticker(id: "shortform", wordId: "w-umbrella", objectImageUrl: nil, cutoutImageUrl: nil, selfieImageUrl: nil,
+                       caption: nil, locationName: nil, takenAt: Date(), captureType: "photo", word: word)
+    }
+
+    var body: some View {
+        WordDetailView(sticker: Self.sticker, previewFocus: focus)
+    }
+}
+
 /// The word page of 版25 with the mock's own word (`-uiPreview word25…`, docs/word-detail-design.md §12): 水晶手鍊 with
 /// five chunks (notes, two swappable), three examples that use chunks 1, 2 and 5, a measure word, related words with their
 /// short meanings, and a Taiwan memo — in each display language's own words, through the same reader-language filter as

@@ -1574,16 +1574,18 @@ struct WordDetailView: View {
     private func refineOne(_ r: UsageChunk) -> UsageChunk? {
         guard !r.parts.isEmpty else { return nil }
         let mwords = Set(measures.map(\.word))
+        // The text that stands for the word in this chunk: the word, or the short form the chunk uses (C27, 雨傘 → 傘).
+        let head = r.headForm(headword)
         // docs/chunk-rules.md: one word is one block (C7), a Mandarin adjective gets its degree word (C8).
-        let c = UsageChunk(parts: ChunkRules.tidy(r.parts, headword: headword, target: learningLang, reader: L10n.lang), ja: r.ja,
-                           note: r.note)
+        let c = UsageChunk(parts: ChunkRules.tidy(r.parts, headword: head, target: learningLang, reader: L10n.lang), ja: r.ja,
+                           note: r.note, shortForm: head == headword ? nil : head)
         guard ChunkRules.isPattern(original: r.parts, tidied: c.parts) else { return nil }
         let text = c.text
-        if tooLong(r) || text == headword { return nil }
+        if tooLong(r) || text == headword || text == head { return nil }
         // R20: a chunk that does not contain the word it teaches ("很+甜" for 芒果) is not shown.
-        if !LanguageRules.mentionsHeadword(c.parts.map(\.text).joined(separator: " "), headword: headword, target: learningLang) { return nil }
+        if !LanguageRules.mentionsHeadword(c.parts.map(\.text).joined(separator: " "), headword: head, target: learningLang) { return nil }
         // C15: a pattern with a word cut out (嘴邊肉＋切) or a translation that copies the word (嘴邊肉をする).
-        if ChunkRules.isBroken(c, headword: headword, target: learningLang) { return nil }
+        if ChunkRules.isBroken(c, headword: head, target: learningLang) { return nil }
         if text.contains(where: { "。！？!?".contains($0) }) { return nil }
         if c.parts.contains(where: { $0.pos.uppercased() == "M" || mwords.contains($0.text) }) { return nil }
         if mwords.contains(where: { !$0.isEmpty && text.contains($0) }) { return nil }
@@ -1746,7 +1748,7 @@ struct WordDetailView: View {
                            supportsLayerEffects: false) {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(chunks.enumerated()), id: \.offset) { i, c in
-                    ChunkLineView(chunk: c, headword: headword, target: learningLang, number: i + 1,
+                    ChunkLineView(chunk: c, headword: c.headForm(headword), target: learningLang, number: i + 1,
                                   onNumber: numberAction(i), showCoach: coach == i,
                                   dismissCoach: { withAnimation(.easeOut(duration: 0.2)) { swapCoachSeen = true } },
                                   reviewKey: "chunk-\(i)")
@@ -1755,6 +1757,15 @@ struct WordDetailView: View {
                         .padding(.leading, 8)
                         .padding(.trailing, 12)
                         .background(Theme.secondary, in: .rect(cornerRadius: 18, style: .continuous))
+                }
+                if let short = shortFormNote {
+                    Text(short)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+                        .accessibilityIdentifier("chunks.shortForm")
                 }
                 chunkLegend
             }
@@ -1766,11 +1777,28 @@ struct WordDetailView: View {
         // Never while the first tour runs (owner 2026-10-28: its black tip overlapped the tour's card).
         guard !swapCoachSeen, router.tour == .off else { return nil }
         return chunks.firstIndex { c in
-            c.parts.contains { p in
-                ChunkRules.role(p, headword: headword, target: learningLang) != .head
-                    && ChunkRules.isSwappable(p, headword: headword, target: learningLang)
+            let head = c.headForm(headword)
+            return c.parts.contains { p in
+                ChunkRules.role(p, headword: head, target: learningLang) != .head
+                    && ChunkRules.isSwappable(p, headword: head, target: learningLang)
             }
         }
+    }
+
+    /// The note under the chunks when one of them uses the word's short form (owner 2026-11-21, docs/chunk-rules.md C27):
+    /// 「会話では「雨傘」を「傘」と短く言うのが自然です」. nil when every chunk uses the word itself.
+    private var shortFormNote: AttributedString? {
+        guard let short = chunks.lazy.map({ $0.headForm(headword) }).first(where: { $0 != headword }) else { return nil }
+        // The two Mandarin words in the reader's sentence are drawn in Taiwan's glyphs (PR #58), the rest as the display language.
+        var note = AttributedString(L("会話では「\(headword)」を「\(short)」と短く言うのが自然です"))
+        for word in [headword, short] {
+            var from = note.startIndex
+            while from < note.endIndex, let r = note[from...].range(of: word) {
+                note[r].languageIdentifier = TaiwanGlyphs.identifier
+                from = r.upperBound
+            }
+        }
+        return note
     }
 
     /// What a chunk's number does: go to the first example that uses that chunk and make its box glow (§3). nil when no
@@ -1794,8 +1822,9 @@ struct WordDetailView: View {
     private var chunkLegend: some View {
         // 名詞 always (版25): the word itself is a noun (every word in the app is — owner 2026-10-20) and is blue in the
         // examples; then the parts of speech of the words used with it.
-        let kinds = Set(chunks.flatMap(\.parts).filter { ChunkRules.role($0, headword: headword, target: learningLang) == .partner }
-            .map { ChunkKind(pos: $0.pos) }).union([.noun])
+        let kinds = Set(chunks.flatMap { c in
+            c.parts.filter { ChunkRules.role($0, headword: c.headForm(headword), target: learningLang) == .partner }
+        }.map { ChunkKind(pos: $0.pos) }).union([.noun])
         let shown = ChunkKind.allCases.filter { kinds.contains($0) }
         return HStack(spacing: 12) {
             ForEach(shown, id: \.self) { k in
