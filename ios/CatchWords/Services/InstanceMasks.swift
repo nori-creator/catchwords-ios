@@ -153,11 +153,38 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         }
         // A crop's instance that takes most of another thing it shares the instance with is the two things together
         // again (a person and the helmet held against them, both whole in the widest crop): not this thing alone.
+        // A part's crop (a cup named inside its saucer's box) is checked against what the whole keeping the instance has
+        // outside the part's box (owner 2026-11-21, 案1: the whole is no longer split with its part, so it has no share of
+        // its own to check against).
+        let grid = labelMaskCopy()
+        func outside(_ j: Int, of i: Int) -> CatchPlan.Keep? {
+            guard let g = grid, let box = boxes[i] else { return nil }
+            let ls: [Int]
+            switch plans[j].cut {
+            case .instance(let l): ls = [l]
+            case .union(let u): ls = u
+            default: return nil
+            }
+            var on = [Bool](repeating: false, count: 256)
+            for l in ls where l > 0 && l < 256 { on[l] = true }
+            let b = CatchPlan.grid(box, width: g.width, height: g.height)
+            var bits = [UInt8](repeating: 0, count: g.width * g.height)
+            for y in 0..<g.height {
+                for x in 0..<g.width where on[Int(g.mask[y * g.width + x])] {
+                    if x < b.x0 || x >= b.x1 || y < b.y0 || y >= b.y1 { bits[y * g.width + x] = 1 }
+                }
+            }
+            return CatchPlan.Keep(width: g.width, height: g.height, bits: bits)
+        }
         var merged: [Int: Int] = [:]
         for (i, h) in hits {
             guard let hb = h.grid else { continue }
             for j in plans[i].sharedWith where j < n {
-                guard case .part(_, let theirs) = plans[j].cut, theirs.bits.count == hb.count else { continue }
+                let theirs: CatchPlan.Keep
+                if case .part(_, let share) = plans[j].cut { theirs = share }
+                else if let rest = outside(j, of: i) { theirs = rest }
+                else { continue }
+                guard theirs.bits.count == hb.count else { continue }
                 let total = theirs.count
                 guard total > 0 else { continue }
                 var both = 0
@@ -169,7 +196,6 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             hits[i] = nil
             Self.trace?("thing \(i + 1): the crop's instance holds most of thing \(j + 1) too — not used")
         }
-        let grid = labelMaskCopy()
         var out: [(cut: Cut?, note: String?)] = []
         for i in 0..<n {
             let p = plans[i]
