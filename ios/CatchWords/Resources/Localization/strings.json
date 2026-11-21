@@ -12276,5 +12276,12 @@
   "es": "Siguiente pregunta",
   "ko": "다음 문제",
   "vi": "Câu tiếp theo"
+ },
+ "会話では「{1}」を「{2}」と短く言うのが自然です": {
+  "en": "In conversation, “{1}” is usually shortened to “{2}”.",
+  "zh-TW": "口語中，「{1}」通常簡單說成「{2}」。",
+  "es": "Al hablar, lo natural es decir solo “{2}” en lugar de “{1}”.",
+  "ko": "회화에서는 ‘{1}’ 대신 짧게 ‘{2}’만 말하는 게 자연스러워요.",
+  "vi": "Khi nói chuyện, người ta thường nói gọn “{1}” thành “{2}”."
  }
 }

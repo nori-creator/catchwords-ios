@@ -4,6 +4,7 @@ import { ChunkPartSchema } from "./extras";
 import { readerText } from "./note-language";
 import { looksLikeTargetLanguage } from "./text-language";
 import { targetProfile } from "./target-profile";
+import { chunkHeadForm } from "./short-form";
 
 /**
  * **例文は「その語が使われる場面のパターン」から作る**（オーナー報告 2026-10-15）。
@@ -112,6 +113,25 @@ export function showsChunk(sentence: string, chunk: ChunkLike | null | undefined
       from = at + piece.length;
     }
     return true;
+  });
+}
+
+/**
+ * **例文が見出し語を含むか**（台湾華語）。見出し語がそのまま入っていれば含む。入っていなくても、型が見出し語の
+ * 短い形を使っていて（雨傘 → 帶傘、`short-form.ts`）、その型が文に出ていれば（`showsChunk`）含むと数える —
+ * 「外面在下雨，出門記得帶傘喔」は 雨傘 の例文（オーナー 2026-11-21「1.2 それでいい」）。
+ */
+export function sentenceHoldsHeadword(
+  sentence: string,
+  headword: string,
+  chunks: readonly ChunkLike[] | null | undefined,
+  language?: string | null,
+): boolean {
+  const head = (headword ?? "").trim();
+  if (!head || (sentence ?? "").includes(head)) return true;
+  return (chunks ?? []).some((c) => {
+    const form = chunkHeadForm(c, head, language);
+    return !!form && form !== head && sentence.includes(form) && showsChunk(sentence, c);
   });
 }
 
@@ -376,6 +396,11 @@ export function pickExamplePatterns(
     chunks?: Parameters<typeof containsChunk>[1];
     /** 同じ返事の量詞の欄。在れば、例文の量詞の書き違い（隻/支）を欄の字にそろえる（`alignMeasureHomophone`）。 */
     measureWords?: Parameters<typeof alignMeasureHomophone>[3];
+    /**
+     * 見出し語の短い形を使う型（`short_form`）を見るためだけの型（並べ順には使わない）。在れば、その型を使った文は
+     * 見出し語の代わりに短い形を含んでいてよい（`sentenceHoldsHeadword`）。
+     */
+    shortFormChunks?: readonly ChunkLike[] | null;
   },
 ): PickedExample[] {
   const max = Math.max(1, opts.max ?? MAX_EXAMPLE_PATTERNS);
@@ -390,7 +415,12 @@ export function pickExamplePatterns(
     if (!sentence || sentence.length > 160) return;
     if (!looksLikeTargetLanguage(sentence, opts.language)) return;
     // 入っていない文は別の語の例文。英語・日本語は活用で形が変わるので、ここでは見ない。
-    if (literalHeadword && head && !sentence.includes(head)) return;
+    if (
+      literalHeadword &&
+      head &&
+      !sentenceHoldsHeadword(sentence, head, [...(opts.chunks ?? []), ...(opts.shortFormChunks ?? [])], opts.language)
+    )
+      return;
     // 量詞と見出し語の字が重なる文（一束花束）は不自然なので使わない（2026-10-15 花束）。
     if (literalHeadword && redundantMeasure(sentence, head)) return;
     const scene = shortScene(
@@ -651,6 +681,10 @@ export function examplePatternsRule(opts: {
 }): string {
   const { headword, targetName, nl, max, levelRule, sourceRule, chunkRoles } = opts;
   const sceneMax = opts.sceneMax ?? SCENE_MAX_CHARS.ja;
+  // 型が見出し語の短い形を使う時（雨傘 → 帶傘）、その型の例文は短い形でよい（`short-form.ts`、2026-11-21）。
+  const shortOk =
+    `（型が見出し語の短い形 short_form を使う時は、その型の例文は短い形のままでよい — 見出し語を無理に入れない。` +
+    `例: 型「帶＋傘」の例文「外面在下雨，出門記得帶傘喔」）`;
   const listed = Array.isArray(opts.pairChunks) ? (opts.pairChunks as readonly ChunkLike[]) : null;
   const paired = max > 1 && (opts.pairChunks === "same_reply" || (listed?.length ?? 0) > 0);
   const theChunks = listed
@@ -689,8 +723,8 @@ export function examplePatternsRule(opts: {
     `  a. 自分が目の前の誰かに言う一人称のセリフ。説明文・看板・アナウンス・小説の地の文・三人称の描写は禁止。`,
     `  b. 句読点を除いて ${EXAMPLE_MAX_HAN}字以内（12字以上）。長い文は画面で2行に入らない。`,
     paired
-      ? `  c. 「${headword}」をそのまま含む。i 番目の例文は、${theChunks}の i 番目を字のまま続けて含む。`
-      : `  c. 「${headword}」をそのまま含む。同じ返事に usage_chunks があれば、そのうち1つを字のまま続けて含む。`,
+      ? `  c. 「${headword}」をそのまま含む${shortOk}。i 番目の例文は、${theChunks}の i 番目を字のまま続けて含む。`
+      : `  c. 「${headword}」をそのまま含む${shortOk}。同じ返事に usage_chunks があれば、そのうち1つを字のまま続けて含む。`,
     ...chunkList,
     `  d. その語をネイティブが実際に口にする場面だけ（✗ 馬桶 で「請問馬桶在哪裡？」— 場所を聞くなら 廁所）。`,
     `  e. ${REAL_NAMES_RULE}`,
@@ -702,7 +736,7 @@ export function examplePatternsRule(opts: {
     `  3. ${howMany}`,
     `     share は、その語が使われる場面全体のうち、そのパターンが占める割合の目安（0〜100 の整数）。`,
     `  4. パターンごとに、**その場面でネイティブが実際にいちばん自然に言う一文**を1つだけ書く（sentence、${targetName}）。` +
-      `教科書の作文・説明文にしない。「${headword}」を必ず含める。`,
+      `教科書の作文・説明文にしない。「${headword}」を必ず含める（短い形を使う型の例文は c のとおり短い形でよい）。`,
     // オーナー 2026-10-24（貼られた分析「説明文・看板・小説調の例文」「チャンクと例文の連動」）。
     `     **自分が目の前の誰かに言う一人称のセリフにする。** 説明文（✗「台灣的珍珠奶茶很有名」）・看板やアナウンス調・` +
       `小説の地の文や三人称の描写（✗「他昨天在公園…」）・その語をネイティブが使わない場面の文` +
@@ -1127,7 +1161,8 @@ export function mayWriteMainLabel(
  * ---------------------------------------------------------------------------------------------
  */
 
-type ChunkLike = NonNullable<Parameters<typeof containsChunk>[1]>[number];
+/** 型1つ（短い形を使う型は `short_form` — `short-form.ts`）。 */
+type ChunkLike = NonNullable<Parameters<typeof containsChunk>[1]>[number] & { short_form?: string | null };
 
 /** 例文（メイン＋追加）の文の並び。 */
 function exampleSentences(card: CardLike): string[] {
@@ -1182,6 +1217,7 @@ export function coverChunks<T extends CardLike>(
         language: opts.language,
         readerLang: opts.readerLang,
         max: MAX_EXAMPLE_PATTERNS,
+        shortFormChunks: [chunks[i]],
       }).filter((e) => !used.some((s) => sameSentence(s, e.sentence)))[0];
     const hit =
       pick(holding.filter((p) => containsChunk(p.sentence ?? "", [chunks[i]]))) ??
@@ -1207,15 +1243,17 @@ export function coverChunks<T extends CardLike>(
   return { card: out, missing: chunksWithoutExample(chunks, exampleSentences(out)) };
 }
 
-/** 型のパーツを1つの句に（入れ替えの候補は「/」で並べる）。指示文に見せるため。 */
+/** 型のパーツを1つの句に（入れ替えの候補は「/」で並べる）。指示文に見せるため。短い形を使う型はそう添える。 */
 function chunkText(c: ChunkLike): string {
-  return (c?.parts ?? [])
+  const text = (c?.parts ?? [])
     .map((p) => {
       const alts = (p?.alts ?? []).map((a) => (a?.text ?? "").trim()).filter(Boolean);
       const t = (p?.text ?? "").trim();
       return alts.length ? `[${[t, ...alts].join("/")}]` : t;
     })
     .join("");
+  const short = (c?.short_form ?? "").trim();
+  return short ? `${text}（見出し語の短い形「${short}」を使う型）` : text;
 }
 
 /**
@@ -1243,7 +1281,8 @@ export function chunkExamplesRule(opts: {
     `【例文の絶対ルール】`,
     `a. 自分が目の前の誰かに言う一人称のセリフ。説明文・看板・アナウンス・小説の地の文・三人称の描写は禁止。`,
     `b. 句読点を除いて 12〜${EXAMPLE_MAX_HAN}字。`,
-    `c. 「${headword}」と、その型の字を**そのまま続けて**含む（間に別の字を入れない）。`,
+    `c. 「${headword}」と、その型の字を**そのまま続けて**含む（間に別の字を入れない）。` +
+      `型が見出し語の短い形を使う時（「短い形「傘」を使う型」と添えた型）は、見出し語の代わりにその短い形のまま。`,
     `d. その型をネイティブが実際に口にする場面で、台湾の人がいちばん自然に・よく言う、実用的な文。`,
     `e. ${REAL_NAMES_RULE}`,
     `scene: その文がまさに口にされる状況の短い1行（${nl}で${sceneMax}字以内）。scene_fits: 文だけを読んだネイティブが思い浮かべる場面と scene が同じなら true。`,

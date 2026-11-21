@@ -3,6 +3,7 @@ import { withoutGenericChunks } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
 import { EtymologyDiagramSchema } from "./etymology-diagram";
 import { isBrokenUsageChunk, tidyUsageParts, withoutSeparatorParts } from "./chunk-grammar";
+import { chunkHeadForm } from "./short-form";
 
 /**
  * 単語カードの extras の唯一の定義(2026-07-25 詳細カード再構成)。
@@ -68,6 +69,13 @@ export const UsageChunkSchema = z.object({
    * 古い語には無い（その時は電球を出さない）。
    */
   note: z.string().optional().catch(undefined),
+  /**
+   * **見出し語の短い形**（オーナー 2026-11-21「1.2 それでいい」— 雨傘 を 帶傘・撐傘・收傘 と言う方が自然）。
+   * その型が見出し語の代わりに使った、見出し語の字の連続した一部（雨傘 → 傘）。見出し語のままの型には無い。
+   * サーバの門（`chunk-quality.ts` の `chunkHeadForm`）が、見出し語の一部で、その字が1つのパーツとして入っている時だけ残す。
+   * 画面はこの字を見出し語と同じ青で描き、使い方の項目の下に注記を出す。
+   */
+  short_form: z.string().optional().catch(undefined),
 });
 export type UsageChunk = z.infer<typeof UsageChunkSchema>;
 
@@ -801,15 +809,17 @@ export function refineUsageChunks(
       } else if (text.length > maxChars) {
         return false;
       }
+      // 見出し語の役をする字: 見出し語、または型が使った短い形（雨傘 → 傘、`short-form.ts`）。
+      const h = chunkHeadForm(c, head, language) ?? head;
       // 見出し語だけの型は、その語を見れば分かることしか言っていない。
-      if (text === head) return false;
+      if (text === head || text === h) return false;
       // 分けた1語（芒果＋冰 → 芒果冰）は使い方ではない（チャンクの表示ルール C7）。
       // もともと札1つで保存された古い型は落とさない（合わせて1つになった物だけ）。
-      if (parts.length >= 2 && tidyUsageParts(parts, language, { headword: head }).length < 2)
+      if (parts.length >= 2 && tidyUsageParts(parts, language, { headword: h }).length < 2)
         return false;
-      if (!chunkMentionsHeadword(chunkText(c, " "), head, language)) return false;
+      if (!chunkMentionsHeadword(chunkText(c, " "), h, language)) return false;
       // 量詞を抜いて崩れた型（嘴邊肉＋切）・訳になっていない訳（嘴邊肉をする）。
-      if (isBrokenUsageChunk(c, head, language)) return false;
+      if (isBrokenUsageChunk(c, h, language)) return false;
       if (seen.has(text)) return false;
       seen.add(text);
       return true;
@@ -852,7 +862,7 @@ export function withoutMeasureWords(
     // 見出し語が偶然その札の量詞と同じ字のときに、型を全部落とさない。
     return !parts.some((p) => {
       const text = (p.text ?? "").trim();
-      if (text === head) return false;
+      if (text === head || (!!c.short_form && text === c.short_form.trim())) return false;
       if (p.pos === "M") return true;
       return cores.has(measureWordCore(text));
     });

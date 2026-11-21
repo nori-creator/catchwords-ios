@@ -10,11 +10,20 @@ nonisolated struct UsageChunk: Codable, Sendable, Hashable {
     /// 「ひと言解説」 under the light bulb (server `usage_chunks[].note`, 2026-10-25): one sentence in the reader's language.
     /// nil on older cards — then the bulb is not drawn (docs/word-detail-design.md §3).
     var note: String?
+    /// The headword's short form this chunk uses instead of the headword (server `usage_chunks[].short_form`, owner
+    /// 2026-11-21: 帶傘・撐傘・收傘 for 雨傘 — natives say the short form there). nil on chunks that use the headword itself.
+    var shortForm: String?
 
-    init(parts: [ChunkPart], ja: String, note: String? = nil) {
+    private enum CodingKeys: String, CodingKey {
+        case parts, ja, note
+        case shortForm = "short_form"
+    }
+
+    init(parts: [ChunkPart], ja: String, note: String? = nil, shortForm: String? = nil) {
         self.parts = parts
         self.ja = ja
         self.note = note
+        self.shortForm = shortForm
     }
 
     init(from decoder: Decoder) throws {
@@ -22,9 +31,26 @@ nonisolated struct UsageChunk: Codable, Sendable, Hashable {
         parts = (try? c.decode([ChunkPart].self, forKey: .parts)) ?? []
         ja = (try? c.decode(String.self, forKey: .ja)) ?? ""
         note = ChunkPart.reading(try? c.decodeIfPresent(String.self, forKey: .note))
+        shortForm = ChunkPart.reading(try? c.decodeIfPresent(String.self, forKey: .shortForm))
     }
 
     var text: String { parts.map(\.text).joined() }
+
+    /// The text that stands for the headword in this chunk: its short form when it has one that is a run of the
+    /// headword's characters (雨傘 → 傘) and is one of its blocks, else the headword (server `chunkHeadForm`,
+    /// docs/chunk-rules.md C27). Everything that finds the headword in a chunk asks this.
+    func headForm(_ headword: String) -> String {
+        let head = headword.trimmingCharacters(in: .whitespaces)
+        guard let short = shortForm?.trimmingCharacters(in: .whitespaces), !short.isEmpty, short != head,
+              short.count < head.count, head.contains(short),
+              short.unicodeScalars.allSatisfy({ $0.properties.isIdeographic }),
+              !parts.contains(where: { $0.text.trimmingCharacters(in: .whitespaces) == head }),
+              parts.contains(where: { $0.text.trimmingCharacters(in: .whitespaces) == short }) else { return head }
+        return short
+    }
+
+    /// Whether this chunk uses the headword's short form (then the page notes it under the chunks).
+    func usesShortForm(_ headword: String) -> Bool { headForm(headword) != headword.trimmingCharacters(in: .whitespaces) }
 }
 
 /// Another word natives often put in a swappable part, with its meaning in the reader's language.

@@ -165,7 +165,7 @@ struct DiaryLookBack: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(chunks.enumerated()), id: \.offset) { i, c in
-                    ChunkLineView(chunk: c, headword: head, target: target, size: .compact, number: i + 1)
+                    ChunkLineView(chunk: c, headword: c.headForm(head), target: target, size: .compact, number: i + 1)
                         .padding(.vertical, 10)
                         .padding(.leading, 8)
                         .padding(.trailing, 12)
@@ -211,9 +211,10 @@ struct DiaryLookBack: View {
     /// or nil when it is not a pattern.
     static func tidy(_ c: UsageChunk, headword: String, target: String) -> UsageChunk? {
         guard !c.parts.isEmpty else { return nil }
-        let t = UsageChunk(parts: ChunkRules.tidy(c.parts, headword: headword, target: target, reader: L10n.lang), ja: c.ja,
-                           note: c.note)
-        guard ChunkRules.isPattern(original: c.parts, tidied: t.parts), t.text != headword else { return nil }
+        let head = c.headForm(headword)
+        let t = UsageChunk(parts: ChunkRules.tidy(c.parts, headword: head, target: target, reader: L10n.lang), ja: c.ja,
+                           note: c.note, shortForm: head == headword ? nil : head)
+        guard ChunkRules.isPattern(original: c.parts, tidied: t.parts), t.text != headword, t.text != head else { return nil }
         return t
     }
 }
