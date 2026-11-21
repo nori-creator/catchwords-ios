@@ -250,8 +250,9 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
     static let refineInside = 0.5
 
     /// `c` cut again from Vision on a crop round it: the same thing at a finer resolution, so thin parts (handles,
-    /// straps) follow the photo. nil when the crop is not much smaller than the photo, Vision finds nothing there, or what
-    /// it finds is not the same thing (`refineMinOverlap`). Heavy: call off the main thread.
+    /// straps) follow the photo. nil when the crop is not much smaller than the photo, Vision finds nothing there, what
+    /// it finds is not the same thing (`refineMinOverlap`), or it leaves out part of the first one's inside
+    /// (`refineMaxLoss`). Heavy: call off the main thread.
     func refined(_ c: Cut) -> Cut? {
         guard let photo else { return nil }
         let W = CGFloat(photo.width), H = CGFloat(photo.height)
@@ -294,6 +295,14 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
             if a || f { either += 1 }
         }
         guard either > 0, Double(both) >= Self.refineMinOverlap * Double(either) else { return nil }
+        // Nothing of the first cut-out's inside is lost (owner 2026-11-21, 案2: on a crop round the nail clipper Vision
+        // left out its grey metal between lever and body — 14.5% of the cut-out, a hole — and the overlap was still
+        // above `refineMinOverlap`). The crop is for finer edges; away from the edge it must keep what the first had.
+        let firstBits = first.map { $0 > 127 }, keptBits = g.mask.map { on[Int($0)] }
+        let band = max(1, Int((Double(max(gw, gh)) * Self.refineEdgeBand).rounded()))
+        let loss = Self.interiorLoss(first: firstBits, kept: keptBits, width: gw, height: gh, band: band)
+        Self.trace?(String(format: "refine: the crop's cut-out loses %.1f%% of the first one's inside", loss * 100))
+        guard loss < Self.refineMaxLoss else { return nil }
         // A thing that runs on past the crop would come out cut straight along the crop's edge: kept as it was.
         let left = r.minX > 0.5, right = r.maxX < W - 0.5, top = r.minY > 0.5, bottom = r.maxY < H - 0.5
         for y in 0..<gh {
@@ -306,6 +315,42 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
         let box = CGRect(x: (r.minX + mb.minX * r.width) / W, y: (r.minY + mb.minY * r.height) / H,
                          width: mb.width * r.width / W, height: mb.height * r.height / H)
         return Cut(cg: made.cg, box: box)
+    }
+
+    /// The first cut-out's inside, for `refined`: what lies at least this share of the crop's longer side away from its
+    /// edge (the edge itself is what the crop is there to make finer: a lumpy handle becomes thin).
+    static let refineEdgeBand = 0.01
+    /// The crop's cut-out is not used when it leaves out this share of the first one's inside (a hole Vision's first
+    /// outline did not have).
+    static let refineMaxLoss = 0.02
+
+    /// The share of `first` (its pixel count) that lies more than `band` pixels inside it and that `kept` leaves out.
+    static func interiorLoss(first: [Bool], kept: [Bool], width w: Int, height h: Int, band: Int) -> Double {
+        guard w > 0, h > 0, first.count >= w * h, kept.count >= w * h else { return 0 }
+        let total = first.prefix(w * h).filter { $0 }.count
+        guard total > 0 else { return 0 }
+        // Eroded by `band` along rows, then along columns (a square of side 2·band+1), the photo's edge counting as outside.
+        func erode(_ bits: [Bool], along rows: Bool) -> [Bool] {
+            var out = [Bool](repeating: false, count: w * h)
+            let lines = rows ? h : w, length = rows ? w : h
+            var run = [Int](repeating: 0, count: length + 1)
+            for line in 0..<lines {
+                for k in 0..<length {
+                    let i = rows ? line * w + k : k * w + line
+                    run[k + 1] = run[k] + (bits[i] ? 1 : 0)
+                }
+                for k in 0..<length {
+                    let a = k - band, b = k + band
+                    guard a >= 0, b < length else { continue }
+                    if run[b + 1] - run[a] == 2 * band + 1 { out[rows ? line * w + k : k * w + line] = true }
+                }
+            }
+            return out
+        }
+        let inside = erode(erode(Array(first.prefix(w * h)), along: true), along: false)
+        var lost = 0
+        for k in 0..<(w * h) where inside[k] && !kept[k] { lost += 1 }
+        return Double(lost) / Double(total)
     }
 
     /// `bits` grown by one pixel (8 neighbours).

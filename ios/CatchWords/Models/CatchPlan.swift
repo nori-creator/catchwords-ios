@@ -32,6 +32,8 @@ import Foundation
 ///   photo's own edge between the two things (`split`, `Cut.part`), never along a box. (`InstanceMasks.render` first
 ///   asks Vision on a crop round each such thing's box, which usually separates them by itself.) What the split takes
 ///   from inside a thing's own outline is given back (`filledHoles`): no cut-out has a hole Vision's outline does not.
+///   A part named inside a whole (its box small and inside the whole's box — an umbrella's handle or sleeve) never takes
+///   anything from the whole: the whole keeps the instance, the part gets its share (owner 2026-11-21, 案1).
 /// - An instance mostly outside the thing's box that no other thing claims (the dorayaki merged with the carton behind
 ///   it, or a box off to one side): `refine` asks Vision once more on the region round the box, and that answer is used
 ///   only when it is a whole thing — not touching the region's edge; otherwise the whole instance stays.
@@ -237,9 +239,12 @@ nonisolated enum CatchPlan {
             guard let c = claims[i] else {
                 return Placement(label: nil, cut: .noMask, anchor: t.point, note: "no Vision mask inside its box")
             }
-            // A part and its whole both keep the part's own instance whole (neither is the other's rival for it).
+            // A part and its whole both keep the part's own instance whole (neither is the other's rival for it). And a
+            // whole is never split with a part named inside it (its box small and inside the whole's box), even when Vision
+            // saw the two as one instance (owner 2026-11-21, 案1: the umbrella named with its wooden handle and sleeve lost
+            // the handle to 木柄 — a hole at the end of the umbrella). The part still takes its own share.
             let rivals = Set(c.labels.flatMap { l in
-                claimants[l].filter { j in !((isPart(j, of: i) && isWholePart(j, l)) || (isPart(i, of: j) && isWholePart(i, l))) }
+                claimants[l].filter { j in !(isPart(j, of: i) || (isPart(i, of: j) && isWholePart(i, l))) }
             }).subtracting([i]).sorted()
             if rivals.isEmpty {
                 // Its own: whole, past the box too — only pieces that do not reach the box at all are left out.
