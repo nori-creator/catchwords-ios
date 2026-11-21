@@ -141,6 +141,62 @@ final class CardCatchPickTests: XCTestCase {
         XCTAssertEqual(cutletKeep.bits.count, w * h)
     }
 
+    func testAWholeIsNeverSplitWithAPartNamedInsideIt() {
+        // 雨傘 (owner 2026-11-20/21, 案1): the umbrella named with its wooden handle (木柄) and sleeve (傘套), one Vision
+        // instance; the umbrella's cut-out lost the handle at its end (open, so `filledHoles` did not give it back).
+        // The umbrella keeps the whole instance; each part still gets a share of its own.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 1..<19 { for x in 8..<12 { mask[y * w + x] = 1 } }
+        let umbrella = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.3), box: CGRect(x: 0.35, y: 0.0, width: 0.3, height: 1.0), own: true)
+        let handle = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.85), box: CGRect(x: 0.38, y: 0.72, width: 0.24, height: 0.26), own: true)
+        let sleeve = CatchPlan.Thing(point: CGPoint(x: 0.5, y: 0.3), box: CGRect(x: 0.38, y: 0.05, width: 0.24, height: 0.45), own: true)
+        let plans = CatchPlan.plan(things: [umbrella, handle, sleeve], mask: mask, width: w, height: h)
+        let whole = CatchPlan.pixels(of: plans[0].cut, mask: mask, width: w, height: h)
+        XCTAssertEqual(whole.count, 18 * 4, "the umbrella keeps its handle")
+        XCTAssertTrue(plans[0].sharedWith.isEmpty, "the umbrella shares nothing with its parts")
+        XCTAssertEqual(whole.bits[17 * w + 10], 1)
+        XCTAssertGreaterThan(CatchPlan.pixels(of: plans[1].cut, mask: mask, width: w, height: h).count, 0)
+        XCTAssertGreaterThan(CatchPlan.pixels(of: plans[2].cut, mask: mask, width: w, height: h).count, 0)
+    }
+
+    func testTwoThingsSideBySideOnOneInstanceAreStillSplit() {
+        // Neither box inside the other (glasses against a bottle): still split where they meet.
+        let w = 20, h = 20
+        var mask = [UInt8](repeating: 0, count: w * h)
+        for y in 4..<16 { for x in 2..<18 { mask[y * w + x] = 1 } }
+        let left = CatchPlan.Thing(point: CGPoint(x: 0.25, y: 0.5), box: CGRect(x: 0.1, y: 0.2, width: 0.4, height: 0.6), own: true)
+        let right = CatchPlan.Thing(point: CGPoint(x: 0.75, y: 0.5), box: CGRect(x: 0.5, y: 0.2, width: 0.4, height: 0.6), own: true)
+        let plans = CatchPlan.plan(things: [left, right], mask: mask, width: w, height: h)
+        XCTAssertEqual(plans[0].sharedWith, [1])
+        XCTAssertLessThan(CatchPlan.pixels(of: plans[0].cut, mask: mask, width: w, height: h).count, 12 * 16)
+    }
+
+    // MARK: The edge made again on a crop keeps the inside (案2)
+
+    func testACropCutOutThatLeavesOutTheInsideIsALoss() {
+        // 指甲剪 (owner 2026-11-20/21, 案2): on the crop Vision left out the grey metal inside the clipper.
+        let w = 20, h = 20
+        var first = [Bool](repeating: false, count: w * h)
+        for y in 5..<15 { for x in 5..<15 { first[y * w + x] = true } }
+        var kept = first
+        for y in 8..<12 { for x in 8..<12 { kept[y * w + x] = false } }
+        let loss = InstanceMasks.interiorLoss(first: first, kept: kept, width: w, height: h, band: 1)
+        XCTAssertEqual(loss, 16.0 / 100.0, accuracy: 1e-9)
+        XCTAssertGreaterThanOrEqual(loss, InstanceMasks.refineMaxLoss)
+    }
+
+    func testACropCutOutThatOnlyMakesTheEdgeFinerLosesNothing() {
+        // The pot's lumpy handles made thin (owner 2026-11-04): only the edge changes, the inside is all kept.
+        let w = 20, h = 20
+        var first = [Bool](repeating: false, count: w * h)
+        for y in 5..<15 { for x in 5..<15 { first[y * w + x] = true } }
+        var kept = [Bool](repeating: false, count: w * h)
+        for y in 6..<14 { for x in 6..<14 { kept[y * w + x] = true } }
+        XCTAssertEqual(InstanceMasks.interiorLoss(first: first, kept: kept, width: w, height: h, band: 1), 0)
+        XCTAssertEqual(InstanceMasks.interiorLoss(first: first, kept: first, width: w, height: h, band: 1), 0)
+    }
+
     func testNoCutOutHasAHoleTheInstanceDoesNotHave() {
         // Three things on one instance (a bowl, a cutlet, broccoli): whatever the split gives each, none has a hole.
         let w = 24, h = 24
