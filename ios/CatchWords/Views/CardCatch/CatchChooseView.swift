@@ -194,6 +194,8 @@ struct CatchChooseOverlay: View {
                 VStack {
                     Spacer()
                     typeField
+                        // The first tour's pill goes between the lit rows and this field (`TourStep.pillUnderLit`).
+                        .tourAnchor(.chooseField, if: tourLit)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                         .opacity(fieldShown ? 1 : 0)
@@ -265,7 +267,9 @@ struct CatchChooseOverlay: View {
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
                 .padding(.top, 40 * k)
-                .opacity(footIn * (1 - headOut))
+                // The first tour: the guide's pill takes this line's place (its card says the same, owner 2026-11-23:
+                // 「案内を見るを被らない位置に配置して」 — over the title it covered 覚える単語を選ぶ).
+                .opacity(tourLit ? 0 : footIn * (1 - headOut))
         }
         .padding(.horizontal, 40 * k)
         .padding(.top, Film6.y(900, H))

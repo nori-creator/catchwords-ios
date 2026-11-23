@@ -174,9 +174,10 @@ enum TourStep: String, Equatable {
     /// the screenshots: STEP 2 sat on 「CatchWords」 and the avatar, STEP 5 on the word page's title). Under the header
     /// it would sit on the newest photo and on the lit section's title instead, so these go above the tab bar too.
     var litFromTop: Bool { self == .homeAdded || self == .wordSection }
-    /// The choose screen (`choose`): its top row holds 囲んで切り抜き直す・元の写真のまま and ✕, its bottom the field to type
-    /// a word, so the pill goes just above the lit rows, over the screen's title (nothing to press there).
-    var pillAboveLit: Bool { self == .choose }
+    /// The choose screen (`choose`): its top row holds 囲んで切り抜き直す・元の写真のまま and ✕, its title and 「写っている物」
+    /// sit right above the rows, its bottom the field to type a word — so the pill goes between the lit rows and that
+    /// field, in place of the line under the rows (owner 2026-11-23: 「案内を見るを被らない位置に配置して」).
+    var pillUnderLit: Bool { self == .choose }
 
     /// The old device-wide flag "the first tour is still to run". Now only a hand-over: kept per account
     /// (`tour.pending.<userId>`, R6-05) like `OnboardingState`, so one account's unfinished tour never opens
@@ -235,7 +236,7 @@ enum TourPhase: Int, CaseIterable {
 }
 
 enum TourAnchor: Hashable {
-    case cameraTab, shutter, pick, choose, headword, peel, album
+    case cameraTab, shutter, pick, choose, chooseField, headword, peel, album
     case dexTab, dexMap, dexGrid, dexWord
     case wordJump, wordSection, wordSections
     case quiz, reviewNext, memoryCurve
@@ -304,6 +305,8 @@ struct TourLayer: View {
     var bottomClearance: CGFloat = 84
     /// The pill's middle above `bottomClearance` when it sits at the bottom.
     static let pillLift: CGFloat = 26
+    /// About half the pill's height (`pillUnderLit`: it is kept off the lit place's blue line).
+    static let pillHalf: CGFloat = 19
     /// The page-coloured strip behind the pill at the bottom.
     static let pillBackdrop: CGFloat = 78
     /// `.wordSection`: the word page's section the light is on (its card names it).
@@ -387,8 +390,11 @@ struct TourLayer: View {
                         // 消えるとどうやって次に進めばいいかわからない…そのような箇所がない場合は、白い案内が消えても次へ
                         // ボタンが表示されるように」): the learner taps the blue-lined place, or this 次へ.
                         // The lit place near the top — and one that starts under the screen's header (`litFromTop`).
-                        let aboveLit = step.pillAboveLit ? hole.map { max(insets.top + 24, $0.minY - 30) } : nil
-                        let low = aboveLit == nil
+                        let underLit: CGFloat? = step.pillUnderLit ? hole.map { h in
+                            let field = anchors[.chooseField].map { geo[$0].minY } ?? (h.maxY + 2 * Self.pillHalf + 12)
+                            return max(h.maxY + Self.pillHalf + 2, (h.maxY + field) / 2)
+                        } : nil
+                        let low = underLit == nil
                             && (step.isDexView || step.litFromTop || (hole.map { $0.midY < geo.size.height * 0.4 } ?? false))
                         let pillNext = hole != nil && step.litPlaceMovesOn ? nil : step.nextLabel
                         let footY = geo.size.height - max(insets.bottom, 12) - bottomClearance
@@ -405,7 +411,7 @@ struct TourLayer: View {
                             showCard(again: true, fades: fades(hasPlace))
                         }
                             .position(x: geo.size.width / 2,
-                                      y: aboveLit ?? (low ? footY - Self.pillLift : insets.top + 24))
+                                      y: underLit ?? (low ? footY - Self.pillLift : insets.top + 24))
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
