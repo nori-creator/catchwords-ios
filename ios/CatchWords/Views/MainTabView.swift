@@ -616,7 +616,7 @@ struct MainTabView: View {
     private func tourSkip() {
         Haptics.impact(.light)
         switch router.tour {
-        case .tapCamera, .shoot, .pick, .detail, .peel, .homeAdded:
+        case .tapCamera, .shoot, .pick, .choose, .detail, .peel, .homeAdded:
             withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
                 router.tab = .home
                 router.tour = .dexTab
@@ -645,7 +645,7 @@ struct MainTabView: View {
     /// 「図鑑に追加されました」 has nothing before it to redo).
     private var tourBackAction: (() -> Void)? {
         switch router.tour {
-        case .off, .complete, .tapCamera, .pick, .detail, .peel, .homeAdded: return nil
+        case .off, .complete, .tapCamera, .pick, .choose, .detail, .peel, .homeAdded: return nil
         default: return { tourBack() }
         }
     }
@@ -697,7 +697,7 @@ struct MainTabView: View {
                 router.tourSection = router.tourSections.last
                 router.tour = .wordSection
             }
-        case .off, .complete, .tapCamera, .pick, .detail, .peel, .homeAdded: break
+        case .off, .complete, .tapCamera, .pick, .choose, .detail, .peel, .homeAdded: break
         }
     }
 

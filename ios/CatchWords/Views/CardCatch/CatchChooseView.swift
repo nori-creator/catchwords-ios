@@ -45,6 +45,9 @@ struct CatchChooseOverlay: View {
     /// 元の写真のまま: the whole photo becomes the sticker, when no cut-out is right (owner 2026-11-09: 「切り抜き直すボタンの
     /// 横に元の画像のまま表示するってボタン」). nil = no button (no photo: a typed word).
     var onWholePhoto: (() -> Void)? = nil
+    /// The first tour's choose step (`TourStep.choose`, owner 2026-11-23): the card of the ways to say it is the lit
+    /// place, so the learner sees that choosing one of them moves on.
+    var tourLit: Bool = false
 
     /// The card has come in and stands still (`settleCard`): its timeline stops until a choice, new rows or closing.
     @State private var cardStill = false
@@ -110,6 +113,10 @@ struct CatchChooseOverlay: View {
     @FocusState private var typing: Bool
     /// The field comes in with the card's rows.
     @State private var fieldShown = false
+    /// The field's height as drawn (it grows with a large text size), for the first tour's room under the rows.
+    @State private var fieldMeasured: CGFloat = 0
+    /// The first tour's pill between the rows and the field (`TourStep.pillUnderLit`): its room grows with the text size.
+    @ScaledMetric(relativeTo: .subheadline) private var tourPillRoom: CGFloat = 52
 
     private let ink = Color(hex: 0x0B121A)
     private let muted = Color(hex: 0x5C646F)
@@ -191,6 +198,14 @@ struct CatchChooseOverlay: View {
                 VStack {
                     Spacer()
                     typeField
+                        // The first tour's pill goes between the lit rows and this field (`TourStep.pillUnderLit`).
+                        .tourAnchor(.chooseField, if: tourLit)
+                        // Read only in the first tour, so outside it nothing is written and the screen is drawn exactly
+                        // as before (CI 2026-11-23: with the height always written, the tap on a typed word's row was
+                        // cancelled once — not proven to be the cause, kept out of the way all the same).
+                        .onGeometryChange(for: CGFloat.self) { tourLit ? $0.size.height : 0 } action: { h in
+                            if h != fieldMeasured { fieldMeasured = h }
+                        }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                         .opacity(fieldShown ? 1 : 0)
@@ -217,7 +232,12 @@ struct CatchChooseOverlay: View {
         let fold = chosenAt == nil ? 0 : Film6.inOutCubic(Film6.seg(sinceP, 0.22, 0.5))
         let footIn = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.9, 1.1))
         // Room under the card for the line under it and the field to type a word (`typeField`).
-        let maxCard = max(160, H - Film6.y(1150, H) - 96 - (onSearch == nil ? 0 : Self.fieldHeight))
+        // The first tour: the field as tall as it is drawn and the pill's room taken too, so the pill never sits on the
+        // rows or the field at a large text size or on a small iPhone (owner 2026-11-23). Other times as before.
+        let field = onSearch == nil ? 0 : (tourLit ? max(Self.fieldHeight, fieldMeasured + 16) : Self.fieldHeight)
+        let pillRoom = tourLit ? max(0, tourPillRoom - 52) : 0
+        // The first tour may make the card shorter still on a small iPhone at a large text size (its rows scroll).
+        let maxCard = max(tourLit ? 100 : 160, H - Film6.y(1150, H) - 96 - field - pillRoom)
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 if let dexLabel {
@@ -254,6 +274,7 @@ struct CatchChooseOverlay: View {
             .shadow(color: .rgba(15, 40, 80, 0.08), radius: 18, y: 5)
             .opacity(cardIn)
             .offset(y: CGFloat(1 - cardIn) * 40 * k)
+            .tourAnchor(.choose, if: tourLit && chosenAt == nil && closingAt == nil)
 
             Text(L("選ぶと、その言い方で図鑑に入ります"))
                 .font(.system(size: 30 * k, weight: .medium))
@@ -261,7 +282,9 @@ struct CatchChooseOverlay: View {
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
                 .padding(.top, 40 * k)
-                .opacity(footIn * (1 - headOut))
+                // The first tour: the guide's pill takes this line's place (its card says the same, owner 2026-11-23:
+                // 「案内を見るを被らない位置に配置して」 — over the title it covered 覚える単語を選ぶ).
+                .opacity(tourLit ? 0 : footIn * (1 - headOut))
         }
         .padding(.horizontal, 40 * k)
         .padding(.top, Film6.y(900, H))

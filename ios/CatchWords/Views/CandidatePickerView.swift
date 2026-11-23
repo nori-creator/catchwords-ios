@@ -144,7 +144,8 @@ struct CandidatePickerView: View {
                                    calm: reduceMotion, alwaysCard: true, rowsAt: f.rowsAt, searching: vm.isLookingUp,
                                    searchError: vm.searchError, onChoose: pick, onClose: closeChoices,
                                    onSearch: searchFromChoices, onRecut: { recutting = true },
-                                   onWholePhoto: vm.photo == nil || f.typed ? nil : { takeWholePhoto() })
+                                   onWholePhoto: vm.photo == nil || f.typed ? nil : { takeWholePhoto() },
+                                   tourLit: router.tour == .choose)
                     .zIndex(5)
             }
             // The choose screen keeps its sticker floating while the word is checked (no dark wait over it).
@@ -515,9 +516,10 @@ struct CandidatePickerView: View {
             if vm.photo == nil {
                 vm.choose(t.word, object: t.choices[0].object)
             } else {
-                // The first tour (owner 2026-11-07): the tag opens the choose screen like any other time (several ways
-                // to say it are chosen from), and the guide's light goes out until the word is in the dex.
-                router.advanceTour(from: .pick, to: .detail)
+                // The first tour (owner 2026-11-07): the tag opens the choose screen like any other time. Several ways to
+                // say it: the guide lights its rows and says choosing one moves on (owner 2026-11-23, `TourStep.choose`);
+                // one way: the guide's light goes out until the word is in the dex.
+                router.advanceTour(from: .pick, to: t.choices.count > 1 ? .choose : .detail)
                 open(t)
             }
         } label: {
@@ -733,6 +735,8 @@ struct CandidatePickerView: View {
         f.chosenAt = now
         f.chosen = i
         flow = f
+        // The first tour: the choice moves the guide on (the GET moment and 図鑑に追加 are silent).
+        router.advanceTour(from: .choose, to: .detail)
         SoundService.shared.playLayered(.c6Choose)
         vm.choose(f.words[i], object: f.objects[i], typed: f.typed, stage: (origin: now, handoffAt: now + Film6.handoff))
     }
@@ -752,6 +756,8 @@ struct CandidatePickerView: View {
         let at = CCClock.now
         f.closingAt = at
         flow = f
+        // The first tour: back to the tags, lit again.
+        router.advanceTour(from: .choose, to: .pick)
         vm.lightStage = false
         vm.stagePalette = nil
         vm.stageFallback = nil

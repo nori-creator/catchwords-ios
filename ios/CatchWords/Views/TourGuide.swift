@@ -10,7 +10,7 @@ import SwiftUI
 /// 「スキップ」。「〜をタップ」とは書かない（同日「そこだけ光らしたらユーザーもそこわかる」）。
 enum TourStep: String, Equatable {
     case off
-    case tapCamera, shoot, pick, detail, peel
+    case tapCamera, shoot, pick, choose, detail, peel
     case homeAdded
     case dexTab, dexCover, dexMap, dexGrid, dexShadow, dexOpen
     case wordSection, wordSettings
@@ -22,6 +22,7 @@ enum TourStep: String, Equatable {
         case .tapCamera: .cameraTab
         case .shoot: .shutter
         case .pick: .pick
+        case .choose: .choose
         case .detail: .headword
         case .peel: .peel
         case .homeAdded: .album
@@ -43,7 +44,7 @@ enum TourStep: String, Equatable {
     /// Which of the steps the card counts this one as.
     var phase: TourPhase? {
         switch self {
-        case .tapCamera, .shoot, .pick, .detail, .peel: .shoot
+        case .tapCamera, .shoot, .pick, .choose, .detail, .peel: .shoot
         case .homeAdded: .home
         case .dexTab, .dexCover, .dexMap, .dexGrid, .dexShadow, .dexOpen: .dex
         case .wordSection, .wordSettings: .word
@@ -62,6 +63,7 @@ enum TourStep: String, Equatable {
         case .tapCamera: L("目の前にある物を1枚撮ってみよう")
         case .shoot: L("撮りたい物を画面に入れて、シャッターを押してください")
         case .pick: L("AIが、写真の中の物を分析しました")
+        case .choose: L("覚えたい言い方を選びましょう")
         case .detail: L("発音を聞いてみましょう")
         case .peel: L("図鑑に追加しましょう")
         case .homeAdded: L("図鑑に追加されました")
@@ -86,6 +88,7 @@ enum TourStep: String, Equatable {
         switch self {
         case .shoot: L("名前を知らない物でも大丈夫です。アプリが調べます。")
         case .pick: L("覚えたい単語を1つ選んでください。")
+        case .choose: L("言い方がいくつかあります。1つ選ぶと次に進みます。")
         case .detail: L("声に出して言ってみると、覚えやすくなります。")
         case .peel: L("これで最初の単語が保存されます。")
         case .homeAdded: L("撮った写真は、ホームのアルバムにも貼られます。")
@@ -140,6 +143,8 @@ enum TourStep: String, Equatable {
         switch self {
         case .shoot: 0.2
         case .pick: 0.3
+        // The choose screen's own light stage stays readable around its rows (the floating sticker, the header).
+        case .choose: 0.25
         // The 図鑑's views are for looking at and touching, never darkened (owner 2026-11-08: 「マップとか暗くせずにユーザーが
         // そのまま触れるように…図鑑は色を暗くしなくていい」); only the next view's button is lit blue.
         case .dexCover, .dexMap, .dexGrid, .dexShadow: 0
@@ -148,10 +153,13 @@ enum TourStep: String, Equatable {
     }
 
     var isReview: Bool { self == .reviewPick || self == .reviewNext || self == .memoryCurve }
-    /// The catch between the tag and the dex (the choose screen, the GET moment, 図鑑に追加): no card and no dim
-    /// (owner 2026-11-07: 「その間にチュートリアルの解説を入れる必要はない」); the next card says the word was added.
+    /// The catch between the choice and the dex (the GET moment, 図鑑に追加): no card and no dim (owner 2026-11-07:
+    /// 「その間にチュートリアルの解説を入れる必要はない」); the next card says the word was added.
+    /// The choose screen of a thing with several ways to say it is no longer silent (`choose`, owner 2026-11-23: a
+    /// classmate trying the app did not see that choosing one of them moves on): its rows are lit and a card says so.
+    /// A thing with one way to say it goes straight to `detail`, its choose screen silent as before.
     var isSilent: Bool { self == .detail || self == .peel }
-    var isCapture: Bool { self == .shoot || self == .pick || self == .detail || self == .peel }
+    var isCapture: Bool { self == .shoot || self == .pick || self == .choose || self == .detail || self == .peel }
     /// The steps shown over the word's page (its sheet has a guide layer of its own).
     var isWord: Bool { self == .wordSection || self == .wordSettings }
     /// Tapping the lit place itself moves the guide on (the 図鑑's next view button), so the card's 次へ need not stay
@@ -166,6 +174,10 @@ enum TourStep: String, Equatable {
     /// the screenshots: STEP 2 sat on 「CatchWords」 and the avatar, STEP 5 on the word page's title). Under the header
     /// it would sit on the newest photo and on the lit section's title instead, so these go above the tab bar too.
     var litFromTop: Bool { self == .homeAdded || self == .wordSection }
+    /// The choose screen (`choose`): its top row holds 囲んで切り抜き直す・元の写真のまま and ✕, its title and 「写っている物」
+    /// sit right above the rows, its bottom the field to type a word — so the pill goes between the lit rows and that
+    /// field, in place of the line under the rows (owner 2026-11-23: 「案内を見るを被らない位置に配置して」).
+    var pillUnderLit: Bool { self == .choose }
 
     /// The old device-wide flag "the first tour is still to run". Now only a hand-over: kept per account
     /// (`tour.pending.<userId>`, R6-05) like `OnboardingState`, so one account's unfinished tour never opens
@@ -224,7 +236,7 @@ enum TourPhase: Int, CaseIterable {
 }
 
 enum TourAnchor: Hashable {
-    case cameraTab, shutter, pick, headword, peel, album
+    case cameraTab, shutter, pick, choose, chooseField, headword, peel, album
     case dexTab, dexMap, dexGrid, dexWord
     case wordJump, wordSection, wordSections
     case quiz, reviewNext, memoryCurve
@@ -312,6 +324,8 @@ struct TourLayer: View {
     /// すべてで4秒間ぐらい経ったら白い解説が消えるように」). Its ✕ closes it at once. A small pill then stands in for it and
     /// brings it back, and carries 「終了」.
     @State private var cardHidden = false
+    /// The pill's height, measured (`pillUnderLit`: whether it fits between the lit place and the field under it).
+    @State private var pillHeight: CGFloat = 44
     @State private var hideToken = 0
     private static let cardStays: Duration = .seconds(4)
 
@@ -376,7 +390,15 @@ struct TourLayer: View {
                         // 消えるとどうやって次に進めばいいかわからない…そのような箇所がない場合は、白い案内が消えても次へ
                         // ボタンが表示されるように」): the learner taps the blue-lined place, or this 次へ.
                         // The lit place near the top — and one that starts under the screen's header (`litFromTop`).
-                        let low = step.isDexView || step.litFromTop || (hole.map { $0.midY < geo.size.height * 0.4 } ?? false)
+                        // No room there (a small iPhone at a large text size): under the screen's top buttons instead,
+                        // over the top of the floating sticker — never on the title, the rows or the field.
+                        let underLit: CGFloat? = step.pillUnderLit ? hole.map { h in
+                            let field = anchors[.chooseField].map { geo[$0].minY } ?? (h.maxY + pillHeight + 12)
+                            guard field - h.maxY >= pillHeight + 6 else { return insets.top + 56 + pillHeight / 2 }
+                            return (h.maxY + field) / 2
+                        } : nil
+                        let low = underLit == nil
+                            && (step.isDexView || step.litFromTop || (hole.map { $0.midY < geo.size.height * 0.4 } ?? false))
                         let pillNext = hole != nil && step.litPlaceMovesOn ? nil : step.nextLabel
                         let footY = geo.size.height - max(insets.bottom, 12) - bottomClearance
                         if low {
@@ -391,7 +413,9 @@ struct TourLayer: View {
                         TourCardPill(step: step, nextLabel: pillNext, onNext: onNext, onEnd: onEnd) {
                             showCard(again: true, fades: fades(hasPlace))
                         }
-                            .position(x: geo.size.width / 2, y: low ? footY - Self.pillLift : insets.top + 24)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pillHeight = $0 }
+                            .position(x: geo.size.width / 2,
+                                      y: underLit ?? (low ? footY - Self.pillLift : insets.top + 24))
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
