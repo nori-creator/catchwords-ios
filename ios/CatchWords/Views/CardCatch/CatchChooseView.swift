@@ -45,6 +45,9 @@ struct CatchChooseOverlay: View {
     /// 元の写真のまま: the whole photo becomes the sticker, when no cut-out is right (owner 2026-11-09: 「切り抜き直すボタンの
     /// 横に元の画像のまま表示するってボタン」). nil = no button (no photo: a typed word).
     var onWholePhoto: (() -> Void)? = nil
+    /// The first tour's choose step (`TourStep.choose`, owner 2026-11-23): the card of the ways to say it is the lit
+    /// place, so the learner sees that choosing one of them moves on.
+    var tourLit: Bool = false
 
     /// The card has come in and stands still (`settleCard`): its timeline stops until a choice, new rows or closing.
     @State private var cardStill = false
@@ -254,6 +257,7 @@ struct CatchChooseOverlay: View {
             .shadow(color: .rgba(15, 40, 80, 0.08), radius: 18, y: 5)
             .opacity(cardIn)
             .offset(y: CGFloat(1 - cardIn) * 40 * k)
+            .tourAnchor(.choose, if: tourLit && chosenAt == nil && closingAt == nil)
 
             Text(L("選ぶと、その言い方で図鑑に入ります"))
                 .font(.system(size: 30 * k, weight: .medium))

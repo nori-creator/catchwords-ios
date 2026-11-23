@@ -10,7 +10,7 @@ import SwiftUI
 /// 「スキップ」。「〜をタップ」とは書かない（同日「そこだけ光らしたらユーザーもそこわかる」）。
 enum TourStep: String, Equatable {
     case off
-    case tapCamera, shoot, pick, detail, peel
+    case tapCamera, shoot, pick, choose, detail, peel
     case homeAdded
     case dexTab, dexCover, dexMap, dexGrid, dexShadow, dexOpen
     case wordSection, wordSettings
@@ -22,6 +22,7 @@ enum TourStep: String, Equatable {
         case .tapCamera: .cameraTab
         case .shoot: .shutter
         case .pick: .pick
+        case .choose: .choose
         case .detail: .headword
         case .peel: .peel
         case .homeAdded: .album
@@ -43,7 +44,7 @@ enum TourStep: String, Equatable {
     /// Which of the steps the card counts this one as.
     var phase: TourPhase? {
         switch self {
-        case .tapCamera, .shoot, .pick, .detail, .peel: .shoot
+        case .tapCamera, .shoot, .pick, .choose, .detail, .peel: .shoot
         case .homeAdded: .home
         case .dexTab, .dexCover, .dexMap, .dexGrid, .dexShadow, .dexOpen: .dex
         case .wordSection, .wordSettings: .word
@@ -62,6 +63,7 @@ enum TourStep: String, Equatable {
         case .tapCamera: L("目の前にある物を1枚撮ってみよう")
         case .shoot: L("撮りたい物を画面に入れて、シャッターを押してください")
         case .pick: L("AIが、写真の中の物を分析しました")
+        case .choose: L("覚えたい言い方を選びましょう")
         case .detail: L("発音を聞いてみましょう")
         case .peel: L("図鑑に追加しましょう")
         case .homeAdded: L("図鑑に追加されました")
@@ -86,6 +88,7 @@ enum TourStep: String, Equatable {
         switch self {
         case .shoot: L("名前を知らない物でも大丈夫です。アプリが調べます。")
         case .pick: L("覚えたい単語を1つ選んでください。")
+        case .choose: L("言い方がいくつかあります。1つ選ぶと次に進みます。")
         case .detail: L("声に出して言ってみると、覚えやすくなります。")
         case .peel: L("これで最初の単語が保存されます。")
         case .homeAdded: L("撮った写真は、ホームのアルバムにも貼られます。")
@@ -140,6 +143,8 @@ enum TourStep: String, Equatable {
         switch self {
         case .shoot: 0.2
         case .pick: 0.3
+        // The choose screen's own light stage stays readable around its rows (the floating sticker, the header).
+        case .choose: 0.25
         // The 図鑑's views are for looking at and touching, never darkened (owner 2026-11-08: 「マップとか暗くせずにユーザーが
         // そのまま触れるように…図鑑は色を暗くしなくていい」); only the next view's button is lit blue.
         case .dexCover, .dexMap, .dexGrid, .dexShadow: 0
@@ -148,10 +153,13 @@ enum TourStep: String, Equatable {
     }
 
     var isReview: Bool { self == .reviewPick || self == .reviewNext || self == .memoryCurve }
-    /// The catch between the tag and the dex (the choose screen, the GET moment, 図鑑に追加): no card and no dim
-    /// (owner 2026-11-07: 「その間にチュートリアルの解説を入れる必要はない」); the next card says the word was added.
+    /// The catch between the choice and the dex (the GET moment, 図鑑に追加): no card and no dim (owner 2026-11-07:
+    /// 「その間にチュートリアルの解説を入れる必要はない」); the next card says the word was added.
+    /// The choose screen of a thing with several ways to say it is no longer silent (`choose`, owner 2026-11-23: a
+    /// classmate trying the app did not see that choosing one of them moves on): its rows are lit and a card says so.
+    /// A thing with one way to say it goes straight to `detail`, its choose screen silent as before.
     var isSilent: Bool { self == .detail || self == .peel }
-    var isCapture: Bool { self == .shoot || self == .pick || self == .detail || self == .peel }
+    var isCapture: Bool { self == .shoot || self == .pick || self == .choose || self == .detail || self == .peel }
     /// The steps shown over the word's page (its sheet has a guide layer of its own).
     var isWord: Bool { self == .wordSection || self == .wordSettings }
     /// Tapping the lit place itself moves the guide on (the 図鑑's next view button), so the card's 次へ need not stay
@@ -224,7 +232,7 @@ enum TourPhase: Int, CaseIterable {
 }
 
 enum TourAnchor: Hashable {
-    case cameraTab, shutter, pick, headword, peel, album
+    case cameraTab, shutter, pick, choose, headword, peel, album
     case dexTab, dexMap, dexGrid, dexWord
     case wordJump, wordSection, wordSections
     case quiz, reviewNext, memoryCurve

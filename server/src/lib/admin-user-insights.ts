@@ -78,7 +78,7 @@ const str = (v: unknown): string | null => (typeof v === "string" && v ? v : nul
 
 /** チュートリアルの段（`TourStep` の名前を英小文字と _ にした物）を、学習者の見る 5 つのまとまりへ。 */
 export const TOUR_PARTS: Array<{ part: string; steps: string[] }> = [
-  { part: "camera", steps: ["tap_camera", "shoot", "pick", "detail", "peel"] },
+  { part: "camera", steps: ["tap_camera", "shoot", "pick", "choose", "detail", "peel"] },
   { part: "home", steps: ["home_added"] },
   { part: "dex", steps: ["dex_tab", "dex_cover", "dex_map", "dex_grid", "dex_shadow", "dex_open"] },
   { part: "review", steps: ["review_pick", "review_next", "memory_curve"] },

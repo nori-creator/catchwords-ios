@@ -134,6 +134,7 @@ struct CaptureView: View {
             if step == .select { router.advanceTour(from: .shoot, to: .pick) }
             if step == .celebrate {
                 router.advanceTour(from: .pick, to: .detail)
+                router.advanceTour(from: .choose, to: .detail)
                 // The dex page the word lands on next: its squares are read into memory now, while the word is
                 // celebrated, so the page never rises blank (owner 2026-10-15).
                 if let w = vm.picked { dex.warmLanding(headword: w.headword, categoryKey: w.categoryKey) }

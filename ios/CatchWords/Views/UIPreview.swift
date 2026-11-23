@@ -209,6 +209,13 @@ struct UIPreviewRoot: View {
                 .overlayPreferenceValue(TourAnchorKey.self) { anchors in
                     TourLayer(step: .homeAdded, anchors: anchors, onNext: {}, onSkip: {})
                 }
+            // The choose screen of a thing with several ways to say it (owner 2026-11-23): its rows lit, the card saying that
+            // choosing one moves on.
+            case "tour-choose": PickerPreview(autoOpen: true, holdOpen: true)
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourLayer(step: .choose, anchors: anchors, onNext: {}, onSkip: {})
+                }
+                .onAppear { router.tour = .choose }
             case "tour-dextab": TourPreview(step: .dexTab)
             case "tour-dexmap": DexView()
                 .overlayPreferenceValue(TourAnchorKey.self) { anchors in
