@@ -200,7 +200,12 @@ struct CatchChooseOverlay: View {
                     typeField
                         // The first tour's pill goes between the lit rows and this field (`TourStep.pillUnderLit`).
                         .tourAnchor(.chooseField, if: tourLit)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fieldMeasured = $0 }
+                        // Read only in the first tour, so outside it nothing is written and the screen is drawn exactly
+                        // as before (CI 2026-11-23: with the height always written, the tap on a typed word's row was
+                        // cancelled once — not proven to be the cause, kept out of the way all the same).
+                        .onGeometryChange(for: CGFloat.self) { tourLit ? $0.size.height : 0 } action: { h in
+                            if h != fieldMeasured { fieldMeasured = h }
+                        }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                         .opacity(fieldShown ? 1 : 0)
