@@ -1858,7 +1858,7 @@ struct WordDetailView: View {
                                 measureLine(said, reading: reading, pinyin: pinyin, size: 15 * scale)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            DetailSpeakButton(text: said + headword)
+                            DetailSpeakButton(text: said + measuredNoun.noun)
                         }
                         if let n = m.note?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty {
                             Text(n)
@@ -1879,13 +1879,24 @@ struct WordDetailView: View {
         }
     }
 
+    /// The thing the measure words count: the headword, or — for an old word saved with a number and measure word in
+    /// front (一杯咖啡, typed as 「一杯のコーヒー」 before 2026-11-23) — the thing's own name, so 一杯 + 咖啡 never reads
+    /// 「一杯 一杯咖啡」 (`MeasureCount`).
+    private var measuredNoun: (noun: String, zhuyin: String?, pinyin: String?) {
+        let cut = MeasureCount.noun(of: headword)
+        guard cut.dropped > 0 else { return (headword, word?.readingZhuyin, word?.pinyin) }
+        return (cut.noun, MeasureCount.dropSyllables(word?.readingZhuyin, cut.dropped),
+                MeasureCount.dropSyllables(word?.pinyin, cut.dropped))
+    }
+
     /// 「一份」 and the word it counts, side by side on one line, each with its reading as the headword draws it.
     private func measureLine(_ said: String, reading: String?, pinyin: String?, size: CGFloat) -> some View {
         // Both at one size, so the characters and their readings stand on the same lines (owner 2026-10-20); weight and
         // colour tell them apart.
-        HStack(alignment: .bottom, spacing: size * 0.25) {
+        let counted = measuredNoun
+        return HStack(alignment: .bottom, spacing: size * 0.25) {
             RubyWord(text: said, zhuyin: reading, pinyin: pinyin, size: size, weight: .heavy)
-            RubyWord(text: headword, zhuyin: word?.readingZhuyin, pinyin: word?.pinyin, size: size, weight: .regular,
+            RubyWord(text: counted.noun, zhuyin: counted.zhuyin, pinyin: counted.pinyin, size: size, weight: .regular,
                      color: Theme.muted)
         }
         .fixedSize()

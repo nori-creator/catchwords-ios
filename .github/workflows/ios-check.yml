@@ -117,6 +117,7 @@ jobs:
             -only-testing:CatchWordsTests/PraiseScheduleTests \
             -only-testing:CatchWordsTests/AuthCallbackTests \
             -only-testing:CatchWordsTests/ChunkReadingTests \
+            -only-testing:CatchWordsTests/MeasureCountTests \
             -only-testing:CatchWordsTests/ReviewHeadwordTests \
             -only-testing:CatchWordsTests/AnalyticsReportTests \
             -only-testing:CatchWordsTests/AlbumDayTests \

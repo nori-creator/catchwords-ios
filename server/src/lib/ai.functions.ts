@@ -6,6 +6,7 @@ import {
   hasSection as profileHasSection,
   readingPromptNames,
   targetProfile,
+  ZH_TW_PROFILE,
 } from "./target-profile";
 import { resolveLevel } from "./level-source";
 import { JLPT_SCALE, LEVEL_INDEXES, parseLevelStep } from "./level-scale";
@@ -168,6 +169,7 @@ import {
 } from "./correction-judge";
 import { choice as jevChoice, choiceProb } from "./jev";
 import { reportMayRegenerate } from "./plan-limits";
+import { TYPED_HEAD_NOUN_RULE, toHeadNoun } from "./typed-head-noun";
 import {
   DICTIONARY_SELECT,
   resolveDictionaryFields,
@@ -1194,7 +1196,7 @@ ${langRule}
 - それぞれの image_query に、その物を写真で探すための**短い英語**（2〜4語。例: "lotus root"）を書く。
   物の形が無い語（動詞・形容詞・抽象語）でも、その意味が伝わる場面を短く。
 - meaning_ja は一行の短い訳だけ（その語の意味が分かる程度。使い方・場面・違いはここに書かない。同格を付けない — ✗「MRT, the metro」→ ○「MRT」）。
-- **headword は必ず${candProfile.promptName}の語だけ**（学習者が打った母語の文字・かな・ローマ字を入れない。
+${candProfile.code === ZH_TW_PROFILE.code ? TYPED_HEAD_NOUN_RULE + "\n" : ""}- **headword は必ず${candProfile.promptName}の語だけ**（学習者が打った母語の文字・かな・ローマ字を入れない。
   打った語が母語なら、${candProfile.promptName}でいちばんよく使う語に訳して1つ目に置く）。
 - 実際に${candProfile.promptName}で使われている語だけ。${candProfile.capture.scriptRule}。
   中国大陸でしか使わない言い方は出さない。
@@ -1240,6 +1242,8 @@ ${langRule}
         headword: coerceTargetHeadword(c.headword, data.targetLanguage) ?? "",
         meaning_ja: shortMeaning(c.meaning_ja),
       }))
+      // 句（一杯咖啡・這杯咖啡）が返ったら、頭の数・量詞を外して物の名前だけにする（2026-11-23、`typed-head-noun.ts`）。
+      .map((c) => (candProfile.code === ZH_TW_PROFILE.code ? toHeadNoun(c) : c))
       .filter((c) => c.headword && isTargetHeadword(c.headword, data.targetLanguage))
       .filter((c) => {
         if (seen.has(c.headword)) return false;
