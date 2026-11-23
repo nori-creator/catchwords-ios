@@ -236,7 +236,8 @@ struct CatchChooseOverlay: View {
         // rows or the field at a large text size or on a small iPhone (owner 2026-11-23). Other times as before.
         let field = onSearch == nil ? 0 : (tourLit ? max(Self.fieldHeight, fieldMeasured + 16) : Self.fieldHeight)
         let pillRoom = tourLit ? max(0, tourPillRoom - 52) : 0
-        let maxCard = max(160, H - Film6.y(1150, H) - 96 - field - pillRoom)
+        // The first tour may make the card shorter still on a small iPhone at a large text size (its rows scroll).
+        let maxCard = max(tourLit ? 100 : 160, H - Film6.y(1150, H) - 96 - field - pillRoom)
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 if let dexLabel {

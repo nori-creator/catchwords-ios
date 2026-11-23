@@ -305,8 +305,6 @@ struct TourLayer: View {
     var bottomClearance: CGFloat = 84
     /// The pill's middle above `bottomClearance` when it sits at the bottom.
     static let pillLift: CGFloat = 26
-    /// About half the pill's height (`pillUnderLit`: it is kept off the lit place's blue line).
-    static let pillHalf: CGFloat = 19
     /// The page-coloured strip behind the pill at the bottom.
     static let pillBackdrop: CGFloat = 78
     /// `.wordSection`: the word page's section the light is on (its card names it).
@@ -326,6 +324,8 @@ struct TourLayer: View {
     /// すべてで4秒間ぐらい経ったら白い解説が消えるように」). Its ✕ closes it at once. A small pill then stands in for it and
     /// brings it back, and carries 「終了」.
     @State private var cardHidden = false
+    /// The pill's height, measured (`pillUnderLit`: whether it fits between the lit place and the field under it).
+    @State private var pillHeight: CGFloat = 44
     @State private var hideToken = 0
     private static let cardStays: Duration = .seconds(4)
 
@@ -390,9 +390,12 @@ struct TourLayer: View {
                         // 消えるとどうやって次に進めばいいかわからない…そのような箇所がない場合は、白い案内が消えても次へ
                         // ボタンが表示されるように」): the learner taps the blue-lined place, or this 次へ.
                         // The lit place near the top — and one that starts under the screen's header (`litFromTop`).
+                        // No room there (a small iPhone at a large text size): under the screen's top buttons instead,
+                        // over the top of the floating sticker — never on the title, the rows or the field.
                         let underLit: CGFloat? = step.pillUnderLit ? hole.map { h in
-                            let field = anchors[.chooseField].map { geo[$0].minY } ?? (h.maxY + 2 * Self.pillHalf + 12)
-                            return max(h.maxY + Self.pillHalf + 2, (h.maxY + field) / 2)
+                            let field = anchors[.chooseField].map { geo[$0].minY } ?? (h.maxY + pillHeight + 12)
+                            guard field - h.maxY >= pillHeight + 6 else { return insets.top + 56 + pillHeight / 2 }
+                            return (h.maxY + field) / 2
                         } : nil
                         let low = underLit == nil
                             && (step.isDexView || step.litFromTop || (hole.map { $0.midY < geo.size.height * 0.4 } ?? false))
@@ -410,6 +413,7 @@ struct TourLayer: View {
                         TourCardPill(step: step, nextLabel: pillNext, onNext: onNext, onEnd: onEnd) {
                             showCard(again: true, fades: fades(hasPlace))
                         }
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pillHeight = $0 }
                             .position(x: geo.size.width / 2,
                                       y: underLit ?? (low ? footY - Self.pillLift : insets.top + 24))
                             .transition(.opacity.combined(with: .move(edge: .top)))
