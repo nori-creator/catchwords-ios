@@ -5,6 +5,7 @@ import {
   measureRepeatsHeadword,
   toHeadNoun,
   TYPED_HEAD_NOUN_RULE,
+  typedNounText,
 } from "./typed-head-noun";
 
 describe("headNounOf — 句の頭の数・量詞を外す（2026-11-23 一杯のコーヒー）", () => {
@@ -93,9 +94,22 @@ describe("量詞の欄で量を二重にしない（オーナー 2026-11-23「�
 });
 
 describe("指示文", () => {
-  it("句を見出し語にしないことと、定着した語を割らないことを書く", () => {
+  it("何を打たれても名詞を1つ取り出す・定着した語は割らない・0件にしない・query_noun", () => {
     expect(TYPED_HEAD_NOUN_RULE).toContain("一杯のコーヒー");
-    expect(TYPED_HEAD_NOUN_RULE).toContain("咖啡");
+    expect(TYPED_HEAD_NOUN_RULE).toContain("覚えたい物の名詞");
     expect(TYPED_HEAD_NOUN_RULE).toContain("珍珠奶茶");
+    expect(TYPED_HEAD_NOUN_RULE).toContain("0件にしない");
+    expect(TYPED_HEAD_NOUN_RULE).toContain("query_noun");
+  });
+});
+
+describe("typedNounText — 札と基本の語は取り出した名前で引く", () => {
+  it("AI の query_noun があればそれ", () => {
+    expect(typedNounText("一杯のコーヒー", "コーヒー")).toBe("コーヒー");
+    expect(typedNounText("a cup of coffee", " coffee ")).toBe("coffee");
+  });
+  it("無ければ打った物のまま", () => {
+    expect(typedNounText("コーヒー", null)).toBe("コーヒー");
+    expect(typedNounText("コーヒー", "")).toBe("コーヒー");
   });
 });

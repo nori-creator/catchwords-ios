@@ -169,7 +169,7 @@ import {
 } from "./correction-judge";
 import { choice as jevChoice, choiceProb } from "./jev";
 import { reportMayRegenerate } from "./plan-limits";
-import { TYPED_HEAD_NOUN_RULE, toHeadNoun } from "./typed-head-noun";
+import { TYPED_HEAD_NOUN_RULE, toHeadNoun, typedNounText } from "./typed-head-noun";
 import {
   DICTIONARY_SELECT,
   resolveDictionaryFields,
@@ -1158,13 +1158,7 @@ ${levelRule}
 ${langRule}
 
 守ること:
-- **品詞を選ばない。** 書かれた物が動詞なら動詞、形容詞なら形容詞で答える
-  (「走る」→ 跑步 / 跑、「速い」→ 快)。
-  ここは**写真に写った物の候補ではなく、人が打ち込んだ言葉**なので、
-  名詞に絞ると動詞や形容詞を打った人に候補が1つも返らない。
-  返らないと母語のまま次へ渡り、最後に「学んでいる言語の単語ではありません」
-  とだけ出る — 打った人には**機能が壊れているようにしか見えない**
-  (オーナー指摘 2026-08-20「単語の文字入力がエラーが出て、機能してない」)。
+${TYPED_HEAD_NOUN_RULE}
 - **一対一なら1つだけ。** 母語の語と${candProfile.promptName}の語がほぼ一対一に対応するなら、
   候補は1つだけ返す。**候補を水増ししない**（同じ物の言い換え・ほとんど使わない語・作った語を足さない）。
 - **1文字の語・単独では使いにくい字は、単独で言う形に直す。** 学習者が1文字（「桃」「杯」「桌」）を
@@ -1196,13 +1190,13 @@ ${langRule}
 - それぞれの image_query に、その物を写真で探すための**短い英語**（2〜4語。例: "lotus root"）を書く。
   物の形が無い語（動詞・形容詞・抽象語）でも、その意味が伝わる場面を短く。
 - meaning_ja は一行の短い訳だけ（その語の意味が分かる程度。使い方・場面・違いはここに書かない。同格を付けない — ✗「MRT, the metro」→ ○「MRT」）。
-${candProfile.code === ZH_TW_PROFILE.code ? TYPED_HEAD_NOUN_RULE + "\n" : ""}- **headword は必ず${candProfile.promptName}の語だけ**（学習者が打った母語の文字・かな・ローマ字を入れない。
+- **headword は必ず${candProfile.promptName}の語だけ**（学習者が打った母語の文字・かな・ローマ字を入れない。
   打った語が母語なら、${candProfile.promptName}でいちばんよく使う語に訳して1つ目に置く）。
 - 実際に${candProfile.promptName}で使われている語だけ。${candProfile.capture.scriptRule}。
   中国大陸でしか使わない言い方は出さない。
 - **確かなものだけ**。
 
-出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","category_key":"…","image_query":"…"}]}`;
+出力の形: {"query_is_target":true/false,"query_noun":"…","candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","category_key":"…","image_query":"…"}]}`;
 
     const ask = (extra = "") =>
       generateStructured({
@@ -1226,7 +1220,7 @@ ${candProfile.code === ZH_TW_PROFILE.code ? TYPED_HEAD_NOUN_RULE + "\n" : ""}- *
      */
     if (raw.candidates.length === 0) {
       raw = await ask(
-        `\n\n出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","category_key":"…","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
+        `\n\n出力の形: {"query_is_target":true/false,"query_noun":"…","candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","category_key":"…","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
       );
     }
 
@@ -1276,11 +1270,14 @@ ${candProfile.code === ZH_TW_PROFILE.code ? TYPED_HEAD_NOUN_RULE + "\n" : ""}- *
       c.scene && !fitsReaderNote(c.scene, reader, data.targetLanguage) ? { ...c, scene: "" } : c,
     );
     const registered = finalizeNameRegisters(fitted);
+    // 打った物の名前（「一杯のコーヒー」→「コーヒー」、AI の `query_noun`）。表の基本の語と表示言語の名前はこれで引く
+    // — 打った文のまま名前の札にしない（2026-11-23）。
+    const nounText = typedNounText(data.query, raw.query_noun);
     // 表の基本の語の意味は、その語の物の意味だけ（写真の候補と同じ確かめ。貓 に「犬」を出さない）。
     const ranked = alignRowMeanings(
       ensureTypedBasic(
         mode === "learning" ? registered : preferEverydayCommon(registered),
-        data.query,
+        nounText,
         mode,
         reader,
         data.targetLanguage,
@@ -1290,7 +1287,7 @@ ${candProfile.code === ZH_TW_PROFILE.code ? TYPED_HEAD_NOUN_RULE + "\n" : ""}- *
     );
     // 打った物の表示言語の名前（写真のタグと同じ `object_label`）と、候補ごとの短い意味（`gloss`）。
     const objectLabel = typedObjectLabel(
-      data.query,
+      nounText,
       mode,
       ranked[0],
       (text, headword) => isReaderTagText(text, reader, headword),

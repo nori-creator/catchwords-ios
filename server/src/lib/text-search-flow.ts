@@ -116,6 +116,11 @@ export const WordCandidatesSchema = z.object({
    * （「電車」「猫」）ので、ここで AI に判定させる。言わなかった回は `null`。
    */
   query_is_target: z.boolean().nullable().optional(),
+  /**
+   * 打った物から取り出した**物の名前**（表示言語。「一杯のコーヒー」→「コーヒー」。2026-11-23）。写真のタグと同じ
+   * 表示言語の名前（`object_label`）を、打った文のまま出さないために使う。言わなかった回は空。
+   */
+  query_noun: z.string().nullable().optional(),
   candidates: z
     .array(
       z.object({
