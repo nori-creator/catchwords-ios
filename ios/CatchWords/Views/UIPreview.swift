@@ -211,7 +211,7 @@ struct UIPreviewRoot: View {
                 }
             // The choose screen of a thing with several ways to say it (owner 2026-11-23): its rows lit, the card saying that
             // choosing one moves on.
-            case "tour-choose": PickerPreview(autoOpen: true, holdOpen: true)
+            case "tour-choose", "tour-choose-pill": PickerPreview(autoOpen: true, holdOpen: true)
                 .overlayPreferenceValue(TourAnchorKey.self) { anchors in
                     TourLayer(step: .choose, anchors: anchors, onNext: {}, onSkip: {})
                 }

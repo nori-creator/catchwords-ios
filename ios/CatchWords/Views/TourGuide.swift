@@ -174,6 +174,9 @@ enum TourStep: String, Equatable {
     /// the screenshots: STEP 2 sat on 「CatchWords」 and the avatar, STEP 5 on the word page's title). Under the header
     /// it would sit on the newest photo and on the lit section's title instead, so these go above the tab bar too.
     var litFromTop: Bool { self == .homeAdded || self == .wordSection }
+    /// The choose screen (`choose`): its top row holds 囲んで切り抜き直す・元の写真のまま and ✕, its bottom the field to type
+    /// a word, so the pill goes just above the lit rows, over the screen's title (nothing to press there).
+    var pillAboveLit: Bool { self == .choose }
 
     /// The old device-wide flag "the first tour is still to run". Now only a hand-over: kept per account
     /// (`tour.pending.<userId>`, R6-05) like `OnboardingState`, so one account's unfinished tour never opens
@@ -384,7 +387,9 @@ struct TourLayer: View {
                         // 消えるとどうやって次に進めばいいかわからない…そのような箇所がない場合は、白い案内が消えても次へ
                         // ボタンが表示されるように」): the learner taps the blue-lined place, or this 次へ.
                         // The lit place near the top — and one that starts under the screen's header (`litFromTop`).
-                        let low = step.isDexView || step.litFromTop || (hole.map { $0.midY < geo.size.height * 0.4 } ?? false)
+                        let aboveLit = step.pillAboveLit ? hole.map { max(insets.top + 24, $0.minY - 30) } : nil
+                        let low = aboveLit == nil
+                            && (step.isDexView || step.litFromTop || (hole.map { $0.midY < geo.size.height * 0.4 } ?? false))
                         let pillNext = hole != nil && step.litPlaceMovesOn ? nil : step.nextLabel
                         let footY = geo.size.height - max(insets.bottom, 12) - bottomClearance
                         if low {
@@ -399,7 +404,8 @@ struct TourLayer: View {
                         TourCardPill(step: step, nextLabel: pillNext, onNext: onNext, onEnd: onEnd) {
                             showCard(again: true, fades: fades(hasPlace))
                         }
-                            .position(x: geo.size.width / 2, y: low ? footY - Self.pillLift : insets.top + 24)
+                            .position(x: geo.size.width / 2,
+                                      y: aboveLit ?? (low ? footY - Self.pillLift : insets.top + 24))
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
