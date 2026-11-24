@@ -81,6 +81,9 @@ struct DexCoverFlow: View {
                     .frame(height: Self.stageHeight(cardWidth: w))
                 dots
                 thumbnails
+                    // The first tour's bar stays above the photo row (owner 2026-11-24: 「実際のそのカードが見えてなかったり」):
+                    // over the dots, under the card.
+                    .tourAnchor(.dexFoot, if: router?.tour == .dexCover && stickers.count >= 2)
                 Spacer(minLength: 0)
             }
         }

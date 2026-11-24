@@ -762,6 +762,7 @@ private struct TourPreview: View {
 /// One of the 図鑑's view steps of the first tour over the real dex: its bar, and the next view's button lit once touched.
 private struct DexTourPreview: View {
     @Environment(AppRouter.self) private var router
+    @Environment(DexStore.self) private var dex
     let step: TourStep
     let touched: Bool
 
@@ -772,6 +773,13 @@ private struct DexTourPreview: View {
                           lights: step.lightsWithoutTouch || touched)
             }
             .onAppear { router.tour = step }
+            .task {
+                // A few words to look at (the cards' photo row, the map's day with its pins and timeline).
+                dex.stickers = step == .dexMap ? MapPreview.stickers : CarouselPreview.stickers
+                dex.hasLoaded = true
+                try? await Task.sleep(for: .milliseconds(800))
+                UIReady.mark("preview")
+            }
     }
 }
 
@@ -916,7 +924,7 @@ private struct ReviewAskPreview: View {
 
 /// The dex slide view (white cards on a ring in the pale blue room), opened on the second card.
 private struct CarouselPreview: View {
-    private static let stickers: [Sticker] = {
+    fileprivate static let stickers: [Sticker] = {
         let words = [("芒果", "マンゴー"), ("咖啡", "コーヒー"), ("雨傘", "傘"), ("盤子", "お皿"), ("花", "花"), ("麵包", "パン")]
         return words.enumerated().compactMap { i, w -> Sticker? in
             let json = #"{"id":"cw\#(i)","headword":"\#(w.0)","meaning_ja":"\#(w.1)"}"#
@@ -2144,7 +2152,7 @@ private struct MapPreview: View {
         return (try? JSONSerialization.data(withJSONObject: obj)).flatMap { try? JSONDecoder().decode(Word.self, from: $0) }
     }
 
-    private static var stickers: [Sticker] {
+    fileprivate static var stickers: [Sticker] {
         let day = Calendar.current.startOfDay(for: Date())
         let rows: [(String, String, Double, Double, Double, String)] = [
             ("珍珠奶茶", "タピオカミルクティー", 9.5, 25.0339, 121.5645, "信義區"),
