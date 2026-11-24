@@ -217,14 +217,14 @@ struct UIPreviewRoot: View {
                 }
                 .onAppear { router.tour = .choose }
             case "tour-dextab": TourPreview(step: .dexTab)
-            case "tour-dexmap": DexView()
-                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-                    TourLayer(step: .dexMap, anchors: anchors, onNext: {}, onSkip: {})
-                }
-            case "tour-shadow": DexView(startInGallery: true)
-                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
-                    TourLayer(step: .dexShadow, anchors: anchors, onNext: {}, onSkip: {})
-                }
+            // The 図鑑's views (owner 2026-11-24): the small bar over the tab bar, nothing lit until the view is touched
+            // ("-touched": the next view's button lit, the gallery's 次へ shown).
+            case "tour-dexcover": DexTourPreview(step: .dexCover, touched: false)
+            case "tour-dexcover-touched": DexTourPreview(step: .dexCover, touched: true)
+            case "tour-dexmap": DexTourPreview(step: .dexMap, touched: false)
+            case "tour-dexmap-touched": DexTourPreview(step: .dexMap, touched: true)
+            case "tour-dexgrid-touched": DexTourPreview(step: .dexGrid, touched: true)
+            case "tour-shadow": DexTourPreview(step: .dexShadow, touched: false)
             case "tour-word": DetailPreview()
                 .overlayPreferenceValue(TourAnchorKey.self) { anchors in
                     TourLayer(step: .wordSection, anchors: anchors, onNext: {}, onSkip: {}, bottomClearance: 12,
@@ -756,6 +756,22 @@ private struct TourPreview: View {
         .overlayPreferenceValue(TourAnchorKey.self) { anchors in
             TourLayer(step: step, anchors: anchors, onNext: {}, onSkip: {})
         }
+    }
+}
+
+/// One of the 図鑑's view steps of the first tour over the real dex: its bar, and the next view's button lit once touched.
+private struct DexTourPreview: View {
+    @Environment(AppRouter.self) private var router
+    let step: TourStep
+    let touched: Bool
+
+    var body: some View {
+        DexView(start: step == .dexMap ? .map : step == .dexCover ? .cover : .grid)
+            .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                TourLayer(step: step, anchors: anchors, onNext: {}, onSkip: {}, onEnd: {}, onBack: {},
+                          lights: step.lightsWithoutTouch || touched)
+            }
+            .onAppear { router.tour = step }
     }
 }
 
