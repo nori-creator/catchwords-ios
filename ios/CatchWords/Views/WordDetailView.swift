@@ -1669,21 +1669,28 @@ struct WordDetailView: View {
         guard AIConsent.shared.isGranted else { askAIConsent = true; return }
         let note = reportNote.trimmingCharacters(in: .whitespacesAndNewlines)
         let wordId = current.wordId
+        let stickerId = current.id
         let candidates = reportItems
         isFixing = true
         Task {
             defer { isFixing = false }
             do {
                 let r = try await dex.reportAndFix(wordId: wordId, item: item, candidates: candidates, note: note)
-                await dex.reload(stickerId: current.id)
+                // The fix is written to this reader's rows (and a wrong headword moves the sticker to another word):
+                // read those again, or the page keeps what it showed (owner 2026-11-24).
+                await dex.refreshAfterReport(stickerId: stickerId, wordId: wordId)
                 Haptics.success()
                 // web ReportButton: fixed / the AI found nothing (kept as a report) / recorded to be checked.
                 let done = r.item ?? (item == "auto" ? nil : item)
-                if r.fixed, let done {
-                    showToast(L("「\(Self.itemTitle(done))」を直しました"))
+                if r.fixed, let head = r.headword {
+                    showToast(L("見出し語を「\(head)」に直しました"))
+                } else if r.fixed, let done {
+                    showToast(L("「\(Self.itemTitles(r.items, or: done))」を直しました"))
                 } else if r.queued == true {
-                    // Fixed in the background once a second AI agrees; the page shows it the next time it opens.
-                    showToast(L("報告を受け付けました。確認して自動で直します（直ったら次に開いたときに反映されます）"))
+                    // Fixed after the answer once a second AI agrees: its result is read back, and the page is read again
+                    // as soon as it is fixed (before 2026-11-24 it showed only the next time the word was opened).
+                    showToast(L("報告を受け付けました。確かめて、正しければ自動で直します"))
+                    if let reportId = r.reportId { Task { await followReport(reportId, stickerId: stickerId, wordId: wordId) } }
                 } else if r.aiFailed == true {
                     showToast(L("報告を受け付けました。AIが応答せず、自動では直せませんでした"))
                 } else if item == "auto" && done == nil {
@@ -1704,8 +1711,29 @@ struct WordDetailView: View {
         }
     }
 
+    /// A report fixed after the answer: when its row says fixed, the page reads the word again and says so; when the
+    /// second AI kept the card as it was, it says that instead (never a silent nothing).
+    private func followReport(_ reportId: String, stickerId: String, wordId: String) async {
+        guard let status = await dex.awaitReportOutcome(reportId: reportId) else { return }
+        if status == "fixed" {
+            await dex.refreshAfterReport(stickerId: stickerId, wordId: wordId)
+            Haptics.success()
+            showToast(L("報告の内容を確かめて、カードを直しました"))
+        } else {
+            showToast(L("確かめた結果、今の内容が正しいと判断しました。報告は開発者が確認します"))
+        }
+    }
+
+    /// The titles of every fixed item, in the display language's list form (one report can fix two items).
+    private static func itemTitles(_ items: [String]?, or one: String) -> String {
+        let list = (items ?? []).filter { !$0.isEmpty }
+        guard list.count > 1 else { return itemTitle(one) }
+        return list.map { itemTitle($0) }.joined(separator: L10n.comma)
+    }
+
     private static func itemTitle(_ item: String?) -> String {
         switch item {
+        case "headword": L("見出し語")
         case "pronunciation": L("発音・読み")
         // No part of speech on iOS (owner 2026-10-20), and an item the app does not know is never shown by its key.
         case let key?: CardSection(rawValue: key)?.title ?? L("項目")

@@ -166,7 +166,14 @@ enum TourStep: String, Equatable {
     /// on the pill there.
     var litPlaceMovesOn: Bool { self == .dexCover || self == .dexMap }
     /// The 図鑑's view steps: its view buttons sit at the top, so the pill goes above the tab bar there.
+    /// They show no card but a small bar above the tab bar (`TourDexBar`, owner 2026-11-24: 「この解説が大きすぎて、実際の
+    /// そのカードが見えてなかったり、地図などもがかぶって見にくい」 — 「下の小さな帯」).
     var isDexView: Bool { self == .dexCover || self == .dexMap || self == .dexGrid || self == .dexShadow }
+    /// Lit (and its 次へ shown) before the learner has touched the view: every step but the 図鑑's cards, map and
+    /// gallery, which light the next view's button (the gallery: its 次へ) only once the view has been touched
+    /// (`AppRouter.tourDexTouched`, owner 2026-11-24 「触ってから光る」). The shadows are in the gallery already scrolled,
+    /// so their 次へ shows at once.
+    var lightsWithoutTouch: Bool { !(self == .dexCover || self == .dexMap || self == .dexGrid) }
     /// The steps whose lit place starts at the top of the screen, right under the screen's own header, and runs far
     /// down: the home's album (under 「CatchWords」 and the avatar, the newest photo at its top) and the word page's
     /// section (scrolled up under the jump chips). A lit place near the top already sends the pill above the tab bar,
@@ -238,6 +245,8 @@ enum TourPhase: Int, CaseIterable {
 enum TourAnchor: Hashable {
     case cameraTab, shutter, pick, choose, chooseField, headword, peel, album
     case dexTab, dexMap, dexGrid, dexWord
+    /// The top of the map's timeline and day bar: the 図鑑's tour bar stays above it (never on the day bar).
+    case dexFoot
     case wordJump, wordSection, wordSections
     case quiz, reviewNext, memoryCurve
 }
@@ -309,6 +318,8 @@ struct TourLayer: View {
     static let pillBackdrop: CGFloat = 78
     /// `.wordSection`: the word page's section the light is on (its card names it).
     var section: CardSection? = nil
+    /// false: nothing is lit yet (the 図鑑's views before the learner has touched them, `TourStep.lightsWithoutTouch`).
+    var lights: Bool = true
 
     @Environment(\.appReduceMotion) private var reduceMotion
     /// The lit place's one blue line blinks (owner 2026-11-08: 「内側の青い線が点滅するように」).
@@ -326,18 +337,23 @@ struct TourLayer: View {
     @State private var cardHidden = false
     /// The pill's height, measured (`pillUnderLit`: whether it fits between the lit place and the field under it).
     @State private var pillHeight: CGFloat = 44
+    /// The 図鑑's bar's height, measured (`TourDexBar`).
+    @State private var barHeight: CGFloat = 64
+    /// The bar's height at the usual text sizes (two lines of title at most).
+    private static let compactBar: CGFloat = 76
     @State private var hideToken = 0
     private static let cardStays: Duration = .seconds(4)
 
     var body: some View {
-        let hasPlace = step.anchor.map { anchors[$0] != nil } ?? false
+        let hasPlace = lights && (step.anchor.map { anchors[$0] != nil } ?? false)
         // The safe area is read outside (the full-screen reader inside has none: the card sat under the clock, CI
         // 2026-10-27), the lit places in full-screen coordinates inside.
         GeometryReader { safe in
             let insets = safe.safeAreaInsets
             GeometryReader { geo in
                 let full = CGRect(origin: .zero, size: geo.size)
-                let hole: CGRect? = step.anchor.flatMap { anchors[$0] }.map { Self.holeRect(around: geo[$0], in: full) }
+                let hole: CGRect? = lights
+                    ? step.anchor.flatMap { anchors[$0] }.map { Self.holeRect(around: geo[$0], in: full) } : nil
                 let settled = hole.map(Self.radius(for:)) ?? 0
                 // 押す所が画面に無い（表示を切り替えた・カメラの許可が無い・解析に失敗した等）ときは暗くせず、札だけ出して
                 // 操作を妨げない。札はいつも出す（2026-11-07 check A4: 穴の無い操作段で札もピルも消え、スキップも終了も
@@ -362,7 +378,25 @@ struct TourLayer: View {
                         ring(hole, radius: settled)
                             .opacity(Double(max(0, 1 - iris * 3)))
                     }
-                    if showsCard, !cardHidden {
+                    if step.isDexView {
+                        // The 図鑑's views: a small bar above the tab bar (and above the map's day bar) instead of the
+                        // card, kept on screen — it covers no card, map or gallery (owner 2026-11-24, 「下の小さな帯」).
+                        // Its 次へ only where nothing lit moves on: the gallery once touched, the shadows at once.
+                        let footY = geo.size.height - max(insets.bottom, 12) - bottomClearance
+                        // Above the cards' photo row / the map's timeline only while the bar is small: at a large text
+                        // size it would climb over the card's word and the filters (CI 2026-11-24), so it stays just
+                        // above the tab bar then, over the photo row or the day bar.
+                        let foot = anchors[.dexFoot].map { geo[$0].minY - 8 } ?? footY
+                        let barBottom = barHeight <= Self.compactBar ? min(footY, foot) : footY
+                        let barNext = lights && !(hole != nil && step.litPlaceMovesOn) ? step.nextLabel : nil
+                        let barWidth = Self.cardWidth(in: geo.size)
+                        TourDexBar(step: step, nextLabel: barNext, onNext: onNext, onBack: onBack, onEnd: onEnd)
+                            .padding(.horizontal, barWidth == nil ? 16 : 0)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+                            .frame(width: barWidth ?? geo.size.width)
+                            .position(x: geo.size.width / 2, y: barBottom - barHeight / 2)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    } else if showsCard, !cardHidden {
                         // Right beside the lit place, pointing at it (owner 2026-10-28: 「次操作する場所の近くにその解説を
                         // 書いて」 — the camera's card sat at the top of the screen, its button at the bottom).
                         let place = Self.cardPlace(hole: hole, size: geo.size, insets: insets, height: cardHeight,
@@ -380,7 +414,7 @@ struct TourLayer: View {
                             .frame(width: cardWidth ?? geo.size.width)
                             .position(x: Self.cardX(hole: hole, width: cardWidth, in: geo.size), y: place.midY)
                     }
-                    if showsCard, cardHidden {
+                    if showsCard, cardHidden, !step.isDexView {
                         // The card's stand-in while it is away: at the top as it always was, the screens keeping their
                         // own layout (owner 2026-11-08: a band kept free above the tab bar moved the shutter and the
                         // rest — 「アプリ本来の配置を変更してるからそれはしないで元のように」). Above the tab bar where the
@@ -424,7 +458,7 @@ struct TourLayer: View {
             }
             .ignoresSafeArea()
         }
-        .onChange(of: cardHidden, initial: true) { _, hidden in onCardShown?(!hidden) }
+        .onChange(of: cardHidden, initial: true) { _, hidden in onCardShown?(!hidden && !step.isDexView) }
         .onDisappear { onCardShown?(false) }
         .onAppear {
             arrive(hasPlace)
@@ -568,6 +602,104 @@ struct TourLayer: View {
             .frame(width: hole.width, height: hole.height)
             .position(x: hole.midX, y: hole.midY)
             .allowsHitTesting(false)
+    }
+}
+
+/// The 図鑑's view steps' guide (owner 2026-11-24: 「チュートリアルの図鑑の一覧を見るときに、この解説が大きすぎて、実際のそのカードが
+/// 見えてなかったり、地図などもがかぶって見にくい」 — 「下の小さな帯」): one small bar just above the tab bar with 「STEP n」 and the
+/// title only (no grey line), staying on screen (it covers none of the view, so it does not go away like the card). At most
+/// three controls as on the card: ‹ (back), 次へ where nothing lit moves on, and 「終了」.
+struct TourDexBar: View {
+    let step: TourStep
+    var nextLabel: String? = nil
+    let onNext: () -> Void
+    var onBack: (() -> Void)? = nil
+    var onEnd: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let onBack {
+                Button {
+                    Haptics.impact(.light)
+                    onBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .scaledFont(size: 12, weight: .bold)
+                        .foregroundStyle(Theme.foreground)
+                        .frame(width: 32, height: 32)
+                        .background(Theme.muted.opacity(0.12), in: Circle())
+                        .frame(width: 40, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle(scale: 0.92))
+                .accessibilityLabel(L("戻る"))
+                .accessibilityHint(L("前の段へ"))
+                .accessibilityIdentifier("tour.back")
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                if let phase = step.phase {
+                    Text(verbatim: "STEP \(phase.rawValue + 1)")  // l10n-ignore (common notation)
+                        .scaledFont(size: 10, weight: .heavy)
+                        .tracking(0.6)
+                        .foregroundStyle(Theme.primaryInk)
+                }
+                if let title = step.title {
+                    Text(title)
+                        .scaledFont(size: 14, weight: .bold)
+                        .foregroundStyle(Theme.foreground)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.85)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("tour.bar")
+            if let nextLabel {
+                Button {
+                    Haptics.impact(.light)
+                    onNext()
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(nextLabel).lineLimit(1)
+                        Image(systemName: "arrow.right").scaledFont(size: 11, weight: .bold)
+                    }
+                    .scaledFont(size: 14, weight: .bold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 36)
+                    .background(Theme.brandGradient, in: Capsule())
+                    .shadow(color: Theme.primary.opacity(0.35), radius: 8, y: 3)
+                    .frame(minHeight: 44)
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(PressableStyle(scale: 0.95))
+                .fixedSize()
+                .accessibilityIdentifier("tour.next")
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
+            if let onEnd {
+                Button(action: onEnd) {
+                    Text(L("終了"))
+                        .scaledFont(size: 12, weight: .semibold)
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                        .frame(minWidth: 32, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle(scale: 0.95))
+                .fixedSize()
+                .accessibilityHint(L("案内を終える"))
+                .accessibilityIdentifier("tour.end")
+            }
+        }
+        .padding(.leading, onBack == nil ? 14 : 6)
+        .padding(.trailing, 10)
+        .padding(.vertical, 4)
+        .background(Theme.card.opacity(0.97), in: .rect(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Theme.primary.opacity(0.14), lineWidth: 1))
+        .shadow(color: .black.opacity(0.18), radius: 14, y: 5)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: nextLabel)
     }
 }
 

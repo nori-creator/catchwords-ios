@@ -79,6 +79,15 @@ enum AdminAnalytics {
         return v["ok"]?.bool ?? true
     }
 
+    /// Fixes a report again with the server's current way (writes where the learner's page reads, several items, a wrong
+    /// headword — 2026-11-24). Runs after the answer; the result lands on the report's row.
+    static func retryReport(id: String) async -> Bool {
+        guard case .success(let v) = await run({
+            try await NativeAPI.call("adminRetryEntryReport", ["id": id], timeout: 60)
+        }) else { return false }
+        return v["ok"]?.bool ?? true
+    }
+
     private static func run(_ work: () async throws -> Data) async -> Answer {
         do {
             let data = try await work()

@@ -105,6 +105,11 @@ final class AppRouter {
     /// The guide's card is on screen (not yet gone away): the 撮る step's shutter waits for it (owner 2026-11-08: a learner
     /// pressed the shutter while the card covered the picture and took a picture they had not seen).
     var tourCardVisible = false
+    /// The 図鑑's view steps (`TourStep.isDexView`): the learner has touched the open view once — swiped the cards, moved
+    /// the map, scrolled the gallery. Only then is the next view's button lit (owner 2026-11-24: 「上のボタンを押して次に
+    /// 進むから、結局ユーザーがこのチュートリアルで図鑑の種類を体験せずに終わってる」 — 「触ってから光る」). Cleared on every
+    /// step change (`DexView`).
+    var tourDexTouched = false
     /// The word caught during the tour (used by the Dex / word / review steps).
     var tourStickerId: String?
     /// `.wordSection`: the word page's section the guide is on, and the page's sections in order (the page tells).
@@ -141,6 +146,12 @@ final class AppRouter {
     func openDetail(_ sticker: Sticker, zoom: Bool) {
         detailZoomed = zoom && detailZoom != nil
         detailSticker = sticker
+    }
+
+    /// The learner touched the 図鑑's open view during its step (`tourDexTouched`).
+    func touchTour(_ step: TourStep) {
+        guard tour == step, !tourDexTouched else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { tourDexTouched = true }
     }
 
     func advanceTour(from step: TourStep, to next: TourStep) {
@@ -384,7 +395,8 @@ struct MainTabView: View {
                           selfie: router.tour == .shoot && (router.cameraFront || router.selfieStep),
                           hidesSkip: selfieShot,
                           onCardShown: { router.tourCardVisible = $0 },
-                          bottomClearance: router.barRoom(84, rail: 12))
+                          bottomClearance: router.barRoom(84, rail: 12),
+                          lights: router.tour.lightsWithoutTouch || router.tourDexTouched)
                     .transition(.opacity)
             }
         }

@@ -240,9 +240,16 @@ struct DexView: View {
         // The first tour starts on the slide dex (カード), whatever view was open last. Each of its dex steps shows its own
         // view (カード, 地図, ギャラリー, the shadows in the gallery) and lights the button of the next, so 「次へ」, 「戻る」
         // (2026-11-07) and skipping all show the view the card explains.
-        .onChange(of: router.tour) { _, step in syncTourView(step) }
+        .onChange(of: router.tour) { _, step in
+            // Each view step starts untouched: its next button lights only after the learner touches the view.
+            router.tourDexTouched = false
+            syncTourView(step)
+        }
         // Back on this tab in the middle of the guide (「戻る」 from the review to the shadows): the same view.
-        .onAppear { syncTourView(router.tour) }
+        .onAppear {
+            router.tourDexTouched = false
+            syncTourView(router.tour)
+        }
     }
 
     /// The view a dex step of the guide is shown on (`DexView.onChange(of: router.tour)`).
@@ -527,6 +534,8 @@ struct DexView: View {
             }
             .scrollIndicators(.hidden)
             .refreshable { await dex.load() }
+            // The first tour's gallery step: scrolled by the learner's own finger (`AppRouter.tourDexTouched`).
+            .onScrollPhaseChange { _, phase in if phase == .interacting { router.touchTour(.dexGrid) } }
             .onAppear { takeLanding(proxy) }
             // The first tour: the word it caught is brought into view for the shadows' card and its tap.
             .task(id: router.tour) {
@@ -939,6 +948,9 @@ struct DexMapView: View {
     /// Until then the reading line ignores the rows passing it: the list is being moved by code, not by the
     /// user (web `programmatic`), so the list and the map never fight the user's own scroll.
     @State private var quietUntil: Date = .distantPast
+    /// The last move of the map by code (`focus`): a camera change ending well after it is the learner's own (the first
+    /// tour's map step counts it as touched).
+    @State private var codeMovedAt: Date = .distantPast
 
     /// The panel pulled up to its old height (a drag up on its grabber); down again on a drag down.
     @State private var panelExpanded: Bool = false
@@ -1012,7 +1024,10 @@ struct DexMapView: View {
             }
             // Owner 2026-09-24: keep the map's own colours and shop/station marks — no grey styling.
             .mapStyle(.standard(elevation: .flat, pointsOfInterest: .all))
-            .onMapCameraChange(frequency: .onEnd) { ctx in visibleRegion = ctx.region }
+            .onMapCameraChange(frequency: .onEnd) { ctx in
+                visibleRegion = ctx.region
+                if Date().timeIntervalSince(codeMovedAt) > 1.5 { router?.touchTour(.dexMap) }
+            }
             .ignoresSafeArea(edges: .bottom)
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { f in
                 if abs(f.height - mapFrame.height) > 2 || abs(f.minY - mapFrame.minY) > 2 { mapFrame = f }
@@ -1030,6 +1045,8 @@ struct DexMapView: View {
             }
             .frame(width: wide ? columnWidth : nil)
             .padding(.horizontal, 16)
+            // The first tour's bar stays above the timeline and the day bar (owner 2026-11-24: the map covered).
+            .tourAnchor(.dexFoot, if: router?.tour == .dexMap && !wide)
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { y in
                 if abs(y - coverTop) > 2 { coverTop = y }
             }
@@ -1044,6 +1061,7 @@ struct DexMapView: View {
             // The rows laid out under the reading line as the map opens are not the user's scroll: no tick then — the
             // tap that opened the map has already ponned (owner 2026-10-20: two sounds at once on the map icon).
             quietUntil = Date().addingTimeInterval(0.8)
+            codeMovedAt = Date()
             SoundService.shared.warmTicks()
             if day == nil { day = days.first }
             #if DEBUG
@@ -1067,6 +1085,7 @@ struct DexMapView: View {
                 ScrollView {
                     DexCalendarView(stickers: stickers, selectedDay: $day, onOpen: onOpen) { picked in
                         day = picked
+                        router?.touchTour(.dexMap)
                         panelOpen = true
                         showDatePicker = false
                     }
@@ -1114,6 +1133,7 @@ struct DexMapView: View {
             return CLLocationCoordinate2D(latitude: la, longitude: lo)
         } ?? located.first
         guard let a else { return }
+        codeMovedAt = Date()
         let origin = CLLocation(latitude: a.latitude, longitude: a.longitude)
         let pts = located.filter { origin.distance(from: CLLocation(latitude: $0.latitude, longitude: $0.longitude)) <= 3000 }
         guard !pts.isEmpty else { return }
@@ -1159,6 +1179,7 @@ struct DexMapView: View {
     /// stop's pin rises wearing it, and the map moves there when it is out of view (web `onListScroll`).
     private func read(_ s: Sticker) {
         guard Date() >= quietUntil, s.id != selectedId else { return }
+        router?.touchTour(.dexMap)
         // A word passing the reading line ticks (owner 2026-10-15; which tick, or none: 設定 › 開発者), with the same
         // light tap as a picker's detent.
         SoundService.shared.tick(.timeline)
@@ -1197,6 +1218,7 @@ struct DexMapView: View {
         let shadowRadius: CGFloat = isOn ? 8 : 5
         let shadowY: CGFloat = isOn ? 6 : 2
         return Button {
+            router?.touchTour(.dexMap)
             let wasOpen = panelOpen
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedId = s.id; panelOpen = true }
             // A pin tap is the one selection the list follows: it brings that stop's rows up to the reading line.
@@ -1402,6 +1424,7 @@ struct DexMapView: View {
         let idx = day.flatMap { d in days.firstIndex(of: d) }
         return HStack(spacing: 10) {
             Button {
+                router?.touchTour(.dexMap)
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { panelOpen.toggle() }
                 // Opened again: back at the word being read (a new list would start at the top and read its first).
                 if panelOpen, let v = groups.first(where: { $0.items.contains { $0.id == selectedId } }) {
@@ -1440,6 +1463,7 @@ struct DexMapView: View {
     private func circleButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.selection()
+            router?.touchTour(.dexMap)
             action()
         } label: {
             Image(systemName: icon)
