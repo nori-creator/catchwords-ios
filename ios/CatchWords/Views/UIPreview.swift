@@ -130,6 +130,8 @@ struct UIPreviewRoot: View {
             case "waitsearch": PickerPreview(lookingUp: true)
             case "waitsearch-choose": PickerPreview(autoOpen: true, holdOpen: true, lookingUp: true)
             case "waitword": WaitWordPreview()
+            case "waitsave": UnsavedWordPreview(saving: true)
+            case "waithero": HeroPickerPreview(saving: "object")
             case "get": CelebrationPreview(replay: 4.6)
             case "get-again": CelebrationPreview(replay: 4.6, again: true)
             case "landing": LandingPreview()
@@ -855,8 +857,11 @@ private struct HeroPickerPreview: View {
         return s
     }()
 
+    /// `-uiPreview waithero`: this tile is being set as the page's photo (the light runs round it, owner 2026-11-24).
+    var saving: String? = nil
+
     var body: some View {
-        HeroPhotoPickerSheet(sticker: Self.sticker) { _ in }
+        HeroPhotoPickerSheet(sticker: Self.sticker, onPick: { _ in }, previewSaving: saving)
             .padding(.top, 60)
     }
 }
@@ -1153,6 +1158,9 @@ private struct SunscreenExamplesPreview: View {
 /// A catch whose save failed (`-uiPreview unsaved`): its word page says why (a connection that dropped, not 「offline」),
 /// that the word stays in the dex as 「保存待ち」, and offers 「もう一度保存」 (nothing is sent in the preview).
 private struct UnsavedWordPreview: View {
+    /// `-uiPreview waitsave`: the catch is still being saved (「保存しています…」, the light round the photo) instead of
+    /// waiting to be saved again.
+    var saving: Bool = false
     @Environment(DexStore.self) private var dex
 
     private var sticker: Sticker {
@@ -1175,6 +1183,7 @@ private struct UnsavedWordPreview: View {
             .onAppear {
                 dex.stickers = [s]
                 dex.hasLoaded = true
+                guard !saving else { return }
                 let reason = SaveFailure.message(for: CatchSaveError(stage: .save, underlying: APIError.connectionLost(-1005), uploads: nil))
                 if let item = PendingQueue.shared.add(image: PreviewFixtures.photo, reason: reason, lat: nil, lng: nil) {
                     dex.previewUnsaved(s.id, pendingId: item.id)

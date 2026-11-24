@@ -101,6 +101,8 @@ struct LassoCutoutView: View {
                     Image(uiImage: photo)
                         .resizable()
                         .frame(width: frame.width, height: frame.height)
+                        // While it cuts again (「切り抜いています…」), the light runs round the photo (owner 2026-11-24).
+                        .waitBeam(working, cornerRadius: 6, darkSurface: true)
                         .offset(x: frame.minX, y: frame.minY)
                     loopShape(in: frame)
                 }

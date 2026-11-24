@@ -718,6 +718,9 @@ struct WordDetailView: View {
         }
         .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity)
         .frame(height: heroHeight)
+        // While the catch is being saved (「保存しています…」), the blue-white light runs round the photo (owner
+        // 2026-11-24: 「やっぱり危険少ないところも光らせて」). Not while it waits to be saved again (保存待ち).
+        .waitBeam(isProvisional && (!isUnsaved || dex.isRetrying(current.id)), cornerRadius: 28)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { heroWidth = $0 }
         // The photo coming in beside it, under the finger (owner 2026-10-31: 「スワイプしてスムーズに画像を変更」).
         .overlay {
