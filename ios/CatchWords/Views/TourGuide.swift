@@ -339,6 +339,8 @@ struct TourLayer: View {
     @State private var pillHeight: CGFloat = 44
     /// The 図鑑's bar's height, measured (`TourDexBar`).
     @State private var barHeight: CGFloat = 64
+    /// The bar's height at the usual text sizes (two lines of title at most).
+    private static let compactBar: CGFloat = 76
     @State private var hideToken = 0
     private static let cardStays: Duration = .seconds(4)
 
@@ -381,8 +383,11 @@ struct TourLayer: View {
                         // card, kept on screen — it covers no card, map or gallery (owner 2026-11-24, 「下の小さな帯」).
                         // Its 次へ only where nothing lit moves on: the gallery once touched, the shadows at once.
                         let footY = geo.size.height - max(insets.bottom, 12) - bottomClearance
+                        // Above the cards' photo row / the map's timeline only while the bar is small: at a large text
+                        // size it would climb over the card's word and the filters (CI 2026-11-24), so it stays just
+                        // above the tab bar then, over the photo row or the day bar.
                         let foot = anchors[.dexFoot].map { geo[$0].minY - 8 } ?? footY
-                        let barBottom = min(footY, foot)
+                        let barBottom = barHeight <= Self.compactBar ? min(footY, foot) : footY
                         let barNext = lights && !(hole != nil && step.litPlaceMovesOn) ? step.nextLabel : nil
                         let barWidth = Self.cardWidth(in: geo.size)
                         TourDexBar(step: step, nextLabel: barNext, onNext: onNext, onBack: onBack, onEnd: onEnd)
