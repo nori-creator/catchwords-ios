@@ -29,12 +29,13 @@ private struct WaitBeamModifier: ViewModifier {
         content.overlay {
             ZStack {
                 if active {
-                    // Brighter than the library's own (owner 2026-11-24, on the first shots: 「もう少し明るく」): a stronger
-                    // head, more intensity, a wider glow and a longer comet.
+                    // Brighter than the library's own (owner 2026-11-24, on the first shots: 「もう少し明るく」), then a little
+                    // less (「少しだけ弱く」): the stronger head stays, the glow is narrower so it does not reach a short card's
+                    // text (台湾メモ, above all in the dark appearance).
                     BeamLayer(shape: shape, style: style, direction: .leftToRight, active: true,
-                              colors: WaitBeamPalette.colors(dark: darkSurface ?? (scheme == .dark)), intensity: 1.8,
+                              colors: WaitBeamPalette.colors(dark: darkSurface ?? (scheme == .dark)), intensity: 1.4,
                               timing: BeamTiming(rotateDuration: 2.2, lineDuration: 2.0, fade: 0.4),
-                              glowOverride: style == .small ? 7 : 30, arcOverride: style == .small ? 0.55 : 0.42)
+                              glowOverride: style == .small ? 5 : 14, arcOverride: style == .small ? 0.5 : 0.4)
                         .transition(.opacity)
                 }
             }
