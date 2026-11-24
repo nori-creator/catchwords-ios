@@ -439,6 +439,8 @@ struct CatchChooseOverlay: View {
         .padding(12)
         .background(Color.white, in: .rect(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(line, lineWidth: 1))
+        // While the typed word is looked up, the blue-white light runs round the box (owner 2026-11-24).
+        .waitBeam(searching, cornerRadius: 18, darkSurface: false)
         .shadow(color: .rgba(15, 40, 80, 0.08), radius: 14, y: 4)
     }
 

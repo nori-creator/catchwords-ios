@@ -851,6 +851,8 @@ struct CandidatePickerView: View {
         }
         .padding(14)
         .background(Theme.card, in: .rect(cornerRadius: 22, style: .continuous))
+        // While the typed word is looked up, the blue-white light runs round the card (owner 2026-11-24).
+        .waitBeam(vm.isLookingUp, cornerRadius: 22)
         .animation(.spring(response: 0.42, dampingFraction: 0.88), value: vm.typedCandidates.count)
     }
 

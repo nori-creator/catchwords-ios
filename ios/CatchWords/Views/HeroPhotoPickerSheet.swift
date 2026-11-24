@@ -15,6 +15,8 @@ struct HeroPhotoPickerSheet: View {
     /// 自撮りを撮る, under 写真を替える (owner 2026-10-14: moved here from the bottom of the word page). The word page
     /// saves it; nil = not offered (no front camera, or the word is still being saved).
     var onSelfie: ((UIImage) async -> Void)? = nil
+    /// CI's screenshot only (`-uiPreview waithero`, DEBUG): this tile shows as being saved. nil in the app.
+    var previewSaving: String? = nil
 
     @State private var takingSelfie = false
     @State private var recutting = false
@@ -89,6 +91,9 @@ struct HeroPhotoPickerSheet: View {
         ScrollView {
             content
         }
+        #if DEBUG
+        .onAppear { if let previewSaving { saving = previewSaving } }
+        #endif
         .scrollBounceBehavior(.basedOnSize)
         .background(Theme.background.ignoresSafeArea())
         .sensoryFeedback(.selection, trigger: chosen)
@@ -233,6 +238,8 @@ struct HeroPhotoPickerSheet: View {
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .strokeBorder(on ? Theme.primary : Color.black.opacity(0.06), lineWidth: on ? 3 : 1)
                 }
+                // While this photo is being set as the page's, the light runs round its tile (owner 2026-11-24).
+                .waitBeam(saving == option.id, cornerRadius: 20, small: true)
                 .overlay(alignment: .topTrailing) {
                     if on {
                         Image(systemName: "checkmark")

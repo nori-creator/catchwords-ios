@@ -66,8 +66,19 @@ struct PlaceEditSheet: View {
                         }
                     }
                     Section(L("近くの場所")) {
-                        if spots.isEmpty {
-                            Text(looking ? L("探しています…") : L("近くに名前のある場所はありません"))
+                        if spots.isEmpty && looking {
+                            // While the nearby places are looked up, the light runs round the row (owner 2026-11-24). The
+                            // row draws its own box (the list's row shape is the system's) in the row's place.
+                            Text(L("探しています…"))
+                                .foregroundStyle(Theme.muted)
+                                .padding(.horizontal, 16)
+                                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                                .background(Theme.card, in: .rect(cornerRadius: 14))
+                                .waitBeam(true, cornerRadius: 14)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets())
+                        } else if spots.isEmpty {
+                            Text(L("近くに名前のある場所はありません"))
                                 .foregroundStyle(Theme.muted)
                         }
                         ForEach(spots) { spot in

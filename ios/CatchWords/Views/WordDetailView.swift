@@ -718,6 +718,9 @@ struct WordDetailView: View {
         }
         .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity)
         .frame(height: heroHeight)
+        // While the catch is being saved (「保存しています…」), the blue-white light runs round the photo (owner
+        // 2026-11-24: 「やっぱり危険少ないところも光らせて」). Not while it waits to be saved again (保存待ち).
+        .waitBeam(isProvisional && (!isUnsaved || dex.isRetrying(current.id)), cornerRadius: 28)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { heroWidth = $0 }
         // The photo coming in beside it, under the finger (owner 2026-10-31: 「スワイプしてスムーズに画像を変更」).
         .overlay {
@@ -2566,6 +2569,8 @@ struct SectionCard<Content: View>: View {
     var supportsLayerEffects: Bool = true
     /// A small control at the heading's right, before 「作り直す」.
     var accessory: AnyView? = nil
+    /// The section is still being written (`SectionSkeleton`): the blue-white light runs round it (`waitBeam`).
+    var waiting: Bool = false
     @ViewBuilder let content: Content
     @Environment(\.sectionRefresh) private var refresh
 
@@ -2617,6 +2622,8 @@ struct SectionCard<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card, in: .rect(cornerRadius: 24, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Theme.border, lineWidth: 1))
+        // While it is written — the first time or again with ↻ — the light runs round the card (owner 2026-11-24).
+        .waitBeam(waiting || refresh?.running == true, cornerRadius: 24)
         .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
     }
 }
@@ -2674,7 +2681,7 @@ struct SectionSkeleton: View {
     @Environment(\.appReduceMotion) private var reduceMotion
 
     var body: some View {
-        SectionCard(title: title, icon: icon) {
+        SectionCard(title: title, icon: icon, waiting: true) {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach([0.92, 0.7, 0.8], id: \.self) { w in
                     RoundedRectangle(cornerRadius: 6).fill(Theme.secondary)

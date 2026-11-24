@@ -126,6 +126,12 @@ struct UIPreviewRoot: View {
             case "variants": PickerPreview(autoOpen: true)
             case "choose": PickerPreview(autoOpen: true, holdOpen: true)
             case "typed": PickerPreview(typed: true)
+            // The blue-white light round what the learner waits for (`waitBeam`, owner 2026-11-24).
+            case "waitsearch": PickerPreview(lookingUp: true)
+            case "waitsearch-choose": PickerPreview(autoOpen: true, holdOpen: true, lookingUp: true)
+            case "waitword": WaitWordPreview()
+            case "waitsave": UnsavedWordPreview(saving: true)
+            case "waithero": HeroPickerPreview(saving: "object")
             case "get": CelebrationPreview(replay: 4.6)
             case "get-again": CelebrationPreview(replay: 4.6, again: true)
             case "landing": LandingPreview()
@@ -498,6 +504,9 @@ private struct PickerPreview: View {
     /// `-uiPreview typed`: ボクサーパンツ typed under the photo — the choose screen opens on the names found (never straight
     /// on to the catch), each with its register tag, the everyday 內褲 first.
     var typed: Bool = false
+    /// `-uiPreview waitsearch` / `waitsearch-choose`: a word typed under the photo (or on the choose screen) is being
+    /// looked up — the box's light runs round it (`waitBeam`, owner 2026-11-24).
+    var lookingUp: Bool = false
     /// `-uiPreview picker4` / `picker4-nopos`: the owner's desk with four things (2026-10-15), with the AI's boxes
     /// (`placed`: every tag on its own thing) or without any position (`unplaced`: the tags spread over the photo
     /// instead of one pile in the middle, and the developer log notes it).
@@ -596,6 +605,14 @@ private struct PickerPreview: View {
                 vm.step = .select
             }
             .task {
+                if lookingUp {
+                    // The lookup never answers here: the light keeps running for the screenshots.
+                    try? await Task.sleep(for: .milliseconds(holdOpen ? 1600 : 400))
+                    vm.isLookingUp = true
+                    try? await Task.sleep(for: .seconds(1))
+                    UIReady.mark("preview")
+                    return
+                }
                 guard typed else { return }
                 // As a lookup does when its words come (`CaptureViewModel.search`): the choose screen opens on them.
                 try? await Task.sleep(for: .milliseconds(500))
@@ -864,8 +881,11 @@ private struct HeroPickerPreview: View {
         return s
     }()
 
+    /// `-uiPreview waithero`: this tile is being set as the page's photo (the light runs round it, owner 2026-11-24).
+    var saving: String? = nil
+
     var body: some View {
-        HeroPhotoPickerSheet(sticker: Self.sticker) { _ in }
+        HeroPhotoPickerSheet(sticker: Self.sticker, onPick: { _ in }, previewSaving: saving)
             .padding(.top, 60)
     }
 }
@@ -1162,6 +1182,9 @@ private struct SunscreenExamplesPreview: View {
 /// A catch whose save failed (`-uiPreview unsaved`): its word page says why (a connection that dropped, not 「offline」),
 /// that the word stays in the dex as 「保存待ち」, and offers 「もう一度保存」 (nothing is sent in the preview).
 private struct UnsavedWordPreview: View {
+    /// `-uiPreview waitsave`: the catch is still being saved (「保存しています…」, the light round the photo) instead of
+    /// waiting to be saved again.
+    var saving: Bool = false
     @Environment(DexStore.self) private var dex
 
     private var sticker: Sticker {
@@ -1184,6 +1207,7 @@ private struct UnsavedWordPreview: View {
             .onAppear {
                 dex.stickers = [s]
                 dex.hasLoaded = true
+                guard !saving else { return }
                 let reason = SaveFailure.message(for: CatchSaveError(stage: .save, underlying: APIError.connectionLost(-1005), uploads: nil))
                 if let item = PendingQueue.shared.add(image: PreviewFixtures.photo, reason: reason, lat: nil, lng: nil) {
                     dex.previewUnsaved(s.id, pendingId: item.id)
@@ -1701,6 +1725,35 @@ private struct AdminAiSettingsPreview: View {
                 Text("AdminAiSettings mock did not decode")
             }
         }
+    }
+}
+
+/// The word page while its sections are written (`-uiPreview waitword`, owner 2026-11-24): 意味 is in, 使い方 and 例文 are
+/// still being written (`SectionSkeleton`) and 台湾メモ is written again with ↻ — the blue-white light runs round each of the
+/// three (`waitBeam`), not round 意味.
+private struct WaitWordPreview: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                SectionCard(title: CardSection.meaning.title, icon: CardSection.meaning.icon) {
+                    Text(L10n.lang == "en" ? "teppan noodles" : L10n.lang == "zh-TW" ? "鐵板上淋醬的麵" : "鉄板焼きそば")
+                        .scaledFont(size: 20, weight: .bold)
+                        .foregroundStyle(Theme.foreground)
+                }
+                SectionSkeleton(title: CardSection.usageChunks.title, icon: CardSection.usageChunks.icon)
+                SectionSkeleton(title: CardSection.example.title, icon: CardSection.example.icon)
+                SectionCard(title: CardSection.taiwanNote.title, icon: CardSection.taiwanNote.icon) {
+                    SentenceRows(text: L10n.lang == "en"
+                                 ? "Teppan noodles are a breakfast-shop classic. The sauce sizzles on the hot plate."
+                                 : L10n.lang == "zh-TW" ? "鐵板麵是早餐店的經典。醬汁淋在熱鐵板上滋滋作響。"
+                                 : "鐵板麵は朝食店の定番です。熱い鉄板の上でソースがジュッと音を立てます。", ruled: false)
+                }
+                .environment(\.sectionRefresh, SectionRefresh(running: true) {})
+            }
+            .padding(16)
+            .uiReady("preview")
+        }
+        .background(Theme.background)
     }
 }
 
