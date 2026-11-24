@@ -2010,7 +2010,7 @@ final class DexStore {
     }
 
     /// Reads this reader's explanation and band content of the word again (no generation — `loadExplanation` does that).
-    private func rereadExplanation(wordId: String) async {
+    func rereadExplanation(wordId: String) async {
         struct Res: Decodable { let picked: ReaderLanguage.Explanation?; let level: ReaderLanguage.LevelContent? }
         let lang = L10n.lang
         let target = sharedWords[wordId]?.language ?? language
@@ -2035,6 +2035,12 @@ final class DexStore {
         /// Not fixed on the spot: the server drafts a fix in the background and applies it only when another AI passes
         /// it, and tells the developer (server #187: a free learner's report, or a report without a chosen item).
         let queued: Bool?
+        /// Every item that was fixed (one report can fix the meaning and the Taiwan note together — server 2026-11-24).
+        let items: [String]?
+        /// The headword itself was wrong: this learner's sticker now points at this word (server 2026-11-24).
+        let headword: String?
+        /// The report's row: a queued fix is read back from it (`getMyReportOutcome`).
+        let reportId: String?
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -2043,15 +2049,44 @@ final class DexStore {
             by = (try? c.decodeIfPresent(String.self, forKey: .by)) ?? nil
             aiFailed = (try? c.decodeIfPresent(Bool.self, forKey: .aiFailed)) ?? nil
             queued = (try? c.decodeIfPresent(Bool.self, forKey: .queued)) ?? nil
+            items = (try? c.decodeIfPresent([String].self, forKey: .items)) ?? nil
+            headword = (try? c.decodeIfPresent(String.self, forKey: .headword)) ?? nil
+            reportId = (try? c.decodeIfPresent(String.self, forKey: .reportId)) ?? nil
         }
 
-        private enum CodingKeys: String, CodingKey { case fixed, item, by, aiFailed, queued }
+        private enum CodingKeys: String, CodingKey { case fixed, item, by, aiFailed, queued, items, headword, reportId }
     }
 
     func reportAndFix(wordId: String, item: String = "auto", candidates: [String], note: String) async throws -> ReportFix {
         try await NativeAPI.call("reportAndFixSection", [
             "word_id": wordId, "item": item, "candidates": Array(candidates.prefix(24)), "note": String(note.prefix(500)),
         ], as: ReportFix.self, timeout: 90)
+    }
+
+    /// After a report was fixed: the sticker (its word may have changed) and this reader's explanation and band rows —
+    /// the fix is written to those rows, which `reload(stickerId:)` alone does not read again (owner 2026-11-24: 「ユーザーの
+    /// カードが変更にはなってない」).
+    func refreshAfterReport(stickerId: String, wordId: String) async {
+        await reload(stickerId: stickerId)
+        await rereadExplanation(wordId: wordId)
+        if let now = stickers.first(where: { $0.id == stickerId })?.wordId, now != wordId {
+            await rereadExplanation(wordId: now)
+        }
+    }
+
+    /// A fix done after the answer (a free learner's report, or one without a chosen item): its result read back from the
+    /// report's row every few seconds, up to about a minute and a half. `nil` = still not done (or not readable).
+    func awaitReportOutcome(reportId: String) async -> String? {
+        struct Res: Decodable { let status: String?; let done: Bool? }
+        for _ in 0..<18 {
+            try? await Task.sleep(for: .seconds(5))
+            if Task.isCancelled { return nil }
+            if let r = try? await NativeAPI.call("getMyReportOutcome", ["report_id": reportId], as: Res.self, timeout: 15),
+               r.done == true {
+                return r.status
+            }
+        }
+        return nil
     }
 
     private func replace(_ id: String, _ transform: (Sticker) -> Sticker) {
