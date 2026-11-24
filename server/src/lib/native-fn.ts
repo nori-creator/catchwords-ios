@@ -75,6 +75,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   readSentences: from(sentenceReadings, "readSentences"),
   regenerateCardSection: from(ai, "regenerateCardSection"),
   reportAndFixSection: from(ai, "reportAndFixSection"),
+  // 入力 { report_id } → { status, done, item }（自分の報告だけ。裏で直す報告の結果を画面が読みに来る — 2026-11-24）
+  getMyReportOutcome: from(reports, "getMyReportOutcome"),
   // スキャン
   detectScan: from(scan, "detectScan"),
   getScanContext: from(scan, "getScanContext"),
@@ -186,6 +188,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   adminListEntryReports: from(reports, "listEntryReports"),
   // 入力 { id, status: "open" | "resolved" | "dismissed" } → { ok: true }
   adminSetEntryReportStatus: from(reports, "resolveEntryReport"),
+  // 入力 { id } → { ok, queued }（報告をもう一度、今の直す道で直す。結果は報告の行に — 2026-11-24）
+  adminRetryEntryReport: from(reports, "retryEntryReport"),
 };
 
 /** 管理者だけが使える口（名前は必ず `admin` で始める）。試験が一覧と突き合わせる。 */
@@ -217,6 +221,7 @@ export const NATIVE_ADMIN_FNS = [
   "adminSetAnalyticsExcluded",
   "adminListEntryReports",
   "adminSetEntryReportStatus",
+  "adminRetryEntryReport",
 ] as const;
 
 /** 失敗の中身から、iOS に返す状態コードを決める。 */

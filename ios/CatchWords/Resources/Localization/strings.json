@@ -12297,5 +12297,47 @@
   "es": "Hay varias formas de decirlo. Elige una para continuar.",
   "ko": "부르는 말이 여러 개 있어요. 하나를 고르면 다음으로 넘어가요.",
   "vi": "Có vài cách nói. Chọn một cách để tiếp tục."
+ },
+ "見出し語": {
+  "en": "Headword",
+  "zh-TW": "詞條",
+  "es": "Palabra principal",
+  "ko": "표제어",
+  "vi": "Từ chính"
+ },
+ "見出し語を「{1}」に直しました": {
+  "en": "Changed the word to “{1}”",
+  "zh-TW": "已將單字改為「{1}」",
+  "es": "Se cambió la palabra a “{1}”",
+  "ko": "단어를 ‘{1}’(으)로 고쳤어요",
+  "vi": "Đã đổi từ thành “{1}”"
+ },
+ "報告を受け付けました。確かめて、正しければ自動で直します": {
+  "en": "Report received. We’ll check it and fix it automatically if it’s right.",
+  "zh-TW": "已收到回報。確認無誤後會自動修正。",
+  "es": "Recibimos tu reporte. Lo revisaremos y, si es correcto, lo corregiremos automáticamente.",
+  "ko": "신고를 접수했어요. 확인해서 맞으면 자동으로 고칠게요.",
+  "vi": "Đã nhận báo cáo. Chúng tôi sẽ kiểm tra và tự động sửa nếu đúng."
+ },
+ "報告の内容を確かめて、カードを直しました": {
+  "en": "We checked your report and fixed the card.",
+  "zh-TW": "已確認你的回報，並修正了卡片。",
+  "es": "Revisamos tu reporte y corregimos la tarjeta.",
+  "ko": "신고 내용을 확인하고 카드를 고쳤어요.",
+  "vi": "Chúng tôi đã kiểm tra báo cáo và sửa thẻ."
+ },
+ "確かめた結果、今の内容が正しいと判断しました。報告は開発者が確認します": {
+  "en": "We checked it and the card looks correct as it is. The developer will also review your report.",
+  "zh-TW": "確認後判斷目前的內容是正確的。開發者也會再查看你的回報。",
+  "es": "Lo revisamos y el contenido actual parece correcto. El desarrollador también revisará tu reporte.",
+  "ko": "확인해 보니 지금 내용이 맞는 것 같아요. 신고는 개발자도 확인할게요.",
+  "vi": "Chúng tôi đã kiểm tra và nội dung hiện tại có vẻ đúng. Nhà phát triển cũng sẽ xem báo cáo của bạn."
+ },
+ "もう一度自動で直す": {
+  "en": "Fix automatically again",
+  "zh-TW": "再次自動修正",
+  "es": "Corregir automáticamente otra vez",
+  "ko": "다시 자동으로 고치기",
+  "vi": "Tự động sửa lại"
  }
 }

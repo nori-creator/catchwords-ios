@@ -129,9 +129,24 @@ struct AdminReportsView: View {
     @ViewBuilder
     private func actions(id: String, status: String?) -> some View {
         let now = Self.normalized(status)
+        // The server's current fix, once more (2026-11-24: reports marked fixed whose card had not changed).
+        Button(L("もう一度自動で直す")) { retry(id) }
         if now != "resolved" { Button(L("対応済みにする")) { set(id, "resolved") } }
         if now != "dismissed" { Button(L("却下する")) { set(id, "dismissed") } }
         if now != "open" { Button(L("未対応に戻す")) { set(id, "open") } }
+    }
+
+    private func retry(_ id: String) {
+        if fixture != nil { return }
+        Task {
+            if await AdminAnalytics.retryReport(id: id) {
+                Haptics.success()
+                changed[id] = "open"
+            } else {
+                Haptics.warning()
+                failed = true
+            }
+        }
     }
 
     private func set(_ id: String, _ status: String) {

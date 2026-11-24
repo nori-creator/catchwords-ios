@@ -64,7 +64,18 @@ describe("outcomeFromFix — 直した結果を状態と一言に", () => {
     );
   });
 
+  it("複数の項目・見出し語の付け替えも一言に残る（2026-11-24）", () => {
+    expect(
+      outcomeFromFix({ fixed: true, by: "llm", item: "meaning", items: ["meaning", "taiwan_note"] })
+        .outcome,
+    ).toContain("meaning・taiwan_note");
+    const h = outcomeFromFix({ fixed: true, by: "jev", item: "headword", headword: "玉米脆片" });
+    expect(h.status).toBe("fixed");
+    expect(h.outcome).toContain("「玉米脆片」に付け替えた");
+  });
+
   it("直せる項目の一覧", () => {
+    expect(isFixableReportItem("headword")).toBe(true);
     expect(isFixableReportItem("meaning")).toBe(true);
     expect(isFixableReportItem("usage_chunks")).toBe(true);
     expect(isFixableReportItem("pronunciation")).toBe(true);

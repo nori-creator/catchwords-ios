@@ -13,7 +13,14 @@ import { JLPT_SCALE, LEVEL_INDEXES, parseLevelStep } from "./level-scale";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, type LanguageModelUsage } from "ai";
 import { z } from "zod";
-import { pickReportedItem, reportContext } from "@/lib/report-locate";
+import {
+  HEADWORD_ITEM,
+  pickCorrectHeadword,
+  pickReportedItems,
+  readerViewOfWord,
+  reportContext,
+  reportGuidance,
+} from "@/lib/report-locate";
 import {
   CATEGORY_CHOICE_RULES_JA,
   CATEGORY_KEYS,
@@ -44,6 +51,7 @@ import { chunkVerifyMode, describeChunkGate, gateUsageChunks } from "./chunk-qua
 import { chunkShortFormRule } from "./short-form";
 import { allowsSimplePartners } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
+import { assertTargetHeadword } from "./target-language";
 import {
   readerMeaning,
   readerText,
@@ -2736,6 +2744,11 @@ async function runSectionRegen(
   context: { supabase: any; userId: string },
   data: SectionRegenData,
   mode: "write" | "propose",
+  /**
+   * **学習者の報告**（2026-11-24）。報告からの直し（propose）で、今の内容（学習者の画面に出ている物）と報告の一言を
+   * 指示文に足す。前は報告を渡さずに作り直していたので、指摘（「鮮乳は台湾人はあまり言わない」）が案に入らなかった。
+   */
+  report?: { note: string },
 ): Promise<{ ok: true; section: RegenSection; filled: boolean; proposal?: SectionProposal }> {
   const { supabase, userId } = context;
   const regenStartedAt = Date.now();
@@ -2857,9 +2870,20 @@ async function runSectionRegen(
         extras: normalizeExtras(bandRow?.extras ?? {}),
         source: "ai",
       }
-    : mode === "write"
+    : mode === "write" || report
       ? await readReaderExplanation(supabaseAdmin, data.word_id, readerKey)
       : null;
+  /**
+   * **学習者の画面に出ている語**（報告の時だけ）。画面は共有の行に、その人の言語の行（と帯の行 — 上の `word` に
+   * もう重ねてある）を重ねて出す。直す前の比べ（`before`）と AI に見せる「今の内容」はこちら。
+   */
+  const readerView = report
+    ? readerViewOfWord(
+        word as Record<string, unknown>,
+        levelBand ? null : (readerRow as Parameters<typeof readerViewOfWord>[1]),
+        null,
+      )
+    : null;
   /**
    * **共有の行に書くのは、その行の言語の人だけ**（2026-10-20「決して言語が混ざらないようにして」、
    * `mayWriteSharedReaderText`）。別の言語の人が作り直した意味・例文・解説を共有の行に書くと、行の
@@ -3293,7 +3317,11 @@ async function runSectionRegen(
     },
   };
 
-  const { prompt, schema } = spec[data.section];
+  const { prompt: specPrompt, schema } = spec[data.section];
+  const prompt =
+    report && readerView && specPrompt
+      ? specPrompt + reportGuidance(report.note, reportContext([data.section], readerView))
+      : specPrompt;
   const ai = await getAiFor("card", "section_regen");
   // **高性能なモデルは Pro の中身**(オーナーが挙げた有料機能の1つ)。
   // 無料の人にも項目は埋まる — 書き手が変わるだけ。
@@ -3507,7 +3535,7 @@ async function runSectionRegen(
         section: data.section,
         baseUpdate,
         merged,
-        before: sectionSnapshot(Object.keys(out), word),
+        before: sectionSnapshot(Object.keys(out), readerView ?? word),
         after: out,
         headword: word.headword as string,
         language: (word.language as string | null) ?? null,
@@ -3633,6 +3661,8 @@ const ReportItemSchema = z.union([
   z.enum(REGEN_SECTIONS),
   z.literal("pronunciation"),
   z.literal("pos"),
+  // 見出し語そのものが、写っている物の名前として違う（2026-11-24 — 札を正しい語に付け替える）。
+  z.literal("headword"),
 ]);
 type ReportItemId = z.infer<typeof ReportItemSchema>;
 const ReportFixInput = z.object({
@@ -3650,6 +3680,12 @@ const ReportFixInput = z.object({
 export type ReportFixResult = {
   /** 直して語に書いたか。 */
   fixed: boolean;
+  /** 見出し語を付け替えた時の新しい見出し語（`item` は `headword`）。 */
+  headword?: string;
+  /** 直した項目すべて（1回の報告で意味と台湾メモの両方など）。 */
+  items?: ReportItemId[];
+  /** 報告の行（裏で直す時に、画面が結果を読みに来る — `getMyReportOutcome`）。 */
+  reportId?: string | null;
   /** 直した（または見つけた）項目。`auto` で見つからなければ null。 */
   item?: ReportItemId | null;
   /** 誰が確かめたか（`dictionary` は辞書と照らした）。 */
@@ -3764,6 +3800,8 @@ async function fixReportedWordItemImpl(
   }
 
   if (!allowAi) return { fixed: false, by: "none", item };
+  // 見出し語そのものが違う … 札を正しい語に付け替える（共有の語の行は書き換えない）。
+  if (item === HEADWORD_ITEM) return fixReportedHeadword(context, { wordId: p.wordId, note: p.note });
   // それ以外 … その項目だけの案を作る（まだ書かない）。
   // **AI が答えない時に 500 にしない**（2026-10-11〜14、Google の残高切れで「意味」の報告が
   // 毎回サーバエラーになった）。報告はもう記録してあるので、「直せなかった」と返す。
@@ -3772,8 +3810,9 @@ async function fixReportedWordItemImpl(
   try {
     r = await runSectionRegen(
       context,
-      { word_id: p.wordId, section: item, only_if_empty: false },
+      { word_id: p.wordId, section: item as RegenSection, only_if_empty: false },
       "propose",
+      { note: p.note },
     );
   } catch (e) {
     const { statusForError } = await import("./native-fn");
@@ -3813,15 +3852,20 @@ async function fixReportedWordItemImpl(
     );
     return { fixed, by: verdict.by, item };
   }
-  if (!proposal.sharedWritable) {
-    const fixed = await mergeIntoReaderExplanation(
-      supabaseAdmin,
-      p.wordId,
-      proposal.readerKey,
-      proposal.readerPatch,
-    );
-    return { fixed, by: verdict.by, item };
-  }
+  /**
+   * **画面が出しているその人の言語の行にも書く**（2026-11-24、オーナー「ユーザーのカードが変更にはなってない」）。
+   * 前は共有の行がその人の言語の行なら共有の行だけに書いていた。ところが画面は、その人の言語の解説の行
+   * （`word_explanations`）があればそちらを出す — 鮮乳の台湾メモも玉米片の意味も、直した文は共有の行に入り、
+   * 画面は古い行（台湾では「鮮乳」が一般的／コーンフレーク）を出し続けた。行が無ければ何もしない（false）。
+   * この行は同じ言語・母語で読む全員の行（`docs/sharing-rules.md`）なので、同じ人たちに直りが届く。
+   */
+  const readerFixed = await mergeIntoReaderExplanation(
+    supabaseAdmin,
+    p.wordId,
+    proposal.readerKey,
+    proposal.readerPatch,
+  );
+  if (!proposal.sharedWritable) return { fixed: readerFixed, by: verdict.by, item };
   const { error: upErr } = await supabaseAdmin
     .from("words")
     .update(
@@ -3836,22 +3880,74 @@ async function fixReportedWordItemImpl(
   return { fixed: true, by: verdict.by, item };
 }
 
-/** 裏の道（`entry-report.server.ts`）から呼ぶ、項目の特定。見つからなければ null。 */
-async function locateReportedItemForReportImpl(
-  wordId: string,
-  headword: string,
-  language: string | null,
-  note: string,
-): Promise<ReportItemId | null> {
-  return locateReportedItem(wordId, headword, language, note, DEFAULT_REPORT_CANDIDATES);
+/**
+ * **報告を直す1本の道**（その場の道と裏の道の両方 — 2026-11-24）。項目が決まっていなければ探し（複数の項目、見出し語）、
+ * 見つかった項目を順に直す（`fixReportedWordItemImpl`）。見出し語を付け替えたら、それで終わり（古い語の中身は
+ * もうその人の札に出ない）。
+ */
+async function fixReportAllImpl(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  context: { supabase: any; userId: string },
+  p: {
+    wordId: string;
+    headword: string;
+    language: string | null;
+    note: string;
+    item: ReportItemId | null;
+    /** もう決まっている項目（その場の道で探した物）。あれば探し直さない。 */
+    items?: ReportItemId[];
+    candidates?: ReportItemId[];
+    allowAi?: boolean;
+  },
+): Promise<ReportFixResult> {
+  const items: ReportItemId[] = p.items?.length
+    ? p.items
+    : p.item
+      ? [p.item]
+      : await locateReportedItems(
+        context.userId,
+        p.wordId,
+        p.headword,
+        p.language,
+        p.note,
+        p.candidates?.length ? p.candidates : DEFAULT_REPORT_CANDIDATES,
+      );
+  if (items.length === 0) return { fixed: false, by: "none", item: null, items: [] };
+  const results: ReportFixResult[] = [];
+  for (const it of items) {
+    const r = await fixReportedWordItemImpl(context, {
+      wordId: p.wordId,
+      item: it,
+      note: p.note,
+      allowAi: p.allowAi,
+    });
+    results.push(r);
+    if (r.fixed && it === HEADWORD_ITEM) break;
+  }
+  return combineReportResults(items, results);
+}
+
+/** 1つずつ直した結果を1つの返事に（どれか直れば fixed。直した項目の一覧・見出し語の付け替え）。 */
+function combineReportResults(items: ReportItemId[], results: ReportFixResult[]): ReportFixResult {
+  const fixedOnes = results.filter((r) => r.fixed);
+  const first = fixedOnes[0] ?? results[results.length - 1];
+  return {
+    fixed: fixedOnes.length > 0,
+    by: first?.by ?? "none",
+    item: (first?.item as ReportItemId | null | undefined) ?? items[0] ?? null,
+    items: fixedOnes.map((r) => r.item).filter((x): x is ReportItemId => !!x),
+    ...(fixedOnes.find((r) => r.headword)?.headword
+      ? { headword: fixedOnes.find((r) => r.headword)!.headword }
+      : {}),
+    ...(results.length > 0 && results.every((r) => r.aiFailed) ? { aiFailed: true } : {}),
+  };
 }
 
 /**
  * 裏の道（`entry-report.server.ts`）から呼ぶ口。**サーバだけ**（`createServerOnlyFn`）— 素の関数で外に出すと、
  * 画面の束にこのファイルの裏の処理（返事の後の仕事 → サーバの要求）まで残り、ビルドが止まる。
  */
-export const fixReportedWordItem = createServerOnlyFn(fixReportedWordItemImpl);
-export const locateReportedItemForReport = createServerOnlyFn(locateReportedItemForReportImpl);
+export const fixReportAll = createServerOnlyFn(fixReportAllImpl);
 
 export const reportAndFixSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -3889,16 +3985,17 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       it === "pronunciation" || it === "pos" || it === "meaning" ? it : "other";
 
     /**
-     * **項目を決める。** Pro の人の `auto` はその場で AI に探させる（見つからなければ確認待ち）。
+     * **項目を決める。** Pro の人の `auto` はその場で AI に探させる（複数の項目・見出し語も — `locateReportedItems`）。
      * 無料の人の `auto` は裏の道で探す（その場では AI を呼ばない）。
      */
-    let item: ReportItemId | null = data.item === "auto" ? null : data.item;
+    let items: ReportItemId[] = data.item === "auto" ? [] : [data.item];
     if (data.item === "auto" && pro) {
       const candidates = (
         data.candidates?.length ? data.candidates : ["meaning"]
       ) as ReportItemId[];
-      item = await locateReportedItem(data.word_id, w.headword, w.language, data.note, candidates);
+      items = await locateReportedItems(userId, data.word_id, w.headword, w.language, data.note, candidates);
     }
+    const item: ReportItemId | null = items[0] ?? null;
 
     // 1. 報告を残す。**直せても直せなくても残す** — 結果も行に残し、開発者に知らせる。
     //    種類の列は4つしか取れない（`entry_reports` の制約）ので、どの項目かは本文の頭にも書く。
@@ -3927,32 +4024,36 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
      * 2. **その場で直すか、裏で直すか**（オーナー決定 2026-09-28「無料の人の報告で作り直しの裏道を作らない」を守る）。
      * - Pro の人・辞書と照らすだけの項目（読み・品詞）… その場で直す（今までどおり）。
      * - 無料の人の AI の直し・項目の分からない報告 … **裏で**直す。結果はその場で返さず（作り直しを好きに
-     *   呼べる道にしない）、別の目が通した時だけ共有の語に書く。1日の上限は作り直しと同じ枠（`card`）。
+     *   呼べる道にしない）、別の目が通した時だけ書く。画面は報告の行（`reportId`）の結果を読みに来て
+     *   （`getMyReportOutcome`）、直ったらその語を読み直す（2026-11-24 — 前は「次に開いた時」まで出なかった）。
      */
     const inline = item !== null && reportMayRegenerate({ isPro: pro, item }) !== "record_only";
     if (!inline || (data.item === "auto" && item === null && !pro)) {
       void runAfterResponse("reportAndFixSection: background fix", () =>
         reports.fixReportInBackground(context, reportCtx),
       );
-      return { fixed: false, by: "none", item, queued: true };
+      return { fixed: false, by: "none", item, queued: true, reportId };
     }
     if (item === null) {
-      // Pro の `auto` で項目が見つからなかった。確認待ちにして知らせる。
+      // Pro の `auto` で項目が見つからなかった（AI は全部正しいと判断）。確認待ちにして知らせる。
       void runAfterResponse("reportAndFixSection: notify", () =>
         reports.finishEntryReport(supabaseAdmin, reportCtx, {
           status: "needs_review",
-          outcome: "間違っている項目を特定できなかった",
+          outcome: "間違っている項目を特定できなかった（AI は全部正しいと判断）",
         }),
       );
-      return { fixed: false, by: "none", item: null };
+      return { fixed: false, by: "none", item: null, reportId };
     }
 
     let r: ReportFixResult;
     try {
-      r = await fixReportedWordItemImpl(context, {
+      r = await fixReportAllImpl(context, {
         wordId: data.word_id,
-        item,
+        headword: w.headword,
+        language: w.language,
         note: data.note,
+        item,
+        items,
         allowAi: pro,
       });
     } catch (e) {
@@ -3970,50 +4071,164 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       void runAfterResponse("reportAndFixSection: background fix", () =>
         reports.fixReportInBackground(context, reportCtx),
       );
-      return { ...r, queued: true };
+      return { ...r, queued: true, reportId };
     }
     const { outcomeFromFix } = await import("./entry-report");
     void runAfterResponse("reportAndFixSection: notify", () =>
-      reports.finishEntryReport(supabaseAdmin, reportCtx, outcomeFromFix(r)),
+      reports.finishEntryReport(supabaseAdmin, { ...reportCtx, item: r.item ?? item }, outcomeFromFix(r)),
     );
-    return r;
+    return { ...r, reportId };
   });
 
+
 /**
- * **報告された語で、間違っている項目を1つ探す**（`auto`）。
- * 見せる範囲は画面に出ている項目だけ。答えは `pickReportedItem` を通し、
- * 範囲の外の名前や「なし」は null（直さない側）。
+ * **学習者の画面に出ている語**（共有の行 ＋ その人の言語の行 ＋ 例文・チャンクの帯の行 — `readerViewOfWord`）。
+ * 報告の項目探しと見出し語の判定はこちらを見る（2026-11-24）。読めない所は共有の行のまま。
  */
-async function locateReportedItem(
+async function readerWordView(
+  userId: string,
+  wordId: string,
+): Promise<Record<string, unknown> | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: full } = await supabaseAdmin.from("words").select("*").eq("id", wordId).maybeSingle();
+  if (!full) return null;
+  try {
+    const key = explanationKey(
+      await getExplanationLanguage(userId),
+      (await getLearnerL1(userId)).code,
+    );
+    const reader = await readReaderExplanation(supabaseAdmin, wordId, key);
+    const levelMod = await import("./level-content.server");
+    const band = await levelMod.callerLevelBand(supabaseAdmin, userId, wordId);
+    const bandRow = band
+      ? await levelMod.readLevelContent(supabaseAdmin, wordId, key, band, { exact: true })
+      : null;
+    return readerViewOfWord(
+      full as Record<string, unknown>,
+      reader as Parameters<typeof readerViewOfWord>[1],
+      bandRow as Parameters<typeof readerViewOfWord>[2],
+    );
+  } catch {
+    return full as Record<string, unknown>;
+  }
+}
+
+/**
+ * **報告された語で、間違っている項目を探す**（`auto`）。1回の報告で複数の項目が違うこともある（玉米片: 意味も
+ * 台湾メモもシリアルの話）ので上限（`MAX_REPORTED_ITEMS`）まで返す。見出し語そのものが写っている物の名前として
+ * 違う時は `headword` だけ。見せるのは**学習者の画面に出ている中身**（`readerWordView`）— 前は共有の行を見せて
+ * いたので、画面と違う（もう直っている）中身を「正しい」と判じた。答えは `pickReportedItems` を通す。
+ */
+async function locateReportedItems(
+  userId: string,
   wordId: string,
   headword: string,
   language: string | null,
   note: string,
   candidates: ReportItemId[],
-): Promise<ReportItemId | null> {
+): Promise<ReportItemId[]> {
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: full } = await supabaseAdmin
-      .from("words")
-      .select("*")
-      .eq("id", wordId)
-      .maybeSingle();
-    if (!full) return null;
+    const view = await readerWordView(userId, wordId);
+    if (!view) return [];
+    const withHead = [...candidates.filter((c) => c !== HEADWORD_ITEM), HEADWORD_ITEM as ReportItemId];
     const ai = await getAiFor("audit", "report_locate");
     const prompt =
       `語学カードについて、学習者から「どこかが間違っている」と報告がありました。\n` +
       `語: ${headword}（${language ?? ""}）\n報告の一言: ${note || "(なし)"}\n` +
-      `カードの項目（[項目名] 内容）:\n${reportContext(candidates, full as Record<string, unknown>)}\n\n` +
-      `報告の一言とカードの内容から、**間違っている可能性がいちばん高い項目を1つ**選んでください。` +
-      `一言が無ければ、事実として誤っている・不自然な項目を探してください。どれも正しければ none。\n` +
-      `出力はJSONだけ: {"item":"${candidates.join('"|"')}"|"none","reason":"短く"}`;
+      `カードの項目（[項目名] 内容）。学習者の画面に出ている物:\n${reportContext(withHead, view)}\n\n` +
+      `報告の一言とカードの内容から、**間違っている項目を全部**（多くても${3}つ、可能性の高い順）選んでください。` +
+      `例: 写っている物と意味が違えば meaning。その物の話でない解説（taiwan_note など）も選ぶ。` +
+      `見出し語そのものが、学習者の写した物の名前として台湾華語で通じない・別の物を指す時だけ headword（その時は headword だけ）。` +
+      `見出し語がその物の言い方の1つとして正しければ headword は選ばない。` +
+      `一言が無ければ、事実として誤っている・不自然な項目を探してください。どれも正しければ空の配列。\n` +
+      `出力はJSONだけ: {"items":["${withHead.join('"|"')}"],"reason":"短く"}`;
     const res = await withModelFallback(ai, ai.modelRich, (m) =>
       generateText({ model: ai.gateway(m), prompt }),
     );
-    return pickReportedItem(parseJsonFromAiText(res.text), candidates);
+    return pickReportedItems(parseJsonFromAiText(res.text), withHead);
   } catch {
-    return null;
+    return [];
   }
+}
+
+/**
+ * **見出し語そのものが違う報告**（2026-11-24、オーナー「写真に写ってるのはトルティーヤチップス」）。
+ * AI が学習者の画面の中身と報告から、写っている物の台湾華語の自然な名前を答え、別の目（`judgeCorrection`）が通した
+ * 時だけ、**報告した人の札**をその語に付け替える（`setStickerHeadword` と同じ道: 共有の `words` の行は書き換えない
+ * — 同じ語の他の人の札は本当にその物かもしれない）。新しい語の中身は、単語の詳細の自動生成が埋める。
+ * 復習の進み具合は札の行にあるので、そのまま残る。
+ */
+async function fixReportedHeadword(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  context: { supabase: any; userId: string },
+  p: { wordId: string; note: string },
+): Promise<ReportFixResult> {
+  const item = HEADWORD_ITEM as ReportItemId;
+  const view = await readerWordView(context.userId, p.wordId);
+  if (!view) return { fixed: false, by: "none", item };
+  const headword = String(view.headword ?? "");
+  const language = normalizeTargetLanguage(view.language as string | null);
+  let next: string | null = null;
+  try {
+    const ai = await getAiFor("audit", "report_locate");
+    const prompt =
+      `語学カードの見出し語が、学習者の写した物の名前として違うと報告がありました。\n` +
+      `学習言語: ${targetProfile(language).promptName}\n見出し語: ${headword}\n` +
+      `カードの意味: ${String(view.meaning_ja ?? "")}\n報告: 「${p.note || "(なし)"}」\n` +
+      `報告が事実として正しく、見出し語がその物の名前として通じない・別の物を指すなら wrong=true にし、` +
+      `その物を${targetProfile(language).promptName}のネイティブが最も自然に呼ぶ名詞を1つ headword に書く（説明を付けない、量詞を付けない）。` +
+      `見出し語がその物の言い方の1つとして正しければ wrong=false。迷ったら wrong=false。\n` +
+      `出力はJSONだけ: {"wrong":true|false,"headword":"","reason":"短く"}`;
+    const res = await withModelFallback(ai, ai.modelRich, (m) =>
+      generateText({ model: ai.gateway(m), prompt }),
+    );
+    next = pickCorrectHeadword(parseJsonFromAiText(res.text), headword);
+  } catch (e) {
+    const { statusForError } = await import("./native-fn");
+    if (statusForError(e) !== 500) throw e;
+    return { fixed: false, by: "none", item, aiFailed: true };
+  }
+  if (!next) return { fixed: false, by: "none", item };
+  try {
+    assertTargetHeadword(next, language);
+  } catch {
+    return { fixed: false, by: "none", item };
+  }
+  const verdict = await judgeCorrection({
+    headword,
+    language,
+    item: "headword (the word the learner photographed)",
+    before: { headword, meaning: view.meaning_ja ?? "" },
+    after: { headword: next },
+    note: p.note,
+  });
+  if (!shouldApplyCorrection(verdict)) return { fixed: false, by: verdict.by, item };
+  const { upsertWord } = await import("./stickers.functions");
+  const newId = await upsertWord(
+    context.supabase,
+    context.userId,
+    {
+      headword: next,
+      reading_zhuyin: "",
+      pinyin: "",
+      meaning_ja: "",
+      part_of_speech: "",
+      level: "",
+      category_key: String(view.category_key ?? "other"),
+      example_sentence: "",
+      example_translation: "",
+      extras: {},
+    } as Parameters<typeof upsertWord>[2],
+    language,
+  );
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin
+    .from("stickers")
+    .update({ word_id: newId } as never)
+    .eq("user_id", context.userId)
+    .eq("word_id", p.wordId);
+  if (error) throw new Error(error.message);
+  return { fixed: true, by: verdict.by, item, headword: next };
 }
 
 /**

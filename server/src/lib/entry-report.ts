@@ -18,6 +18,8 @@ export type ReportStatus = "open" | "fixed" | "needs_review" | "resolved" | "dis
 
 /** 直せる項目（`reportAndFixSection` が受ける物）。 */
 export const FIXABLE_REPORT_ITEMS = new Set([
+  // 見出し語そのものが違う（札を正しい語に付け替える — 2026-11-24）
+  "headword",
   "meaning",
   "example",
   "examples_extra",
@@ -88,12 +90,23 @@ export function outcomeFromFix(r: {
   fixed: boolean;
   by: "dictionary" | "jev" | "llm" | "none";
   item?: string | null;
+  items?: readonly string[];
+  headword?: string;
   aiFailed?: boolean;
 }): ReportOutcome {
-  const item = r.item ?? "?";
+  const item = r.items && r.items.length > 1 ? r.items.join("・") : (r.item ?? "?");
   if (r.fixed) {
     const by = r.by === "dictionary" ? "辞書と照らして" : `別の AI（${r.by}）が確かめて`;
-    return { status: "fixed", outcome: `${item} を自動で直した（${by}書いた）` };
+    if (r.headword) {
+      return {
+        status: "fixed",
+        outcome: `見出し語を「${r.headword}」に付け替えた（報告した人の札だけ。${by}決めた）`,
+      };
+    }
+    return {
+      status: "fixed",
+      outcome: `${item} を自動で直した（${by}、学習者の画面に出る行に書いた）`,
+    };
   }
   if (r.aiFailed)
     return { status: "needs_review", outcome: `${item}: AI が答えず、直しの案を作れなかった` };

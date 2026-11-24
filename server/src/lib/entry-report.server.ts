@@ -174,7 +174,7 @@ export async function finishEntryReport(
 
 /**
  * **裏で直す**（記録だけで終わっていた報告 — 無料の人・項目が特定できなかった回）。
- * 直す道そのものは `ai.functions.ts` の `fixReportedWordItem`（その場で直す時と同じ関数）。
+ * 直す道そのものは `ai.functions.ts` の `fixReportAll`（その場で直す時と同じ関数）。
  * 項目が無ければ AI に探させ（`locateReportedItem`）、見つからなければ確認待ち。
  * どの結果でも開発者に知らせる。
  */
@@ -185,25 +185,29 @@ export async function fixReportInBackground(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   try {
     const ai = await import("./ai.functions");
-    let item = ctx.item;
-    if (!item && ctx.wordId) {
-      item = await ai.locateReportedItemForReport(ctx.wordId, ctx.headword, ctx.language, ctx.note);
-    }
-    if (!item || !ctx.wordId) {
+    if (!ctx.wordId) {
       await finishEntryReport(supabaseAdmin, ctx, {
         status: "needs_review",
-        outcome: ctx.wordId
-          ? "間違っている項目を特定できなかった"
-          : "語の行が分からない（見出し語だけの報告）",
+        outcome: "語の行が分からない（見出し語だけの報告）",
       });
       return;
     }
-    const r = await ai.fixReportedWordItem(context as never, {
+    // 項目が決まっていなければ探し（複数・見出し語も）、順に直す（その場の道と同じ — `fixReportAll`）。
+    const r = await ai.fixReportAll(context as never, {
       wordId: ctx.wordId,
-      item: item as never,
+      headword: ctx.headword,
+      language: ctx.language,
       note: ctx.note,
+      item: (ctx.item as never) ?? null,
     });
-    await finishEntryReport(supabaseAdmin, { ...ctx, item }, outcomeFromFix({ ...r, item }));
+    if (!r.item) {
+      await finishEntryReport(supabaseAdmin, ctx, {
+        status: "needs_review",
+        outcome: "間違っている項目を特定できなかった（AI は全部正しいと判断）",
+      });
+      return;
+    }
+    await finishEntryReport(supabaseAdmin, { ...ctx, item: r.item }, outcomeFromFix(r));
   } catch (e) {
     console.warn("[report] background fix failed:", (e as Error)?.message?.slice(0, 200));
     await finishEntryReport(supabaseAdmin, ctx, {

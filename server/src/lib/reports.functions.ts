@@ -71,6 +71,36 @@ export const reportEntry = createServerFn({ method: "POST" })
 
 export type EntryReport = EntryReportRow;
 
+const OutcomeInput = z.object({ report_id: z.string().uuid() });
+
+/**
+ * **自分の報告の結果**（2026-11-24、オーナー「ユーザーのカードが変更にはなってない」）。裏で直す報告（無料の人・
+ * 項目を選ばない報告）は、返事の後に直す。画面はこれを数秒おきに読み、`fixed` になったらその語を読み直す
+ * （前は「次に開いた時」まで直った中身が出なかった）。結果の一言（開発者向け）は返さない。自分の報告だけ。
+ */
+export const getMyReportOutcome = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => OutcomeInput.parse(input))
+  .handler(
+    async ({ context, data }): Promise<{ status: ReportStatus; done: boolean; item: string | null }> => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      type Q = {
+        select: (c: string) => Q;
+        eq: (k: string, v: string) => Q;
+        maybeSingle: () => Promise<{ data: unknown }>;
+      };
+      const { data: row } = await (supabaseAdmin as unknown as { from: (t: string) => Q })
+        .from("entry_reports")
+        .select("status, item")
+        .eq("id", data.report_id)
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      const r = (row ?? null) as { status?: ReportStatus; item?: string | null } | null;
+      const status: ReportStatus = r?.status ?? "open";
+      return { status, done: status !== "open", item: r?.item ?? null };
+    },
+  );
+
 async function assertAdmin(supabase: unknown, userId: string): Promise<void> {
   const { data: isAdmin, error } = await (
     supabase as {
@@ -129,6 +159,77 @@ export const resolveEntryReport = createServerFn({ method: "POST" })
             : "開発者が未対応に戻した",
     });
     return { ok: true };
+  });
+
+const RetryInput = z.object({ id: z.string().uuid() });
+
+/**
+ * **報告をもう一度直す**（admin限定、2026-11-24）。「自動で直した」と出ても画面が変わっていなかった報告（鮮乳・玉米片 —
+ * 直した文が学習者の画面に出ない共有の行に入っていた）や確認待ちの報告を、今の直す道（`fixReportAll`: 学習者の
+ * 画面に出ている行に書く・複数の項目・見出し語の付け替え）でもう一度。報告した人の言語・帯・札で直す。
+ * 項目は決め直す（AI が報告と画面の中身から探す）。結果は報告の行に残る。返事の後に走る。
+ */
+export const retryEntryReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => RetryInput.parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    type Q = {
+      select: (c: string) => Q;
+      eq: (k: string, v: string) => Q;
+      maybeSingle: () => Promise<{ data: unknown }>;
+    };
+    const { data: row } = await (supabaseAdmin as unknown as { from: (t: string) => Q })
+      .from("entry_reports")
+      .select("id, user_id, headword, kind, item, note, word_id, reporter_lang")
+      .eq("id", data.id)
+      .maybeSingle();
+    const r = row as {
+      id: string;
+      user_id: string;
+      headword: string;
+      kind: string | null;
+      note: string | null;
+      word_id: string | null;
+      reporter_lang: string | null;
+    } | null;
+    if (!r) throw new Error("報告が見つかりません");
+    if (!r.word_id) throw new Error("語の行が分からない報告は直せません");
+    const [{ fixReportInBackground }, { splitReportNote }, { runAfterResponse }] = await Promise.all([
+      import("./entry-report.server"),
+      import("./entry-report"),
+      import("./after-response"),
+    ]);
+    const { data: wordRow } = await (supabaseAdmin as unknown as { from: (t: string) => Q })
+      .from("words")
+      .select("language")
+      .eq("id", r.word_id)
+      .maybeSingle();
+    const note = splitReportNote(r.note ?? "").note;
+    const kind = (["pronunciation", "meaning", "pos"].includes(r.kind ?? "") ? r.kind : "other") as
+      | "pronunciation"
+      | "meaning"
+      | "pos"
+      | "other";
+    // 報告した人として直す（その人の言語・母語・帯・札）。
+    void runAfterResponse("retryEntryReport", () =>
+      fixReportInBackground(
+        { supabase: supabaseAdmin, userId: r.user_id },
+        {
+          reportId: r.id,
+          userId: r.user_id,
+          wordId: r.word_id,
+          headword: r.headword,
+          language: ((wordRow as { language?: string | null } | null)?.language ?? null) as string | null,
+          kind,
+          item: null,
+          note,
+          reporterLang: r.reporter_lang,
+        },
+      ),
+    );
+    return { ok: true, queued: true };
   });
 
 /**
