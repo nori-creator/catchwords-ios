@@ -29,9 +29,12 @@ private struct WaitBeamModifier: ViewModifier {
         content.overlay {
             ZStack {
                 if active {
+                    // Brighter than the library's own (owner 2026-11-24, on the first shots: 「もう少し明るく」): a stronger
+                    // head, more intensity, a wider glow and a longer comet.
                     BeamLayer(shape: shape, style: style, direction: .leftToRight, active: true,
-                              colors: WaitBeamPalette.colors(dark: darkSurface ?? (scheme == .dark)), intensity: 1,
-                              timing: BeamTiming(rotateDuration: 2.2, lineDuration: 2.0, fade: 0.4))
+                              colors: WaitBeamPalette.colors(dark: darkSurface ?? (scheme == .dark)), intensity: 1.8,
+                              timing: BeamTiming(rotateDuration: 2.2, lineDuration: 2.0, fade: 0.4),
+                              glowOverride: style == .small ? 7 : 30, arcOverride: style == .small ? 0.55 : 0.42)
                         .transition(.opacity)
                 }
             }
@@ -45,7 +48,7 @@ private struct WaitBeamModifier: ViewModifier {
 enum WaitBeamPalette {
     static func colors(dark: Bool) -> [Color] {
         dark
-            ? [Color(hex: 0x78BEFF).opacity(0.35), Color(hex: 0x9CC8FF), Color(hex: 0xCFE3FF), .white]
-            : [Color(hex: 0xBFE8FF).opacity(0.45), Color(hex: 0x78BEFF), Color(hex: 0x2A9BFF), Color(hex: 0x0589FE)]
+            ? [Color(hex: 0x78BEFF).opacity(0.6), Color(hex: 0xBFE8FF), .white, .white]
+            : [Color(hex: 0x9CC8FF).opacity(0.7), Color(hex: 0x4AA8FF), Color(hex: 0x0589FE), Color(hex: 0x0070F0)]
     }
 }

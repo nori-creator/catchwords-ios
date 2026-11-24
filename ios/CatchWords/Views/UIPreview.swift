@@ -130,6 +130,14 @@ struct UIPreviewRoot: View {
             case "waitsearch": PickerPreview(lookingUp: true)
             case "waitsearch-choose": PickerPreview(autoOpen: true, holdOpen: true, lookingUp: true)
             case "waitword": WaitWordPreview()
+            // Where else the light could run (owner 2026-11-24: 「それぞれのイメージ…画像おくって」) — pictures only, not
+            // in the app's screens yet.
+            case "waitc-saving": WaitCandidatePreview(kind: .saving)
+            case "waitc-lasso": WaitCandidatePreview(kind: .lasso)
+            case "waitc-place": WaitCandidatePreview(kind: .place)
+            case "waitc-review": WaitCandidatePreview(kind: .review)
+            case "waitc-hero": WaitCandidatePreview(kind: .hero)
+            case "waitc-button": WaitCandidatePreview(kind: .button)
             case "get": CelebrationPreview(replay: 4.6)
             case "get-again": CelebrationPreview(replay: 4.6, again: true)
             case "landing": LandingPreview()
@@ -1720,6 +1728,158 @@ private struct WaitWordPreview: View {
             .padding(16)
             .uiReady("preview")
         }
+        .background(Theme.background)
+    }
+}
+
+/// Pictures of other waits the light could run round (owner 2026-11-24 wants to see each before choosing). Made-up
+/// screens in the look of the real ones — not wired into the app.
+private struct WaitCandidatePreview: View {
+    enum Kind { case saving, lasso, place, review, hero, button }
+    let kind: Kind
+
+    var body: some View {
+        Group {
+            switch kind {
+            case .saving: saving
+            case .lasso: lasso
+            case .place: place
+            case .review: review
+            case .hero: hero
+            case .button: button
+            }
+        }
+        .uiReady("preview")
+    }
+
+    /// The word page of a catch still being saved: the light runs round the photo box.
+    private var saving: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Image(uiImage: PreviewFixtures.subjectCropped)
+                    .resizable().scaledToFit()
+                    .padding(30)
+                    .frame(maxWidth: .infinity).frame(height: 330)
+                    .background(Theme.card, in: .rect(cornerRadius: 28, style: .continuous))
+                    .waitBeam(true, cornerRadius: 28)
+                HStack(spacing: 5) {
+                    ProgressView().controlSize(.mini)
+                    Text(L("保存しています…"))
+                }
+                .scaledFont(size: 12, weight: .semibold)
+                .foregroundStyle(Theme.muted)
+                ZhuyinWordView(headword: "芒果", zhuyin: "ㄇㄤˊ ㄍㄨㄛˇ", size: 40, pinyin: "mángguǒ")
+                Text("マンゴー").scaledFont(size: 18, weight: .semibold).foregroundStyle(Theme.foreground)
+            }
+            .padding(16)
+        }
+        .background(Theme.background)
+    }
+
+    /// 囲んで切り抜き直す while Vision cuts again: the light runs round the photo.
+    private var lasso: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            Image(uiImage: PreviewFixtures.photo)
+                .resizable().scaledToFit()
+                .clipShape(.rect(cornerRadius: 18))
+                .waitBeam(true, cornerRadius: 18, darkSurface: true)
+                .overlay {
+                    ProgressView(L("切り抜いています…"))
+                        .tint(.white).foregroundStyle(.white)
+                        .padding(18)
+                        .background(.black.opacity(0.6), in: .rect(cornerRadius: 16))
+                }
+                .padding(16)
+        }
+    }
+
+    /// 場所を直す while the nearby places are looked up: the light runs round the list.
+    private var place: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 22).fill(Color(light: 0xE6EEF2, dark: 0x1E2A33))
+                Image(systemName: "mappin.circle.fill").font(.system(size: 40)).foregroundStyle(Theme.primary)
+            }
+            .frame(height: 300)
+            VStack(alignment: .leading, spacing: 14) {
+                Text("近くの場所").scaledFont(size: 15, weight: .bold).foregroundStyle(Theme.foreground)
+                ForEach([0.8, 0.6, 0.7, 0.5], id: \.self) { w in
+                    HStack(spacing: 10) {
+                        Circle().fill(Theme.secondary).frame(width: 28, height: 28)
+                        RoundedRectangle(cornerRadius: 6).fill(Theme.secondary).frame(height: 14)
+                            .frame(maxWidth: .infinity, alignment: .leading).scaleEffect(x: w, y: 1, anchor: .leading)
+                    }
+                }
+            }
+            .padding(16)
+            .background(Theme.card, in: .rect(cornerRadius: 22, style: .continuous))
+            .waitBeam(true, cornerRadius: 22)
+            Spacer()
+        }
+        .padding(16)
+        .background(Theme.background)
+    }
+
+    /// The review's question while it is fetched: an empty quiz card with the light round it.
+    private var review: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 14) {
+                RoundedRectangle(cornerRadius: 20).fill(Theme.secondary).frame(height: 260)
+                RoundedRectangle(cornerRadius: 6).fill(Theme.secondary).frame(width: 180, height: 18)
+                ForEach(0..<4, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 16).fill(Theme.secondary.opacity(0.7)).frame(height: 52)
+                }
+            }
+            .padding(16)
+            .background(Theme.card, in: .rect(cornerRadius: 28, style: .continuous))
+            .waitBeam(true, cornerRadius: 28)
+            Spacer()
+        }
+        .padding(16)
+        .background(Theme.background)
+    }
+
+    /// 表示する写真 while one photo's original is fetched: a small light round that thumbnail.
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("表示する写真").scaledFont(size: 20, weight: .bold).foregroundStyle(Theme.foreground)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                ForEach(0..<6, id: \.self) { i in
+                    Image(uiImage: i % 2 == 0 ? PreviewFixtures.photo : PreviewFixtures.subjectCropped)
+                        .resizable().scaledToFill()
+                        .frame(height: 110).frame(maxWidth: .infinity)
+                        .background(Theme.secondary)
+                        .clipShape(.rect(cornerRadius: 14))
+                        .overlay { if i == 1 { ProgressView().tint(.white).padding(8).background(.black.opacity(0.35), in: Circle()) } }
+                        .waitBeam(i == 1, cornerRadius: 14, small: true)
+                }
+            }
+            Spacer()
+        }
+        .padding(16)
+        .background(Theme.background)
+    }
+
+    /// The paywall's button while the purchase runs, and a sign-in button (Google; Apple's own button is drawn by the
+    /// system and is not wrapped).
+    private var button: some View {
+        VStack(spacing: 22) {
+            Spacer()
+            PrimaryButton(title: "Proにする", isLoading: true) {}
+                .waitBeam(true, cornerRadius: 16, darkSurface: true)
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("Googleで登録").scaledFont(size: 17, weight: .semibold)
+            }
+            .foregroundStyle(Theme.foreground)
+            .frame(maxWidth: .infinity, minHeight: 54)
+            .background(Theme.card, in: .rect(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.border, lineWidth: 1))
+            .waitBeam(true, cornerRadius: 16)
+            Spacer()
+        }
+        .padding(24)
         .background(Theme.background)
     }
 }

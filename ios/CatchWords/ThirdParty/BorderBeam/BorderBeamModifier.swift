@@ -1,7 +1,8 @@
 //  Vendored from https://github.com/ismnoiet/border-beam-ios at a11d1b938b1cc8efad02e942f7590a0156bbd7da
 //  (MIT, full text in BorderBeamLicense.swift). CatchWords changes: the shader is read from the app's own
 //  Metal library (ShaderLibrary.default) and Reduce Motion follows the app's setting (\.appReduceMotion); the
-//  environment key is nonisolated (the app target's default isolation is MainActor).
+//  environment key is nonisolated (the app target's default isolation is MainActor); BeamLayer takes an optional
+//  glow reach and comet length (`glowOverride` / `arcOverride`).
 //
 //
 //  BorderBeamModifier.swift
@@ -71,6 +72,9 @@ struct BeamLayer: View {
     let colors: [Color]
     let intensity: Double
     let timing: BeamTiming
+    /// CatchWords: the glow's reach (points) and the comet's length (fraction of a lap) instead of the style's.
+    var glowOverride: CGFloat? = nil
+    var arcOverride: CGFloat? = nil
 
     @Environment(\.self) private var environment
     @Environment(\.appReduceMotion) private var reduceMotion
@@ -95,8 +99,8 @@ struct BeamLayer: View {
                             .float(CGFloat(direction.shaderValue)),
                             .float(isLine ? 1 : 0),   // mode: 0 orbit, 1 sweep along an edge
                             .float(2),                // edge for .line: bottom
-                            .float(style == .small ? 0.5 : 0.36),
-                            .float(glowReach),
+                            .float(arcOverride ?? (style == .small ? 0.5 : 0.36)),
+                            .float(glowOverride ?? glowReach),
                             .float(intensity),
                             .floatArray(flat)
                         )
