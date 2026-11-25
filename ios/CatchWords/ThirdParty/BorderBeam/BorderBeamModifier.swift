@@ -2,7 +2,8 @@
 //  (MIT, full text in BorderBeamLicense.swift). CatchWords changes: the shader is read from the app's own
 //  Metal library (ShaderLibrary.default) and Reduce Motion follows the app's setting (\.appReduceMotion); the
 //  environment key is nonisolated (the app target's default isolation is MainActor); BeamLayer takes an optional
-//  glow reach and comet length (`glowOverride` / `arcOverride`).
+//  glow reach and comet length (`glowOverride` / `arcOverride`); BeamLayer reads the colour scheme only, not the
+//  whole environment (`@Environment(\.self)` redrew it on every change of anything in the environment).
 //
 //
 //  BorderBeamModifier.swift
@@ -76,7 +77,9 @@ struct BeamLayer: View {
     var glowOverride: CGFloat? = nil
     var arcOverride: CGFloat? = nil
 
-    @Environment(\.self) private var environment
+    /// The palette is resolved with the colour scheme alone (`flatten`; the app's beams use fixed colours), so the beam
+    /// is not built again on every change elsewhere in the environment (a keystroke's focus, the keyboard's safe area).
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(\.beamSpeed) private var speed
     @State private var running = true
@@ -137,6 +140,8 @@ struct BeamLayer: View {
 
     private func flatten(_ colors: [Color]) -> [Float] {
         let src = colors.isEmpty ? [Color.white] : Array(colors.prefix(16))
+        var environment = EnvironmentValues()
+        environment.colorScheme = colorScheme
         return src.flatMap { color -> [Float] in
             let c = color.resolve(in: environment)
             return [c.red, c.green, c.blue, c.opacity]
