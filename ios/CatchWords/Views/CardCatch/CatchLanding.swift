@@ -186,7 +186,9 @@ extension CatchLandingController {
         launchAt = now + anticip
         impactAt = now + anticip + motion.d(flightTime * 1000)
         phase = .flying
-        UITestTrace.log("landing launch \(stickerId) after \(String(format: "%.2f", now - began)) s room=\(roomReady) target=\(target != nil)")        // the riser (300 ms) ends 70 ms before the hit
+        UITestTrace.log("landing launch \(stickerId) after \(String(format: "%.2f", now - began)) s room=\(roomReady) target=\(target != nil)")
+        // The haptic engine is started now (it shuts itself down when idle), not on the frame of the hit.
+        HapticPatterns.shared.warm()        // the riser (300 ms) ends 70 ms before the hit
         let riserAt = (impactAt ?? now) - 0.07 - 0.3
         if !motion.calm {
             Task {

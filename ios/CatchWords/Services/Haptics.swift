@@ -165,6 +165,14 @@ final class HapticPatterns {
     /// The wobble's length (four 60 ms steps).
     nonisolated static let wrongRumble: TimeInterval = 0.24
 
+    /// Starts the engine a moment ahead of a pattern that has to fall on its frame (the catch's landing). The engine
+    /// shuts itself down when idle, and `play` started it again on the main thread at the very frame of the hit.
+    /// Returns at once.
+    func warm() {
+        guard Haptics.isEnabled, let engine else { return }
+        engine.start(completionHandler: nil)
+    }
+
     /// A word lands in the dex: a firm round thud, then two smaller bounces (matches el-land-bounce).
     /// Without an engine it is the old single heavy impact.
     func land() {
