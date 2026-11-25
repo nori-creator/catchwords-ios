@@ -68,9 +68,13 @@ struct DexGallery: View {
     /// width the gallery last had (`DexGalleryMetrics`): starting at 0, the first pass laid every card out without
     /// its height and the second built them all again — in the frames a catch's page rises.
     @State private var width: CGFloat = DexGalleryMetrics.width
+    /// For the very first gallery of a run, before any has been measured: the screen's width less the page's margins
+    /// (18 each side, `DexView.gallery`) — the measured width takes over as soon as there is one.
+    @Environment(AppRouter.self) private var router: AppRouter?
 
     var body: some View {
-        let size = DexSlotSize(galleryWidth: width, pinyin: readingPref == "pinyin")
+        let guessed = max(0, (router?.screenWidth ?? 0) - 36 - (router?.railOverhang ?? 0))
+        let size = DexSlotSize(galleryWidth: width > 0 ? width : guessed, pinyin: readingPref == "pinyin")
         // Every card is laid out from the start (only its squares are lazy), each at the height its rows give: the
         // page's height never changes while it scrolls. The cards were in a LazyVStack and their squares changed
         // height after a frame (a reading line or not, a long word shrunk): a card built for the first time — above
