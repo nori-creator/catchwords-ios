@@ -14,6 +14,8 @@ import QuartzCore
 nonisolated enum MainStallMonitor {
     /// A stall is written from this long on (five frames at 60 fps).
     static let threshold = 0.08
+    /// The first line of a stall's stack when the main thread was answering the UI test, not doing the app's work.
+    static let harnessMark = "(the UI test reading the screen)"
 
     /// Called once at launch, on the main thread, after `MainStackSampler.captureMain()`.
     static func start() {
@@ -99,6 +101,9 @@ nonisolated enum MainStallMonitor {
         /// The innermost frames (what the thread was in) and the app's own frames under them (who asked for it).
         private static func appFrames(_ lines: [String]) -> [String] {
             var out = Array(lines.prefix(3))
+            // The UI test reads the screen on the app's main thread (its accessibility queries): said so, so that the
+            // CI's summary does not take those for the app's own work.
+            if lines.contains(where: { $0.contains("XCTAutomationSupport") }) { out.insert(MainStallMonitor.harnessMark, at: 0) }
             for l in lines.dropFirst(3) where l.hasPrefix("CatchWords") {
                 out.append(l)
                 if out.count >= 14 { break }

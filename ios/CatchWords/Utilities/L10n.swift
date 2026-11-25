@@ -263,19 +263,24 @@ extension L10n {
         return current.plurals[unit] ?? unit
     }
 
+    /// The slots are found letter for letter (`.literal`). Without it Foundation compares the way a dictionary sorts
+    /// (ICU's collation, set up for the locale): the CI's stall monitor caught the main thread there for 0.4 s, in the
+    /// choose screen's 「…の検索結果」 as that screen opened (2026-11-25), and every text with a value in it paid for it
+    /// each time it was built.
     nonisolated static func fill(_ template: String, _ args: [String], lang: String) -> String {
+        guard !args.isEmpty else { return template }
         var out = template
         let plurals = language(lang).plurals
         for (i, a) in args.enumerated() {
             let slot = "{\(i + 1)}"
             if a == "1", !plurals.isEmpty {
                 for (many, one) in plurals {
-                    out = out.replacingOccurrences(of: slot + " " + many, with: slot + " " + one)
+                    out = out.replacingOccurrences(of: slot + " " + many, with: slot + " " + one, options: .literal)
                     // A bold number (「復習 **{1}** 回」 → "Reviewed **1** time").
-                    out = out.replacingOccurrences(of: slot + "** " + many, with: slot + "** " + one)
+                    out = out.replacingOccurrences(of: slot + "** " + many, with: slot + "** " + one, options: .literal)
                 }
             }
-            out = out.replacingOccurrences(of: slot, with: a)
+            out = out.replacingOccurrences(of: slot, with: a, options: .literal)
         }
         return out
     }

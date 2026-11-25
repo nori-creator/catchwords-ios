@@ -55,7 +55,8 @@ nonisolated enum ReaderLanguage {
             : ["。", "；", ";", "、", "，", ",", "／", "/", "（", "(", "：", ":", "\n", "．"]
         var cut = t.endIndex
         for sep in separators {
-            if let r = t.range(of: sep), r.lowerBound < cut, r.lowerBound > t.startIndex { cut = r.lowerBound }
+            // Letter for letter (`.literal`): the default search goes through ICU's collation (see `L10n.fill`).
+            if let r = t.range(of: sep, options: .literal), r.lowerBound < cut, r.lowerBound > t.startIndex { cut = r.lowerBound }
         }
         let first = String(t[..<cut]).trimmingCharacters(in: .whitespacesAndNewlines)
         if !first.isEmpty, first.count <= cap { return first }
