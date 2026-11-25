@@ -49,6 +49,15 @@ struct CandidatePickerView: View {
     /// The finger that taps the first tag (design A + C's hand): the photos it has been shown on, the first five only.
     @AppStorage("coach.tagHand") private var tagHandCount: Int = 0
     @State private var handPhoto: ObjectIdentifier?
+    /// The tags' names, worked out once per thing (`named`).
+    @State private var tagNames = TagNameCache()
+    /// A lookup started from this screen (the round its words will be, `vm.typedRound`; nil = none): what is listed
+    /// under the photo stays as it was (`heldTyped`) while that lookup's choose screen opens and is up, and takes the
+    /// words found when that screen is closed. Listed the moment they came, they grew the card under the photo with a
+    /// spring, and the photo over it was laid out again on every frame of that — under the choose screen, at the very
+    /// moment it opens (owner 2026-11-25: the screen stood still when a typed word's lookup came back).
+    @State private var heldRound: Int?
+    @State private var heldTyped: [Candidate] = []
     /// DEBUG previews: open the first thing with several ways to say it once the tags are up.
     var autoOpen: Bool = false
     /// DEBUG previews (`-uiPreview choose`): open it once and keep it open (nothing is chosen).
@@ -107,6 +116,21 @@ struct CandidatePickerView: View {
         let dexLabel: String?
     }
 
+    /// Each thing's ways to say it in their order, and its tag's name, kept per photo and display language. They were
+    /// worked out again every time the stage was laid out — on every frame while the keyboard comes up or goes away —
+    /// and each name goes through the language checks (string work; Sentry's hangs on this screen named it).
+    nonisolated private final class TagNameCache {
+        struct Entry {
+            let lang: String
+            let count: Int
+            let first: String
+            let words: [Candidate]
+            let label: (text: String, isName: Bool)
+        }
+        var photo: ObjectIdentifier?
+        var entries: [Int: Entry] = [:]
+    }
+
     /// A tag with its size and its bottom centre in the photo stage.
     private struct Placed: Identifiable {
         let tag: Tag
@@ -149,6 +173,7 @@ struct CandidatePickerView: View {
                                    onWholePhoto: vm.photo == nil || f.typed ? nil : { takeWholePhoto() },
                                    tourLit: router.tour == .choose)
                     .zIndex(5)
+                    .onAppear { UITestTrace.log("choose shown typed=\(f.typed)") }
             }
             // The choose screen keeps its sticker floating while the word is checked (no dark wait over it).
             if vm.isCheckingOwned && flow == nil {
@@ -162,6 +187,11 @@ struct CandidatePickerView: View {
             flow = nil
             melt = false
             searchOpen = false
+            heldRound = nil
+        }
+        // A lookup that found nothing opens no choose screen: nothing is held back for it.
+        .onChange(of: vm.isLookingUp) { _, looking in
+            if !looking, let held = heldRound, held != vm.typedRound { heldRound = nil }
         }
         // The field goes back to its one line when it is left with nothing typed and nothing found.
         .onChange(of: inputFocused) { _, focused in
@@ -175,8 +205,9 @@ struct CandidatePickerView: View {
         .fullScreenCover(isPresented: $recutting) {
             if let photo = vm.photo {
                 LassoCutoutView(photo: photo) { image, box in
-                    // The sticker's drawn copies, made before it floats (not on the main thread mid-animation).
-                    _ = await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(image) }.value
+                    // The sticker's drawn copies and its colours, made before it floats (not on the main thread
+                    // mid-animation).
+                    await Task.detached(priority: .userInitiated) { StickerDisplay.prepare(image) }.value
                     takeLearnerCut(image, box: box)
                 }
             }
@@ -317,6 +348,7 @@ struct CandidatePickerView: View {
         GeometryReader { geo in
             let size = geo.size
             let placedTags = placed(in: size)
+            let hand = handSpot(placedTags, in: size)
             let _ = UITestTrace.log(traceStage(size, placedTags))
             ZStack(alignment: .topLeading) {
                 if let photo = vm.shownPhoto ?? vm.photo {
@@ -338,13 +370,13 @@ struct CandidatePickerView: View {
                     tagButton(p)
                         .position(x: p.spot.x, y: p.spot.y - p.size.height / 2)
                 }
-                if let spot = handSpot(placedTags, in: size) {
+                if let spot = hand {
                     TagTapHand(spot: spot, calm: reduceMotion)
                         .onAppear(perform: countHand)
                         .transition(.opacity)
                 }
             }
-            .animation(.easeOut(duration: 0.35), value: handSpot(placedTags, in: size) != nil)
+            .animation(.easeOut(duration: 0.35), value: hand != nil)
             .frame(width: size.width, height: size.height)
             // The choose screen melts the photo (film: blur 40 px, brightness +6%, scale 1.08 round the thing).
             .blur(radius: melt ? 15 : 0)
@@ -390,10 +422,11 @@ struct CandidatePickerView: View {
         for o in objects {
             // 一般的 → 口語 → より詳しい → 学術的 → 固有名詞, a register on every name (the server orders them too; this
             // keeps the list right with an older answer). Same register keeps the AI's order (likelihood).
-            let words = NameRegister.finalized(o.words)
+            let name = named(o)
+            let words = name.words
             let choices = words.map { Choice(word: $0, object: o) }
             guard !choices.isEmpty else { continue }
-            let tag = Self.tagLabel(words)
+            let tag = name.label
             let key = tag.isName ? Self.mergeKey(tag.text) : nil
             if let key, let at = out.firstIndex(where: { $0.nameKey == key }) {
                 let had = out[at]
@@ -405,6 +438,26 @@ struct CandidatePickerView: View {
             out.append(Tag(id: "\(o.id)", object: o, choices: choices, label: tag.text, nameKey: key, mainIndex: out.count))
         }
         return out
+    }
+
+    /// A thing's ways to say it in their order (`NameRegister.finalized`) and its tag's name (`tagLabel`), worked out
+    /// once for this photo and display language (`TagNameCache`). A thing keeps its id and its words for the photo; the
+    /// cut-outs that come later change neither.
+    private func named(_ o: CatchObject) -> (words: [Candidate], label: (text: String, isName: Bool)) {
+        let photo = vm.photo.map { ObjectIdentifier($0) }
+        if tagNames.photo != photo {
+            tagNames.photo = photo
+            tagNames.entries = [:]
+        }
+        let lang = L10n.lang
+        let first = o.words.first?.headword ?? ""
+        if let e = tagNames.entries[o.id], e.lang == lang, e.count == o.words.count, e.first == first {
+            return (e.words, e.label)
+        }
+        let words = NameRegister.finalized(o.words)
+        let label = Self.tagLabel(words)
+        tagNames.entries[o.id] = TagNameCache.Entry(lang: lang, count: o.words.count, first: first, words: words, label: label)
+        return (words, label)
     }
 
     /// Everyday names before the others; within a register the order they came in.
@@ -603,10 +656,14 @@ struct CandidatePickerView: View {
     /// 草莓蛋糕 without the learner seeing the word and its meaning first). The choice goes on to the GET moment.
     private func open(_ t: Tag) {
         guard flow == nil else { return }
+        UITestTrace.log("open begin \(t.id)")
         let now = CCClock.now
         let o = t.choices[0].object
-        let fallback = o.cut == nil ? StickerCrop.image(vm.photo, box: o.positioned ? o.box : nil) : nil
-        let palette = StagePalette.make(from: o.cut ?? fallback)
+        // Its cut-out when it is made already; else the photo round it stands in (cut from the screen-size copy, never
+        // drawn from the 12 MP photo here), and the cut-out is taken when it comes.
+        let cut = o.cut ?? vm.readyCut(for: o)
+        let fallback = cut == nil ? vm.standIn(box: o.positioned ? o.box : nil) : nil
+        let palette = StagePalette.make(from: cut ?? fallback)
         let label = t.choices.lazy.compactMap { CatchDexInfo.label(headword: $0.word.headword, stickers: dex.stickers) }.first
         vm.stagePalette = palette
         vm.stageFallback = fallback
@@ -615,8 +672,9 @@ struct CandidatePickerView: View {
         Haptics.selection()
         flow = ChooseFlow(words: t.choices.map(\.word), objects: t.choices.map { $0.object as CatchObject? },
                           subtitle: L("写っている物：\(t.label)"), anchor: o, typed: false, tappedAt: now,
-                          start: startRect(o), cut: o.cut, fallback: fallback, palette: palette, dexLabel: label)
-        if o.cut == nil { takeCut(for: o) }
+                          start: startRect(o), cut: cut, fallback: fallback, palette: palette, dexLabel: label)
+        if cut == nil { takeCut(for: o) }
+        UITestTrace.log("open end cut=\(cut != nil)")
     }
 
     /// A thing the photo's masks gave no cut-out (yet): it is lifted now (`liftedCut`, the same one the GET moment
@@ -661,11 +719,15 @@ struct CandidatePickerView: View {
     /// rectangle with slightly rounded corners (`StickerCrop.shaped`), is the open choose screen's sticker and the thing's
     /// from now on — the floating one, the GET moment's, the saved one — the same way as a loop's cut-out.
     private func takeWholePhoto() {
-        guard let f = flow, f.chosenAt == nil, f.closingAt == nil,
-              let whole = StickerCrop.shaped(vm.photo, box: nil) else { return }
+        guard let f = flow, f.chosenAt == nil, f.closingAt == nil, let photo = vm.photo else { return }
+        let opened = f.tappedAt
         Task {
-            // The sticker's drawn copies, made before it floats (not on the main thread mid-animation).
-            _ = await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(whole) }.value
+            // Drawn off the main thread, with the sticker's drawn copies and colours, before it floats (the 12 MP photo
+            // was drawn on the main thread at the press).
+            guard let whole = await StickerCrop.shaped(photo, box: nil) else { return }
+            await Task.detached(priority: .userInitiated) { StickerDisplay.prepare(whole) }.value
+            // Still this choose screen on this photo (it was closed, or another photo taken, meanwhile: nothing).
+            guard flow?.tappedAt == opened, vm.photo === photo else { return }
             takeLearnerCut(whole, box: CGRect(x: 0, y: 0, width: 1, height: 1))
         }
     }
@@ -691,6 +753,8 @@ struct CandidatePickerView: View {
     private func openTyped() {
         let words = vm.typedCandidates
         guard !words.isEmpty, vm.photo != nil else { return }
+        UITestTrace.log("openTyped begin words=\(words.count) open=\(flow != nil)")
+        defer { UITestTrace.log("openTyped end") }
         let object = vm.searchObject
         let now = CCClock.now
         let subtitle = L("「\(vm.typedQuery)」の検索結果")
@@ -712,19 +776,21 @@ struct CandidatePickerView: View {
             }
             return
         }
-        let fallback = object?.cut == nil
-            ? (object.map { StickerCrop.image(vm.photo, box: $0.positioned ? $0.box : nil) } ?? vm.photo.map { ImageTools.resized($0, maxSide: 700) })
-            : nil
-        let palette = StagePalette.make(from: object?.cut ?? fallback)
+        // The sticker: the cut-out when it is made already (it is lifted while the word is looked up,
+        // `CaptureViewModel.search`); else the photo stands in — the copies made off the main thread when the photo came
+        // (`standIn`), where the 12 MP photo used to be drawn small right here, holding the screen still as it opened.
+        let cut = object?.cut ?? vm.readyCut(for: object)
+        let fallback = cut == nil ? vm.standIn(box: object.flatMap { $0.positioned ? $0.box : nil }) : nil
+        let palette = StagePalette.make(from: cut ?? fallback)
         vm.stagePalette = palette
         vm.stageFallback = fallback
         vm.lightStage = true
         inputFocused = false
         let start = object.flatMap { startRect($0) } ?? (stageFrame.width > 0 ? stageFrame : nil)
         flow = ChooseFlow(words: words, objects: words.map { _ in object }, subtitle: subtitle, anchor: object, typed: true,
-                          tappedAt: now, start: start, cut: object?.cut, fallback: fallback, palette: palette,
+                          tappedAt: now, start: start, cut: cut, fallback: fallback, palette: palette,
                           dexLabel: label)
-        if object?.cut == nil { takeCut(for: object) }
+        if cut == nil { takeCut(for: object) }
         withAnimation(reduceMotion ? nil : .timingCurve(0.65, 0, 0.35, 1, duration: 0.55)) { melt = true }
         Haptics.selection()
     }
@@ -733,6 +799,7 @@ struct CandidatePickerView: View {
     /// checks the dex meanwhile; the re-encounter and the rest go on as before).
     private func pick(_ i: Int) {
         guard var f = flow, f.chosenAt == nil, f.closingAt == nil, f.words.indices.contains(i) else { return }
+        UITestTrace.log("pick \(i) cut=\(f.cut != nil)")
         let now = CCClock.now
         f.chosenAt = now
         f.chosen = i
@@ -749,8 +816,20 @@ struct CandidatePickerView: View {
     private func searchFromChoices(_ text: String) {
         let q = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, !vm.isLookingUp, let f = flow, f.chosenAt == nil, f.closingAt == nil else { return }
-        vm.search(text: q, object: f.anchor)
+        search(q, object: f.anchor)
     }
+
+    /// Looks a typed word up (`CaptureViewModel.search`); what is listed under the photo is held as it is until the
+    /// choose screen that opens on the words found is closed (`heldRound`).
+    private func search(_ text: String, object: CatchObject? = nil) {
+        heldTyped = shownTyped
+        heldRound = vm.typedRound + 1
+        vm.search(text: text, object: object)
+    }
+
+    /// The words listed under the photo: the ones found for what was typed — while a lookup started here is held
+    /// (`heldRound`), the ones listed before it.
+    private var shownTyped: [Candidate] { heldRound == nil ? vm.typedCandidates : heldTyped }
 
     /// × : back to the tags (the photo comes back, the sticker goes).
     private func closeChoices() {
@@ -764,6 +843,8 @@ struct CandidatePickerView: View {
         vm.stagePalette = nil
         vm.stageFallback = nil
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { melt = false }
+        // The words found come in under the photo as it comes back.
+        withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.88)) { heldRound = nil }
         Task {
             try? await Task.sleep(for: .milliseconds(320))
             if flow?.closingAt == at { flow = nil }
@@ -818,7 +899,7 @@ struct CandidatePickerView: View {
     /// was the brightest thing on the screen and read as what to do next); pressed, the field comes up as before.
     @ViewBuilder
     private var bottomPanel: some View {
-        if searchOpen || !vm.typedCandidates.isEmpty || vm.searchError != nil || vm.isLookingUp {
+        if searchOpen || !shownTyped.isEmpty || vm.searchError != nil || vm.isLookingUp {
             searchCard
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         } else {
@@ -848,15 +929,15 @@ struct CandidatePickerView: View {
 
     private var searchCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !vm.typedCandidates.isEmpty { typedList }
+            if !shownTyped.isEmpty { typedList }
             PickerTypeField(searching: vm.isLookingUp, searchError: vm.searchError, focus: $inputFocused,
-                            hasText: $typedHasText, onSearch: { vm.search(text: $0) })
+                            hasText: $typedHasText, onSearch: { search($0) })
         }
         .padding(14)
         .background(Theme.card, in: .rect(cornerRadius: 22, style: .continuous))
         // While the typed word is looked up, the blue-white light runs round the card (owner 2026-11-24).
         .waitBeam(vm.isLookingUp, cornerRadius: 22)
-        .animation(.spring(response: 0.42, dampingFraction: 0.88), value: vm.typedCandidates.count)
+        .animation(.spring(response: 0.42, dampingFraction: 0.88), value: shownTyped.count)
     }
 
     /// Several words for what was typed: one row each (never scrolls sideways). More than three scroll in a box about
@@ -864,7 +945,7 @@ struct CandidatePickerView: View {
     /// photo almost nothing).
     @ViewBuilder
     private var typedList: some View {
-        if vm.typedCandidates.count > 3 {
+        if shownTyped.count > 3 {
             ScrollView { typedRows }
                 .frame(height: 230)
                 .scrollBounceBehavior(.basedOnSize)
@@ -876,7 +957,7 @@ struct CandidatePickerView: View {
 
     private var typedRows: some View {
         VStack(spacing: 0) {
-            ForEach(Array(vm.typedCandidates.enumerated()), id: \.offset) { idx, c in
+            ForEach(Array(shownTyped.enumerated()), id: \.offset) { idx, c in
                 Button { vm.choose(c, object: vm.searchObject, typed: true) } label: {
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -900,7 +981,7 @@ struct CandidatePickerView: View {
                 }
                 .buttonStyle(PressableStyle(scale: 0.98))
                 .accessibilityIdentifier("typed.\(idx)")
-                if idx < vm.typedCandidates.count - 1 { Divider().overlay(Theme.border) }
+                if idx < shownTyped.count - 1 { Divider().overlay(Theme.border) }
             }
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))

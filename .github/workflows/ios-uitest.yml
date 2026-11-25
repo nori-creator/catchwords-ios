@@ -84,6 +84,42 @@ jobs:
           DATA=$(xcrun simctl get_app_container "$(cat "$RUNNER_TEMP/udid")" com.nori.catchwords data 2>/dev/null) \
             && cp "$DATA/Library/Caches/uitest-trace.txt" "$OUT/trace.txt" 2>/dev/null \
             && echo "trace: $(wc -l < "$OUT/trace.txt") lines" || echo "no app trace"
+          # The main thread's stalls (`stall <ms>ms`, MainStallMonitor.swift): how many, and the 30 longest, each with the
+          # two trace lines before it and the main thread's stack. Printed here because the job log can be read where
+          # the artifact cannot. Never fails the job.
+          python3 - "$OUT/trace.txt" <<'PY' || true
+          import re, sys
+          try:
+              entries = []   # [time, message, [stack lines]]
+              for raw in open(sys.argv[1], encoding="utf-8", errors="replace"):
+                  line = raw.rstrip("\n")
+                  m = re.match(r"^(\d\d:\d\d:\d\d\.\d{3}) (.*)$", line)
+                  if m:
+                      entries.append([m.group(1), m.group(2), []])
+                  elif entries and line.strip():
+                      entries[-1][2].append(line.strip())
+              stalls = []
+              for i, (t, msg, more) in enumerate(entries):
+                  m = re.match(r"^stall (\d+)ms", msg)
+                  if m:
+                      stalls.append((int(m.group(1)), i))
+              total = sum(ms for ms, _ in stalls)
+              print(f"main-thread stalls of 80 ms or more: {len(stalls)} (sum {total} ms)")
+              for lo, hi in ((80, 150), (150, 300), (300, 1000), (1000, 10**9)):
+                  n = sum(1 for ms, _ in stalls if lo <= ms < hi)
+                  print(f"  {lo}-{'' if hi > 10**6 else hi} ms: {n}")
+              def quiet(msg):
+                  return msg.startswith(("stall ", "frames ", "memory ", "scan.draw", "geometry "))
+              for ms, i in sorted(stalls, reverse=True)[:30]:
+                  before = [e for e in entries[max(0, i - 40):i] if not quiet(e[1])][-2:]
+                  print(f"--- {ms} ms, ended {entries[i][0]}")
+                  for t, msg, _ in before:
+                      print(f"    before: {t} {msg[:200]}")
+                  for l in entries[i][2][:16]:
+                      print(f"      {l[:230]}")
+          except Exception as e:
+              print(f"(no stall summary: {e})")
+          PY
           [ -d "$RUNNER_TEMP/tour.xcresult" ] || { echo "結果がありません（組み立てに失敗した可能性）"; grep -E "error:" "$RUNNER_TEMP/test.log" | head -30 > "$OUT/failures.txt"; exit 0; }
           xcrun xcresulttool export attachments --path "$RUNNER_TEMP/tour.xcresult" --output-path "$OUT/raw" || true
           # manifest.json から人の読める名前に付け替える

@@ -21,6 +21,11 @@ final class CaptureViewModel {
     /// The photo at the size the words screen shows it (made off the main thread): the full 12 MP picture was drawn —
     /// and blurred when the choose screen melts it — every frame of the choose screen (owner 2026-10-20: stutter).
     var shownPhoto: UIImage?
+    /// The whole photo at the size the choose screen lifts it as a sticker's stand-in (at most 700 px), made with
+    /// `shownPhoto` off the main thread, its colours measured there too. The stand-in was drawn from the 12 MP photo on
+    /// the main thread at the moment the choose screen opened (owner's recording 2026-11-25: the screen stood still
+    /// for 0.85 s when a typed word's lookup came back).
+    @ObservationIgnored private(set) var stagePreview: UIImage?
     var selfie: UIImage?
     var candidates: [Candidate] = []
     /// The words found for what was typed ("リストにない言葉を探す"), the everyday one first: the choose screen lists them
@@ -100,6 +105,8 @@ final class CaptureViewModel {
     /// started when its choose screen opens, so that screen lifts the same sticker as the GET moment (owner 2026-10-22:
     /// 「単語の候補の画像が切り抜きになってない。新しい言葉をキャッチはちゃんと切り抜きになってる」).
     @ObservationIgnored private var liftedCuts: [Int: Task<(cut: UIImage?, box: CGRect?), Never>] = [:]
+    /// The cut-outs `liftedCuts` has finished, by the same key (`readyCut`).
+    @ObservationIgnored private var liftedDone: [Int: UIImage] = [:]
     /// 囲んで切り抜き直す on the choose screen (owner 2026-11-05): the learner's own cut-out of a thing (by `CatchObject.id`;
     /// -1 = the photo's main subject, a word typed under the photo) with the loop's box, for this photo. It is the sticker
     /// over anything the masks made — the learner's loop is the last word on what the thing is.
@@ -138,10 +145,19 @@ final class CaptureViewModel {
         isLoadingDetails = false
         photo = image
         shownPhoto = nil
+        stagePreview = nil
         Task {
-            let small = await Task.detached(priority: .userInitiated) { ImageTools.resized(image, maxSide: 2048, opaque: true) }.value
-            guard token == runToken else { return }
-            shownPhoto = small
+            // Everything the screens draw of the whole photo, made once, here, off the main thread.
+            let copies = await Task.detached(priority: .userInitiated) { () -> (shown: UIImage, preview: UIImage) in
+                let shown = ImageTools.resized(image, maxSide: 2048, opaque: true)
+                let preview = ImageTools.resized(shown, maxSide: 700)
+                _ = StagePalette.make(from: preview)
+                return (shown, preview)
+            }.value
+            // Still this photo (a typed word's lookup moves `runToken` on; the photo stays).
+            guard photo === image else { return }
+            shownPhoto = copies.shown
+            stagePreview = copies.preview
         }
         selfie = nil
         candidates = []
@@ -231,7 +247,8 @@ final class CaptureViewModel {
                     let built = await Task.detached(priority: .userInitiated) {
                         let built = CatchObject.withCuts(planned, masks: masks, photoSize: size)
                         // The copies the sticker draws, made here rather than on the main thread at the tap.
-                        for o in built { if let c = o.cut { StickerDisplay.makeBordered(c) } }
+                        // (and the stage's colours of each, `StagePalette.make`).
+                        for o in built { if let c = o.cut { StickerDisplay.prepare(c) } }
                         return built
                     }.value
                     guard token == runToken else { return }
@@ -335,6 +352,15 @@ final class CaptureViewModel {
         searchError = nil
         searchObject = object
         isLookingUp = true
+        UITestTrace.log("search begin")
+        // The sticker the choose screen will lift (the thing typed for, else the photo's main subject) is cut out while
+        // the word is looked up, so that screen opens with it instead of waiting for it (`readyCut`). Started once the
+        // keyboard has gone, so Vision does not run under its animation.
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            guard token == runToken, photo != nil, readyCut(for: object) == nil else { return }
+            _ = liftedCut(for: object)
+        }
         Task {
             defer { if token == runToken { isLookingUp = false } }
             do {
@@ -342,6 +368,7 @@ final class CaptureViewModel {
                 guard token == runToken else { return }
                 let found = NameRegister.finalized(Self.saveable(raw))
                 guard !found.isEmpty else { throw APIError.message(Self.notTargetWordFound) }
+                UITestTrace.log("search result \(found.count)")
                 typedQuery = text
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) { typedCandidates = found }
                 typedRound += 1
@@ -585,10 +612,16 @@ final class CaptureViewModel {
                 // is then only a guess round its tag's spot).
                 let box: CGRect? = object.flatMap { o -> CGRect? in o.positioned ? (rendered?.box ?? o.box) : nil }
                 DevLog.shared.add("cutout", "\(name): no cut-out, the photo \(box == nil ? "as it is" : "round its box")")
-                made = StickerCrop.shaped(photo, box: box)
+                // Drawn off the main thread (`StickerCrop.shaped`).
+                made = await StickerCrop.shaped(photo, box: box)
             }
-            // The sticker's drawn copies, made here and not on the main thread in the middle of the GET moment.
-            if let made { await Task.detached(priority: .userInitiated) { StickerDisplay.makeBordered(made) }.value }
+            // The sticker's drawn copies and its colours, made here and not on the main thread in the middle of the GET
+            // moment.
+            if let made { await Task.detached(priority: .userInitiated) { StickerDisplay.prepare(made) }.value }
+            // Kept for a choose screen opened from now on (`readyCut`) — unless the learner drew their own meanwhile
+            // (this task is then cancelled) or another photo was taken.
+            if let made, !Task.isCancelled, self.photo === photo { liftedDone[key] = made }
+            UITestTrace.log("cut.lifted \(key) made=\(made != nil)")
             return (made, rendered?.box)
         }
         liftedCuts[key] = task
@@ -601,6 +634,7 @@ final class CaptureViewModel {
     func setLearnerCut(_ cut: UIImage, box: CGRect, for object: CatchObject?) {
         let key = object?.id ?? -1
         learnerCuts[key] = (cut, box)
+        liftedDone[key] = nil
         liftedCuts[key]?.cancel()
         liftedCuts[key] = Task { (cut, box) }
         objects = objects.map { withLearnerCut($0) }
@@ -617,11 +651,31 @@ final class CaptureViewModel {
     private func dropLiftedCuts() {
         for task in liftedCuts.values { task.cancel() }
         liftedCuts = [:]
+        liftedDone = [:]
+    }
+
+    /// The thing's cut-out if it is made already (nil: the photo's main subject, for a word typed under the photo): the
+    /// learner's own loop, else the one rendered from the photo's masks, else the one `liftedCut` has finished. The
+    /// choose screen opens with it; without one it lifts the stand-in (`standIn`) and takes the cut-out when it comes.
+    func readyCut(for object: CatchObject?) -> UIImage? {
+        let key = object?.id ?? -1
+        if let own = learnerCuts[key] { return own.cut }
+        if let o = object, let cut = objects.first(where: { $0.id == o.id })?.cut { return cut }
+        return liftedDone[key]
+    }
+
+    /// The sticker's stand-in while its cut-out is not made: the photo round `box` (0–1 of the photo), or the whole
+    /// photo. Cut from the copies made off the main thread when the photo came (`shownPhoto`, 2048 px; `stagePreview`,
+    /// 700 px), never from the camera's 12 MP photo: drawing that one here held the main thread at the very moment the
+    /// choose screen opens. Only ever shown, never saved (the saved sticker is `cutout`).
+    func standIn(box: CGRect?) -> UIImage? {
+        guard let b = box, b.width > 0.01, b.height > 0.01 else { return stagePreview ?? shownPhoto ?? photo }
+        return StickerCrop.image(shownPhoto ?? photo, box: b)
     }
 
     /// The sticker while there is no cut-out: the photo round the picked thing (a typed word: the whole photo).
     func stickerFallback() -> UIImage? {
-        StickerCrop.image(photo, box: pickedBox) ?? picked.map { Self.textCard(for: $0.headword) }
+        standIn(box: pickedBox) ?? picked.map { Self.textCard(for: $0.headword) }
     }
 
     /// Waits for a cut-out that is still running (a failed one simply leaves the photo).
@@ -783,6 +837,7 @@ final class CaptureViewModel {
         pendingId = nil
         photo = nil
         shownPhoto = nil
+        stagePreview = nil
         selfie = nil
         candidates = []
         typedCandidates = []

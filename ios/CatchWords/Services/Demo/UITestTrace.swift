@@ -67,6 +67,8 @@ nonisolated enum UITestTrace {
         UIWindow.traceTouches()
         MainStackSampler.captureMain()
         MainWatchdog.shared.start()
+        // Every stall of the main thread over 80 ms, in order between this trace's lines (the CI prints the longest).
+        MainStallMonitor.start()
         // The previews of the catch's animations measure their frames (CI compares the counts run to run).
         if d.string(forKey: "uiPreview") != nil || d.bool(forKey: "uiFrames") { FrameMeter.shared.start() }
         #endif
