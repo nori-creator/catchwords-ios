@@ -50,6 +50,8 @@ struct CatchCelebrationView: View {
     /// or shorter than the candidate's: swapping it in re-centred the line and the meaning jumped sideways
     /// (owner 2026-10-27: 「キャッチの演出の時に日本語訳が横ずれしてる」). The word page shows the card's meaning.
     @State private var meaningShown: String?
+    /// The line under the meaning (`note`), written once when the moment starts.
+    @State private var noteShown: String?
 
     init(vm: CaptureViewModel, saving: Bool = false, onAdd: @escaping () async -> Bool,
          onStickerFrame: @escaping (CGRect) -> Void = { _ in }) {
@@ -134,6 +136,8 @@ struct CatchCelebrationView: View {
         .onChange(of: vm.cutout) { _, cut in
             if let cut { palette = StagePalette.make(from: cut) }
         }
+        // Left without a landing (戻る, another photo): the 図鑑's page built ahead for this word goes.
+        .onDisappear { if router.landing == nil, router.dexWarm != nil { router.dexWarm = nil } }
     }
 
     // MARK: Texts
@@ -252,8 +256,10 @@ struct CatchCelebrationView: View {
                 // a three-character word with its readings is tall, and the meaning's fixed place touched its bottom).
                 let fixedTop = Film6.y(1690, H) - 24 * k
                 let top = wordBottom.map { max(fixedTop, $0 - screenOrigin.y + max(14, 30 * k)) } ?? fixedTop
-                // A re-encounter: when (and where) it was first caught, as the re-encounter card said.
-                let note = again.map { Self.metLine($0) } ?? ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
+                // A re-encounter: when (and where) it was first caught, as the re-encounter card said. Written once
+                // (`run`): this block is built on every frame, and the line was a date formatted, or the note's
+                // language checked, on each of them.
+                let note = noteShown ?? Self.note(c, again: again)
                 VStack(spacing: 40 * k) {
                     HStack(spacing: 20 * k) {
                         if let reg = Self.registerChip(c.register) {
@@ -292,6 +298,11 @@ struct CatchCelebrationView: View {
                 .offset(y: top + CGFloat(1 - ma) * 16 * k)
             }
         }
+    }
+
+    /// The line under the meaning: a re-encounter's first catch, else how the word differs from the others.
+    private static func note(_ c: Candidate, again: OwnedWord?) -> String {
+        again.map { metLine($0) } ?? ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
     }
 
     /// A register chip only for the other ways of saying it (the everyday word has none, as in the film).
@@ -389,15 +400,18 @@ struct CatchCelebrationView: View {
         if vm.cutout == nil, fallback == nil { fallback = vm.stickerFallback() }
         if vm.stagePalette == nil { palette = StagePalette.make(from: vm.cutout ?? fallback) }
         if let c = vm.picked { dexLabel = CatchDexInfo.label(headword: c.headword, stickers: dex.stickers) }
+        if let c = vm.picked { noteShown = Self.note(c, again: again) }
         if let c = vm.picked { SoundService.shared.prefetch(c.headword) }
+        UITestTrace.log("get start \(vm.picked?.headword ?? "-") again=\(again != nil) at=\(String(format: "%.2f", time(CCClock.now)))")
         let events: [(at: Double, id: Int)] = [(Film6.stageIn0, 0), (Film6.voice, 1), (Film6.catchT, 2),
-                                               (Film6.out, 3), (Film6.open, 4)]
+                                               (Self.warmAt, 5), (Film6.out, 3), (Film6.open, 4)]
         var fired = Set<Int>()
         while !Task.isCancelled {
             let t = time(CCClock.now)
             for e in events where !fired.contains(e.id) && t >= e.at {
                 fired.insert(e.id)
-                if let from = skippedFrom, from < e.at, e.at < Film6.out { continue }
+                // A skip jumps over the sounds on the way; the 図鑑's page is still built ahead (5).
+                if e.id != 5, let from = skippedFrom, from < e.at, e.at < Film6.out { continue }
                 fire(e.id)
             }
             if fired.count == events.count || (tourHold && fired.contains(2)) { return }
@@ -416,9 +430,27 @@ struct CatchCelebrationView: View {
             SoundService.shared.playLayered(.c6CatchJingle)
         case 3:
             if !tourHold { pastOut = true }
+        case 5:
+            warmDex()
         default:
             if !tourHold { Task { await hand() } }
         }
+    }
+
+    /// When the 図鑑's page is built ahead (`warmDex`): the headline has popped, its sparkles and the rings on the floor
+    /// have gone (catchT + 1.05), and until the texts fade (`Film6.out`) only the sticker floats on its stage — the one
+    /// stretch of the moment where a late frame goes unseen.
+    static let warmAt = Film6.catchT + 1.1
+
+    /// The 図鑑's page is built now, unseen under this screen, and put where the word will land (`AppRouter.dexWarm`),
+    /// so that the landing only has to show it. Built at the landing, it stalled the frames in which this screen fades
+    /// and the page rises (owner 2026-11-25: 「タップした後の図鑑のアニメーションカクカクしてる…止まらないようにして」).
+    /// Not in the first tour: its catch goes onto the home's album (`CaptureView.landOnHome`).
+    private func warmDex() {
+        guard router.tab == .camera, router.landing == nil, router.tour != .peel, router.tour != .detail,
+              let c = vm.picked else { return }
+        UITestTrace.log("get warm dex \(c.headword) at=\(String(format: "%.2f", time(CCClock.now)))")
+        router.dexWarm = DexWarm(headword: c.headword, categoryKey: c.categoryKey, ownedStickerId: again?.stickerId)
     }
 
     /// A tap anywhere: on to the end (the texts fade, then the word goes into the 図鑑).
@@ -436,6 +468,7 @@ struct CatchCelebrationView: View {
         failed = false
         pastOut = true
         let tc = time(CCClock.now)
+        UITestTrace.log("get hand \(vm.picked?.headword ?? "-") at=\(String(format: "%.2f", tc)) warm=\(router.dexWarm != nil)")
         let cut = vm.cutout ?? fallback
         let aspect = cut.map { $0.size.height > 0 ? $0.size.width / $0.size.height : 1 } ?? 1
         let p = Film6.pose(screen: screen, aspect: aspect, start: nil, sinceTap: 99, sinceChoice: max(tc, 2),
@@ -466,9 +499,22 @@ struct CatchWordPop: View {
         let pinyin: String?
     }
 
-    /// One unit per character with its zhuyin syllable (Taiwan Mandarin), else the whole word.
+    /// One unit per character with its zhuyin syllable (Taiwan Mandarin), else the whole word. The last word's are
+    /// kept: the GET moment asks twice on every frame (the line's size, the line itself), and each time the word and
+    /// its two readings were split and paired again.
     static func units(_ c: Candidate) -> [Unit] {
         let lang = NativeAPI.targetLanguage
+        if let kept = lastUnits, kept.lang == lang, kept.headword == c.headword, kept.zhuyin == c.zhuyin, kept.pinyin == c.pinyin {
+            return kept.units
+        }
+        let units = split(c, lang: lang)
+        lastUnits = (lang, c.headword, c.zhuyin, c.pinyin, units)
+        return units
+    }
+
+    private static var lastUnits: (lang: String, headword: String, zhuyin: String, pinyin: String, units: [Unit])?
+
+    private static func split(_ c: Candidate, lang: String) -> [Unit] {
         guard lang != "en", lang != "ja", let pairs = ZhuyinLayout.pair(c.headword, c.zhuyin) else {
             return [Unit(text: c.headword, zhuyin: c.zhuyin, pinyin: c.pinyin)]
         }
