@@ -74,7 +74,6 @@ struct DexCoverFlow: View {
             VStack(spacing: 0) {
                 CoverFlowStage(spring: spring, stickers: stickers, stageWidth: geo.size.width, cardWidth: w,
                                reduceMotion: reduceMotion, onOpen: onOpen, bring: bring,
-                               onDragEnd: { router?.touchTour(.dexCover) },
                                // iPhone Duo open sideways: the middle card on the fold, not on the safe area's middle
                                // (owner 2026-10-31: 「折り目がスライドの中心に来るように」).
                                centerX: router?.foldX.map { $0 - geo.frame(in: .global).minX })
@@ -96,8 +95,6 @@ struct DexCoverFlow: View {
         }
         .onChange(of: center) { _, _ in
             if muteSlideSound { muteSlideSound = false; return }
-            // A card brought to the middle by the learner: the tour's card step was touched (`AppRouter.tourDexTouched`).
-            router?.touchTour(.dexCover)
             // A card reached the middle: the recorded "suh" (web: `el-gallery-slide`, gain 0.8) and a selection
             // tick, never closer than 70ms so a fast flick past many cards doesn't jam.
             let now = CACurrentMediaTime()
@@ -246,8 +243,6 @@ private struct CoverFlowStage: View {
     let reduceMotion: Bool
     let onOpen: (Sticker) -> Void
     let bring: @MainActor (Int) -> Void
-    /// The learner let go of the cards (the first tour's card step counts it as touched).
-    var onDragEnd: @MainActor () -> Void = {}
     /// Where the middle card stands (the stage's middle unless given).
     var centerX: CGFloat? = nil
 
@@ -307,7 +302,6 @@ private struct CoverFlowStage: View {
                 }
                 .onEnded { g in
                     dragFrom = nil
-                    onDragEnd()
                     guard !stickers.isEmpty else { return }
                     let maxPos = Double(stickers.count - 1)
                     // Finger speed in cards per second (dragging left moves the ring forward).

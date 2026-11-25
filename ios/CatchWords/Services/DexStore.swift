@@ -68,8 +68,8 @@ final class DexStore {
     var stickers: [Sticker] = [] {
         didSet { stickersVersion &+= 1 }
     }
-    /// Counts every change of `stickers` (the headword index below is rebuilt after one).
-    @ObservationIgnored private var stickersVersion = 0
+    /// Counts every change of `stickers` (the headword index below and the dex gallery's cards are rebuilt after one).
+    @ObservationIgnored private(set) var stickersVersion = 0
     /// The stickers by normalised headword, oldest first, for `dexPictures` — every square of the gallery looked
     /// through every sticker on each update (several a second during a landing, owner 2026-10-20: stutter).
     @ObservationIgnored private var headwordIndex: (version: Int, lang: String, map: [String: [Sticker]])?
