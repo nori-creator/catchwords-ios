@@ -605,91 +605,131 @@ struct TourDexBar: View {
     let onNext: () -> Void
     var onBack: (() -> Void)? = nil
     var onEnd: (() -> Void)? = nil
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// At a large text size the words get the bar's whole width and the buttons go on a row under them: beside 次へ and
+    /// 終了 the title had a few letters a line and 「STEP 3」 broke in two (CI axl shots, 2026-11-25, once every dex step
+    /// showed 次へ).
+    private var stacked: Bool { typeSize >= .xxLarge }
 
     var body: some View {
-        HStack(spacing: 10) {
-            if let onBack {
-                Button {
-                    Haptics.impact(.light)
-                    onBack()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .scaledFont(size: 12, weight: .bold)
-                        .foregroundStyle(Theme.foreground)
-                        .frame(width: 32, height: 32)
-                        .background(Theme.muted.opacity(0.12), in: Circle())
-                        .frame(width: 40, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(PressableStyle(scale: 0.92))
-                .accessibilityLabel(L("戻る"))
-                .accessibilityHint(L("前の段へ"))
-                .accessibilityIdentifier("tour.back")
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                if let phase = step.phase {
-                    Text(verbatim: "STEP \(phase.rawValue + 1)")  // l10n-ignore (common notation)
-                        .scaledFont(size: 10, weight: .heavy)
-                        .tracking(0.6)
-                        .foregroundStyle(Theme.primaryInk)
-                }
-                if let title = step.title {
-                    Text(title)
-                        .scaledFont(size: 14, weight: .bold)
-                        .foregroundStyle(Theme.foreground)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.85)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("tour.bar")
-            if let nextLabel {
-                Button {
-                    Haptics.impact(.light)
-                    onNext()
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(nextLabel).lineLimit(1)
-                        Image(systemName: "arrow.right").scaledFont(size: 11, weight: .bold)
+        Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 2) {
+                    words
+                        .padding(.leading, 8)
+                        .padding(.top, 6)
+                    HStack(spacing: 10) {
+                        back
+                        Spacer(minLength: 0)
+                        next
+                        end
                     }
-                    .scaledFont(size: 14, weight: .bold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 36)
-                    .background(Theme.brandGradient, in: Capsule())
-                    .shadow(color: Theme.primary.opacity(0.35), radius: 8, y: 3)
-                    .frame(minHeight: 44)
-                    .contentShape(Capsule())
                 }
-                .buttonStyle(PressableStyle(scale: 0.95))
-                .fixedSize()
-                .accessibilityIdentifier("tour.next")
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
-            }
-            if let onEnd {
-                Button(action: onEnd) {
-                    Text(L("終了"))
-                        .scaledFont(size: 12, weight: .semibold)
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
-                        .frame(minWidth: 32, minHeight: 44)
-                        .contentShape(Rectangle())
+            } else {
+                HStack(spacing: 10) {
+                    back
+                    words
+                    next
+                    end
                 }
-                .buttonStyle(PressableStyle(scale: 0.95))
-                .fixedSize()
-                .accessibilityHint(L("案内を終える"))
-                .accessibilityIdentifier("tour.end")
             }
         }
-        .padding(.leading, onBack == nil ? 14 : 6)
+        .padding(.leading, onBack == nil || stacked ? 14 : 6)
         .padding(.trailing, 10)
         .padding(.vertical, 4)
         .background(Theme.card.opacity(0.97), in: .rect(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Theme.primary.opacity(0.14), lineWidth: 1))
         .shadow(color: .black.opacity(0.18), radius: 14, y: 5)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: nextLabel)
+    }
+
+    @ViewBuilder private var back: some View {
+        if let onBack {
+            Button {
+                Haptics.impact(.light)
+                onBack()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .scaledFont(size: 12, weight: .bold)
+                    .foregroundStyle(Theme.foreground)
+                    .frame(width: 32, height: 32)
+                    .background(Theme.muted.opacity(0.12), in: Circle())
+                    .frame(width: 40, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableStyle(scale: 0.92))
+            .accessibilityLabel(L("戻る"))
+            .accessibilityHint(L("前の段へ"))
+            .accessibilityIdentifier("tour.back")
+        }
+    }
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let phase = step.phase {
+                Text(verbatim: "STEP \(phase.rawValue + 1)")  // l10n-ignore (common notation)
+                    .scaledFont(size: 10, weight: .heavy)
+                    .tracking(0.6)
+                    .foregroundStyle(Theme.primaryInk)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            if let title = step.title {
+                Text(title)
+                    .scaledFont(size: 14, weight: .bold)
+                    .foregroundStyle(Theme.foreground)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("tour.bar")
+    }
+
+    @ViewBuilder private var next: some View {
+        if let nextLabel {
+            Button {
+                Haptics.impact(.light)
+                onNext()
+            } label: {
+                HStack(spacing: 5) {
+                    Text(nextLabel).lineLimit(1)
+                    Image(systemName: "arrow.right").scaledFont(size: 11, weight: .bold)
+                }
+                .scaledFont(size: 14, weight: .bold)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 36)
+                .background(Theme.brandGradient, in: Capsule())
+                .shadow(color: Theme.primary.opacity(0.35), radius: 8, y: 3)
+                .frame(minHeight: 44)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(PressableStyle(scale: 0.95))
+            .fixedSize()
+            .accessibilityIdentifier("tour.next")
+            .transition(.scale(scale: 0.8).combined(with: .opacity))
+        }
+    }
+
+    @ViewBuilder private var end: some View {
+        if let onEnd {
+            Button(action: onEnd) {
+                Text(L("終了"))
+                    .scaledFont(size: 12, weight: .semibold)
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
+                    .frame(minWidth: 32, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableStyle(scale: 0.95))
+            .fixedSize()
+            .accessibilityHint(L("案内を終える"))
+            .accessibilityIdentifier("tour.end")
+        }
     }
 }
 
