@@ -16,7 +16,7 @@ private enum DexInk {
 /// The landing slot's state in the gallery: its `.sart` is reported to the landing (global coordinates), and once
 /// filled its picture runs `fillIn`. No blue ring or fill around it (owner 2026-10-11: 「単語をキャッチしたてのとき、
 /// 青表示しないで、普通に切り抜きの画像だけでいい」), and the focus goes once the landing is over (DexView).
-struct DexGalleryFocus: Equatable {
+nonisolated struct DexGalleryFocus: Equatable, Sendable {
     var id: String
     /// `.slot.fill` started (CCClock time); nil = not filled yet.
     var fillStart: Double?
@@ -30,7 +30,7 @@ struct DexGalleryFocus: Equatable {
 
 /// Film v6's marks after a catch has landed: the NEW badge on its square (until the 図鑑 is left), the category's
 /// count held back until it rolls, and the breathing ring round the category's next shadow.
-struct DexLandingMarks: Equatable {
+nonisolated struct DexLandingMarks: Equatable, Sendable {
     var newId: String
     var category: Int
     /// The impact (CCClock time).
@@ -44,17 +44,30 @@ struct DexLandingMarks: Equatable {
 
 struct DexGallery: View {
     let sections: [DexSection]
+    /// Category no → a number that changes when that card's squares do (`DexGalleryMemo.stamps`). A card whose number,
+    /// focus, marks and size are what they were is not drawn again: a catch's landing redraws this page at every step
+    /// (the hold, the room, the anticipation, the hit, each rolling count, the save coming back), and each time all
+    /// twenty cards and every square on screen were built anew for a change in one square (owner 2026-11-25:
+    /// 「タップした後の図鑑のアニメーションカクカクしてる」). Empty (the default): every card is drawn every time.
+    var stamps: [Int: Int] = [:]
     let focus: DexGalleryFocus?
+    /// The card the focused square is in (nil: every card is told the focus, as before).
+    var focusCategory: Int? = nil
     let calm: Bool
     /// Film v6's marks after a landing (nil = none).
     var marks: DexLandingMarks? = nil
+    /// False while the page is built ahead of a catch's landing, unseen (`AppRouter.dexWarm`): the cards stand at their
+    /// heights without their squares, until the page is where the word will land.
+    var squares: Bool = true
     /// The landing slot's `.sart` frame in global coordinates, as it lays out.
     var onTargetFrame: ((CGRect) -> Void)? = nil
     let onOpen: (Sticker) -> Void
 
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
-    /// The gallery's width once laid out: every square's height follows from it (`DexSlotSize`).
-    @State private var width: CGFloat = 0
+    /// The gallery's width once laid out: every square's height follows from it (`DexSlotSize`). It starts at the
+    /// width the gallery last had (`DexGalleryMetrics`): starting at 0, the first pass laid every card out without
+    /// its height and the second built them all again — in the frames a catch's page rises.
+    @State private var width: CGFloat = DexGalleryMetrics.width
 
     var body: some View {
         let size = DexSlotSize(galleryWidth: width, pinyin: readingPref == "pinyin")
@@ -65,22 +78,39 @@ struct DexGallery: View {
         // jumped (owner 2026-11-01: 「図鑑をスクロールしてたら、図鑑が飛ぶ、滑らかにスクロールされず、変なところに飛ぶ」).
         VStack(spacing: 0) {
             ForEach(sections) { sec in
-                DexCategoryCard(section: sec, focus: focus, calm: calm,
+                DexCategoryCard(section: sec, stamp: stamps[sec.category.no],
+                                focus: focusCategory == nil || focusCategory == sec.category.no ? focus : nil, calm: calm,
                                 marks: marks?.category == sec.category.no ? marks : nil,
-                                size: size, onTargetFrame: onTargetFrame, onOpen: onOpen)
+                                size: size, squares: squares, onTargetFrame: onTargetFrame, onOpen: onOpen)
+                    .equatable()
                     .padding(.top, 12)
                     .id("dexcat-\(sec.category.no)")
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in
-            if abs(w - width) > 0.5 { width = w }
+            guard w > 1, abs(w - width) > 0.5 else { return }
+            DexGalleryMetrics.width = w
+            // A measurement, never a movement: inside the animation that opened the page (the landing's rise) every
+            // card's and square's height would glide to its value, a layout of the whole page on each frame of it.
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { width = w }
         }
     }
 }
 
+/// What the gallery measured last, for the next one's first pass (the 図鑑's page is built anew each time its tab opens).
+/// Only read and written on the main thread (views' bodies and their geometry reports).
+nonisolated enum DexGalleryMetrics {
+    /// The gallery's width (0: not laid out yet in this run).
+    nonisolated(unsafe) static var width: CGFloat = 0
+    /// The 図鑑's header's height (`DexView.headerHeight`).
+    nonisolated(unsafe) static var headerHeight: CGFloat = 120
+}
+
 /// The gallery's squares, all one height: the picture (as wide as its column), 「No.」 and the name under it in boxes
 /// of their own height. A card's grid is then exactly its rows' height before any square is built.
-struct DexSlotSize: Equatable {
+nonisolated struct DexSlotSize: Equatable, Sendable {
     /// The card's padding (12 each side) and the grid's three gaps (9).
     static let cardInset: CGFloat = 24
     static let gap: CGFloat = 9
@@ -109,15 +139,27 @@ struct DexSlotSize: Equatable {
 }
 
 /// `.dcat`: white, radius 22, padding 12 12 14, a 1 pt #E6ECF3 ring and a soft shadow underneath.
-private struct DexCategoryCard: View {
+private struct DexCategoryCard: View, Equatable {
     let section: DexSection
+    /// Changes when `section`'s squares do (`DexGalleryMemo.stamps`); nil: not known, the card is always drawn again.
+    let stamp: Int?
     let focus: DexGalleryFocus?
     let calm: Bool
     /// This category's marks after a landing.
     let marks: DexLandingMarks?
     let size: DexSlotSize
+    /// False: the card at its height, without its squares (`DexGallery.squares`).
+    let squares: Bool
     let onTargetFrame: ((CGRect) -> Void)?
     let onOpen: (Sticker) -> Void
+
+    /// The same card drawn the same way. The two closures are not compared: they only ever reach the router (the
+    /// landing's target, the word's page), whichever pass of the 図鑑 made them. What a square reads from the dex and the
+    /// router itself (its pictures, 「保存待ち」, the tour's light) still redraws that square when it changes.
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        guard let stamp = a.stamp, stamp == b.stamp else { return false }
+        return a.focus == b.focus && a.calm == b.calm && a.marks == b.marks && a.size == b.size && a.squares == b.squares
+    }
 
     /// The next shadow to find after a landing in this category (its ring breathes).
     private var goalSlot: String? {
@@ -131,6 +173,8 @@ private struct DexCategoryCard: View {
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 9, alignment: .top), count: 4)
 
     var body: some View {
+        // Looked up once for the card (it was looked up again for every square).
+        let goal = goalSlot
         VStack(alignment: .leading, spacing: 0) {
             // .cat-t: 14 pt 800, "n / m" in 12 pt 600 #5C646F, baseline-aligned, margin 2 2 10
             HStack(alignment: .firstTextBaseline) {
@@ -147,18 +191,24 @@ private struct DexCategoryCard: View {
             .padding(.horizontal, 2)
             .padding(.top, 2)
             .padding(.bottom, 10)
-            LazyVGrid(columns: columns, spacing: 9) {
-                ForEach(Array(section.slots.enumerated()), id: \.element.id) { index, slot in
-                    DexSlotView(slot: slot, index: index, focus: focus?.id == slot.id ? focus : nil, calm: calm,
-                                isNew: marks?.again != true && marks?.newId == slot.id,
-                                isAgain: marks?.again == true && marks?.newId == slot.id,
-                                goalSince: goalSlot == slot.id ? marks?.impact : nil, size: size,
-                                onTargetFrame: focus?.id == slot.id ? onTargetFrame : nil, onOpen: onOpen)
-                        .frame(height: size.slot, alignment: .top)
-                        .id(slot.id)
+            if squares {
+                LazyVGrid(columns: columns, spacing: 9) {
+                    ForEach(Array(section.slots.enumerated()), id: \.element.id) { index, slot in
+                        DexSlotView(slot: slot, index: index, focus: focus?.id == slot.id ? focus : nil, calm: calm,
+                                    isNew: marks?.again != true && marks?.newId == slot.id,
+                                    isAgain: marks?.again == true && marks?.newId == slot.id,
+                                    goalSince: goal == slot.id ? marks?.impact : nil, size: size,
+                                    onTargetFrame: focus?.id == slot.id ? onTargetFrame : nil, onOpen: onOpen)
+                            .frame(height: size.slot, alignment: .top)
+                            .id(slot.id)
+                    }
                 }
+                .frame(height: size.grid(count: section.slots.count), alignment: .top)
+            } else {
+                // Built ahead, unseen: the card as tall as its rows, so the page can be put where the word will land
+                // before any square is built.
+                Color.clear.frame(height: size.grid(count: section.slots.count) ?? 0)
             }
-            .frame(height: size.grid(count: section.slots.count), alignment: .top)
         }
         .padding(.horizontal, 12)
         .padding(.top, 12)
@@ -356,6 +406,9 @@ private struct DexSlotView: View {
     /// The word's pictures: the cut-out whole (a soft shadow along its outline), a photo still without one rounded —
     /// with no white ring or frame — and, when the word was photographed more than once, each picture in turn.
     private func picture(_ s: Sticker) -> some View {
+        // The square is drawn again whenever the dex changes, whichever card it is in: its pictures come from every
+        // catch of its word (`dexPictures`), and its card is only drawn again when the card's own squares change.
+        _ = dex.stickers.count
         let pictures = dex.dexPictures(for: s)
         return DexCyclingPicture(pictures: pictures, stagger: index, calm: calm, headword: s.word?.headword)
             // No picture at all: its internet stand-in is fetched (the square shows the word until then).
@@ -753,7 +806,9 @@ private struct DexGoalRing: View {
     let calm: Bool
 
     var body: some View {
-        TimelineView(.animation(paused: calm)) { _ in
+        // Thirty times a second: the ring breathes and marches slowly, and it stays for as long as the 図鑑 is open
+        // after a catch — at the screen's own rate it kept the whole page being put on screen again on every refresh.
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: calm)) { _ in
             let u = CCClock.now - since
             let gp = Film6.seg(u, 1.0, 1.2)
             RoundedRectangle(cornerRadius: 12, style: .continuous)

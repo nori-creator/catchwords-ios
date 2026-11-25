@@ -27,6 +27,15 @@ enum AppTab: Int, CaseIterable, Identifiable {
     }
 }
 
+/// The word a catch is about to land in the 図鑑 (`AppRouter.dexWarm`).
+nonisolated struct DexWarm: Equatable, Sendable {
+    var headword: String
+    /// The candidate's category, for a word outside the catalog.
+    var categoryKey: String?
+    /// A re-encounter: the sticker of the word already in the dex (it lands on that word's own square).
+    var ownedStickerId: String?
+}
+
 /// Shared navigation state so the reward flight can open the dex and target the new cell.
 @Observable
 final class AppRouter {
@@ -61,6 +70,11 @@ final class AppRouter {
     var catchStar: CatchStar?
     /// A catch landing in progress: the dex opens in ギャラリー and the star flies into the slot.
     var landing: CatchLandingController?
+    /// A catch's GET moment is playing and its word is about to land: the 図鑑's page is built now, unseen under the
+    /// camera screen, and put where the word will land (`MainTabView`'s pages, `DexView.warm`). Set by the GET moment
+    /// once its headline has settled (`CatchCelebrationView.warmDex`); gone when the landing opens the 図鑑, when the GET
+    /// moment is left without one, and on any other tab.
+    var dexWarm: DexWarm?
     var detailSticker: Sticker?
     /// The later photo (`encounters` id) the word page opens on, when it was opened from that photo (check 2026-11-03 H7).
     var detailEncounterId: String?
@@ -296,24 +310,42 @@ struct MainTabView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             Group {
-                switch router.tab {
-                case .home: HomeView().environment(\.colorScheme, .light).statusBarTone(.dark)  // the paper album stays paper
-                case .dex:
-                    // A catch landing: the dex page rises over the camera screen (film v6: 140 px with a fade, .4 s).
-                    DexView(startInGallery: router.landing != nil || router.landingStickerId != nil)
+                // The 図鑑's page stands beside the other tabs' pages rather than among them, so that the page a catch's GET
+                // moment builds ahead (`AppRouter.dexWarm`: unseen, under the camera screen) is the very page that
+                // rises when the word lands. Built at the landing, it stalled the frames in which the GET screen
+                // faded and the page rose (owner 2026-11-25: 「タップした後の図鑑のアニメーションカクカクしてる…止まらない
+                // ようにして」).
+                if router.tab == .dex || router.dexWarm != nil {
+                    let shown = router.tab == .dex
+                    DexView(startInGallery: router.landing != nil || router.landingStickerId != nil || router.dexWarm != nil,
+                            warming: !shown && router.landing == nil)
+                        // Built ahead: there, not seen, not touched, not read out. A catch landing: the page rises over
+                        // the camera screen (film v6: 140 px with a fade, .4 s) — these two when it was built ahead, the
+                        // transition below when it is built now.
+                        .opacity(shown ? 1 : 0)
+                        .offset(y: shown ? 0 : 52)
+                        .allowsHitTesting(shown)
+                        .accessibilityHidden(!shown)
                         .transition(router.landing != nil
                                     ? AnyTransition.asymmetric(insertion: AnyTransition.offset(y: 52).combined(with: .opacity),
                                                                removal: .opacity)
                                     : AnyTransition.opacity)
                         .zIndex(router.landing != nil ? 1 : 0)
+                }
+                switch router.tab {
+                case .home: HomeView().environment(\.colorScheme, .light).statusBarTone(.dark)  // the paper album stays paper
+                case .dex: EmptyView()   // its page is above
                 case .camera:
                     // Without the AI consent the camera stays off: its photos would go to AI (AIConsentGateView).
                     Group {
                         if AIConsent.shared.isGranted { CaptureView() } else { AIConsentGateView() }
                     }
+                        // It stays under the rising page until the page covers it (.4 s), and is gone before the
+                        // camera is put back (`CaptureView.addToDex` resets it .7 s after the tap: still here then, the
+                        // whole camera screen was built again under the page, in the middle of the landing).
                         .transition(router.landing != nil
                                     ? AnyTransition.asymmetric(insertion: .opacity,
-                                                               removal: AnyTransition.opacity.animation(.linear(duration: 0.01).delay(0.6)))
+                                                               removal: AnyTransition.opacity.animation(.linear(duration: 0.01).delay(0.45)))
                                     : AnyTransition.opacity)
                 case .review: ReviewView()
                 case .settings: SettingsView()
@@ -474,6 +506,8 @@ struct MainTabView: View {
             // The camera screen's full-screen catch is over once another tab shows: coming back to the camera starts
             // from its own setting (`CaptureView.syncChrome` on appear), never from one it left behind.
             if tab != .camera { router.tabBarHidden = false }
+            // A page built ahead for a catch (`dexWarm`) belongs to the camera's GET moment only.
+            if tab != .camera, router.dexWarm != nil { router.dexWarm = nil }
         }
         .onChange(of: router.detailSticker) { old, s in
             if s != nil, router.tour == .dexOpen {

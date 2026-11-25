@@ -104,6 +104,8 @@ final class CCParticles {
             c.scaleBy(x: 1, y: cos(p.r * 2.3))
             c.fill(Path(CGRect(x: -p.w / 2, y: -p.h / 2, width: p.w, height: p.h)), with: .color(p.color))
         }
+        // No star to draw: no layer either (a blurred layer the size of the canvas, made on every frame for nothing).
+        guard parts.contains(where: { $0.delay <= 0 && $0.star && $0.life > 0 }) else { return }
         ctx.drawLayer { layer in
             layer.addFilter(.shadow(color: .rgba(255, 245, 200, 0.95), radius: 5))
             for p in parts where p.delay <= 0 && p.star && p.life > 0 {
