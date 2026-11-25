@@ -106,6 +106,8 @@ struct DexView: View {
     /// The landing word while its light is on the way: first the gallery as before the catch, then the room made
     /// for it (its waiting square at its place by No.). Cleared the moment it lands: the square becomes the word.
     @State private var galleryHold: DexBook.Hold?
+    /// The gallery's cards as last built (`gallery`), reused while what they are built from is the same.
+    @State private var galleryMemo = DexGalleryMemo()
     /// The gallery slot being landed on / pointed at (frame reporting, fillIn). Gone again once the landing is over.
     @State private var focus: DexGalleryFocus?
     /// Film v6: after a catch lands, its NEW badge, its category's rolling count and the next shadow's ring (kept
@@ -161,8 +163,9 @@ struct DexView: View {
     /// The header's count held back during a catch's landing (film v6: it rolls after the impact).
     private var headerLag: Int {
         guard let l = router.landing, !l.alreadyCaught, l.ticks < 2 else { return 0 }
+        let words = galleryMemo.wordCount(dex.stickers, version: dex.stickersVersion, lang: lang)
         let others = dex.stickers.filter { $0.id != l.stickerId }
-        return max(0, DexBook.words(dex.stickers, lang: lang).count - DexBook.words(others, lang: lang).count)
+        return max(0, words - DexBook.words(others, lang: lang).count)
     }
 
     /// The landing slot with the sticker's anticipation and hit times (film v6: its silhouette tints blue).
@@ -240,16 +243,9 @@ struct DexView: View {
         // The first tour starts on the slide dex (カード), whatever view was open last. Each of its dex steps shows its own
         // view (カード, 地図, ギャラリー, the shadows in the gallery) and lights the button of the next, so 「次へ」, 「戻る」
         // (2026-11-07) and skipping all show the view the card explains.
-        .onChange(of: router.tour) { _, step in
-            // Each view step starts untouched: its next button lights only after the learner touches the view.
-            router.tourDexTouched = false
-            syncTourView(step)
-        }
+        .onChange(of: router.tour) { _, step in syncTourView(step) }
         // Back on this tab in the middle of the guide (「戻る」 from the review to the shadows): the same view.
-        .onAppear {
-            router.tourDexTouched = false
-            syncTourView(router.tour)
-        }
+        .onAppear { syncTourView(router.tour) }
     }
 
     /// The view a dex step of the guide is shown on (`DexView.onChange(of: router.tour)`).
@@ -294,7 +290,7 @@ struct DexView: View {
                     // N枚 counts words (one per headword, like the prototype's S.dex), not stickers. During a catch's
                     // landing it still shows the dex before it until it rolls (film v6: impact + .42). No 影 count any
                     // more (owner 2026-10-20: 「図鑑の影の数字は消して」).
-                    Text(L("\(DexBook.words(dex.stickers, lang: lang).count - headerLag)枚"))
+                    Text(L("\(galleryMemo.wordCount(dex.stickers, version: dex.stickersVersion, lang: lang) - headerLag)枚"))
                         .scaledFont(size: 12, weight: .semibold)
                         .foregroundStyle(Theme.muted)
                         .contentTransition(.numericText())
@@ -518,9 +514,17 @@ struct DexView: View {
     // MARK: ギャラリー (category shadows)
 
     private var gallery: some View {
-        // The No. always come from the whole dex: narrowing the words never renumbers them.
-        let numbers = DexNumbering.assign(dex.stickers, lang: lang, uid: SupabaseClient.shared.userId)
-        let sections = gallerySections(numbers: numbers)
+        // The No. always come from the whole dex: narrowing the words never renumbers them. Built again only when the
+        // words, the hold or the filters change: a catch's landing redraws this page at its anticipation, launch,
+        // impact and each rolling count, and each time every sticker was sorted and numbered (with a read of the saved
+        // numbers) and the twenty cards built anew — at the moment the sticker set off (owner 2026-11-25: 「図鑑に追加
+        // するアニメーションもカクカクしてる」).
+        let key = DexGalleryMemo.Key(version: dex.stickersVersion, count: dex.stickers.count, lang: lang,
+                                     uid: SupabaseClient.shared.userId, hold: galleryHold,
+                                     category: categoryFilter, day: dayFilter, query: query)
+        let sections = galleryMemo.sections(for: key) {
+            gallerySections(numbers: DexNumbering.assign(dex.stickers, lang: lang, uid: SupabaseClient.shared.userId))
+        }
         return ScrollViewReader { proxy in
             ScrollView {
                 // .dex-body: padding 4 18 40 (each .dcat adds its 12 pt margin on top)
@@ -534,8 +538,6 @@ struct DexView: View {
             }
             .scrollIndicators(.hidden)
             .refreshable { await dex.load() }
-            // The first tour's gallery step: scrolled by the learner's own finger (`AppRouter.tourDexTouched`).
-            .onScrollPhaseChange { _, phase in if phase == .interacting { router.touchTour(.dexGrid) } }
             .onAppear { takeLanding(proxy) }
             // The first tour: the word it caught is brought into view for the shadows' card and its tap.
             .task(id: router.tour) {
@@ -583,7 +585,10 @@ struct DexView: View {
                     }
                 }
                 Task {
-                    await scroll(to: id, proxy: proxy)
+                    // The square is where the sticker landed (the room was made before the flight): scrolled only when
+                    // it is off screen. `scroll` centres the category card first, a jump at the very moment of impact.
+                    let onScreen = l.target.map { $0.maxY > 0 && $0.minY < l.screen.height } ?? false
+                    if !onScreen { await scroll(to: id, proxy: proxy) }
                     // one more frame so the slot reports its new frame before the burst
                     try? await Task.sleep(for: .milliseconds(16))
                     l.settled = true
@@ -948,9 +953,6 @@ struct DexMapView: View {
     /// Until then the reading line ignores the rows passing it: the list is being moved by code, not by the
     /// user (web `programmatic`), so the list and the map never fight the user's own scroll.
     @State private var quietUntil: Date = .distantPast
-    /// The last move of the map by code (`focus`): a camera change ending well after it is the learner's own (the first
-    /// tour's map step counts it as touched).
-    @State private var codeMovedAt: Date = .distantPast
 
     /// The panel pulled up to its old height (a drag up on its grabber); down again on a drag down.
     @State private var panelExpanded: Bool = false
@@ -1026,7 +1028,6 @@ struct DexMapView: View {
             .mapStyle(.standard(elevation: .flat, pointsOfInterest: .all))
             .onMapCameraChange(frequency: .onEnd) { ctx in
                 visibleRegion = ctx.region
-                if Date().timeIntervalSince(codeMovedAt) > 1.5 { router?.touchTour(.dexMap) }
             }
             .ignoresSafeArea(edges: .bottom)
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { f in
@@ -1061,7 +1062,6 @@ struct DexMapView: View {
             // The rows laid out under the reading line as the map opens are not the user's scroll: no tick then — the
             // tap that opened the map has already ponned (owner 2026-10-20: two sounds at once on the map icon).
             quietUntil = Date().addingTimeInterval(0.8)
-            codeMovedAt = Date()
             SoundService.shared.warmTicks()
             if day == nil { day = days.first }
             #if DEBUG
@@ -1085,7 +1085,6 @@ struct DexMapView: View {
                 ScrollView {
                     DexCalendarView(stickers: stickers, selectedDay: $day, onOpen: onOpen) { picked in
                         day = picked
-                        router?.touchTour(.dexMap)
                         panelOpen = true
                         showDatePicker = false
                     }
@@ -1133,7 +1132,6 @@ struct DexMapView: View {
             return CLLocationCoordinate2D(latitude: la, longitude: lo)
         } ?? located.first
         guard let a else { return }
-        codeMovedAt = Date()
         let origin = CLLocation(latitude: a.latitude, longitude: a.longitude)
         let pts = located.filter { origin.distance(from: CLLocation(latitude: $0.latitude, longitude: $0.longitude)) <= 3000 }
         guard !pts.isEmpty else { return }
@@ -1179,7 +1177,6 @@ struct DexMapView: View {
     /// stop's pin rises wearing it, and the map moves there when it is out of view (web `onListScroll`).
     private func read(_ s: Sticker) {
         guard Date() >= quietUntil, s.id != selectedId else { return }
-        router?.touchTour(.dexMap)
         // A word passing the reading line ticks (owner 2026-10-15; which tick, or none: 設定 › 開発者), with the same
         // light tap as a picker's detent.
         SoundService.shared.tick(.timeline)
@@ -1218,7 +1215,6 @@ struct DexMapView: View {
         let shadowRadius: CGFloat = isOn ? 8 : 5
         let shadowY: CGFloat = isOn ? 6 : 2
         return Button {
-            router?.touchTour(.dexMap)
             let wasOpen = panelOpen
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedId = s.id; panelOpen = true }
             // A pin tap is the one selection the list follows: it brings that stop's rows up to the reading line.
@@ -1424,7 +1420,6 @@ struct DexMapView: View {
         let idx = day.flatMap { d in days.firstIndex(of: d) }
         return HStack(spacing: 10) {
             Button {
-                router?.touchTour(.dexMap)
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { panelOpen.toggle() }
                 // Opened again: back at the word being read (a new list would start at the top and read its first).
                 if panelOpen, let v = groups.first(where: { $0.items.contains { $0.id == selectedId } }) {
@@ -1463,7 +1458,6 @@ struct DexMapView: View {
     private func circleButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.selection()
-            router?.touchTour(.dexMap)
             action()
         } label: {
             Image(systemName: icon)
@@ -1549,5 +1543,40 @@ private struct DexImpactShake: ViewModifier, Animatable {
         let u = Double(p) * 0.35
         let a = p > 0 && p < 1 ? 2.9 * exp(-u / 0.055) : 0
         content.offset(x: a * sin(u * 2 * .pi * 27), y: a * 0.6 * cos(u * 2 * .pi * 23))
+    }
+}
+
+/// The dex gallery's cards and the word count as last built (`DexView.gallery`, the header's 「n枚」). A reference held
+/// in the view's state: filled while the page is drawn, without drawing it again.
+final class DexGalleryMemo {
+    struct Key: Equatable {
+        let version: Int
+        let count: Int
+        let lang: String
+        let uid: String?
+        let hold: DexBook.Hold?
+        let category: Int?
+        let day: Date?
+        let query: String
+    }
+
+    private var key: Key?
+    private var built: [DexSection] = []
+    private var wordsKey: (version: Int, count: Int, lang: String)?
+    private var words = 0
+
+    func sections(for key: Key, build: () -> [DexSection]) -> [DexSection] {
+        if key == self.key { return built }
+        built = build()
+        self.key = key
+        return built
+    }
+
+    /// One per word (`DexBook.words`), counted again only after the words change.
+    func wordCount(_ stickers: [Sticker], version: Int, lang: String) -> Int {
+        if let k = wordsKey, k.version == version, k.count == stickers.count, k.lang == lang { return words }
+        words = DexBook.words(stickers, lang: lang).count
+        wordsKey = (version, stickers.count, lang)
+        return words
     }
 }

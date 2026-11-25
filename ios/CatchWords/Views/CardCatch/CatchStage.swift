@@ -484,6 +484,9 @@ nonisolated enum StageBackdrop {
     private static let cache = NSCache<NSString, Pair>()
     private static let lock = NSLock()
     nonisolated(unsafe) private static var making: Set<String> = []
+    /// The last pictures handed out and what they were for: asked for on every frame of the choose screen and the GET
+    /// moment, a hit no longer builds the cache's text key (seven numbers written out) on each of those frames.
+    nonisolated(unsafe) private static var last: (size: CGSize, scale: CGFloat, palette: StagePalette, pair: Pair)?
 
     private static func key(_ size: CGSize, _ scale: CGFloat, _ p: StagePalette) -> String {
         "\(Int(size.width))x\(Int(size.height))@\(scale) \(p.glow.r),\(p.glow.g),\(p.glow.b) \(p.glow2.r),\(p.glow2.g),\(p.glow2.b)"
@@ -492,8 +495,19 @@ nonisolated enum StageBackdrop {
     /// The pictures when made; else nil, and they are made off the main thread (the canvas draws meanwhile).
     static func ifReady(size: CGSize, scale: CGFloat, palette: StagePalette) -> Pair? {
         guard !CatchDrawing.legacy, size.width > 1, size.height > 1 else { return nil }
+        lock.lock()
+        if let l = last, l.size == size, l.scale == scale, l.palette == palette {
+            lock.unlock()
+            return l.pair
+        }
+        lock.unlock()
         let k = key(size, scale, palette)
-        if let hit = cache.object(forKey: k as NSString) { return hit }
+        if let hit = cache.object(forKey: k as NSString) {
+            lock.lock()
+            last = (size, scale, palette, hit)
+            lock.unlock()
+            return hit
+        }
         lock.lock()
         let start = making.insert(k).inserted
         lock.unlock()
@@ -759,11 +773,18 @@ struct CatchStageScene: View {
                 RadialGradient(stops: [.init(color: Color(hex: 0xDDEEFF), location: 0),
                                        .init(color: .rgba(234, 244, 255, 0.75), location: 0.55),
                                        .init(color: .rgba(234, 244, 255, 0), location: 1)],
-                               center: UnitPoint(x: p.still.x / max(1, size.width), y: (p.still.y + 20 * k) / max(1, size.height)),
+                               center: UnitPoint(x: Self.half(p.still.x) / max(1, size.width),
+                                                 y: (Self.half(p.still.y) + 20 * k) / max(1, size.height)),
                                startRadius: 0, endRadius: r)
             }
             .opacity(page)
-            CatchStageCanvas(alpha: stageA, cx: p.still.x, tc: tc, live: live, palette: palette, calm: calm)
+            // Before the choice the stage is dark (alpha 0) and draws nothing: its clock is held still then, so the
+            // canvas is left alone on the choose screen's frames instead of being laid out and drawn empty on each
+            // (owner 2026-11-25: the choose screen stuttered while the learner typed). The first call still starts the
+            // backdrop's pictures being made for the catch.
+            let stageOn = stageA > 0.001
+            CatchStageCanvas(alpha: stageOn ? stageA : 0, cx: stageOn ? p.still.x : 0, tc: stageOn ? tc : -10,
+                             live: stageOn ? live : 0, palette: palette, calm: calm)
             if !hideSticker {
                 floorLayer(p, stageA: stageA, tc: tc)
                 sticker(p, tc: tc)
@@ -773,6 +794,11 @@ struct CatchStageScene: View {
         .frame(width: size.width, height: size.height)
         .allowsHitTesting(false)
     }
+
+    /// To the half point. The springs that lift the sticker never stop moving by tiny amounts, so the page's glow and
+    /// the soft shadow under the floating sticker (a blur) were drawn again on every frame of the choose screen while
+    /// nothing visible moved; in half-point steps they stand still once the sticker has risen.
+    private static func half(_ v: CGFloat) -> CGFloat { (v * 2).rounded() / 2 }
 
     private func sticker(_ p: Film6.Pose, tc: Double) -> some View {
         let border = calm ? Film6.seg(tc, Film6.cut, Film6.cut + 0.2) : Film6.outCubic(Film6.seg(tc, Film6.cut, Film6.cut + 0.3))
@@ -794,10 +820,10 @@ struct CatchStageScene: View {
         let pose = Film6.clamp(Film6.seg(sinceTap, 0.05, 0.4))
         Ellipse()
             .fill(Color(hex: 0x0F2850))
-            .frame(width: p.size.width * 1.05, height: max(2, p.size.height * 0.09))
+            .frame(width: Self.half(p.size.width * 1.05), height: max(2, Self.half(p.size.height * 0.09)))
             .blur(radius: 16 * k)
             .opacity(0.2 * (sinceChoice == nil ? pose : 1) * (1 - stageA * 0.6))
-            .position(x: p.center.x, y: p.still.y + p.size.height * 0.5 + p.size.height * 0.1)
+            .position(x: Self.half(p.center.x), y: Self.half(p.still.y + p.size.height * 0.5 + p.size.height * 0.1))
         if stageA > 0.001 {
             let sa = stageA * Film6.clamp(1 - lift / 160) * 0.42
             if sa > 0.005 {

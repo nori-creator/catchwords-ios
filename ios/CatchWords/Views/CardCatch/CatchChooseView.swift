@@ -109,8 +109,6 @@ struct CatchChooseOverlay: View {
         cardStill = true
     }
 
-    @State private var typed: String = ""
-    @FocusState private var typing: Bool
     /// The field comes in with the card's rows.
     @State private var fieldShown = false
     /// The field's height as drawn (it grows with a large text size), for the first tour's room under the rows.
@@ -197,7 +195,7 @@ struct CatchChooseOverlay: View {
             if hasCard, onSearch != nil, chosenAt == nil, closingAt == nil {
                 VStack {
                     Spacer()
-                    typeField
+                    ChooseTypeField(searching: searching, searchError: searchError, onSearch: { onSearch?($0) })
                         // The first tour's pill goes between the lit rows and this field (`TourStep.pillUnderLit`).
                         .tourAnchor(.chooseField, if: tourLit)
                         // Read only in the first tour, so outside it nothing is written and the screen is drawn exactly
@@ -231,7 +229,7 @@ struct CatchChooseOverlay: View {
         let cardIn = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.5, 0.82))
         let fold = chosenAt == nil ? 0 : Film6.inOutCubic(Film6.seg(sinceP, 0.22, 0.5))
         let footIn = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.9, 1.1))
-        // Room under the card for the line under it and the field to type a word (`typeField`).
+        // Room under the card for the line under it and the field to type a word (`ChooseTypeField`).
         // The first tour: the field as tall as it is drawn and the pill's room taken too, so the pill never sits on the
         // rows or the field at a large text size or on a small iPhone (owner 2026-11-23). Other times as before.
         let field = onSearch == nil ? 0 : (tourLit ? max(Self.fieldHeight, fieldMeasured + 16) : Self.fieldHeight)
@@ -325,7 +323,8 @@ struct CatchChooseOverlay: View {
         let others = chosen != nil && !isPick ? Film6.seg(sinceP, 0.06, 0.26) : 0
         return HStack(spacing: 8) {
             Button { onChoose(i) } label: {
-                content(c, first: i == 0)
+                ChooseRowContent(candidate: c, first: i == 0)
+                    .equatable()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
             }
@@ -363,13 +362,32 @@ struct CatchChooseOverlay: View {
         .opacity(1 - others * 0.55)
     }
 
-    private func content(_ c: Candidate, first: Bool) -> some View {
+    // MARK: Typing a word
+
+    static let fieldHeight: CGFloat = 92
+}
+
+/// One way to say it on the choose card: what kind of name it is, the word with its reading, its meaning and how it
+/// differs. Its own view, equal while its word is: the card is built again on every frame while it moves (coming in, a
+/// choice, new rows), and the reading's layout and the meaning's language checks (string work) ran on every one of
+/// those frames (owner 2026-11-25: 「図鑑に追加するアニメーションもカクカクしてる」).
+private struct ChooseRowContent: View, Equatable {
+    let candidate: Candidate
+    let first: Bool
+
+    private let ink = Color(hex: 0x0B121A)
+    private let muted = Color(hex: 0x5C646F)
+
+    nonisolated static func == (a: Self, b: Self) -> Bool { a.first == b.first && a.candidate == b.candidate }
+
+    var body: some View {
+        let c = candidate
         // A typed word's `gloss` when the server sent one (#185), else the meaning's first gloss.
         let meaning = c.shownMeaning
         let note = ReaderLanguage.shown(c.distinction, hanOnlyOk: false)
         // Every row says what kind of name it is (owner 2026-10-15: 「どの候補にも必ず印を付ける」 — the film's everyday row
         // had none, and a list whose registers were all common or unknown showed no label at all).
-        return VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4) {
             RegisterTag(register: NameRegister.of(c))
             ZhuyinWordView(headword: c.headword, zhuyin: c.zhuyin, size: first ? 30 : 23, weight: first ? .semibold : .medium,
                            color: ink, readingColor: muted, pinyin: c.pinyin)
@@ -389,14 +407,28 @@ struct CatchChooseOverlay: View {
             }
         }
     }
+}
 
-    // MARK: Typing a word
+/// 「リストにない言葉を探す」 under the choose card: a word in the display language or the learning language, looked up the
+/// same way as under the photo (owner 2026-10-15). Its own view with its own text: a keystroke redraws this box alone.
+/// The text lived in the whole choose screen, so every keystroke built the screen again — the card and its rows
+/// measured twice (`ViewThatFits`) and the stage — and the letters and the waiting light came in jerks (owner
+/// 2026-11-25: 「単語の検索欄で検索すると、青く光るバーがカクカクしているのと、入力した文字もカクカクする」).
+private struct ChooseTypeField: View {
+    /// A typed word is being looked up (`CaptureViewModel.isLookingUp`).
+    let searching: Bool
+    /// Nothing found for what was typed (shown under the field).
+    let searchError: String?
+    let onSearch: (String) -> Void
 
-    static let fieldHeight: CGFloat = 92
+    @State private var typed: String = ""
+    @FocusState private var typing: Bool
 
-    /// 「違う単語を入力」 under the card: a word in the display language or the learning language, looked up the same
-    /// way as under the photo (owner 2026-10-15).
-    private var typeField: some View {
+    private let ink = Color(hex: 0x0B121A)
+    private let muted = Color(hex: 0x5C646F)
+    private let line = Color(hex: 0xE0E5EB)
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(L("リストにない言葉を探す"))
                 .scaledFont(size: 12, weight: .medium)
@@ -449,6 +481,6 @@ struct CatchChooseOverlay: View {
         guard !q.isEmpty, !searching else { return }
         typing = false
         typed = ""
-        onSearch?(q)
+        onSearch(q)
     }
 }

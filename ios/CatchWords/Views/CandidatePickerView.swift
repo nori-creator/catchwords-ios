@@ -25,7 +25,9 @@ struct CandidatePickerView: View {
     /// step), so the words stayed on screen and the celebration never opened (the UI tour's 5 of 6, trace 2026-10-11).
     let scanning: Bool
     @State private var appeared: Bool = false
-    @State private var typed: String = ""
+    /// Something is typed in the field under the photo (`PickerTypeField` keeps the text itself: a keystroke redraws only
+    /// the field, never this screen with its photo and tags).
+    @State private var typedHasText = false
     @FocusState private var inputFocused: Bool
     @Environment(\.appReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
@@ -163,7 +165,7 @@ struct CandidatePickerView: View {
         }
         // The field goes back to its one line when it is left with nothing typed and nothing found.
         .onChange(of: inputFocused) { _, focused in
-            guard !focused, typed.trimmingCharacters(in: .whitespaces).isEmpty, vm.typedCandidates.isEmpty,
+            guard !focused, !typedHasText, vm.typedCandidates.isEmpty,
                   vm.searchError == nil, !vm.isLookingUp else { return }
             withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) { searchOpen = false }
         }
@@ -847,7 +849,8 @@ struct CandidatePickerView: View {
     private var searchCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             if !vm.typedCandidates.isEmpty { typedList }
-            manualInput
+            PickerTypeField(searching: vm.isLookingUp, searchError: vm.searchError, focus: $inputFocused,
+                            hasText: $typedHasText, onSearch: { vm.search(text: $0) })
         }
         .padding(14)
         .background(Theme.card, in: .rect(cornerRadius: 22, style: .continuous))
@@ -902,8 +905,24 @@ struct CandidatePickerView: View {
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
+}
 
-    private var manualInput: some View {
+/// 「リストにない言葉を探す」 under the photo: the field and 検索. Its own view with its own text, so a keystroke redraws this
+/// field alone — the text lived in the whole screen, and every keystroke built the photo stage again with its tags
+/// (each tag's name goes through the language checks) and the choose screen over it (owner 2026-11-25: 「入力した文字も
+/// カクカクする」).
+private struct PickerTypeField: View {
+    let searching: Bool
+    let searchError: String?
+    /// The screen's own focus (it closes the field when it is left empty, hides the finger while typing).
+    let focus: FocusState<Bool>.Binding
+    /// Told only when the field goes from empty to typed or back (`CandidatePickerView.typedHasText`).
+    @Binding var hasText: Bool
+    let onSearch: (String) -> Void
+
+    @State private var typed: String = ""
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(L("リストにない言葉を探す"))
                 .scaledFont(size: 13, weight: .medium)
@@ -914,17 +933,17 @@ struct CandidatePickerView: View {
                 TextField("", text: $typed, prompt: Text(L("例: ティッシュ")).foregroundStyle(Theme.muted.opacity(0.7)))
                     .scaledFont(size: 16)
                     .foregroundStyle(Theme.foreground)
-                    .focused($inputFocused)
+                    .focused(focus)
                     .submitLabel(.search)
                     .onSubmit(submit)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 46)
                     .background(Theme.background, in: .rect(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.primary.opacity(inputFocused ? 0.6 : 0.25), lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.primary.opacity(focus.wrappedValue ? 0.6 : 0.25), lineWidth: 1))
                     .accessibilityIdentifier("picker.field")
                 Button(action: submit) {
                     HStack(spacing: 6) {
-                        if vm.isLookingUp {
+                        if searching {
                             ProgressView().controlSize(.small)
                         } else {
                             Image(systemName: "magnifyingglass")
@@ -938,10 +957,10 @@ struct CandidatePickerView: View {
                     .background(Theme.secondary, in: .rect(cornerRadius: 12))
                 }
                 .buttonStyle(PressableStyle())
-                .disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty || vm.isLookingUp)
+                .disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty || searching)
                 .accessibilityIdentifier("picker.submit")
             }
-            if let err = vm.searchError {
+            if let err = searchError {
                 Text(err)
                     .scaledFont(size: 13)
                     .foregroundStyle(Theme.destructive)
@@ -950,14 +969,18 @@ struct CandidatePickerView: View {
                     .transition(.opacity)
             }
         }
+        .onChange(of: typed) { _, t in
+            let has = !t.trimmingCharacters(in: .whitespaces).isEmpty
+            if has != hasText { hasText = has }
+        }
     }
 
     private func submit() {
         let q = typed.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty, !vm.isLookingUp else { return }
-        inputFocused = false
+        guard !q.isEmpty, !searching else { return }
+        focus.wrappedValue = false
         typed = ""
-        vm.search(text: q)
+        onSearch(q)
     }
 }
 
