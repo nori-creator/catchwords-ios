@@ -83,26 +83,35 @@ struct DexView: View {
     /// A catch landing opens straight on the gallery: built first as the slide dex and switched on appearing, the
     /// landing paid for the cover flow (and its sound engine starting) as the page rose (owner 2026-10-20: the add to
     /// 図鑑 stuttered).
-    init(startInGallery: Bool = false) {
+    ///
+    /// `warming`: built ahead of a catch's landing, unseen under the camera screen (`AppRouter.dexWarm`): the gallery's
+    /// cards first, its squares once the page stands where the word will land (`warm`).
+    init(startInGallery: Bool = false, warming: Bool = false) {
         var start: DexMode = startInGallery ? .grid : .cover
         #if DEBUG
         if let m = StoreShot.dexMode.flatMap(DexMode.init(rawValue:)) { start = m }
         #endif
         _mode = State(initialValue: start)
+        _warmSquares = State(initialValue: !warming)
     }
 
     /// Opened on one view (the previews of each).
     init(start: DexMode) {
         _mode = State(initialValue: start)
+        _warmSquares = State(initialValue: true)
     }
+    /// False from a page built ahead (`warming`) until it has been put where the word will land: the gallery's cards
+    /// stand without their squares meanwhile. Only ever looked at while the page is unseen (`showsSquares`).
+    @State private var warmSquares: Bool
     /// One of the dex's 20 categories (DexCatalog), or nil for all.
     @State private var categoryFilter: Int?
     @State private var dayFilter: Date?
     @State private var query: String = ""
     @State private var showCalendar: Bool = false
     @State private var openMenu: DexFilterMenu?
-    /// The header's height (the content starts under it).
-    @State private var headerHeight: CGFloat = 120
+    /// The header's height (the content starts under it). It starts at the height the header last had (the page is
+    /// built anew each time the tab opens: from a fixed 120 the gallery was drawn, then moved, as a catch's page rose).
+    @State private var headerHeight: CGFloat = DexGalleryMetrics.headerHeight
     /// The landing word while its light is on the way: first the gallery as before the catch, then the room made
     /// for it (its waiting square at its place by No.). Cleared the moment it lands: the square becomes the word.
     @State private var galleryHold: DexBook.Hold?
@@ -163,9 +172,13 @@ struct DexView: View {
     /// The header's count held back during a catch's landing (film v6: it rolls after the impact).
     private var headerLag: Int {
         guard let l = router.landing, !l.alreadyCaught, l.ticks < 2 else { return 0 }
-        let words = galleryMemo.wordCount(dex.stickers, version: dex.stickersVersion, lang: lang)
-        let others = dex.stickers.filter { $0.id != l.stickerId }
-        return max(0, words - DexBook.words(others, lang: lang).count)
+        return galleryMemo.wordLag(dex.stickers, version: dex.stickersVersion, lang: lang, without: l.stickerId)
+    }
+
+    /// The gallery's squares are drawn. Always, except on a page built ahead and not yet put where the word will land
+    /// (`warmSquares`) — and only while that page is unseen: on the 図鑑's tab, or with a landing on, they are there.
+    private var showsSquares: Bool {
+        warmSquares || router.tab == .dex || router.landing != nil || router.dexWarm == nil
     }
 
     /// The landing slot with the sticker's anticipation and hit times (film v6: its silhouette tints blue).
@@ -329,7 +342,16 @@ struct DexView: View {
             proxy.size.height
         } action: { h in
             UITestTrace.geometry("dex.header", "\(h) was \(headerHeight)")
-            headerHeight = h
+            DexGalleryMetrics.headerHeight = h
+            if router.landing != nil || router.dexWarm != nil {
+                // A measurement, never a movement: inside the animation of a catch's page rising, the gallery under the
+                // header would glide to its place, the whole page moved on each frame of it.
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { headerHeight = h }
+            } else {
+                headerHeight = h
+            }
         }
     }
 
@@ -520,15 +542,20 @@ struct DexView: View {
         // numbers) and the twenty cards built anew — at the moment the sticker set off (owner 2026-11-25: 「図鑑に追加
         // するアニメーションもカクカクしてる」).
         let key = DexGalleryMemo.Key(version: dex.stickersVersion, count: dex.stickers.count, lang: lang,
-                                     uid: SupabaseClient.shared.userId, hold: galleryHold,
+                                     uid: SupabaseClient.shared.userId, reader: L10n.lang, hold: galleryHold,
                                      category: categoryFilter, day: dayFilter, query: query)
         let sections = galleryMemo.sections(for: key) {
             gallerySections(numbers: DexNumbering.assign(dex.stickers, lang: lang, uid: SupabaseClient.shared.userId))
         }
+        let shown = shownFocus
         return ScrollViewReader { proxy in
             ScrollView {
                 // .dex-body: padding 4 18 40 (each .dcat adds its 12 pt margin on top)
-                DexGallery(sections: sections, focus: shownFocus, calm: reduceMotion, marks: shownMarks,
+                // Each card is drawn again only when its own squares, its focus or its marks change (`stamps`): the
+                // landing's focus and marks go to the card their square is in (−1: in no card yet, held back).
+                DexGallery(sections: sections, stamps: galleryMemo.stamps, focus: shown,
+                           focusCategory: shown.map { galleryMemo.places[$0.id] ?? -1 },
+                           calm: reduceMotion, marks: shownMarks, squares: showsSquares,
                            onTargetFrame: { frame in router.landing?.target = frame },
                            onOpen: { router.openDetail($0, zoom: true) })
                     .padding(.top, max(0, headerHeight - 8))
@@ -539,6 +566,8 @@ struct DexView: View {
             .scrollIndicators(.hidden)
             .refreshable { await dex.load() }
             .onAppear { takeLanding(proxy) }
+            // Built ahead under the camera screen while a catch's GET moment plays: put where the word will land.
+            .task(id: router.dexWarm) { await warm(proxy) }
             // The first tour: the word it caught is brought into view for the shadows' card and its tap.
             .task(id: router.tour) {
                 guard router.tour == .dexShadow || router.tour == .dexOpen, let id = router.tourStickerId else { return }
@@ -630,6 +659,7 @@ struct DexView: View {
         // A landing that ended without its pon (cut short by `CatchLanding.longest`, e.g. the app was suspended
         // mid-flight) while this page was away: its word is not held back any longer.
         if router.landing == nil, let held = galleryHold?.stickerId { releaseHold(of: held) }
+        if router.landing != nil, !warmSquares { warmSquares = true }
         if let l = router.landing, l.fillStart == nil {
             let id = landingSlot(l)
             if l.alreadyCaught {
@@ -668,6 +698,52 @@ struct DexView: View {
                 if focus?.fillStart == start { focus = nil }
             }
         }
+    }
+
+    /// A page built ahead of a catch's landing (`AppRouter.dexWarm`, set by the GET moment once its headline has
+    /// settled): unseen under the camera screen, it is put where the word will land — its category's card in the
+    /// middle, then the square its own will open beside — and only then are its squares built (`warmSquares`), the
+    /// ones the landing shows. Building the page was the stall between the GET moment and the 図鑑 (owner 2026-11-25:
+    /// 「止まらないようにして」): the header, twenty cards and a screenful of squares with their readings, laid out
+    /// several times over, in the very frames the GET screen faded and the page rose; then the scroll to the word's
+    /// place built a second screenful. Here it happens while the sticker only floats on its stage. The landing itself
+    /// (`takeLanding`) goes on from wherever this got to.
+    private func warm(_ proxy: ScrollViewProxy) async {
+        guard let w = router.dexWarm, router.landing == nil, router.tab != .dex, mode == .grid else { return }
+        // A frame for the cards to stand at their heights (known before any square is built).
+        try? await Task.sleep(for: .milliseconds(40))
+        guard !Task.isCancelled, router.dexWarm == w, router.landing == nil else { return }
+        let place = warmPlace(w)
+        UITestTrace.log("dex warm \(w.headword) category=\(place.category) square=\(place.slot ?? "-")")
+        proxy.scrollTo("dexcat-\(place.category)", anchor: .center)
+        warmSquares = true
+        guard let slot = place.slot else { return }
+        try? await Task.sleep(for: .milliseconds(30))
+        guard !Task.isCancelled, router.dexWarm == w, router.landing == nil else { return }
+        proxy.scrollTo(slot, anchor: .center)
+    }
+
+    /// Where a word about to be caught will land: its category's card, and the square that stands at its place by No.
+    /// now (as `roomAnchor` finds it once the word is in the dex). A re-encounter: its word's own square.
+    private func warmPlace(_ w: DexWarm) -> (category: Int, slot: String?) {
+        if let id = w.ownedStickerId, let s = dex.sticker(id: id) {
+            let key = DexCatalog.norm(s.word?.headword ?? "", lang: lang)
+            let square = key.isEmpty ? nil : DexBook.words(dex.stickers, lang: lang).first {
+                DexCatalog.norm($0.word?.headword ?? "", lang: lang) == key
+            }
+            let shown = square ?? s
+            return (DexBook.category(of: shown, lang: lang), shown.id)
+        }
+        let item = DexCatalog.item(headword: w.headword, lang: lang)
+        let category = item?.category ?? DexCatalog.category(forKey: w.categoryKey)
+        let slots = galleryMemo.current.first { $0.category.no == category }?.slots ?? []
+        // A word outside the catalog gets the next free No.: after every word caught, before the shadows.
+        let no = item?.baseNo ?? Int.max
+        let at = slots.first { slot in
+            guard case .caught(_) = slot.kind else { return true }
+            return (slot.no ?? Int.max) > no
+        }
+        return (category, at?.id ?? slots.last?.id)
     }
 
     /// The landing of `stickerId` ended. Normally its pon (`fillStart`) has already released the hold; when it was
@@ -858,6 +934,15 @@ struct DexFitWidth<Content: View>: View {
     /// past this, and a word's scale never needs it.
     private static var settle: CGFloat { 1.5 }
 
+    /// A measurement taken is never a movement: written inside an animation (a square built while a catch's page rises
+    /// or its room opens), the word's scale and box glided to their values — a layout of the square on every frame of
+    /// it, for every square built then (owner 2026-11-25: the add to 図鑑 stuttered).
+    private static func still(_ write: () -> Void) {
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t, write)
+    }
+
     var body: some View {
         let s = scale
         let measured = natural.width > 0
@@ -871,7 +956,7 @@ struct DexFitWidth<Content: View>: View {
             } action: { size in
                 guard abs(size.width - natural.width) > Self.settle || abs(size.height - natural.height) > Self.settle else { return }
                 UITestTrace.geometry("fit.natural", "\(size) was \(natural) available \(available)")
-                natural = size
+                Self.still { natural = size }
             }
             .scaleEffect(s)
             // The scaled word's own box (the frame centres the full-size word, and the scale is about its centre).
@@ -883,7 +968,7 @@ struct DexFitWidth<Content: View>: View {
             } action: { w in
                 guard abs(w - available) > Self.settle else { return }
                 UITestTrace.geometry("fit.available", "\(w) was \(available) natural \(natural)")
-                available = w
+                Self.still { available = w }
             }
             .clipped()
     }
@@ -1546,6 +1631,25 @@ private struct DexImpactShake: ViewModifier, Animatable {
     }
 }
 
+private extension DexSection {
+    /// The same squares showing the same things: the card drawn from one is the card drawn from the other.
+    func sameSquares(as other: DexSection) -> Bool {
+        guard category.no == other.category.no, caughtCount == other.caughtCount, slots.count == other.slots.count else {
+            return false
+        }
+        for (a, b) in zip(slots, other.slots) {
+            guard a.id == b.id, a.no == b.no else { return false }
+            switch (a.kind, b.kind) {
+            case (.caught(let x), .caught(let y)): if x != y { return false }
+            case (.shadow(let x), .shadow(let y)): if x != y { return false }
+            case (.pending, .pending): break
+            default: return false
+            }
+        }
+        return true
+    }
+}
+
 /// The dex gallery's cards and the word count as last built (`DexView.gallery`, the header's 「n枚」). A reference held
 /// in the view's state: filled while the page is drawn, without drawing it again.
 final class DexGalleryMemo {
@@ -1554,6 +1658,8 @@ final class DexGalleryMemo {
         let count: Int
         let lang: String
         let uid: String?
+        /// The display language (the cards' names and the squares' labels are written in it).
+        let reader: String
         let hold: DexBook.Hold?
         let category: Int?
         let day: Date?
@@ -1564,12 +1670,53 @@ final class DexGalleryMemo {
     private var built: [DexSection] = []
     private var wordsKey: (version: Int, count: Int, lang: String)?
     private var words = 0
+    private var lagKey: (version: Int, count: Int, lang: String, without: String)?
+    private var lag = 0
+    private var lastStamp = 0
+
+    /// The cards as last built.
+    var current: [DexSection] { built }
+    /// Category no → a number that is new each time that card's squares change (`DexGallery.stamps`): building the
+    /// cards again — a word held back, its room made, the hit, the save coming back — leaves every other card's number
+    /// as it was, and those cards are not drawn again.
+    private(set) var stamps: [Int: Int] = [:]
+    /// Square id → the category card it is in.
+    private(set) var places: [String: Int] = [:]
 
     func sections(for key: Key, build: () -> [DexSection]) -> [DexSection] {
         if key == self.key { return built }
-        built = build()
+        let fresh = build()
+        // Another learner, learning language or display language: nothing drawn before stands.
+        let same = self.key.map { $0.lang == key.lang && $0.uid == key.uid && $0.reader == key.reader } ?? false
+        var before: [Int: DexSection] = [:]
+        if same { for s in built { before[s.category.no] = s } }
+        var stamps: [Int: Int] = [:]
+        var places: [String: Int] = [:]
+        for s in fresh {
+            let no = s.category.no
+            if let was = before[no], let stamp = self.stamps[no], was.sameSquares(as: s) {
+                stamps[no] = stamp
+            } else {
+                lastStamp += 1
+                stamps[no] = lastStamp
+            }
+            for slot in s.slots { places[slot.id] = no }
+        }
+        built = fresh
+        self.stamps = stamps
+        self.places = places
         self.key = key
         return built
+    }
+
+    /// How many words the dex has more than without the sticker `id` (1 for a new word on its way in, 0 for another
+    /// photo of a word): counted again only after the words change.
+    func wordLag(_ stickers: [Sticker], version: Int, lang: String, without id: String) -> Int {
+        if let k = lagKey, k.version == version, k.count == stickers.count, k.lang == lang, k.without == id { return lag }
+        let all = wordCount(stickers, version: version, lang: lang)
+        lag = max(0, all - DexBook.words(stickers.filter { $0.id != id }, lang: lang).count)
+        lagKey = (version, stickers.count, lang, id)
+        return lag
     }
 
     /// One per word (`DexBook.words`), counted again only after the words change.

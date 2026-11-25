@@ -207,12 +207,21 @@ final class SoundService {
     /// each rings out): on a player of its own that is not playing, from a few kept ready per sound. Same level rules
     /// as `play`. A new player used to be made from the file on every call, on the main thread, in the middle of the
     /// catch's animations (owner 2026-10-20: the add to 図鑑 stuttered).
+    ///
+    /// The player is started on a queue of its own, not on the main thread (owner 2026-11-25: 「タップした後の図鑑の
+    /// アニメーションカクカクしてる」): `play()` returns only once the audio queue has started — a few milliseconds while
+    /// sound is already coming out, far longer when the output has to start — and a catch's landing starts nine sounds
+    /// in the second and a half its sticker flies, hits and the counts roll, each on a frame of that animation. The
+    /// order of the sounds is kept (one serial queue).
     func playLayered(_ sfx: SFX, volume: Float = 1) {
         let level = levelMultiplier
         guard level > 0 else { return }
         var pool = pools[sfx] ?? []
+        let now = ProcessInfo.processInfo.systemUptime
         let player: AVAudioPlayer
-        if let free = pool.first(where: { !$0.isPlaying }) {
+        var restart = false
+        // A player just handed to the queue is not playing yet: it is taken as busy for a moment (`layeredBusy`).
+        if let free = pool.first(where: { !$0.isPlaying && (layeredBusy[ObjectIdentifier($0)] ?? 0) <= now }) {
             player = free
         } else if pool.count < 4,
                   let url = Bundle.main.url(forResource: sfx.rawValue, withExtension: sfx.fileExtension),
@@ -222,17 +231,36 @@ final class SoundService {
             player = made
         } else if let oldest = pool.first {
             player = oldest
-            player.stop()
+            restart = true
         } else {
             return
         }
-        player.currentTime = sfx.offset
-        player.volume = min(1, sfx.gain * volume * level)
-        player.play()
+        layeredBusy[ObjectIdentifier(player)] = now + 0.25
+        let start = LayeredStart(player: player, offset: sfx.offset, volume: min(1, sfx.gain * volume * level), restart: restart)
+        Self.layeredQueue.async { start.run() }
     }
 
     /// `playLayered`'s players, a few per sound.
     private var pools: [SFX: [AVAudioPlayer]] = [:]
+    /// Until when (system uptime) a layered player handed to `layeredQueue` counts as busy, before `isPlaying` says so.
+    private var layeredBusy: [ObjectIdentifier: TimeInterval] = [:]
+    /// Where `playLayered`'s players are started, in the order asked for.
+    private static let layeredQueue = DispatchQueue(label: "app.catchwords.sfx-layered", qos: .userInteractive)
+
+    /// One layered sound's start, handed to `layeredQueue`: from then on only that queue sets the player off.
+    nonisolated private struct LayeredStart: @unchecked Sendable {
+        let player: AVAudioPlayer
+        let offset: TimeInterval
+        let volume: Float
+        let restart: Bool
+
+        func run() {
+            if restart { player.stop() }
+            player.currentTime = offset
+            player.volume = volume
+            player.play()
+        }
+    }
 
     /// Players made off the main thread, handed back to it.
     nonisolated private struct Made: @unchecked Sendable {
