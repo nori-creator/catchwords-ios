@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - The catch scan, v10 (owner 2026-10-11 「v10を承認する。アプリに実装して」)
 //
@@ -379,6 +380,8 @@ final class CatchScanSession {
     @ObservationIgnored private var unnamed: Set<Int> = []
     /// The UI tests' trace: when a frame was last noted (about twice a second while frames are drawn).
     @ObservationIgnored private var drawNoted: Double = -1
+    /// The named outlines as they stand once everything is up (`still`), made once.
+    @ObservationIgnored private var stillMade: ScanStill?
 
     /// The scan's clock starts (once) when the photo first shows.
     func begin(now: Date) {
@@ -497,6 +500,24 @@ final class CatchScanSession {
         guard settled else { return false }
         guard !reduceMotion, let plan else { return true }
         return plan.shapes.indices.allSatisfy { unnamed.contains($0) }
+    }
+
+    /// Once the scan has settled: the named outlines, whole, to be drawn once and pulsed as one picture
+    /// (`ScanStillOutlines`). nil before that, with reduced motion (the outlines stand still, drawn as before) and when
+    /// no outline got a name (nothing is left to draw). By then the bracket, the pen, the lights and the outlines
+    /// without a name have all gone (`step` settles 0.6 s after the last of them).
+    func still(reduceMotion: Bool) -> ScanStill? {
+        guard settled, !reduceMotion else { return nil }
+        if let stillMade { return stillMade }
+        guard let plan, let started, let found = moments(reduceMotion: false)?.found else { return nil }
+        let lines = plan.shapes.enumerated().compactMap { r, sh -> ScanStill.Line? in
+            unnamed.contains(r) ? nil : ScanStill.Line(path: drawnPath(sh, upTo: Double(sh.pts.count)), box: sh.box)
+        }
+        guard !lines.isEmpty else { return nil }
+        let made = ScanStill(stage: plan.stage, fill: plan.fill, lines: lines, pulseFrom: started.addingTimeInterval(found))
+        stillMade = made
+        UITestTrace.log("scan.still lines=\(lines.count)")
+        return made
     }
 
     /// Plays an event once when its moment comes; one already well past (the app was away) is skipped silently.
@@ -817,8 +838,28 @@ nonisolated enum ScanEase {
     static func inOutSine(_ u: Double) -> Double { -(cos(.pi * min(1, max(0, u))) - 1) / 2 }
 }
 
-/// The scan over the photo: redrawn every frame while it moves, then slowly for the outlines' pulse, and not at all
-/// once nothing moves (`idle`).
+/// The named outlines once the scan has settled (`CatchScanSession.still`), in the points of the stage they were
+/// planned on: each one's whole path and its bounds (the line's gradient runs across them).
+struct ScanStill: Equatable {
+    struct Line: Equatable {
+        let path: Path
+        let box: CGRect
+    }
+
+    /// The stage the outlines were planned on, and where the photo sat in it.
+    let stage: CGSize
+    let fill: CGRect
+    let lines: [Line]
+    /// When the outlines' slow pulse began (the names' moment): the pulse goes on in step from there.
+    let pulseFrom: Date
+
+    /// Room round the stage for the lines' glow (blur 8, shadow 16), so the picture is not cut at the stage's edge.
+    static let margin: CGFloat = 28
+}
+
+/// The scan over the photo: redrawn every frame while it moves. Once everything is up, the named outlines are drawn
+/// once and their slow pulse is the picture's opacity (`ScanStillOutlines`); with nothing left to pulse (`idle`) it is
+/// not redrawn at all.
 struct CatchScanOverlay: View {
     let scan: CatchScanSession
     let photo: CGSize
@@ -828,13 +869,157 @@ struct CatchScanOverlay: View {
 
     var body: some View {
         let _ = UITestTrace.log("scan.overlay settled=\(scan.settled) paused=\(scan.idle(reduceMotion: reduceMotion))")
-        TimelineView(.animation(minimumInterval: scan.settled ? 1.0 / 30 : nil,
-                                paused: hidden || scan.idle(reduceMotion: reduceMotion))) { ctx in
-            Canvas { g, size in
-                scan.draw(&g, size: size, photo: photo, now: ctx.date, reduceMotion: reduceMotion)
+        Group {
+            if let still = scan.still(reduceMotion: reduceMotion) {
+                ScanStillOutlines(still: still, photo: photo, paused: hidden)
+            } else {
+                TimelineView(.animation(minimumInterval: scan.settled ? 1.0 / 30 : nil,
+                                        paused: hidden || scan.idle(reduceMotion: reduceMotion))) { ctx in
+                    Canvas { g, size in
+                        scan.draw(&g, size: size, photo: photo, now: ctx.date, reduceMotion: reduceMotion)
+                    }
+                }
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+/// The settled scan's outlines, drawn once. They used to be drawn again 30 times a second for as long as the words
+/// were on screen, only for their slow pulse (1 ↔ 0.5 every 2 s): each frame built every outline's path again and
+/// stroked it through two blurs and two shadows, on the main thread — while the learner typed a word under the photo
+/// (owner 2026-11-25: 「検索の文字も…滑らかにして、また止まらないようにして」). Now the outlines are one picture, drawn when
+/// the scan settles and never again; the pulse is that picture's opacity, run by Core Animation outside the app's main
+/// thread (`ScanPulseView`), so it neither costs the main thread anything nor stops when the main thread is busy.
+/// The stage changing size (the keyboard) moves and scales the picture onto the photo's new place, as the scan's own
+/// drawing did (`CatchScanSession.draw`), without drawing it again.
+private struct ScanStillOutlines: View {
+    let still: ScanStill
+    let photo: CGSize
+    /// Under the choose screen's page: the pulse stops.
+    let paused: Bool
+
+    var body: some View {
+        GeometryReader { geo in
+            let now = CatchScanPlan.fillRect(photo: photo, in: geo.size)
+            let k = still.fill.width > 0 ? now.width / still.fill.width : 1
+            let m = ScanStill.margin
+            ScanPulseLayer(still: still, paused: paused)
+                .frame(width: still.stage.width + 2 * m, height: still.stage.height + 2 * m)
+                .scaleEffect(k, anchor: .topLeading)
+                .offset(x: now.minX - (still.fill.minX + m) * k, y: now.minY - (still.fill.minY + m) * k)
+        }
+        // As the scan's own canvas: nothing outside the stage.
+        .clipped()
+    }
+}
+
+/// The outlines' picture: the same strokes as the scan's own drawing (`ScanGlow.stroke`), at full strength.
+private struct ScanStillCanvas: View {
+    let still: ScanStill
+
+    var body: some View {
+        Canvas { g, _ in
+            var g = g
+            g.translateBy(x: ScanStill.margin, y: ScanStill.margin)
+            for line in still.lines { ScanGlow.stroke(&g, line.path, box: line.box, alpha: 1) }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// `ScanStillCanvas` in a UIKit view whose layer carries the pulse.
+private struct ScanPulseLayer: UIViewRepresentable {
+    let still: ScanStill
+    let paused: Bool
+
+    func makeUIView(context: Context) -> ScanPulseView {
+        let view = ScanPulseView()
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        view.show(still)
+        view.setPulse(from: still.pulseFrom, paused: paused)
+        return view
+    }
+
+    func updateUIView(_ view: ScanPulseView, context: Context) {
+        view.show(still)
+        view.setPulse(from: still.pulseFrom, paused: paused)
+    }
+}
+
+/// Holds the outlines' picture (a SwiftUI canvas, drawn once) and pulses it: its layer's opacity goes 1 → 0.5 → 1 every
+/// 2 s with the ease the scan drew the pulse with (`CCBezier.easeInOut` = Core Animation's ease-in-ease-out), in step
+/// with the scan's own clock, so the change from the scan's drawing to this picture does not show. The animation runs
+/// in the system's render server. Core Animation drops animations when the app leaves the screen: it is put back when
+/// the view is on screen again.
+private final class ScanPulseView: UIView {
+    private var host: UIHostingController<ScanStillCanvas>?
+    private var shown: ScanStill?
+    private var pulseFrom: Date?
+    private var paused = true
+    private var observing = false
+
+    /// The outlines to show (drawn again only when they are others).
+    func show(_ still: ScanStill) {
+        guard still != shown else { return }
+        shown = still
+        let canvas = ScanStillCanvas(still: still)
+        if let host {
+            host.rootView = canvas
+            return
+        }
+        let made = UIHostingController(rootView: canvas)
+        made.safeAreaRegions = []
+        made.view.backgroundColor = .clear
+        made.view.isUserInteractionEnabled = false
+        made.view.frame = bounds
+        made.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(made.view)
+        host = made
+    }
+
+    func setPulse(from: Date, paused: Bool) {
+        guard from != pulseFrom || paused != self.paused else { return }
+        pulseFrom = from
+        self.paused = paused
+        applyPulse()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if let canvas = host?.view, canvas.frame != bounds { canvas.frame = bounds }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil, !observing {
+            observing = true
+            NotificationCenter.default.addObserver(self, selector: #selector(appActive), name: UIApplication.didBecomeActiveNotification,
+                                                   object: nil)
+        }
+        applyPulse()
+    }
+
+    @objc private func appActive() { applyPulse() }
+
+    private static let pulseKey = "scan.pulse"
+
+    private func applyPulse() {
+        layer.removeAnimation(forKey: Self.pulseKey)
+        guard let pulseFrom, !paused, window != nil else { return }
+        let pulse = CABasicAnimation(keyPath: "opacity")
+        pulse.fromValue = 1.0
+        pulse.toValue = 0.5
+        pulse.duration = 1
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        pulse.isRemovedOnCompletion = false
+        // Where the scan's own pulse stands now (2 s a round, counted from the names' moment).
+        let phase = max(0, Date().timeIntervalSince(pulseFrom)).truncatingRemainder(dividingBy: 2)
+        pulse.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - phase
+        layer.add(pulse, forKey: Self.pulseKey)
     }
 }
