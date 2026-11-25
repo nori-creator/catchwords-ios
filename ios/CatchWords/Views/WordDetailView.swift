@@ -718,9 +718,6 @@ struct WordDetailView: View {
         }
         .frame(maxWidth: widthClass == .regular && !wideWord ? Self.wideHeroWidth : .infinity)
         .frame(height: heroHeight)
-        // While the catch is being saved (「保存しています…」), the blue-white light runs round the photo (owner
-        // 2026-11-24: 「やっぱり危険少ないところも光らせて」). Not while it waits to be saved again (保存待ち).
-        .waitBeam(isProvisional && (!isUnsaved || dex.isRetrying(current.id)), cornerRadius: 28)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { heroWidth = $0 }
         // The photo coming in beside it, under the finger (owner 2026-10-31: 「スワイプしてスムーズに画像を変更」).
         .overlay {
@@ -1096,6 +1093,9 @@ struct WordDetailView: View {
                 }
             }
             .clipShape(.rect(cornerRadius: 28, style: .continuous))
+            // While the catch is being saved (「保存しています…」), the blue-white light runs round the picture itself
+            // (owner 2026-11-24: 「やっぱり危険少ないところも光らせて」). Not while it waits to be saved again (保存待ち).
+            .waitBeam(isProvisional && (!isUnsaved || dex.isRetrying(current.id)), cornerRadius: 28)
             // A plain photo: no foil, glare or tilt over it (owner 2026-10-09).
             .scaleEffect(x: back ? -1 : 1)
             .rotation3DEffect(.degrees(flipAngle), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
