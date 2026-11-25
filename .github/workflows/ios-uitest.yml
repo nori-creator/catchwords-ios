@@ -98,23 +98,43 @@ jobs:
                       entries.append([m.group(1), m.group(2), []])
                   elif entries and line.strip():
                       entries[-1][2].append(line.strip())
-              stalls = []
+              def sec(t):
+                  h, m, s = t.split(":")
+                  return int(h) * 3600 + int(m) * 60 + float(s)
+              stalls, harness = [], 0   # (ms, index) of the app's own; the UI test's accessibility queries apart
               for i, (t, msg, more) in enumerate(entries):
                   m = re.match(r"^stall (\d+)ms", msg)
-                  if m:
+                  if not m:
+                      continue
+                  if any("the UI test reading the screen" in l or "XCTAutomationSupport" in l for l in more):
+                      harness += 1
+                  else:
                       stalls.append((int(m.group(1)), i))
               total = sum(ms for ms, _ in stalls)
-              print(f"main-thread stalls of 80 ms or more: {len(stalls)} (sum {total} ms)")
+              print(f"main-thread stalls of 80 ms or more: {len(stalls)} (sum {total} ms); {harness} more were the UI test reading the screen")
               for lo, hi in ((80, 150), (150, 300), (300, 1000), (1000, 10**9)):
                   n = sum(1 for ms, _ in stalls if lo <= ms < hi)
                   print(f"  {lo}-{'' if hi > 10**6 else hi} ms: {n}")
+              # The catch's flow: how long the main thread was held in the 2 s after each of its steps.
+              marks = ["search begin", "openTyped begin", "open begin", "choose shown", "pick ", "step select -> celebrate", "landing start"]
+              at = [(sec(entries[i][0]), ms) for ms, i in stalls]
+              print("held in the 2 s after each step of the catch (times it happened: median / worst, ms):")
+              for mark in marks:
+                  sums = []
+                  for t, msg, _ in entries:
+                      if msg.startswith(mark):
+                          t0 = sec(t)
+                          sums.append(sum(ms for ts, ms in at if t0 <= ts <= t0 + 2 + ms / 1000))
+                  if sums:
+                      sums.sort()
+                      print(f"  {mark.strip():26} x{len(sums)}: {sums[len(sums) // 2]} / {sums[-1]}")
               def quiet(msg):
-                  return msg.startswith(("stall ", "frames ", "memory ", "scan.draw", "geometry "))
+                  return msg.startswith(("stall ", "frames ", "memory ", "scan.draw", "geometry ", "main stack", "main thread"))
               for ms, i in sorted(stalls, reverse=True)[:30]:
-                  before = [e for e in entries[max(0, i - 40):i] if not quiet(e[1])][-2:]
+                  before = [e for e in entries[max(0, i - 60):i] if not quiet(e[1])][-2:]
                   print(f"--- {ms} ms, ended {entries[i][0]}")
                   for t, msg, _ in before:
-                      print(f"    before: {t} {msg[:200]}")
+                      print(f"    before: {t} {msg[:160]}")
                   for l in entries[i][2][:16]:
                       print(f"      {l[:230]}")
           except Exception as e:
