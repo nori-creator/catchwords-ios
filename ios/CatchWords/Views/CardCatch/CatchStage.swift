@@ -148,8 +148,28 @@ nonisolated struct StagePalette: Equatable, Sendable {
     /// Without a picture: the app's own pale blue.
     static let plain = StagePalette(glow: RGB(r: 221, g: 238, b: 255), glow2: RGB(r: 234, g: 244, b: 255))
 
+    /// A picture's colours, kept with the picture itself once worked out (thread-safe): measuring draws the whole
+    /// picture small, so the cut-outs' colours are measured where the cut-outs are made, off the main thread
+    /// (`StickerDisplay.prepare`), and the choose screen and the GET moment only read them (owner 2026-11-25:
+    /// 「可能な限りアニメーションを滑らかにして、また止まらないようにして」).
+    nonisolated private final class Kept: @unchecked Sendable {
+        let palette: StagePalette
+        init(_ palette: StagePalette) { self.palette = palette }
+    }
+
+    /// The key the colours are kept under on a picture (an address of its own).
+    nonisolated(unsafe) private static let keptKey = UnsafeRawPointer(UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1))
+
     static func make(from image: UIImage?) -> StagePalette {
-        guard let cg = image?.cgImage, cg.width > 0, cg.height > 0 else { return .plain }
+        guard let image else { return .plain }
+        if let kept = objc_getAssociatedObject(image, keptKey) as? Kept { return kept.palette }
+        let made = measure(image)
+        objc_setAssociatedObject(image, keptKey, Kept(made), .OBJC_ASSOCIATION_RETAIN)
+        return made
+    }
+
+    private static func measure(_ image: UIImage) -> StagePalette {
+        guard let cg = image.cgImage, cg.width > 0, cg.height > 0 else { return .plain }
         let w = 48, h = max(1, min(96, Int((48 * Double(cg.height) / Double(cg.width)).rounded())))
         var data = [UInt8](repeating: 0, count: w * h * 4)
         let drawn: Bool = data.withUnsafeMutableBytes { buf in
@@ -219,7 +239,10 @@ enum StickerCrop {
     /// 場合は、四角でそのまま画像を表示して」): the photo round its box as a rectangle with slightly rounded corners and a
     /// transparent outside, so it is still a sticker (its white border is drawn round it like any cut-out). nil
     /// without a photo. `box`: normalized, top-left origin; nil = the whole photo.
-    static func shaped(_ photo: UIImage?, box: CGRect?) -> UIImage? {
+    /// Drawn off the main thread: the camera's photo is 12 MP, and drawing it here held the main thread for about
+    /// 0.18 s in the middle of the choose screen's animation (owner's recording, 2026-11-25). Only the shape is made
+    /// here (UIKit's rounded rectangle, the same one as before).
+    static func shaped(_ photo: UIImage?, box: CGRect?) async -> UIImage? {
         guard let photo else { return nil }
         let size = photo.size
         var r = CGRect(origin: .zero, size: size)
@@ -228,19 +251,30 @@ enum StickerCrop {
             r = r.insetBy(dx: -r.width * 0.04, dy: -r.height * 0.04).intersection(CGRect(origin: .zero, size: size))
         }
         guard r.width > 4, r.height > 4 else { return nil }
+        let side = min(r.width, 900)
+        let out = CGSize(width: side, height: side * r.height / r.width)
+        let corner = min(out.width, out.height) * 0.06
+        let clip = UIBezierPath(roundedRect: CGRect(origin: .zero, size: out), cornerRadius: corner).cgPath
+        let rect = r
+        return await Task.detached(priority: .userInitiated) { drawShaped(photo, rect: rect, out: out, clip: clip) }.value
+    }
+
+    /// `shaped`'s picture: the photo's `r` (its own points) drawn `out` large inside `clip`. Any thread.
+    nonisolated private static func drawShaped(_ photo: UIImage, rect r: CGRect, out: CGSize, clip: CGPath) -> UIImage {
+        let size = photo.size
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
         format.opaque = false
-        let side = min(r.width, 900)
-        let out = CGSize(width: side, height: side * r.height / r.width)
         let k = out.width / r.width
-        return UIGraphicsImageRenderer(size: out, format: format).image { _ in
-            let corner = min(out.width, out.height) * 0.06
-            UIBezierPath(roundedRect: CGRect(origin: .zero, size: out), cornerRadius: corner).addClip()
+        return UIGraphicsImageRenderer(size: out, format: format).image { ctx in
+            ctx.cgContext.addPath(clip)
+            ctx.cgContext.clip()
             photo.draw(in: CGRect(x: -r.minX * k, y: -r.minY * k, width: size.width * k, height: size.height * k))
         }
     }
 
+    /// The photo round `box` as a plain picture: the choose screen's stand-in. On the main thread, so `photo` is the
+    /// copy made for the screen (`CaptureViewModel.standIn`), never the camera's full-size photo.
     static func image(_ photo: UIImage?, box: CGRect?) -> UIImage? {
         guard let photo else { return nil }
         guard let b = box, b.width > 0.01, b.height > 0.01 else { return photo }
@@ -320,6 +354,13 @@ nonisolated enum StickerDisplay {
             }
         }
         return nil
+    }
+
+    /// Everything the catch draws from a cut-out, made ahead where the cut-out is made (off the main thread): the
+    /// bordered sticker and the stage's colours (`StagePalette.make` then only reads them).
+    static func prepare(_ cut: UIImage) {
+        makeBordered(cut)
+        _ = StagePalette.make(from: cut)
     }
 
     /// Makes (once) the bordered sticker: off the main thread.
