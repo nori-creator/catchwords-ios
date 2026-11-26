@@ -2096,6 +2096,26 @@ final class DexStore {
     }
 
     /// Web `deleteSticker`: the row and its photo files (and thumbnails) go together.
+    /// The word page's 削除: the server first, the card leaves this phone's lists only after the page has closed.
+    /// The page zooms back into its tile on close (`DetailZoomSource`); with the tile already gone from the gallery,
+    /// UIKit's zoom has no view to land on and the app stops (Sentry 2026-11-26, TestFlight 1.0.7 (1108):
+    /// `NSInternalInconsistencyException: UIPreviewTarget requires that the container view is in a window` from
+    /// `MatchedTransitionSourceMarkingView`, after deleting 筆袋).
+    func deleteFromServer(_ sticker: Sticker) async throws {
+        guard !sticker.isSample else { return }
+        _ = try await NativeAPI.call("deleteSticker", ["sticker_id": sticker.id])
+    }
+
+    /// The second half of `deleteFromServer`: the card leaves the lists (a sample is also marked as gone for good).
+    func forgetDeleted(_ sticker: Sticker) {
+        stickers.removeAll { $0.id == sticker.id }
+        if sticker.isSample {
+            reviews[sticker.id] = nil
+            SampleSticker.markDeleted(userId: client.userId)
+        }
+        scheduleSnapshot()
+    }
+
     func delete(_ sticker: Sticker) async throws {
         if sticker.isSample {
             // Never on the server: it leaves this phone, and never comes back for this account.

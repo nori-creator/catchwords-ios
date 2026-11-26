@@ -109,6 +109,11 @@
   **止まりは測る**（推測で直さない）: `-uiDemo` の時だけ `MainStallMonitor` がメインスレッドの 80 ms 以上の止まりを
   `uitest-trace.txt` に呼び出し元つきで書き、`tour` のジョブがログに集計を出す（数・キャッチの各段の後 2 秒の止まり・長い順 30 件。
   UI テスト自身の読み取りは分ける）。製品のビルドでは動かない。滑らかさの直しは、この数で前後を比べる。
+- **単語の頁から削除した語は、頁が閉じてから図鑑から消す**（2026-11-26「筆袋の単語を削除したら、クラッシュした。原因を特定して直して」
+  — Sentry `NSInternalInconsistencyException: UIPreviewTarget requires that the container view is in a window`（TestFlight 1.0.7 (1108)、iPad）。
+  頁は閉じる時に図鑑のマスへ縮んで戻る（`DetailZoomSource`）が、削除でマスが先に消えていて、戻り先が無かった）: サーバーで消した後に
+  頁を閉じ、0.7 秒後（縮む動きが終わってから）に図鑑の一覧から外す（`DexStore.deleteFromServer`・`forgetDeleted`、
+  `WordDetailView.closeSettleMs`）。保存待ちの語を捨てる時も同じ順。頁を開いたまま一覧からマスを消す順に戻さない。
 - **褒める画面の下の行**（2026-11-05「単語の獲得1位なのに上位13%になってるのはなんで」— 8人中1位＝13% で計算は合っていたが、
   変に見える）: 順位を大きく出す時は「全ユーザー n 人の中で」、% を大きく出す時は今までどおり順位。同点の時の % は
   「自分と同じか多い人 ÷ 人数」（点検 B39、`server/src/lib/standing.ts`）。

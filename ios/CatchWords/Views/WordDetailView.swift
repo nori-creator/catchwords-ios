@@ -9,6 +9,9 @@ struct WordDetailView: View {
     @Environment(ReviewStore.self) private var review: ReviewStore?
     @Environment(\.dismiss) private var dismiss
     private func close() { if let onClose { onClose() } else { dismiss() } }
+    /// How long a deleted card stays in the gallery after its page starts to close: longer than the sheet's zoom back
+    /// into the tile (about 0.5 s), so the tile is still there when the zoom lands.
+    static let closeSettleMs = 700
     @Environment(\.openURL) private var openURL
     @Environment(AppRouter.self) private var router
     @Environment(PlanStore.self) private var plan
@@ -445,17 +448,27 @@ struct WordDetailView: View {
         .confirmationDialog(L("この単語を図鑑から削除しますか？"), isPresented: $confirmDelete, titleVisibility: .visible) {
             Button(L("削除"), role: .destructive) {
                 // A 「保存待ち」 word was never written to the server: it is thrown away here, and the catch is not counted.
-                if let pid = dex.unsaved[current.id] {
-                    dex.discardUnsaved(pendingId: pid)
-                    dex.refreshPending()
-                    plan.undoCatch()
+                // The page closes first and the card leaves the gallery only after the page has gone: the page zooms
+                // back into the card's tile on close, and a tile already removed crashed the app (Sentry 2026-11-26,
+                // `UIPreviewTarget requires that the container view is in a window`, deleting 筆袋).
+                let gone = current
+                let dex = dex
+                if let pid = dex.unsaved[gone.id] {
                     close()
+                    plan.undoCatch()
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(Self.closeSettleMs))
+                        dex.discardUnsaved(pendingId: pid)
+                        dex.refreshPending()
+                    }
                     return
                 }
                 Task {
                     do {
-                        try await dex.delete(current)
+                        try await dex.deleteFromServer(gone)
                         close()
+                        try? await Task.sleep(for: .milliseconds(Self.closeSettleMs))
+                        dex.forgetDeleted(gone)
                     } catch {
                         Haptics.warning()
                         let reason = (error as? LocalizedError)?.errorDescription ?? ""
