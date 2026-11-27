@@ -26,9 +26,26 @@ nonisolated enum ZhuyinLayout {
 
     /// A reading as zhuyin: the character 一 written for the letter ㄧ (cards say 「一 ㄎㄜ」 for 一棵 — owner 2026-10-21:
     /// the reading then fell under the characters instead of beside them) becomes the letter.
+    ///
+    /// The tone marks written the way Taiwan writes them (owner 2026-11-27: 環保杯 came as 「ㄏㄨㄢˊ ㄅㄠˇ ㄅㄟˉ」 and its
+    /// reading fell under the word on the choose screen, the GET moment and the album, and was gone from its dex square):
+    /// the first tone has no mark (ˉ dropped), and the look-alikes — the acute and grave accents, the middle dots — are
+    /// the zhuyin marks ˊ ˋ ˙.
     static func normalized(_ zhuyin: String?) -> String? {
-        zhuyin.map { $0.replacingOccurrences(of: "一", with: "ㄧ") }  // l10n-ignore (target word)
+        zhuyin.map { z in
+            var s = z.replacingOccurrences(of: "一", with: "ㄧ")  // l10n-ignore (target word)
+            for (from, to) in toneMarks { s = s.replacingOccurrences(of: from, with: to) }
+            return s
+        }
     }
+
+    /// Marks written for the zhuyin tone marks: ˉ (U+02C9) and the macron ¯ (the first tone, never written in Taiwan),
+    /// ´ (U+00B4) for ˊ, ` (U+0060) for ˋ, · ・ ‧ (U+00B7, U+30FB, U+2027) for the neutral tone's ˙.
+    private static let toneMarks: [(String, String)] = [
+        ("\u{02C9}", ""), ("\u{00AF}", ""),
+        ("\u{00B4}", "\u{02CA}"), ("\u{0060}", "\u{02CB}"),
+        ("\u{00B7}", "\u{02D9}"), ("\u{30FB}", "\u{02D9}"), ("\u{2027}", "\u{02D9}"),
+    ]
 
     static func pair(_ headword: String, _ zhuyin: String?) -> [ZhuyinUnit]? {
         let word = headword.trimmingCharacters(in: .whitespaces)

@@ -541,12 +541,8 @@ struct DexView: View {
         // impact and each rolling count, and each time every sticker was sorted and numbered (with a read of the saved
         // numbers) and the twenty cards built anew — at the moment the sticker set off (owner 2026-11-25: 「図鑑に追加
         // するアニメーションもカクカクしてる」).
-        let key = DexGalleryMemo.Key(version: dex.stickersVersion, count: dex.stickers.count, lang: lang,
-                                     uid: SupabaseClient.shared.userId, reader: L10n.lang, hold: galleryHold,
-                                     category: categoryFilter, day: dayFilter, query: query)
-        let sections = galleryMemo.sections(for: key) {
-            gallerySections(numbers: DexNumbering.assign(dex.stickers, lang: lang, uid: SupabaseClient.shared.userId))
-        }
+        let key = galleryKey(hold: galleryHold)
+        let sections = galleryMemo.sections(for: key) { buildGallery(hold: galleryHold) }
         let shown = shownFocus
         return ScrollViewReader { proxy in
             ScrollView {
@@ -595,6 +591,18 @@ struct DexView: View {
                 takeLanding(proxy)
             }
             .onChange(of: router.landingStickerId) { _, _ in takeLanding(proxy) }
+            .onChange(of: router.landing?.handoffAt) { _, at in
+                // The sticker has settled in its square: the square shows its own picture (the sticker fades over it),
+                // and the square is an ordinary one again a moment later.
+                guard at != nil, var f = focus, f.hidden else { return }
+                f.hidden = false
+                focus = f
+                let id = f.id
+                Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    if let now = focus, now.id == id, !now.hidden, now.fillStart == nil { focus = nil }
+                }
+            }
             .onChange(of: router.landing?.fillStart) { _, start in
                 // pon! — addEntry + renderDex: the hold goes and the word's waiting square (the room made before the
                 // flight) becomes the word in place — nothing else moves — and fills, centred.
@@ -602,7 +610,9 @@ struct DexView: View {
                 galleryHold = nil
                 let id = landingSlot(l)
                 let sticker = l.star.image != nil
-                focus = DexGalleryFocus(id: id, fillStart: start, settle: sticker)
+                // A sticker settles in the square on Core Animation's clock (`LandingLayers`): the square's own picture
+                // waits under it, unanimated, and shows when the sticker hands over (`handoffAt` below).
+                focus = DexGalleryFocus(id: id, fillStart: sticker ? nil : start, hidden: sticker)
                 if sticker, let s = dex.sticker(id: id) {
                     // Film v6: the NEW badge, the rolling count, the next shadow's ring; the gallery shakes. A
                     // re-encounter: the same shake, no badge or count (the word was caught before).
@@ -630,16 +640,27 @@ struct DexView: View {
         }
     }
 
+    /// What the gallery's cards are built from (`DexGalleryMemo`).
+    private func galleryKey(hold: DexBook.Hold?) -> DexGalleryMemo.Key {
+        DexGalleryMemo.Key(version: dex.stickersVersion, count: dex.stickers.count, lang: lang,
+                           uid: SupabaseClient.shared.userId, reader: L10n.lang, hold: hold,
+                           category: categoryFilter, day: dayFilter, query: query)
+    }
+
+    private func buildGallery(hold: DexBook.Hold?) -> [DexSection] {
+        gallerySections(numbers: DexNumbering.assign(dex.stickers, lang: lang, uid: SupabaseClient.shared.userId), hold: hold)
+    }
+
     /// The gallery's category cards. While a search or filter is on, they are built from the matching words
     /// only, without shadows (a word not caught yet matches no search) and without the categories left empty —
     /// like the web (`dexSections` with `shadows: false`). The gallery used to ignore the filters (owner
     /// 2026-10-11: 「図鑑の一覧にそれない」). DexBook builds the cards as ever; the shadows are dropped here.
-    private func gallerySections(numbers: [String: Int]) -> [DexSection] {
+    private func gallerySections(numbers: [String: Int], hold: DexBook.Hold?) -> [DexSection] {
         guard isFiltering else {
-            return DexBook.sections(stickers: dex.stickers, numbers: numbers, lang: lang, hold: galleryHold)
+            return DexBook.sections(stickers: dex.stickers, numbers: numbers, lang: lang, hold: hold)
         }
-        let held = galleryHold?.stickerId
-        let all = DexBook.sections(stickers: filtered, numbers: numbers, lang: lang, hold: galleryHold)
+        let held = hold?.stickerId
+        let all = DexBook.sections(stickers: filtered, numbers: numbers, lang: lang, hold: hold)
         return all.compactMap { (sec: DexSection) -> DexSection? in
             // Caught words only — and a landing word on its way (a landing clears the filters, so only a guard).
             let slots = sec.slots.filter { (slot: DexSlot) -> Bool in
@@ -679,6 +700,11 @@ struct DexView: View {
                     await scroll(to: anchor, proxy: proxy, word: id)
                     if !room { await makeRoom(for: l) }
                     await bringInView(for: l, proxy: proxy)
+                    // The 図鑑 as it will be after the hit (the word in its square), built now while the sticker still
+                    // waits: at the hit the page only swaps it in (owner 2026-11-27: the add to 図鑑 stood still there).
+                    if router.landing === l, l.fillStart == nil {
+                        galleryMemo.prepare(galleryKey(hold: nil)) { buildGallery(hold: nil) }
+                    }
                     l.roomReady = true
                 }
             }
@@ -1668,6 +1694,9 @@ final class DexGalleryMemo {
 
     private var key: Key?
     private var built: [DexSection] = []
+    /// The cards for a key about to come, built ahead (`prepare`): a catch's landing builds the 図鑑 as it will be after
+    /// the hit while the sticker still waits on its stage, so the hit itself only swaps them in.
+    private var prepared: (key: Key, sections: [DexSection])?
     private var wordsKey: (version: Int, count: Int, lang: String)?
     private var words = 0
     private var lagKey: (version: Int, count: Int, lang: String, without: String)?
@@ -1685,7 +1714,13 @@ final class DexGalleryMemo {
 
     func sections(for key: Key, build: () -> [DexSection]) -> [DexSection] {
         if key == self.key { return built }
-        let fresh = build()
+        let fresh: [DexSection]
+        if let ready = prepared, ready.key == key {
+            fresh = ready.sections
+        } else {
+            fresh = build()
+        }
+        prepared = nil
         // Another learner, learning language or display language: nothing drawn before stands.
         let same = self.key.map { $0.lang == key.lang && $0.uid == key.uid && $0.reader == key.reader } ?? false
         var before: [Int: DexSection] = [:]
@@ -1707,6 +1742,12 @@ final class DexGalleryMemo {
         self.places = places
         self.key = key
         return built
+    }
+
+    /// Builds the cards for `key` now, to be used when the page asks for that key (`sections(for:build:)`).
+    func prepare(_ key: Key, build: () -> [DexSection]) {
+        guard key != self.key, prepared?.key != key else { return }
+        prepared = (key, build())
     }
 
     /// How many words the dex has more than without the sticker `id` (1 for a new word on its way in, 0 for another

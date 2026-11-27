@@ -209,7 +209,8 @@ nonisolated enum MainProfiler {
             let app = inclusive.filter { $0.key.isApp && common[$0.key] == nil }.sorted { $0.value > $1.value }.prefix(limit)
             lines += "\n      app (inclusive):"
             for (f, c) in app { lines += "\n        \(pct(c)) \(f.symbol)" }
-            let system = inclusive.filter { !$0.key.isApp && common[$0.key] == nil }.sorted { $0.value > $1.value }.prefix(limit)
+            // The run loop's and SwiftUI's update chain sit on most stacks: the next 40 are where its time went.
+            let system = inclusive.filter { !$0.key.isApp && common[$0.key] == nil }.sorted { $0.value > $1.value }.prefix(limit + 40)
             lines += "\n      frameworks (inclusive):"
             for (f, c) in system { lines += "\n        \(pct(c)) \(f.line)" }
             lines += "\n      innermost:"

@@ -95,8 +95,8 @@ final class ImageCache {
     func cached(for key: String) async -> UIImage? {
         if let hit = image(for: key) { return hit }
         if let running = reading[key] { return await running.value }
-        let file = Self.file(for: key)
         let task = Task.detached(priority: .userInitiated) { () -> UIImage? in
+            let file = Self.file(for: key)
             guard let data = try? Data(contentsOf: file), let raw = UIImage(data: data) else { return nil }
             // Used again: the newest for the size limit (`trim` drops the least recently used).
             try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: file.path)
@@ -149,8 +149,9 @@ final class ImageCache {
         if let hit = image(for: key, maxPixel: maxPixel) { return hit }
         let small = Self.smallKey(key, maxPixel: maxPixel)
         if let running = reading[small] { return await running.value }
-        let file = Self.file(for: key)
         let task = Task.detached(priority: .userInitiated) { () -> UIImage? in
+            // Named and looked for off the main thread (the 図鑑 asks for a screenful of squares at once).
+            let file = Self.file(for: key)
             guard FileManager.default.fileExists(atPath: file.path),
                   let source = CGImageSourceCreateWithURL(file as CFURL, nil),
                   let img = Self.downsample(source, maxPixel: maxPixel) else { return nil }
@@ -178,7 +179,12 @@ final class ImageCache {
 
     /// Whether the file for this key is on disk (nothing is decoded).
     func hasFile(for key: String) -> Bool {
-        FileManager.default.fileExists(atPath: Self.file(for: key).path)
+        Self.hasFileOnDisk(key)
+    }
+
+    /// `hasFile` from any thread (a list of pictures is looked for off the main thread: `DexStore.prefetchNewest`).
+    nonisolated static func hasFileOnDisk(_ key: String) -> Bool {
+        FileManager.default.fileExists(atPath: file(for: key).path)
     }
 
     /// Memory, then disk, then the network. A downloaded picture is kept on disk for next time. `maxPixel`: decoded
@@ -250,11 +256,32 @@ final class ImageCache {
 
     /// One file per key: the key's SHA-256 (paths hold slashes and may be long). The bundled sample word's pictures
     /// are read from the app bundle itself (`SampleSticker`): never downloaded, never cleared with the cache.
+    ///
+    /// Worked out once per key and kept (`names`), its hex written directly: every square of the 図鑑 and every photo
+    /// of the album asks for its file as it is drawn, on the main thread, and the name was a SHA-256 written out with
+    /// 32 `String(format:)` calls each time — Sentry caught the main thread held 6 s there on the owner's iPad
+    /// (2026-11-27, App Hang in `ImageCache.file` ← `kept`).
     nonisolated private static func file(for key: String) -> URL {
         if let bundled = SampleSticker.bundledImageURL(for: key) { return bundled }
-        let name = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
-        return dir.appendingPathComponent(name)
+        if let known = names.object(forKey: key as NSString) { return known as URL }
+        let hex: [UInt8] = Array("0123456789abcdef".utf8)
+        var name = [UInt8]()
+        name.reserveCapacity(64)
+        for byte in SHA256.hash(data: Data(key.utf8)) {
+            name.append(hex[Int(byte >> 4)])
+            name.append(hex[Int(byte & 0x0F)])
+        }
+        let url = dir.appendingPathComponent(String(decoding: name, as: UTF8.self))
+        names.setObject(url as NSURL, forKey: key as NSString)
+        return url
     }
+
+    /// key → its file (`file(for:)`), thread-safe.
+    nonisolated private static let names: NSCache<NSString, NSURL> = {
+        let c = NSCache<NSString, NSURL>()
+        c.countLimit = 4000
+        return c
+    }()
 
     private func noteWrite() {
         writes += 1

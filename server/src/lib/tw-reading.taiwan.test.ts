@@ -95,3 +95,18 @@ describe("例文の読みの直し（点検 S10・S5・M35、決定 10B）", () 
     expect(p("了解", [{ text: "了", pinyin: "le" }])).toBe("liǎo jiě");
   });
 });
+
+describe("注音は台湾の書き方で（第1声に印を付けない）", () => {
+  it("環保杯: ㄅㄟˉ → ㄅㄟ（読みは同じなので直した数には入れない）", () => {
+    const r = checkTaiwanReading("環保杯", "huán bǎo bēi", "ㄏㄨㄢˊ ㄅㄠˇ ㄅㄟˉ");
+    expect(r.zhuyin).toBe("ㄏㄨㄢˊ ㄅㄠˇ ㄅㄟ");
+    expect(r.fixed).toEqual([]);
+  });
+  it("烏龍麵・甜菜根も", () => {
+    expect(checkTaiwanReading("烏龍麵", "wū lóng miàn", "ㄨˉ ㄌㄨㄥˊ ㄇㄧㄢˋ").zhuyin).toBe("ㄨ ㄌㄨㄥˊ ㄇㄧㄢˋ");
+    expect(checkTaiwanReading("甜菜根", "tián cài gēn", "ㄊㄧㄢˊ ㄘㄞˋ ㄍㄣˉ").zhuyin).toBe("ㄊㄧㄢˊ ㄘㄞˋ ㄍㄣ");
+  });
+  it("全角の空白も半角の1つに", () => {
+    expect(checkTaiwanReading("面膜", "miàn mó", "ㄇㄧㄢˋ　ㄇㄛˊ").zhuyin).toBe("ㄇㄧㄢˋ ㄇㄛˊ");
+  });
+});

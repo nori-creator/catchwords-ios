@@ -285,4 +285,18 @@ final class UsagePatternTests: XCTestCase {
         XCTAssertEqual(pairs.map(\.example), [1, 0], "each chunk numbers the example that holds it")
         XCTAssertEqual(pairs.map(\.hit.chunk), [0, 1])
     }
+
+    /// Owner 2026-11-27: 環保杯 came as 「ㄏㄨㄢˊ ㄅㄠˇ ㄅㄟˉ」 — the first tone's mark, which Taiwan never writes — and its
+    /// reading fell under the word instead of beside each character. The look-alike marks are read as zhuyin's own.
+    func testTaiwanToneMarksPairBesideEachCharacter() {
+        let cup = ZhuyinLayout.pair("環保杯", "ㄏㄨㄢˊ ㄅㄠˇ ㄅㄟˉ")
+        XCTAssertEqual(cup?.map(\.char), ["環", "保", "杯"])
+        XCTAssertEqual(cup?.map(\.tone), ["ˊ", "ˇ", ""], "the first tone has no mark")
+        XCTAssertEqual(cup?.last?.body, ["ㄅ", "ㄟ"])
+        XCTAssertNotNil(ZhuyinLayout.pair("烏龍麵", "ㄨˉ ㄌㄨㄥˊ ㄇㄧㄢˋ"))
+        XCTAssertNotNil(ZhuyinLayout.pair("面膜", "ㄇㄧㄢˋ\u{3000}ㄇㄛˊ"), "an ideographic space between syllables")
+        XCTAssertEqual(ZhuyinLayout.pair("覺得", "ㄐㄩㄝ\u{00B4} \u{00B7}ㄉㄜ")?.map(\.tone), ["ˊ", ""])
+        XCTAssertEqual(ZhuyinLayout.pair("覺得", "ㄐㄩㄝ\u{00B4} \u{00B7}ㄉㄜ")?.map(\.neutral), [false, true])
+        XCTAssertEqual(ZhuyinLayout.pair("路", "ㄌㄨ`")?.first?.tone, "ˋ")
+    }
 }
