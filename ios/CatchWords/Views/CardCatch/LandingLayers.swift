@@ -344,9 +344,11 @@ final class LandingLayerView: UIView {
             var paths: [Any] = [], widths: [Any] = [], alphas: [Any] = [], times: [NSNumber] = []
             for i in 0...steps {
                 let p = Double(i) / Double(steps)
-                let r = CGFloat(70 + (R - 70) * Film6.outCubic(p)) * k
+                let grown: Double = 70 + (R - 70) * Film6.outCubic(p)
+                let r = CGFloat(grown) * k
                 paths.append(UIBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).cgPath)
-                widths.append(NSNumber(value: (w0 * (1 - p) + 1) * Double(k)))
+                let width: Double = (w0 * (1 - p) + 1) * Double(k)
+                widths.append(NSNumber(value: width))
                 alphas.append(NSNumber(value: i == steps ? 0 : a0 * (1 - p)))
                 times.append(NSNumber(value: p))
             }
@@ -524,33 +526,49 @@ private struct LandingSpark {
     /// A keyframe every 3 steps (20 a second; Core Animation draws the frames in between).
     static let frameStep = 3.0 / 60
 
-    private static let colors: [UIColor] = [0x8FD8FF, 0xB9A4FF, 0xFFD27A, 0xFF9ED2, 0x9FF0C0, 0xFFFFFF].map {
-        UIColor(red: CGFloat(($0 >> 16) & 0xFF) / 255, green: CGFloat(($0 >> 8) & 0xFF) / 255, blue: CGFloat($0 & 0xFF) / 255, alpha: 1)
-    }
+    private static let colors: [UIColor] = {
+        let hexes: [Int] = [0x8FD8FF, 0xB9A4FF, 0xFFD27A, 0xFF9ED2, 0x9FF0C0, 0xFFFFFF]
+        return hexes.map { (hex: Int) -> UIColor in
+            let r = CGFloat((hex >> 16) & 0xFF) / 255
+            let g = CGFloat((hex >> 8) & 0xFF) / 255
+            let b = CGFloat(hex & 0xFF) / 255
+            return UIColor(red: r, green: g, blue: b, alpha: 1)
+        }
+    }()
 
     /// `burst(x, y, {n, speed, up, g, stars})`.
     static func burst(at c: CGPoint, n: Int, speed: Double, up: Double, g: Double = 0.16, stars: Double = 0.45) -> [LandingSpark] {
-        (0..<n).map { i in
-            let a = Double.random(in: 0..<1) * .pi * 2
-            let v = speed * (0.3 + Double.random(in: 0..<1) * 0.9)
+        var out: [LandingSpark] = []
+        for i in 0..<n {
+            let a: Double = Double.random(in: 0..<1) * .pi * 2
+            let v: Double = speed * (0.3 + Double.random(in: 0..<1) * 0.9)
             let isStar = Double.random(in: 0..<1) < stars
-            let w = isStar ? 5 + Double.random(in: 0..<1) * 9 : 4 + Double.random(in: 0..<1) * 5
-            let h = 2.5 + Double.random(in: 0..<1) * 3
-            return walk(star: isStar, color: colors[i % colors.count], x: Double(c.x), y: Double(c.y),
-                        vx: cos(a) * v, vy: sin(a) * v - up, r: Double.random(in: 0..<1) * 6,
-                        vr: (Double.random(in: 0..<1) - 0.5) * 0.35, w: w, h: h,
-                        decay: 0.006 + Double.random(in: 0..<1) * 0.008, g: g, delay: 0)
+            let w: Double = isStar ? 5 + Double.random(in: 0..<1) * 9 : 4 + Double.random(in: 0..<1) * 5
+            let h: Double = 2.5 + Double.random(in: 0..<1) * 3
+            let vx: Double = cos(a) * v
+            let vy: Double = sin(a) * v - up
+            let r: Double = Double.random(in: 0..<1) * 6
+            let vr: Double = (Double.random(in: 0..<1) - 0.5) * 0.35
+            let decay: Double = 0.006 + Double.random(in: 0..<1) * 0.008
+            out.append(walk(star: isStar, color: colors[i % colors.count], x: Double(c.x), y: Double(c.y),
+                            vx: vx, vy: vy, r: r, vr: vr, w: w, h: h, decay: decay, g: g, delay: 0))
         }
+        return out
     }
 
     /// `glints(rect, n)`: white stars twinkling in the square, each after its own short wait.
     static func glints(in rect: CGRect, n: Int) -> [LandingSpark] {
-        (0..<n).map { _ in
-            walk(star: true, color: .white, x: Double(rect.minX) + Double.random(in: 0..<1) * Double(rect.width),
-                 y: Double(rect.minY) + Double.random(in: 0..<1) * Double(rect.height), vx: 0, vy: -0.12, r: 0, vr: 0,
-                 w: 6 + Double.random(in: 0..<1) * 9, h: 0, decay: 0.013 + Double.random(in: 0..<1) * 0.018, g: 0,
-                 delay: Int(Double.random(in: 0..<1) * 40))
+        var out: [LandingSpark] = []
+        for _ in 0..<n {
+            let x: Double = Double(rect.minX) + Double.random(in: 0..<1) * Double(rect.width)
+            let y: Double = Double(rect.minY) + Double.random(in: 0..<1) * Double(rect.height)
+            let w: Double = 6 + Double.random(in: 0..<1) * 9
+            let decay: Double = 0.013 + Double.random(in: 0..<1) * 0.018
+            let delay = Int(Double.random(in: 0..<1) * 40)
+            out.append(walk(star: true, color: .white, x: x, y: y, vx: 0, vy: -0.12, r: 0, vr: 0, w: w, h: 0,
+                            decay: decay, g: 0, delay: delay))
         }
+        return out
     }
 
     /// The steps of `CCParticles.step()`, a keyframe every 3: its place, turn and squash (confetti) or size (stars), and
