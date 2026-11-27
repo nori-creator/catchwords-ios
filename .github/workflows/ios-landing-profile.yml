@@ -68,8 +68,9 @@ jobs:
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
             rm -f "$TRACE"
             xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW -uiProfile YES >/dev/null
-            # The preview replays its landing every 6.5 s: the first (a cold start) and two more.
-            sleep 24
+            # The preview replays its landing every 6.5 s: the first (a cold start) and two more. The profiler stops
+            # 1.6 s after each impact and writes its summary a moment later.
+            sleep 36
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
             sleep 1
             echo "================ $name (${{ matrix.device }})"

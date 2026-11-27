@@ -27,7 +27,8 @@ nonisolated enum MainProfiler {
         Recorder.shared.mark(name)
     }
 
-    /// Stops sampling and writes the summary into the trace (off the main thread).
+    /// Stops sampling and writes the summary into the trace (off the main thread). Sampling also stops by itself
+    /// `afterImpact` seconds after the `impact` mark (the landing's sound and toast after that are not measured).
     static func end() {
         guard isOn else { return }
         Recorder.shared.end()
@@ -41,6 +42,8 @@ nonisolated enum MainProfiler {
         private var samples: [(t: CFTimeInterval, frames: [UInt])] = []
         private var marks: [(t: CFTimeInterval, name: String)] = []
         private var started: CFTimeInterval = 0
+        /// How long after the `impact` mark the sampling goes on.
+        private let afterImpact: CFTimeInterval = 1.6
 
         func begin(_ label: String) {
             lock.lock()
@@ -73,6 +76,9 @@ nonisolated enum MainProfiler {
         private func loop() {
             while true {
                 lock.lock()
+                if let hit = marks.first(where: { $0.name == "impact" }), CACurrentMediaTime() > hit.t + afterImpact {
+                    running = false
+                }
                 let on = running
                 lock.unlock()
                 guard on else { break }
@@ -115,13 +121,24 @@ nonisolated enum MainProfiler {
                 names[addr] = f
                 return f
             }
-            // A sample whose innermost frames wait for the next event: the main thread was free.
-            func idle(_ frames: [Frame]) -> Bool {
-                frames.prefix(4).contains { $0.symbol.contains("mach_msg") }
+            // A sample whose innermost frames wait for the next event (`mach_msg`): the main thread was free.
+            // Each distinct function once (its index), so the sums below count small integers, not names.
+            var ids: [Frame: Int] = [:]
+            var table: [Frame] = []
+            var byAddress: [UInt: Int] = [:]
+            func id(_ addr: UInt, leaf: Bool) -> Int {
+                if let known = byAddress[addr] { return known }
+                let f = frame(addr, leaf: leaf)
+                let i: Int
+                if let known = ids[f] { i = known } else { i = table.count; ids[f] = i; table.append(f) }
+                byAddress[addr] = i
+                return i
             }
-            let named: [(t: CFTimeInterval, frames: [Frame])] = samples.map { s in
-                (s.t, s.frames.enumerated().map { frame($0.element, leaf: $0.offset == 0) })
+            let named: [(t: CFTimeInterval, frames: [Int])] = samples.map { s in
+                (s.t, s.frames.enumerated().map { id($0.element, leaf: $0.offset == 0) })
             }
+            let idleIds = Set(table.indices.filter { table[$0].symbol.contains("mach_msg") })
+            func idle(_ frames: [Int]) -> Bool { frames.prefix(4).contains { idleIds.contains($0) } }
             var out = "profile \(label): \(samples.count) samples over \(Int(((samples.last?.t ?? start) - start) * 1000)) ms"
             out += ", marks " + marks.map { "\($0.name) +\(Int(($0.t - start) * 1000))" }.joined(separator: " ")
             // The parts: begin → first mark → … → last mark, and the second after the impact apart.
@@ -157,22 +174,32 @@ nonisolated enum MainProfiler {
                     let ms = Int((these[best.to].t - these[best.from].t) * 1000)
                     out += "; longest busy \(ms) ms at +\(Int((these[best.from].t - start) * 1000))"
                     let stretch = Array(these[best.from...best.to])
-                    out += "\n    in that stretch:" + top(stretch, limit: 18)
+                    out += "\n    in that stretch:" + top(stretch, table: table, limit: 18)
                 }
                 if !busy.isEmpty {
-                    out += "\n    all busy samples:" + top(busy, limit: 30)
+                    out += "\n    all busy samples:" + top(busy, table: table, limit: 30)
                 }
             }
             return out
         }
 
         /// Each function's share of the samples it is on the stack in (once per sample), the app's own first.
-        private static func top(_ samples: [(t: CFTimeInterval, frames: [Frame])], limit: Int) -> String {
+        private static func top(_ samples: [(t: CFTimeInterval, frames: [Int])], table: [Frame], limit: Int) -> String {
+            var counts = [Int](repeating: 0, count: table.count)
+            var leaves = [Int](repeating: 0, count: table.count)
+            var seen = [Int](repeating: -1, count: table.count)
+            for (n, s) in samples.enumerated() {
+                for f in s.frames where seen[f] != n {
+                    seen[f] = n
+                    counts[f] += 1
+                }
+                if let first = s.frames.first { leaves[first] += 1 }
+            }
             var inclusive: [Frame: Int] = [:]
             var leaf: [Frame: Int] = [:]
-            for s in samples {
-                for f in Set(s.frames) { inclusive[f, default: 0] += 1 }
-                if let first = s.frames.first { leaf[first, default: 0] += 1 }
+            for i in table.indices {
+                if counts[i] > 0 { inclusive[table[i]] = counts[i] }
+                if leaves[i] > 0 { leaf[table[i]] = leaves[i] }
             }
             let n = Double(max(1, samples.count))
             func pct(_ c: Int) -> String { String(format: "%3.0f%%", Double(c) * 100 / n) }
