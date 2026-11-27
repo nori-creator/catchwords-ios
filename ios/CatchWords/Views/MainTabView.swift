@@ -243,6 +243,7 @@ struct MainTabView: View {
     @Environment(ProfileStore.self) private var profile
     /// The system's App Store rating sheet (App Review Guideline 5.6.1: no custom review prompts).
     @Environment(\.requestReview) private var requestReview
+    @Environment(\.displayScale) private var displayScale
 
     /// `-uiStoreSection` (DEBUG, StoreShot): the word page opens scrolled to this section.
     private var storeFocus: CardSection? {
@@ -473,6 +474,21 @@ struct MainTabView: View {
             AppEvents.screen(AppEvents.Screen(router.tab))
             beginTourIfPending()
             openNotification(NotificationRouter.shared.pending)
+        }
+        // Every caught word's 図鑑 name drawn ahead as soon as the dex is read, off the main thread (`DexNameArt`): the
+        // 図鑑's page built during a catch's GET moment (`AppRouter.dexWarm`) then only shows pictures. Drawn when the
+        // 図鑑 first opened, a page built before that typeset every name with its reading three ways (owner 2026-11-27:
+        // 「カメラ撮ってから、図鑑に追加されるまでの全てのアニメーション　限界まで滑らかにして」).
+        .task(id: dex.hasLoaded ? dex.stickers.count : -1) {
+            guard dex.hasLoaded, CCZhuyinWord.isMandarin else { return }
+            let pinyin = UserDefaults.standard.string(forKey: "reading.pref") == "pinyin"
+            let scale = displayScale
+            let keys = dex.stickers.compactMap { s -> DexNameArt.Key? in
+                guard let w = s.word, !w.headword.isEmpty else { return nil }
+                return DexNameArt.Key(headword: w.headword, zhuyin: w.readingZhuyin ?? "", pinyin: w.pinyin ?? "",
+                                      pinyinFirst: pinyin, size: 13, scale: scale)
+            }
+            await Task.detached(priority: .utility) { DexNameArt.warm(keys) }.value
         }
         #if DEBUG
         .task { await openStoreShot() }

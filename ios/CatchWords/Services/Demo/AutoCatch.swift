@@ -17,11 +17,11 @@ nonisolated enum AutoCatch {
         #endif
     }
 
-    /// How many catches one launch plays (`-uiAutoCatchRounds`, 2 by default): the first after a cold start, then one
-    /// more with everything warm.
+    /// How many catches one launch plays (`-uiAutoCatchRounds`, 3 by default): the first after a cold start (on the
+    /// simulator Vision runs on the CPU and the first photo's scan takes over a minute), then two with everything warm.
     static var rounds: Int {
         let n = UserDefaults.standard.integer(forKey: "uiAutoCatchRounds")
-        return n > 0 ? n : 2
+        return n > 0 ? n : 3
     }
 
     nonisolated(unsafe) private static var played = 0

@@ -82,7 +82,7 @@ jobs:
             # The profiler's summaries (multi-line entries start with "profile").
             awk '/profile landing/{p=1} p && /^[0-9][0-9]:[0-9][0-9]:/ && !/profile landing/{p=0} p' "$TRACE"
           done
-      - name: 撮影から図鑑までを 2 回流して測る
+      - name: 撮影から図鑑までを 3 回流して測る
         run: |
           set +e -uo pipefail
           UDID=$(cat "$RUNNER_TEMP/udid")
@@ -96,9 +96,10 @@ jobs:
           xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiDemo zh-TW -uiDemoReset YES -uiDemoMany 230 -uiDemoImageSize 1024 \
             -onboarding.done YES -tour.pending NO -ui.lang ja -AppleLanguages "(ja)" -AppleLocale ja_JP \
             -uiAutoCatch YES -uiProfile YES -uiFrames YES >/dev/null
-          for i in $(seq 1 30); do
+          # The first photo's scan runs Vision on the simulator's CPU (over a minute); the next two are warm.
+          for i in $(seq 1 72); do
             sleep 5
-            [ "$(grep -c "profile catch" "$TRACE" 2>/dev/null)" -ge 2 ] && break
+            [ "$(grep -c "profile catch" "$TRACE" 2>/dev/null)" -ge 3 ] && break
           done
           sleep 3
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null

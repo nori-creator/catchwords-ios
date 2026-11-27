@@ -114,6 +114,8 @@ struct CatchChooseOverlay: View {
 
     /// The field comes in with the card's rows.
     @State private var fieldShown = false
+    /// The rows' own height (`chooser`): the card is as tall, up to its room, and scrolls beyond it.
+    @State private var rowsHeight: CGFloat = 0
     /// The field's height as drawn (it grows with a large text size), for the first tour's room under the rows.
     @State private var fieldMeasured: CGFloat = 0
     /// The first tour's pill between the rows and the field (`TourStep.pillUnderLit`): its room grows with the text size.
@@ -265,11 +267,18 @@ struct CatchChooseOverlay: View {
             .offset(y: CGFloat(1 - headIn) * 30 * k)
             .padding(.bottom, 40 * k)
 
-            ViewThatFits(in: .vertical) {
+            // The rows scroll only when they are taller than the card may be. Measured once per set of rows (their
+            // height), not tried both ways on every frame: `ViewThatFits` typeset every row twice a frame while the
+            // card came in and folded away — most of the main thread from the tap to the GET moment (owner
+            // 2026-11-27: 「名前のタグをタップして切り抜くところもカクカクしていて、写真が止まってる」).
+            ScrollView {
                 rows(now: now, tD: tD, k: k)
-                ScrollView { rows(now: now, tD: tD, k: k) }
-                    .scrollBounceBehavior(.basedOnSize)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                        if abs(h - rowsHeight) > 0.5 { rowsHeight = h }
+                    }
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(height: rowsHeight > 0 ? min(rowsHeight, maxCard) : nil)
             .frame(maxHeight: maxCard)
             .background(Color.white, in: .rect(cornerRadius: 22, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(line, lineWidth: 1))
