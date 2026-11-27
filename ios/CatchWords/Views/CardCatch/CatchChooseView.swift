@@ -18,6 +18,9 @@ struct CatchChooseOverlay: View {
     let dexLabel: String?
     let cut: UIImage?
     let fallback: UIImage?
+    /// The sticker `cut` replaced and when (`CatchStageScene.swapFrom`): the two cross-fade.
+    var swapFrom: UIImage? = nil
+    var swapAt: Double? = nil
     let palette: StagePalette
     /// The thing's place in the photo (global).
     let start: CGRect?
@@ -52,46 +55,6 @@ struct CatchChooseOverlay: View {
     /// The card has come in and stands still (`settleCard`): its timeline stops until a choice, new rows or closing.
     @State private var cardStill = false
 
-    /// 囲んで切り抜き直す and 元の写真のまま at the top left, always side by side (owner 2026-11-10: 「元の画像は切り抜き
-    /// 治すの右に配置して」 — stacked, the second one covered the cut-out). Where the row is narrow the two get smaller.
-    @ViewBuilder
-    private func cutButtons(compact: Bool) -> some View {
-        HStack(spacing: compact ? 6 : 8) {
-            if let onRecut {
-                cutButton(L("囲んで切り抜き直す"), icon: "lasso", id: "variant.recut", compact: compact, action: onRecut)
-            }
-            if let onWholePhoto {
-                cutButton(L("元の写真のまま"), icon: "photo", id: "variant.wholePhoto", compact: compact) {
-                    AppEvents.feature(.wholePhoto)
-                    onWholePhoto()
-                }
-            }
-        }
-    }
-
-    private func cutButton(_ title: String, icon: String, id: String, compact: Bool,
-                           action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: compact ? 4 : 6) {
-                Image(systemName: icon)
-                    .font(.system(size: compact ? 12 : 14, weight: .semibold))
-                Text(title)
-                    .font(.system(size: compact ? 12 : 13, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .foregroundStyle(ink)
-            .padding(.horizontal, compact ? 9 : 12)
-            .frame(height: 36)
-            .background(.white.opacity(0.85), in: Capsule())
-            .overlay(Capsule().stroke(line, lineWidth: 1))
-            .frame(minHeight: 44)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(PressableStyle(scale: 0.95))
-        .accessibilityIdentifier(id)
-    }
-
     private func closing(_ now: Double) -> Double { closingAt.map { Film6.seg(now - $0, 0, 0.3) } ?? 0 }
 
     private var stillKey: String { "\(tappedAt)|\(chosenAt ?? -1)|\(closingAt ?? -1)|\(rowsAt ?? -1)|\(words.count)" }
@@ -111,6 +74,8 @@ struct CatchChooseOverlay: View {
 
     /// The field comes in with the card's rows.
     @State private var fieldShown = false
+    /// The rows' own height (`chooser`): the card is as tall, up to its room, and scrolls beyond it.
+    @State private var rowsHeight: CGFloat = 0
     /// The field's height as drawn (it grows with a large text size), for the first tour's room under the rows.
     @State private var fieldMeasured: CGFloat = 0
     /// The first tour's pill between the rows and the field (`TourStep.pillUnderLit`): its room grows with the text size.
@@ -136,7 +101,8 @@ struct CatchChooseOverlay: View {
                         let page = calm ? Film6.clamp(tD / 0.2) : Film6.inOutCubic(Film6.seg(tD, 0.05, 0.6))
                         CatchStageScene(size: size, cut: cut, fallback: fallback, palette: palette,
                                         start: start.map { $0.offsetBy(dx: -o.x, dy: -o.y) },
-                                        sinceTap: calm ? 99 : tD, sinceChoice: tc, live: now, page: page, calm: calm)
+                                        sinceTap: calm ? 99 : tD, sinceChoice: tc, live: now, page: page, calm: calm,
+                                        swapFrom: swapFrom, swapAt: swapAt)
                             .opacity(1 - closing(now))
                     }
                     // Taps beside the card go nowhere (the photo's words under it are put away).
@@ -164,11 +130,10 @@ struct CatchChooseOverlay: View {
                     HStack {
                         // Side by side, smaller where the row is narrow. The row gets its width before the Spacer:
                         // with the Spacer sharing it, the buttons were offered half the row and fell one under the other.
-                        ViewThatFits(in: .horizontal) {
-                            cutButtons(compact: false)
-                            cutButtons(compact: true)
-                        }
-                        .layoutPriority(1)
+                        ChooseCutButtons(showsRecut: onRecut != nil, showsWholePhoto: onWholePhoto != nil,
+                                         onRecut: { onRecut?() }, onWholePhoto: { onWholePhoto?() })
+                            .equatable()
+                            .layoutPriority(1)
                         Spacer(minLength: 8)
                         Button(action: onClose) {
                             Image(systemName: "xmark")
@@ -261,11 +226,18 @@ struct CatchChooseOverlay: View {
             .offset(y: CGFloat(1 - headIn) * 30 * k)
             .padding(.bottom, 40 * k)
 
-            ViewThatFits(in: .vertical) {
+            // The rows scroll only when they are taller than the card may be. Measured once per set of rows (their
+            // height), not tried both ways on every frame: `ViewThatFits` typeset every row twice a frame while the
+            // card came in and folded away — most of the main thread from the tap to the GET moment (owner
+            // 2026-11-27: 「名前のタグをタップして切り抜くところもカクカクしていて、写真が止まってる」).
+            ScrollView {
                 rows(now: now, tD: tD, k: k)
-                ScrollView { rows(now: now, tD: tD, k: k) }
-                    .scrollBounceBehavior(.basedOnSize)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                        if abs(h - rowsHeight) > 0.5 { rowsHeight = h }
+                    }
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(height: rowsHeight > 0 ? min(rowsHeight, maxCard) : nil)
             .frame(maxHeight: maxCard)
             .background(Color.white, in: .rect(cornerRadius: 22, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(line, lineWidth: 1))
@@ -365,6 +337,72 @@ struct CatchChooseOverlay: View {
     // MARK: Typing a word
 
     static let fieldHeight: CGFloat = 92
+}
+
+/// 囲んで切り抜き直す and 元の写真のまま at the top left of the choose screen (`CatchChooseOverlay`). Its own view, equal while
+/// the same buttons are on it: the row tries two sizes (`ViewThatFits`) and was measured again every time the choose
+/// screen changed (its cut-out coming, a search) — owner 2026-11-27: 「限界まで滑らかにして。カクカクなしで」.
+private struct ChooseCutButtons: View, Equatable {
+    let showsRecut: Bool
+    let showsWholePhoto: Bool
+    let onRecut: () -> Void
+    let onWholePhoto: () -> Void
+
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        a.showsRecut == b.showsRecut && a.showsWholePhoto == b.showsWholePhoto
+    }
+
+    private let ink = Color(hex: 0x0B121A)
+    private let line = Color(hex: 0xE0E5EB)
+
+    /// 囲んで切り抜き直す and 元の写真のまま at the top left, always side by side (owner 2026-11-10: 「元の画像は切り抜き
+    /// 治すの右に配置して」 — stacked, the second one covered the cut-out). Where the row is narrow the two get smaller.
+    var body: some View {
+        // Side by side, smaller where the row is narrow.
+        ViewThatFits(in: .horizontal) {
+            buttons(compact: false)
+            buttons(compact: true)
+        }
+    }
+
+    @ViewBuilder
+    private func buttons(compact: Bool) -> some View {
+        HStack(spacing: compact ? 6 : 8) {
+            if showsRecut {
+                cutButton(L("囲んで切り抜き直す"), icon: "lasso", id: "variant.recut", compact: compact, action: onRecut)
+            }
+            if showsWholePhoto {
+                cutButton(L("元の写真のまま"), icon: "photo", id: "variant.wholePhoto", compact: compact) {
+                    AppEvents.feature(.wholePhoto)
+                    onWholePhoto()
+                }
+            }
+        }
+    }
+
+    private func cutButton(_ title: String, icon: String, id: String, compact: Bool,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: compact ? 4 : 6) {
+                Image(systemName: icon)
+                    .font(.system(size: compact ? 12 : 14, weight: .semibold))
+                Text(title)
+                    .font(.system(size: compact ? 12 : 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(ink)
+            .padding(.horizontal, compact ? 9 : 12)
+            .frame(height: 36)
+            .background(.white.opacity(0.85), in: Capsule())
+            .overlay(Capsule().stroke(line, lineWidth: 1))
+            .frame(minHeight: 44)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle(scale: 0.95))
+        .accessibilityIdentifier(id)
+    }
+
 }
 
 /// One way to say it on the choose card: what kind of name it is, the word with its reading, its meaning and how it

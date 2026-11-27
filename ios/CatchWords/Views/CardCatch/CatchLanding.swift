@@ -418,7 +418,7 @@ enum CatchLanding {
                 router.dexWarm = nil
             }
             await c.run()
-            MainProfiler.end()
+            MainProfiler.end(label: "landing")
             UITestTrace.log("landing end \(c.stickerId) current=\(router.landing === c)")
             if router.landing === c { router.landing = nil }
         }

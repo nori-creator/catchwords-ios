@@ -111,6 +111,9 @@ struct CandidatePickerView: View {
         /// The thing's cut-out; filled in when it is rendered after the choose screen opened (the tags go up first).
         var cut: UIImage?
         let fallback: UIImage?
+        /// What the sticker was before `cut` came (nil: `fallback`) and when it came: the two cross-fade.
+        var swapFrom: UIImage? = nil
+        var swapAt: Double? = nil
         /// The stage's colours: from the cut-out, or from the photo's crop until the cut-out comes.
         var palette: StagePalette
         let dexLabel: String?
@@ -165,7 +168,8 @@ struct CandidatePickerView: View {
             if let f = flow {
                 CatchChooseOverlay(words: f.words, subtitle: f.subtitle,
                                    dexLabel: f.dexLabel, cut: f.cut ?? (f.chosenAt != nil ? vm.cutout : nil),
-                                   fallback: f.fallback, palette: f.palette, start: f.start,
+                                   fallback: f.fallback, swapFrom: f.swapFrom, swapAt: f.swapAt,
+                                   palette: f.palette, start: f.start,
                                    tappedAt: f.tappedAt, chosenAt: f.chosenAt, chosen: f.chosen, closingAt: f.closingAt,
                                    calm: reduceMotion, alwaysCard: true, rowsAt: f.rowsAt, searching: vm.isLookingUp,
                                    searchError: vm.searchError, onChoose: pick, onClose: closeChoices,
@@ -189,6 +193,9 @@ struct CandidatePickerView: View {
             searchOpen = false
             heldRound = nil
         }
+        // The thing's finer cut-out (its edge made again on a crop round it) takes over the open choose screen's
+        // sticker by a cross-fade (`CaptureViewModel.takeFinerCuts`).
+        .onChange(of: vm.finerRound) { _, _ in takeFinerCut() }
         // A lookup that found nothing opens no choose screen: nothing is held back for it.
         .onChange(of: vm.isLookingUp) { _, looking in
             if !looking, let held = heldRound, held != vm.typedRound { heldRound = nil }
@@ -200,6 +207,10 @@ struct CandidatePickerView: View {
             withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) { searchOpen = false }
         }
         .task(id: autoOpen) { await openForPreview() }
+        #if DEBUG
+        // CI's measured catch (`AutoCatch`): a tag tapped once the tags are up, then the first way to say it chosen.
+        .task(id: AutoCatch.isOn && !scanning && !objects.isEmpty) { await autoCatch() }
+        #endif
         // 囲んで切り抜き直す: the learner's loop on the photo becomes the thing's sticker (the floating one here, the GET
         // moment's, the saved one). The same screen as on the word page, in the scan's light.
         .fullScreenCover(isPresented: $recutting) {
@@ -255,91 +266,15 @@ struct CandidatePickerView: View {
         }
     }
 
-    /// 撮り直す, 囲んで切り抜き直す and the hint in one row; where the row is too narrow, the hint goes under the buttons
-    /// (owner 2026-11-09: the button was its icon alone there — 「アイコンだけで何の機能がわからないから、切り抜き直すって文字を
-    /// つけて」).
+    /// 撮り直す, 囲んで切り抜き直す and the hint in one row (`PickerTopBar`).
     private var topBar: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                retakeButton
-                recutButton
-                Spacer(minLength: 8)
-                hintText
-            }
-            VStack(alignment: .trailing, spacing: 2) {
-                HStack(spacing: 10) {
-                    retakeButton
-                    recutButton
-                    Spacer(minLength: 0)
-                }
-                hintText
-            }
-            // Large text in a long language: one button over the other.
-            VStack(alignment: .leading, spacing: 0) {
-                retakeButton
-                recutButton
-                hintText.frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-    }
-
-    private var retakeButton: some View {
-        // A photo opened from 「解析待ち」 is not thrown away from here (check 2026-11-03 H2: 撮り直す deleted it with
-        // no question, and it was this screen's only way out): 閉じる leaves it in 「解析待ち」.
         let fromQueue = vm.restoredPendingId != nil
-        return Button { if fromQueue { vm.keepPendingAndReset() } else { vm.reset() } } label: {
-            Label(fromQueue ? L("閉じる") : L("撮り直す"), systemImage: fromQueue ? "xmark" : "arrow.counterclockwise")
-                .scaledFont(size: 14, weight: .semibold)
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 14)
-                .frame(minHeight: 36)
-                .background(.white.opacity(0.12), in: Capsule())
-                .frame(minHeight: 44)
-                .contentShape(.rect)
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityIdentifier("picker.retake")
-    }
-
-    /// 囲んで切り抜き直す before any tag is tapped (owner 2026-11-06: 「撮り直すボタンのところに切り抜き直す」): the learner's
-    /// loop picks the thing it goes round and becomes its sticker, and that thing's words open.
-    @ViewBuilder
-    private var recutButton: some View {
-        if !scanning, flow == nil, !objects.isEmpty {
-            Button { recutting = true } label: {
-                Label(L("囲んで切り抜き直す"), systemImage: "lasso")
-                    .scaledFont(size: 14, weight: .semibold)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 36)
-                    .background(.white.opacity(0.12), in: Capsule())
-                    .frame(minHeight: 44)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityIdentifier("picker.recut")
-        }
-    }
-
-    @ViewBuilder
-    private var hintText: some View {
-        if !topHint.isEmpty { hintLine }
-    }
-
-    private var hintLine: some View {
-        Text(topHint)
-            .scaledFont(size: 14, weight: .semibold)
-            .foregroundStyle(.white.opacity(0.85))
-            .lineLimit(1)
-            .fixedSize()
-            .contentTransition(.opacity)
-            .animation(.easeInOut(duration: 0.25), value: topHint)
+        return PickerTopBar(fromQueue: fromQueue, showsRecut: !scanning && flow == nil && !objects.isEmpty, hint: topHint,
+                            onRetake: { if fromQueue { vm.keepPendingAndReset() } else { vm.reset() } },
+                            onRecut: { recutting = true })
+            .equatable()
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
     }
 
     // MARK: The photo and its tags
@@ -656,13 +591,14 @@ struct CandidatePickerView: View {
     /// 草莓蛋糕 without the learner seeing the word and its meaning first). The choice goes on to the GET moment.
     private func open(_ t: Tag) {
         guard flow == nil else { return }
+        MainProfiler.mark("tap")
         UITestTrace.log("open begin \(t.id)")
         let now = CCClock.now
         let o = t.choices[0].object
         // Its cut-out when it is made already; else the photo round it stands in (cut from the screen-size copy, never
         // drawn from the 12 MP photo here), and the cut-out is taken when it comes.
         let cut = o.cut ?? vm.readyCut(for: o)
-        let fallback = cut == nil ? vm.standIn(box: o.positioned ? o.box : nil) : nil
+        let fallback = cut == nil ? (vm.readyStandIn(for: o) ?? vm.standIn(box: o.positioned ? o.box : nil)) : nil
         let palette = StagePalette.make(from: cut ?? fallback)
         let label = t.choices.lazy.compactMap { CatchDexInfo.label(headword: $0.word.headword, stickers: dex.stickers) }.first
         vm.stagePalette = palette
@@ -687,11 +623,27 @@ struct CandidatePickerView: View {
             let made = await lifting.value
             guard let cut = made.cut, var f = flow, f.cut == nil, f.chosenAt == nil, f.closingAt == nil,
                   f.anchor?.id == object?.id else { return }
+            MainProfiler.mark("cut")
+            f.swapFrom = nil
+            f.swapAt = CCClock.now
             f.cut = cut
             f.palette = StagePalette.make(from: cut)
             vm.stagePalette = f.palette
             flow = f
         }
+    }
+
+    /// The open choose screen's thing got its finer cut-out: it replaces the first one (never a cut-out the learner drew,
+    /// which the finer ones leave alone, nor the stand-in — that one is replaced by `takeCut`).
+    private func takeFinerCut() {
+        guard var f = flow, f.chosenAt == nil, f.closingAt == nil, let old = f.cut,
+              let fresh = vm.current(f.anchor)?.cut, fresh !== old else { return }
+        f.swapFrom = old
+        f.swapAt = CCClock.now
+        f.cut = fresh
+        f.palette = StagePalette.make(from: fresh)
+        vm.stagePalette = f.palette
+        flow = f
     }
 
     /// The cut-out the learner drew (`LassoCutoutView`) is the open choose screen's sticker and the thing's from now on.
@@ -708,6 +660,8 @@ struct CandidatePickerView: View {
         }
         guard f.chosenAt == nil, f.closingAt == nil else { return }
         vm.setLearnerCut(image, box: box, for: f.anchor)
+        f.swapFrom = f.cut
+        f.swapAt = CCClock.now
         f.cut = image
         f.palette = StagePalette.make(from: image)
         vm.stagePalette = f.palette
@@ -800,6 +754,7 @@ struct CandidatePickerView: View {
     private func pick(_ i: Int) {
         guard var f = flow, f.chosenAt == nil, f.closingAt == nil, f.words.indices.contains(i) else { return }
         UITestTrace.log("pick \(i) cut=\(f.cut != nil)")
+        MainProfiler.mark("pick")
         let now = CCClock.now
         f.chosenAt = now
         f.chosen = i
@@ -807,7 +762,8 @@ struct CandidatePickerView: View {
         // The first tour: the choice moves the guide on (the GET moment and 図鑑に追加 are silent).
         router.advanceTour(from: .choose, to: .detail)
         SoundService.shared.playLayered(.c6Choose)
-        vm.choose(f.words[i], object: f.objects[i], typed: f.typed, stage: (origin: now, handoffAt: now + Film6.handoff))
+        // The thing as it is now: its cut-out may have been made finer since the choose screen opened.
+        vm.choose(f.words[i], object: vm.current(f.objects[i]), typed: f.typed, stage: (origin: now, handoffAt: now + Film6.handoff))
     }
 
     /// A word typed at the bottom of the choose screen (owner 2026-10-15: in the display language or the learning
@@ -887,6 +843,24 @@ struct CandidatePickerView: View {
             try? await Task.sleep(for: .milliseconds(400))
         }
     }
+
+    #if DEBUG
+    /// `AutoCatch`: as a learner would — the tags are read for a moment, a tag is tapped (the first with several ways to
+    /// say it, else the first), its ways come in, the first is chosen.
+    private func autoCatch() async {
+        guard AutoCatch.isOn, !scanning, !objects.isEmpty else { return }
+        try? await Task.sleep(for: .seconds(1.2))
+        let all = tags(objects)
+        guard !Task.isCancelled, flow == nil, stageFrame.width > 0,
+              let t = all.first(where: { $0.choices.count > 1 }) ?? all.first else { return }
+        UITestTrace.log("autocatch tap \(t.id)")
+        open(t)
+        try? await Task.sleep(for: .seconds(1.8))
+        guard !Task.isCancelled, flow != nil else { return }
+        UITestTrace.log("autocatch pick")
+        pick(0)
+    }
+    #endif
 
     /// Where a scaledToFill image sits inside `size` (`TagPlacement.displayedRect`, checked by TagPlacementTests).
     static func fillRect(image: CGSize, in size: CGSize) -> CGRect {
@@ -1214,5 +1188,101 @@ struct TagTapHand: View {
             .scaleEffect(1 - 0.06 * press)
             .position(x: spot.rect.midX + spot.toward.dx * TagHandPlacement.travel * press,
                       y: spot.rect.midY + spot.toward.dy * TagHandPlacement.travel * press)
+    }
+}
+
+/// 撮り直す, 囲んで切り抜き直す and the hint in one row; where the row is too narrow, the hint goes under the buttons
+/// (owner 2026-11-09: the button was its icon alone there — 「アイコンだけで何の機能がわからないから、切り抜き直すって文字を
+/// つけて」). Its own view, equal while its buttons and hint are: the row tries three layouts (`ViewThatFits`), and it was
+/// measured again every time anything on the tags screen changed — most of the main thread as a tag was tapped (owner
+/// 2026-11-27: 「名前のタグをタップして切り抜くところもカクカクしていて、写真が止まってる」).
+private struct PickerTopBar: View, Equatable {
+    let fromQueue: Bool
+    let showsRecut: Bool
+    let hint: String
+    let onRetake: () -> Void
+    let onRecut: () -> Void
+
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        a.fromQueue == b.fromQueue && a.showsRecut == b.showsRecut && a.hint == b.hint
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                retakeButton
+                recutButton
+                Spacer(minLength: 8)
+                hintText
+            }
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(spacing: 10) {
+                    retakeButton
+                    recutButton
+                    Spacer(minLength: 0)
+                }
+                hintText
+            }
+            // Large text in a long language: one button over the other.
+            VStack(alignment: .leading, spacing: 0) {
+                retakeButton
+                recutButton
+                hintText.frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+    }
+
+    // A photo opened from 「解析待ち」 is not thrown away from here (check 2026-11-03 H2: 撮り直す deleted it with no
+    // question, and it was this screen's only way out): 閉じる leaves it in 「解析待ち」.
+    private var retakeButton: some View {
+        Button(action: onRetake) {
+            Label(fromQueue ? L("閉じる") : L("撮り直す"), systemImage: fromQueue ? "xmark" : "arrow.counterclockwise")
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 14)
+                .frame(minHeight: 36)
+                .background(.white.opacity(0.12), in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityIdentifier("picker.retake")
+    }
+
+    /// 囲んで切り抜き直す before any tag is tapped (owner 2026-11-06: 「撮り直すボタンのところに切り抜き直す」): the learner's
+    /// loop picks the thing it goes round and becomes its sticker, and that thing's words open.
+    @ViewBuilder
+    private var recutButton: some View {
+        if showsRecut {
+            Button(action: onRecut) {
+                Label(L("囲んで切り抜き直す"), systemImage: "lasso")
+                    .scaledFont(size: 14, weight: .semibold)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 36)
+                    .background(.white.opacity(0.12), in: Capsule())
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityIdentifier("picker.recut")
+        }
+    }
+
+    @ViewBuilder
+    private var hintText: some View {
+        if !hint.isEmpty {
+            Text(hint)
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(1)
+                .fixedSize()
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: 0.25), value: hint)
+        }
     }
 }

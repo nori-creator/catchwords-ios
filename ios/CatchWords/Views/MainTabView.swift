@@ -243,6 +243,7 @@ struct MainTabView: View {
     @Environment(ProfileStore.self) private var profile
     /// The system's App Store rating sheet (App Review Guideline 5.6.1: no custom review prompts).
     @Environment(\.requestReview) private var requestReview
+    @Environment(\.displayScale) private var displayScale
 
     /// `-uiStoreSection` (DEBUG, StoreShot): the word page opens scrolled to this section.
     private var storeFocus: CardSection? {
@@ -474,8 +475,40 @@ struct MainTabView: View {
             beginTourIfPending()
             openNotification(NotificationRouter.shared.pending)
         }
+        // Every caught word's 図鑑 name drawn ahead as soon as the dex is read, off the main thread (`DexNameArt`): the
+        // 図鑑's page built during a catch's GET moment (`AppRouter.dexWarm`) then only shows pictures. Drawn when the
+        // 図鑑 first opened, a page built before that typeset every name with its reading three ways (owner 2026-11-27:
+        // 「カメラ撮ってから、図鑑に追加されるまでの全てのアニメーション　限界まで滑らかにして」).
+        .task(id: dex.hasLoaded ? dex.stickers.count : -1) {
+            guard dex.hasLoaded, CCZhuyinWord.isMandarin else { return }
+            let pinyin = UserDefaults.standard.string(forKey: "reading.pref") == "pinyin"
+            let scale = displayScale
+            let keys = dex.stickers.compactMap { s -> DexNameArt.Key? in
+                guard let w = s.word, !w.headword.isEmpty else { return nil }
+                return DexNameArt.Key(headword: w.headword, zhuyin: w.readingZhuyin ?? "", pinyin: w.pinyin ?? "",
+                                      pinyinFirst: pinyin, size: 13, scale: scale)
+            }
+            await Task.detached(priority: .utility) { DexNameArt.warm(keys) }.value
+        }
         #if DEBUG
         .task { await openStoreShot() }
+        // CI's measured catch (`AutoCatch`): the AI consent given, then the camera tab, after the home screen settled.
+        .task {
+            guard AutoCatch.isOn else { return }
+            for _ in 0..<120 where !AIConsent.shared.isLoaded { try? await Task.sleep(for: .milliseconds(250)) }
+            if !AIConsent.shared.isGranted { AIConsent.shared.grant() }
+            for _ in 0..<60 where !dex.hasLoaded { try? await Task.sleep(for: .milliseconds(250)) }
+            try? await Task.sleep(for: .seconds(3))
+            router.tab = .camera
+        }
+        // … and after each landing, back to the camera for the next round.
+        .onChange(of: router.landing == nil) { _, done in
+            guard AutoCatch.isOn, done, AutoCatch.round < AutoCatch.rounds else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                router.tab = .camera
+            }
+        }
         // UI test (`WordOpenTests.test_catchLimitSheet`): the day's-limit sheet opened as the shutter opens it.
         .task {
             guard UserDefaults.standard.bool(forKey: "uiCatchLimitSheet") else { return }

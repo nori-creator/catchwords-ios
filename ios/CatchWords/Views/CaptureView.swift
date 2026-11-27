@@ -116,6 +116,20 @@ struct CaptureView: View {
             router.photoInFlight = false
             router.selfieStep = false
         }
+        #if DEBUG
+        // CI's measured catch (`AutoCatch`): the camera's shutter pressed by itself, the whole catch sampled from here.
+        .task(id: vm.step == .camera && router.tab == .camera) {
+            guard AutoCatch.isOn, vm.step == .camera, router.tab == .camera, let small = demoPhoto else { return }
+            // The camera-sized photo made before the shutter, off the main thread (not part of what is measured).
+            _ = await Task.detached(priority: .utility) { AutoCatch.photo(from: small) }.value
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled, vm.step == .camera, router.tab == .camera, let round = AutoCatch.nextRound() else { return }
+            UITestTrace.log("autocatch round \(round) shutter")
+            MainProfiler.begin("catch \(round)")
+            MainProfiler.mark("shutter")
+            shoot()
+        }
+        #endif
         .task(id: vm.step == .selfie) {
             // Each selfie step starts with its words, which give way after a few seconds.
             guard vm.step == .selfie else { return }
@@ -133,6 +147,7 @@ struct CaptureView: View {
             syncChrome()
             if step == .select { router.advanceTour(from: .shoot, to: .pick) }
             if step == .celebrate {
+                MainProfiler.mark("get")
                 router.advanceTour(from: .pick, to: .detail)
                 router.advanceTour(from: .choose, to: .detail)
                 // The dex page the word lands on next: its squares are read into memory now, while the word is
@@ -578,6 +593,9 @@ struct CaptureView: View {
 
     /// The live camera's photo, or `-uiDemo`'s sample.
     private func capturePhoto() async -> UIImage? {
+        #if DEBUG
+        if demoCamera, AutoCatch.isOn, let small = demoPhoto { return AutoCatch.photo(from: small) }
+        #endif
         if demoCamera { return demoPhoto }
         return await camera.capture()
     }
@@ -629,7 +647,7 @@ struct CaptureView: View {
                 vm.photoNotHere = false
                 vm.photoTakenAt = nil
                 DexStore.saveToPhotosIfEnabled(img)
-                beginAnalyze(img, askSelfie: selfieMode)
+                beginAnalyze(img, askSelfie: selfieMode && !AutoCatch.isOn)
             } else {
                 shooting = false
             }

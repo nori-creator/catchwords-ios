@@ -28,10 +28,12 @@ nonisolated enum MainProfiler {
     }
 
     /// Stops sampling and writes the summary into the trace (off the main thread). Sampling also stops by itself
-    /// `afterImpact` seconds after the `impact` mark (the landing's sound and toast after that are not measured).
-    static func end() {
+    /// `afterImpact` seconds after the `impact` mark (the landing's sound and toast after that are not measured), or
+    /// 30 s after it began. `label`: only a recording whose label starts with it is stopped (the landing ends its own,
+    /// not a whole catch's that `AutoCatch` began at the shutter).
+    static func end(label: String? = nil) {
         guard isOn else { return }
-        Recorder.shared.end()
+        Recorder.shared.end(label: label)
     }
 
     nonisolated private final class Recorder: @unchecked Sendable {
@@ -67,11 +69,14 @@ nonisolated enum MainProfiler {
             lock.unlock()
         }
 
-        func end() {
+        func end(label prefix: String?) {
             lock.lock()
-            running = false
+            if prefix.map({ label.hasPrefix($0) }) ?? true { running = false }
             lock.unlock()
         }
+
+        /// The longest a recording goes on.
+        private let longest: CFTimeInterval = 30
 
         private func loop() {
             while true {
@@ -79,6 +84,7 @@ nonisolated enum MainProfiler {
                 if let hit = marks.first(where: { $0.name == "impact" }), CACurrentMediaTime() > hit.t + afterImpact {
                     running = false
                 }
+                if CACurrentMediaTime() > started + longest { running = false }
                 let on = running
                 lock.unlock()
                 guard on else { break }
@@ -224,6 +230,6 @@ nonisolated enum MainProfiler {
 nonisolated enum MainProfiler {
     static func begin(_ label: String) {}
     static func mark(_ name: String) {}
-    static func end() {}
+    static func end(label: String? = nil) {}
 }
 #endif

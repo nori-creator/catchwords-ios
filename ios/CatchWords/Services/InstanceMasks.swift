@@ -137,6 +137,23 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
     /// is put right by the learner (owner 2026-11-05 「青い線＝切り抜き」, see `CatchPlan`).
     func render(_ plans: [CatchPlan.Placement], boxes: [CGRect?], points: [CGPoint],
                 mayBePerson: [Bool]? = nil) -> [(cut: Cut?, note: String?)] {
+        refineEdges(renderFirst(plans, boxes: boxes, points: points, mayBePerson: mayBePerson)).map { ($0.cut, $0.note) }
+    }
+
+    /// One thing's cut-out from `renderFirst`, why, and whether its edge is still to be made again on a crop round it
+    /// (`refineEdges`).
+    nonisolated struct Rendered: @unchecked Sendable {
+        let cut: Cut?
+        let note: String?
+        let refinable: Bool
+    }
+
+    /// `render` without its last step: every thing's cut-out as soon as it is decided, before the edges of whole
+    /// instances are made again on a crop round each (`refineEdges`, Vision once more per thing). The camera shows these
+    /// at once and the finer edges when they come (owner 2026-11-27: the cut-out came a second after the tag was tapped
+    /// — every thing's edge was made again before any thing's cut-out was shown). The same cut-outs in the end.
+    func renderFirst(_ plans: [CatchPlan.Placement], boxes: [CGRect?], points: [CGPoint],
+                     mayBePerson: [Bool]? = nil) -> [Rendered] {
         let n = plans.count
         let people = (mayBePerson ?? []).contains(false) ? personGrid() : nil
         func isTheThing(_ h: RegionHit, _ i: Int) -> Bool {
@@ -251,20 +268,28 @@ nonisolated final class InstanceMasks: @unchecked Sendable {
                 out.append((h?.cut, note))
             }
         }
-        // A whole instance's edge, made again on a crop round it (owner 2026-11-04: the pot's handles came out lumpy —
-        // Vision's mask of the whole photo is coarse at thin parts; on a crop round the pot both handles were exact).
-        for i in 0..<n where hits[i] == nil {
-            guard let c = out[i].cut else { continue }
+        return (0..<n).map { i in
+            let whole: Bool
             switch plans[i].cut {
-            case .instance, .union:
-                if let better = refined(c) {
-                    out[i] = (better, (out[i].note.map { $0 + "; " } ?? "") + "edge made again on a crop round it")
-                    Self.trace?("thing \(i + 1): edge made again on a crop round it")
-                }
-            default: break
+            case .instance, .union: whole = true
+            default: whole = false
             }
+            return Rendered(cut: out[i].cut, note: out[i].note, refinable: whole && hits[i] == nil && out[i].cut != nil)
         }
-        return out
+    }
+
+    /// The last step of `render`: a whole instance's edge, made again on a crop round it (owner 2026-11-04: the pot's
+    /// handles came out lumpy — Vision's mask of the whole photo is coarse at thin parts; on a crop round the pot both
+    /// handles were exact). Heavy (Vision once per such thing): off the main thread.
+    func refineEdges(_ first: [Rendered]) -> [Rendered] {
+        first.enumerated().map { i, r in
+            guard r.refinable, let c = r.cut, let better = refined(c) else {
+                return Rendered(cut: r.cut, note: r.note, refinable: false)
+            }
+            Self.trace?("thing \(i + 1): edge made again on a crop round it")
+            return Rendered(cut: better, note: (r.note.map { $0 + "; " } ?? "") + "edge made again on a crop round it",
+                            refinable: false)
+        }
     }
 
     /// The crop round a cut-out is this much bigger on every side (`refined`).

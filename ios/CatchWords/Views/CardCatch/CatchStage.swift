@@ -273,9 +273,10 @@ enum StickerCrop {
         }
     }
 
-    /// The photo round `box` as a plain picture: the choose screen's stand-in. On the main thread, so `photo` is the
-    /// copy made for the screen (`CaptureViewModel.standIn`), never the camera's full-size photo.
-    static func image(_ photo: UIImage?, box: CGRect?) -> UIImage? {
+    /// The photo round `box` as a plain picture: the choose screen's stand-in. `photo` is the copy made for the screen
+    /// (`CaptureViewModel.standIn`), never the camera's full-size photo. Any thread: the tags' stand-ins are drawn off the
+    /// main thread when the tags go up (`CaptureViewModel.standIns`).
+    nonisolated static func image(_ photo: UIImage?, box: CGRect?) -> UIImage? {
         guard let photo else { return nil }
         guard let b = box, b.width > 0.01, b.height > 0.01 else { return photo }
         let size = photo.size
@@ -792,10 +793,34 @@ struct CatchStageScene: View {
     var page: Double = 1
     var calm: Bool
     var hideSticker: Bool = false
+    /// The sticker `cut` took over from (nil: `fallback`, the photo round the thing) and when (on `CCClock`): the two
+    /// cross-fade and the sticker's size goes over to the new one's shape (`swapTime`) — the cut-out made after the
+    /// choose screen opened replaced the stand-in in one frame, and a smaller sticker of another shape jumped in (owner
+    /// 2026-11-27: 「名前のタグをタップして切り抜くところもカクカクしていて、写真が止まってる」).
+    var swapFrom: UIImage? = nil
+    var swapAt: Double? = nil
+
+    /// How long the old sticker takes to give way to the new one.
+    static let swapTime = 0.45
+
+    private static func aspect(of image: UIImage?) -> CGFloat {
+        let s = image?.size ?? CGSize(width: 1, height: 1)
+        return s.height > 0 ? s.width / s.height : 1
+    }
+
+    /// 0 → 1 while the old sticker gives way to `cut` (1: no change going on).
+    private var handover: Double {
+        guard let at = swapAt, cut != nil, swapFrom != nil || fallback != nil else { return 1 }
+        let k = Film6.seg(live - at, 0, Self.swapTime)
+        return calm ? k : Film6.inOutCubic(k)
+    }
 
     private var aspect: CGFloat {
-        let s = (cut ?? fallback)?.size ?? CGSize(width: 1, height: 1)
-        return s.height > 0 ? s.width / s.height : 1
+        let to = Self.aspect(of: cut ?? fallback)
+        let k = handover
+        guard k < 1 else { return to }
+        let from = Self.aspect(of: swapFrom ?? fallback)
+        return from + (to - from) * CGFloat(k)
     }
 
     var body: some View {
@@ -845,7 +870,16 @@ struct CatchStageScene: View {
         let border = calm ? Film6.seg(tc, Film6.cut, Film6.cut + 0.2) : Film6.outCubic(Film6.seg(tc, Film6.cut, Film6.cut + 0.3))
         let sheen = sinceChoice == nil && !calm ? Film6.seg(sinceTap, 0.6, 1.1) : -1
         let holo = calm ? -1 : Film6.seg(tc, Film6.catchT - 0.05, Film6.catchT + 0.85)
-        return CatchStickerArt(cut: cut, fallback: fallback, size: p.size, border: border, sheen: sheen, holo: holo)
+        let k = handover
+        return ZStack {
+            if k < 1 {
+                CatchStickerArt(cut: swapFrom, fallback: swapFrom == nil ? fallback : nil, size: p.size, border: border,
+                                sheen: sheen, holo: holo)
+                    .opacity(1 - k)
+            }
+            CatchStickerArt(cut: cut, fallback: k < 1 ? nil : fallback, size: p.size, border: border, sheen: sheen, holo: holo)
+                .opacity(k)
+        }
     }
 
     /// The soft shadow under the floating sticker, and on the stage its shadow and faint reflection on the floor

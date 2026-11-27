@@ -160,6 +160,10 @@ struct ZhuyinWordView: View {
     /// The zhuyin symbols' size as a proportion of the character (0.3 like the headword; the formula blocks of
     /// 「使い方パターン」 use 0.36 — owner 2026-10-23 evening's review: 「注音が小さすぎて漢字との対応が追いにくい」).
     var zhuyinScale: CGFloat = 0.3
+    /// Steps down in size to fit the width (`mandarinWord`). Off where the word is laid out on every frame of an
+    /// animation and never runs out of room (one character of the GET moment, owner 2026-11-27): trying three sizes
+    /// typeset the word three times a frame, most of the main thread through the GET moment.
+    var fits: Bool = true
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
     /// Japanese reading: "kana" (furigana, default) or "romaji". Kept apart from the Mandarin choice.
     @AppStorage("reading.ja") private var readingJa: String = "kana"
@@ -223,12 +227,17 @@ struct ZhuyinWordView: View {
     /// The ruby cannot wrap, so a long word (珍珠奶茶 at 38 pt beside the edit and sound buttons) steps down
     /// in size instead of pushing its row — and the whole word page — wider than the screen.
     @ViewBuilder private var mandarinWord: some View {
-        ViewThatFits(in: .horizontal) {
+        if fits {
+            ViewThatFits(in: .horizontal) {
+                mandarinRuby(size: size)
+                mandarinRuby(size: size * 0.82)
+                mandarinRuby(size: size * 0.68)
+            }
+            .taiwanGlyphs()
+        } else {
             mandarinRuby(size: size)
-            mandarinRuby(size: size * 0.82)
-            mandarinRuby(size: size * 0.68)
+                .taiwanGlyphs()
         }
-        .taiwanGlyphs()
     }
 
     @ViewBuilder private func mandarinRuby(size: CGFloat) -> some View {

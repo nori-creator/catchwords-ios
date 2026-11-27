@@ -5,6 +5,10 @@
 # アプリの MainProfiler（Services/Demo/MainProfiler.swift）が 2 ms ごとに読んだメインスレッドの呼び出しを、
 # 着地の段（上がる → 飛ぶ → 当たった後 1 秒）ごとに集計してログに出す。FrameMeter の遅れたコマの数も出す。
 # シミュレーター・開発用ビルドの数字なので、端末の値ではなく、直す前と後の比べに使う。
+#
+# 2026-11-27 オーナー「カメラ撮ってから、図鑑に追加されるまでの全てのアニメーション　限界まで滑らかにして」: 本物の画面で
+# 撮影から図鑑までを自動で 2 回流し（-uiAutoCatch、Services/Demo/AutoCatch.swift）、シャッター → タグ → 押す → 切り抜き
+# → 選ぶ → GET → 飛ぶ → 当たる の段ごとに同じ集計を出す。
 name: iOS landing profile（図鑑に追加の演出を測る）
 on:
   pull_request:
@@ -78,3 +82,28 @@ jobs:
             # The profiler's summaries (multi-line entries start with "profile").
             awk '/profile landing/{p=1} p && /^[0-9][0-9]:[0-9][0-9]:/ && !/profile landing/{p=0} p' "$TRACE"
           done
+      - name: 撮影から図鑑までを 3 回流して測る
+        run: |
+          set +e -uo pipefail
+          UDID=$(cat "$RUNNER_TEMP/udid")
+          APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+          TRACE="$DATA/Library/Caches/uitest-trace.txt"
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
+          rm -f "$TRACE"
+          # A dex the size of the owner's (about 230 words, pictures 1024 px); the camera's photo 12 MP (AutoCatch).
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiDemo zh-TW -uiDemoReset YES -uiDemoMany 230 -uiDemoImageSize 1024 \
+            -onboarding.done YES -tour.pending NO -ui.lang ja -AppleLanguages "(ja)" -AppleLocale ja_JP \
+            -uiAutoCatch YES -uiProfile YES -uiFrames YES >/dev/null
+          # The first photo's scan runs Vision on the simulator's CPU (over a minute); the next two are warm.
+          for i in $(seq 1 72); do
+            sleep 5
+            [ "$(grep -c "profile catch" "$TRACE" 2>/dev/null)" -ge 3 ] && break
+          done
+          sleep 3
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
+          sleep 1
+          echo "================ catch (${{ matrix.device }})"
+          grep -E "autocatch|step [a-z]+ -> |open (begin|end)|cut.lifted|landing (start|launch|impact|end)|frames [0-9]+ late|stall [0-9]+ms" "$TRACE" | cut -c1-200
+          awk '/profile catch/{p=1} p && /^[0-9][0-9]:[0-9][0-9]:/ && !/profile catch/{p=0} p' "$TRACE"
