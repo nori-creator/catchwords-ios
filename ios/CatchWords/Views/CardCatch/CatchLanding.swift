@@ -186,6 +186,7 @@ extension CatchLandingController {
         launchAt = now + anticip
         impactAt = now + anticip + motion.d(flightTime * 1000)
         phase = .flying
+        MainProfiler.mark("launch")
         UITestTrace.log("landing launch \(stickerId) after \(String(format: "%.2f", now - began)) s room=\(roomReady) target=\(target != nil)")
         // The haptic engine is started now (it shuts itself down when idle), not on the frame of the hit.
         HapticPatterns.shared.warm()        // the riser (300 ms) ends 70 ms before the hit
@@ -207,6 +208,7 @@ extension CatchLandingController {
         HapticPatterns.shared.land()
         phase = .landed
         fillStart = CCClock.now
+        MainProfiler.mark("impact")
         UITestTrace.log("landing impact \(stickerId) after \(String(format: "%.2f", CCClock.now - began)) s")
         particles.burst(Double(hit.midX), Double(hit.midY), n: 44, speed: 6, up: 3)
         particles.glints(hit, n: 8)
@@ -574,6 +576,7 @@ enum CatchLanding {
                                        motion: CCMotion(calm: calm), screen: screen, goal: alreadyCaught ? nil : goal)
         router.landing = c
         UITestTrace.log("landing start \(stickerId) again=\(alreadyCaught)")
+        MainProfiler.begin("landing \(alreadyCaught ? "again" : "new")")
         // However the landing goes, it ends: the tab bar is hidden while a landing is on (`AppRouter.hidesTabBar`).
         Task {
             try? await Task.sleep(for: .seconds(longest))
@@ -593,6 +596,7 @@ enum CatchLanding {
                 router.dexWarm = nil
             }
             await c.run()
+            MainProfiler.end()
             UITestTrace.log("landing end \(c.stickerId) current=\(router.landing === c)")
             if router.landing === c { router.landing = nil }
         }
