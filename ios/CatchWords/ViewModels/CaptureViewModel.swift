@@ -103,6 +103,10 @@ final class CaptureViewModel {
     private var cutsTask: Task<Void, Never>?
     /// Their finer edges after them (`CatchObject.finerCuts`).
     @ObservationIgnored private var finerTask: Task<Void, Never>?
+    /// Each placed thing's stand-in (the photo round it) with its colours, drawn off the main thread as the tags go up:
+    /// a tag tapped before its cut-out is made opens on it without drawing it (and measuring its colours) on the main
+    /// thread at the tap (owner 2026-11-27: the choose screen stood still as it opened).
+    @ObservationIgnored private var standIns: [Int: UIImage] = [:]
     /// Counts the finer cut-outs taken (`takeFinerCuts`): the open choose screen cross-fades to its thing's.
     var finerRound = 0
     /// The thing whose word was chosen (`choose`), for the finer cut-out that comes during its GET moment.
@@ -180,6 +184,7 @@ final class CaptureViewModel {
         finerTask?.cancel()
         finerTask = nil
         pickedObjectId = nil
+        standIns = [:]
         dropLiftedCuts()
         learnerCuts = [:]
         isCutting = false
@@ -250,6 +255,20 @@ final class CaptureViewModel {
                 MainProfiler.mark("tags")
                 objects = planned.objects
                 scan?.setNames(planned.objects, at: Date())
+                if let screenCopy = shownPhoto {
+                    let boxes = planned.objects.filter(\.positioned).map { ($0.id, $0.box) }
+                    Task {
+                        let made = await Task.detached(priority: .userInitiated) { () -> [(Int, UIImage)] in
+                            boxes.compactMap { id, box in
+                                guard let image = StickerCrop.image(screenCopy, box: box) else { return nil }
+                                _ = StagePalette.make(from: image)
+                                return (id, image)
+                            }
+                        }.value
+                        guard token == runToken else { return }
+                        for (id, image) in made { standIns[id] = image }
+                    }
+                }
                 detectOutcome = .success(found)
                 prefetchOwnedChecks(found)
                 let orientation = image.imageOrientation.rawValue
@@ -730,6 +749,11 @@ final class CaptureViewModel {
     func standIn(box: CGRect?) -> UIImage? {
         guard let b = box, b.width > 0.01, b.height > 0.01 else { return stagePreview ?? shownPhoto ?? photo }
         return StickerCrop.image(shownPhoto ?? photo, box: b)
+    }
+
+    /// The thing's stand-in drawn ahead as the tags went up (`standIns`), nil when it is not (yet).
+    func readyStandIn(for object: CatchObject) -> UIImage? {
+        object.positioned ? standIns[object.id] : nil
     }
 
     /// The sticker while there is no cut-out: the photo round the picked thing (a typed word: the whole photo).

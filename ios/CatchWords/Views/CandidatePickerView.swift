@@ -674,7 +674,7 @@ struct CandidatePickerView: View {
         // Its cut-out when it is made already; else the photo round it stands in (cut from the screen-size copy, never
         // drawn from the 12 MP photo here), and the cut-out is taken when it comes.
         let cut = o.cut ?? vm.readyCut(for: o)
-        let fallback = cut == nil ? vm.standIn(box: o.positioned ? o.box : nil) : nil
+        let fallback = cut == nil ? (vm.readyStandIn(for: o) ?? vm.standIn(box: o.positioned ? o.box : nil)) : nil
         let palette = StagePalette.make(from: cut ?? fallback)
         let label = t.choices.lazy.compactMap { CatchDexInfo.label(headword: $0.word.headword, stickers: dex.stickers) }.first
         vm.stagePalette = palette

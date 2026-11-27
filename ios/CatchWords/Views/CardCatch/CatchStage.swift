@@ -273,9 +273,10 @@ enum StickerCrop {
         }
     }
 
-    /// The photo round `box` as a plain picture: the choose screen's stand-in. On the main thread, so `photo` is the
-    /// copy made for the screen (`CaptureViewModel.standIn`), never the camera's full-size photo.
-    static func image(_ photo: UIImage?, box: CGRect?) -> UIImage? {
+    /// The photo round `box` as a plain picture: the choose screen's stand-in. `photo` is the copy made for the screen
+    /// (`CaptureViewModel.standIn`), never the camera's full-size photo. Any thread: the tags' stand-ins are drawn off the
+    /// main thread when the tags go up (`CaptureViewModel.standIns`).
+    nonisolated static func image(_ photo: UIImage?, box: CGRect?) -> UIImage? {
         guard let photo else { return nil }
         guard let b = box, b.width > 0.01, b.height > 0.01 else { return photo }
         let size = photo.size
