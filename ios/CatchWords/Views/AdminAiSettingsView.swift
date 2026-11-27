@@ -33,6 +33,10 @@ struct AdminAiSettingsView: View {
     @State private var openGroups: Set<String> = []
     @State private var undoing: Bool = false
     @State private var undoError: String?
+    /// 「考える深さ」 being saved (its one test call runs first), and what came of it.
+    @State private var thinkingSaving: Bool = false
+    @State private var thinkingNotice: String?
+    @State private var thinkingError: String?
 
     @State private var imageProvider: String = ""
     @State private var imageModel: String = ""
@@ -180,6 +184,9 @@ struct AdminAiSettingsView: View {
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("adminAi.main")
+                    if AdminAiThinking.applies(to: main.provider) {
+                        thinkingRow(s, value: main.value)
+                    }
                 } else {
                     caption(L("まだ選んでいません（サーバの既定の AI で動いています）"))
                 }
@@ -221,6 +228,65 @@ struct AdminAiSettingsView: View {
                     .accessibilityIdentifier("adminAi.cost30")
             }
         }
+    }
+
+    /// 「考える深さ」 of 「使う AI」 (Google's Gemini only, owner 2026-11-27: 「hydrogen使えるように、考える深さを指定できる
+    /// ようにして」): a level is saved only after one call at it worked (`adminSetAiThinking`).
+    private func thinkingRow(_ s: AdminAiSettings, value: String) -> some View {
+        let current = s.thinking[value] ?? "auto"
+        let levels = s.thinkingLevels.isEmpty ? AdminAiThinking.levels : s.thinkingLevels
+        return VStack(alignment: .leading, spacing: 6) {
+            Menu {
+                ForEach(levels, id: \.self) { level in
+                    Button {
+                        Task { await setThinking(value, level: level) }
+                    } label: {
+                        if level == current {
+                            Label(AdminAiThinking.name(level), systemImage: "checkmark")
+                        } else {
+                            Text(AdminAiThinking.name(level))
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    keyValueRow(L("考える深さ"), value: AdminAiThinking.name(current), chevron: true)
+                    if thinkingSaving { ProgressView() }
+                }
+            }
+            .disabled(thinkingSaving || preview != nil)
+            .accessibilityIdentifier("adminAi.thinking")
+            caption(L("浅いほど速く答えます。選ぶとその深さで1回呼び、動いた時だけ保存します。"))
+            if let thinkingNotice {
+                Text(thinkingNotice)
+                    .scaledFont(size: 13, weight: .semibold)
+                    .foregroundStyle(Theme.ok)
+            }
+            if let thinkingError {
+                errorText(thinkingError)
+            }
+        }
+    }
+
+    private func setThinking(_ value: String, level: String) async {
+        guard preview == nil else { return }
+        thinkingSaving = true
+        thinkingNotice = nil
+        thinkingError = nil
+        do {
+            let r = try await NativeAPI.call("adminSetAiThinking", ["value": value, "level": level],
+                                             as: AdminAiThinkingResult.self, timeout: 60)
+            Haptics.success()
+            if let ms = r.ms {
+                thinkingNotice = L("保存しました（\(String(format: "%.1f", ms / 1000)) 秒で応答）")
+            } else {
+                thinkingNotice = L("モデルの既定に戻しました")
+            }
+            await load()
+        } catch {
+            thinkingError = Self.message(error)
+        }
+        thinkingSaving = false
     }
 
     private func backupText(_ s: AdminAiSettings) -> String {

@@ -12339,5 +12339,75 @@
   "es": "Corregir automáticamente otra vez",
   "ko": "다시 자동으로 고치기",
   "vi": "Tự động sửa lại"
+ },
+ "考える深さ": {
+  "en": "Thinking depth",
+  "zh-TW": "思考深度",
+  "es": "Profundidad de razonamiento",
+  "ko": "생각 깊이",
+  "vi": "Độ sâu suy nghĩ"
+ },
+ "浅い": {
+  "en": "Light",
+  "zh-TW": "淺",
+  "es": "Ligera",
+  "ko": "얕게",
+  "vi": "Nông"
+ },
+ "中くらい": {
+  "en": "Medium",
+  "zh-TW": "中等",
+  "es": "Media",
+  "ko": "중간",
+  "vi": "Trung bình"
+ },
+ "深い": {
+  "en": "Deep",
+  "zh-TW": "深",
+  "es": "Profunda",
+  "ko": "깊게",
+  "vi": "Sâu"
+ },
+ "いちばん深い": {
+  "en": "Deepest",
+  "zh-TW": "最深",
+  "es": "Máxima",
+  "ko": "가장 깊게",
+  "vi": "Sâu nhất"
+ },
+ "指定しない（モデルの既定）": {
+  "en": "Not set (model default)",
+  "zh-TW": "不指定（模型預設）",
+  "es": "Sin indicar (predeterminada del modelo)",
+  "ko": "지정 안 함(모델 기본값)",
+  "vi": "Không chỉ định (mặc định của mô hình)"
+ },
+ "保存しました（{1} 秒で応答）": {
+  "en": "Saved (answered in {1} s)",
+  "zh-TW": "已儲存（{1} 秒回應）",
+  "es": "Guardado (respondió en {1} s)",
+  "ko": "저장했습니다({1}초 만에 응답)",
+  "vi": "Đã lưu (trả lời trong {1} giây)"
+ },
+ "モデルの既定に戻しました": {
+  "en": "Back to the model's default",
+  "zh-TW": "已恢復為模型預設",
+  "es": "Vuelto a la predeterminada del modelo",
+  "ko": "모델 기본값으로 되돌렸습니다",
+  "vi": "Đã trở về mặc định của mô hình"
+ },
+ "浅いほど速く答えます。選ぶとその深さで1回呼び、動いた時だけ保存します。": {
+  "en": "Lighter answers faster. Picking a level calls the model once at it and saves it only if it answers.",
+  "zh-TW": "越淺回應越快。選擇後會用該深度呼叫一次，成功才儲存。",
+  "es": "Cuanto más ligera, más rápida la respuesta. Al elegir, se llama una vez con esa profundidad y solo se guarda si responde.",
+  "ko": "얕을수록 빨리 답합니다. 고르면 그 깊이로 한 번 호출하고, 응답했을 때만 저장합니다.",
+  "vi": "Càng nông càng trả lời nhanh. Khi chọn, ứng dụng gọi thử một lần ở độ sâu đó và chỉ lưu nếu mô hình trả lời."
+ },
+ "浅いほど速く答えます。選ぶとその深さで試し直し、替える時に一緒に保存します。": {
+  "en": "Lighter answers faster. Picking a level tests the model again at it; it is saved when you switch.",
+  "zh-TW": "越淺回應越快。選擇後會用該深度重新試呼叫，切換時一併儲存。",
+  "es": "Cuanto más ligera, más rápida la respuesta. Al elegir, se vuelve a probar con esa profundidad y se guarda al cambiar.",
+  "ko": "얕을수록 빨리 답합니다. 고르면 그 깊이로 다시 시험하고, 바꿀 때 함께 저장합니다.",
+  "vi": "Càng nông càng trả lời nhanh. Khi chọn, ứng dụng thử lại ở độ sâu đó và lưu cùng lúc khi đổi."
  }
 }

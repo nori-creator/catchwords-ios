@@ -60,6 +60,16 @@ import {
 } from "./ai-costs";
 import { DICT, UI_LANGS, type UiLang } from "./i18n";
 import {
+  AI_THINKING_KEY,
+  THINKING_DEFAULT,
+  THINKING_LEVELS,
+  THINKING_PIN_FIELD,
+  isThinkingLevel,
+  normalizeThinkingConfig,
+  supportsThinkingLevel,
+  type ThinkingLevel,
+} from "./ai-thinking";
+import {
   DEFAULT_HIGGSFIELD_IMAGE_MODEL,
   DEFAULT_GOOGLE_IMAGE_MODEL,
   DEFAULT_LOVABLE_IMAGE_MODEL,
@@ -90,7 +100,9 @@ export type AppConfigKey =
   /** 「全部の用途をこの AI にする」の前の `ai_models`（1回だけ戻せる）。`{ value, at }`。 */
   | typeof AI_MODELS_PREV_KEY
   /** サーバが初めて見たモデルの日（New の印）。`ai-model-catalog.ts`。 */
-  | typeof MODEL_SEEN_KEY;
+  | typeof MODEL_SEEN_KEY
+  /** モデルごとの「考える深さ」（`ai-thinking.ts`）。 */
+  | typeof AI_THINKING_KEY;
 
 export const AI_MODELS_PREV_KEY = "ai_models_prev";
 
@@ -135,8 +147,15 @@ export type AdminAiDeps = {
   ttsDefaultEngine: () => string;
   /** 保存の後に、ためてある設定を捨てる（次の呼び出しから新しい設定で動く）。 */
   afterWrite?: (key: AppConfigKey) => void;
-  /** そのモデルを試しに1回呼ぶ（本番の記録 `ai_call` には残さない）。 */
-  tryModel?: (provider: string, model: string) => Promise<ModelTryResult>;
+  /**
+   * そのモデルを試しに1回呼ぶ（本番の記録 `ai_call` には残さない）。`thinking`: その段で呼ぶ（`"auto"` は
+   * 段を送らずモデルの既定で、無ければ本番と同じく保存された段で）。
+   */
+  tryModel?: (
+    provider: string,
+    model: string,
+    thinking?: ThinkingLevel | typeof THINKING_DEFAULT | null,
+  ) => Promise<ModelTryResult>;
 };
 
 /**
@@ -274,6 +293,10 @@ export type AdminAiSettings =
       cost30: { usd: number; jpy: number; unpricedCalls: number; usdJpy: number };
       /** 「全部の用途をこの AI にする」を1回戻せる。 */
       undoAvailable: boolean;
+      /** モデルごとの「考える深さ」（`"会社:モデル"` → 段。無いモデルはモデルの既定）。 */
+      thinking: Record<string, ThinkingLevel>;
+      /** 選べる段（`"auto"` = 指定しない、の後に low / medium / high / xhigh）。 */
+      thinkingLevels: string[];
       image: {
         provider: ImageProviderId;
         model: string;
@@ -345,7 +368,7 @@ export async function getAdminAiSettings(deps: AdminAiDeps): Promise<AdminAiSett
   if (!(await deps.isAdmin())) return { isAdmin: false };
   const now = new Date();
   const since30 = new Date(now.getTime() - 30 * 86_400_000).toISOString();
-  const [aiRaw, imageRaw, ttsRaw, providers, pricesRaw, seenRaw, prevRaw, calls] =
+  const [aiRaw, imageRaw, ttsRaw, providers, pricesRaw, seenRaw, prevRaw, calls, thinkingRaw] =
     await Promise.all([
       deps.readConfig("ai_models"),
       deps.readConfig("image_generation"),
@@ -355,6 +378,7 @@ export async function getAdminAiSettings(deps: AdminAiDeps): Promise<AdminAiSett
       deps.readConfig(MODEL_SEEN_KEY).catch(() => null),
       deps.readConfig(AI_MODELS_PREV_KEY).catch(() => null),
       deps.aiCallRows(since30).catch(() => ({ rows: [] as AiCostRow[], truncated: false })),
+      deps.readConfig(AI_THINKING_KEY).catch(() => null),
     ]);
   const prices = normalizePricesConfig(pricesRaw);
   const main = mainFrom(aiRaw);
@@ -503,6 +527,8 @@ export async function getAdminAiSettings(deps: AdminAiDeps): Promise<AdminAiSett
       usdJpy: prices.usdJpy,
     },
     undoAvailable: prevValue(prevRaw) !== undefined,
+    thinking: normalizeThinkingConfig(thinkingRaw),
+    thinkingLevels: [THINKING_DEFAULT, ...THINKING_LEVELS],
     image: {
       provider: effective.provider,
       model: effective.model,
@@ -804,7 +830,11 @@ export async function setAdminAiBackup(
   return { ok: true, backup };
 }
 
-export const AiModelValueInput = z.object({ value: z.string().max(200) });
+export const AiModelValueInput = z.object({
+  value: z.string().max(200),
+  /** その「考える深さ」で試す（`"auto"` はモデルの既定。無ければ保存された段、それも無ければモデルの既定）。 */
+  thinking: z.string().max(20).optional(),
+});
 
 /**
  * **選んだモデルを試しに1回呼ぶ**（替える前の確認。本番の記録には残さない）。
@@ -820,8 +850,56 @@ export async function testAdminAiModel(
   if (!spec?.provider) throw new BadRequestError("「会社:モデル」を送ってください。");
   await checkModelChoice(deps, data.value.trim(), { needsVision: false }, "");
   if (!deps.tryModel) throw new BadRequestError("このサーバでは試せません。");
-  const r = await deps.tryModel(spec.provider, spec.model);
+  const asked = data.thinking?.trim().toLowerCase();
+  const level =
+    !supportsThinkingLevel(spec.provider) || asked == null
+      ? null
+      : isThinkingLevel(asked) || asked === THINKING_DEFAULT
+        ? asked
+        : null;
+  const r = await deps.tryModel(spec.provider, spec.model, level);
   return { ...r, value: `${spec.provider}:${spec.model}` };
+}
+
+export const SetAiThinkingInput = z.object({
+  value: z.string().max(200),
+  /** `"auto"`（指定しない）か low / medium / high / xhigh。 */
+  level: z.string().max(20),
+});
+
+/**
+ * **モデルの「考える深さ」を決める**（オーナー 2026-11-27「hydrogen使えるように、考える深さを指定できるようにして」）。
+ * Google の Gemini だけ。段を選んだ時は**その段で1回呼び、動いた時だけ保存する**（モデルによって受け付けない段が
+ * ある）。`"auto"` は保存から消す（モデルの既定に戻る）。どの用途でもそのモデルを呼ぶ時に効く。
+ */
+export async function setAdminAiThinking(
+  deps: AdminAiDeps,
+  input: unknown,
+): Promise<{ ok: true; value: string; level: string; ms: number | null }> {
+  await assertAdmin(deps);
+  const data = SetAiThinkingInput.parse(input);
+  const spec = parseFeatureValue(data.value);
+  if (!spec?.provider) throw new BadRequestError("「会社:モデル」を送ってください。");
+  if (!supportsThinkingLevel(spec.provider))
+    throw new BadRequestError("考える深さを選べるのは Google の Gemini だけです。");
+  const level = data.level.trim().toLowerCase();
+  if (level !== THINKING_DEFAULT && !isThinkingLevel(level))
+    throw new BadRequestError(`考える深さは ${[THINKING_DEFAULT, ...THINKING_LEVELS].join(" / ")} のどれかです。`);
+  const key = `${spec.provider}:${spec.model}`;
+  let ms: number | null = null;
+  if (isThinkingLevel(level)) {
+    await checkModelChoice(deps, key, { needsVision: false }, "");
+    if (!deps.tryModel) throw new BadRequestError("このサーバでは試せません。");
+    const r = await deps.tryModel(spec.provider, spec.model, level);
+    if (!r.ok) throw new BadRequestError(`この深さでは動きませんでした（保存していません）: ${r.error ?? "不明"}`);
+    ms = r.ms;
+  }
+  const current = normalizeThinkingConfig(await deps.readConfig(AI_THINKING_KEY).catch(() => null));
+  if (isThinkingLevel(level)) current[key] = level;
+  else delete current[key];
+  await deps.writeConfig(AI_THINKING_KEY, current);
+  deps.afterWrite?.(AI_THINKING_KEY);
+  return { ok: true, value: key, level, ms };
 }
 
 /**
@@ -1226,18 +1304,28 @@ export function realAdminAiDeps(context: { supabase: unknown; userId: string }):
     ttsDefaultEngine: () =>
       process.env.GOOGLE_TTS_API_KEY ? "Google Cloud TTS" : "OpenAI-compatible TTS",
     afterWrite: (key) => void forgetCaches(key),
-    tryModel: async (provider, model) => {
-      const { providerConfig } = await import("./ai-provider.server");
+    tryModel: async (provider, model, thinking) => {
+      const { providerConfig, getAiModelOverride } = await import("./ai-provider.server");
       const cfg = providerConfig(provider, model);
       if (!cfg) return { ok: false, ms: 0, error: `${provider} の鍵がサーバにありません` };
       const { generateText } = await import("ai");
       const t0 = Date.now();
       try {
         // 本番の記録（`ai_call`）に残さない: 測る包み（`measuredModel`）を通さずに呼ぶ。
+        // 段を選んで試す時はその段を送る（Google の口は保存された段より、送った段を使う）。`"auto"` は段を
+        // 送らない印を付ける。何も選ばない時は本番と同じく保存された段（読み直してから呼ぶ）。
+        if (!thinking) await getAiModelOverride().catch(() => null);
+        const options =
+          thinking === THINKING_DEFAULT
+            ? { [THINKING_PIN_FIELD]: THINKING_DEFAULT }
+            : thinking
+              ? { reasoningEffort: thinking }
+              : null;
         await generateText({
           model: cfg.gateway(model),
           prompt: "Reply with the single word OK.",
           abortSignal: AbortSignal.timeout(30_000),
+          ...(options ? { providerOptions: { [provider]: options } } : {}),
         });
         return { ok: true, ms: Date.now() - t0, error: null };
       } catch (e) {
@@ -1296,6 +1384,6 @@ function ttsKeysNow(id: string): boolean {
 }
 
 function forgetCaches(key: AppConfigKey) {
-  if (key === "ai_models") mods().ai.forgetAiModelOverride();
+  if (key === "ai_models" || key === AI_THINKING_KEY) mods().ai.forgetAiModelOverride();
   if (key === "tts_voice") mods().tts.forgetTtsVoiceConfig();
 }

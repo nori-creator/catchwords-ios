@@ -91,10 +91,15 @@ nonisolated struct AdminAiSettings: Decodable, Sendable {
     var cost30: AdminAiCost30
     /// 「全部の用途をこの AI にする」 can be undone once.
     var undoAvailable: Bool
+    /// Each model's 「考える深さ」 (`"provider:model"` → `low` / `medium` / `high` / `xhigh`; Google's Gemini only, owner
+    /// 2026-11-27). A model not in it runs at its own default.
+    var thinking: [String: String]
+    /// The levels to choose from (`auto` = not set, then low → xhigh). Empty on an older server.
+    var thinkingLevels: [String]
 
     enum CodingKeys: String, CodingKey {
         case isAdmin, status, features, tasks, providers, image, tts
-        case catalog, main, backup, backupAuto, recent, cost30, undoAvailable
+        case catalog, main, backup, backupAuto, recent, cost30, undoAvailable, thinking, thinkingLevels
     }
 
     init(from decoder: Decoder) throws {
@@ -114,6 +119,40 @@ nonisolated struct AdminAiSettings: Decodable, Sendable {
         recent = ((try? c.decodeIfPresent(AdminAiRecent.self, forKey: .recent)) ?? nil) ?? AdminAiRecent()
         cost30 = ((try? c.decodeIfPresent(AdminAiCost30.self, forKey: .cost30)) ?? nil) ?? AdminAiCost30()
         undoAvailable = c.adminBool(.undoAvailable)
+        thinking = c.adminDict(.thinking)
+        thinkingLevels = c.adminStrings(.thinkingLevels)
+    }
+}
+
+/// `adminSetAiThinking` → `result`: the level saved after one test call at it (`ms`: that call's time; nil for `auto`).
+nonisolated struct AdminAiThinkingResult: Decodable, Sendable {
+    var level: String
+    var ms: Double?
+
+    enum CodingKeys: String, CodingKey { case level, ms }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        level = c.adminStr(.level)
+        ms = c.adminNum(.ms)
+    }
+}
+
+/// 「考える深さ」: the names of the levels the server takes (Google's `reasoning_effort`).
+nonisolated enum AdminAiThinking {
+    static let levels = ["auto", "low", "medium", "high", "xhigh"]
+
+    /// Only Google's Gemini takes a level.
+    static func applies(to provider: String) -> Bool { provider == "google" }
+
+    static func name(_ level: String) -> String {
+        switch level {
+        case "low": return L("浅い")
+        case "medium": return L("中くらい")
+        case "high": return L("深い")
+        case "xhigh": return L("いちばん深い")
+        default: return L("指定しない（モデルの既定）")
+        }
     }
 }
 

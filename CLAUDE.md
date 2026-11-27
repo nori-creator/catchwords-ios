@@ -556,6 +556,15 @@
   3 回中 3 回遅すぎて控えの 3.5 Flash-Lite が答えていた。設定は**モデル名を直接**（自動で版が変わらない）: カードなど
   `google:gemini-3.8-flash`、スキャン・写真の候補 `google:gemini-3.5-flash-lite`（11-15 03:23 UTC に DB で。`ai_models_prev` に
   Hydrogen の設定が残る）。
+  **2026-11-27 にもう一度 Hydrogen にして、同じ日に戻した**（オーナー「戻して。また同時にhydrogen使えるように、考える深さを
+  指定できるようにして」）: 10:52（台湾）からカード作りの Hydrogen は 4 回中 4 回 40 秒で時間切れ（毎回 3.8 Flash が作り、
+  1 枚に約 46 秒）。06:03 UTC に DB で 11-15 と同じ設定へ戻した（`ai_models_prev` に Hydrogen の設定）。サーバーは深さを
+  何も送っておらず、Gemini 4 は既定で深く考える。**「考える深さ」を足した**（`server/src/lib/ai-thinking.ts`）: モデルごとに
+  `app_config.ai_thinking`（`{"google:gemini-4-hydrogen":"low"}`）、Google の Gemini だけ、Google の口が呼ぶたびに
+  `reasoning_effort` を足す（どの用途でもそのモデルに効く）。段は 指定しない / 浅い / 中くらい / 深い / いちばん深い。
+  **保存する前にその段で1回呼び、動いた時だけ保存する**（`adminSetAiThinking`。モデルによって受け付けない段がある）。
+  画面は「使う AI」の下の「考える深さ」と、「AI を選ぶ」の替える前の確認（選ぶとその段で試し直し、替える時に段を先に保存）。
+  Hydrogen に替える時は、浅い段を選んで「固定の写真で試す」で測ってから。
 - **通知（2026-11-15）**: **通知を押すと落ちていた**（TestFlight 1.0.6、復習の通知）— `async` の delegate がメインでないスレッドで
   呼ばれ、iOS への返事もそこで返って UIKit が止めた。completion handler の形にしてメインで返す（#54、`NotificationRouter`）。
   **通知の文と写真を作り直した**（模型 https://claude.ai/artifact/2bhi7kCCLAuD9923QRLEr9、「1、2は…クイズを、ユーザーに与えて、

@@ -1,4 +1,10 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import {
+  AI_THINKING_KEY,
+  normalizeThinkingConfig,
+  withThinkingLevel,
+  type ThinkingLevel,
+} from "./ai-thinking";
 import { targetProfile } from "@/lib/target-profile";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
@@ -88,7 +94,13 @@ function googleGateway(
   headers: Record<string, string> = { Authorization: `Bearer ${key}` },
 ) {
   return withGeminiKeywords(
-    createOpenAICompatible({ name: "google", baseURL: GOOGLE_BASE_URL, headers }),
+    createOpenAICompatible({
+      name: "google",
+      baseURL: GOOGLE_BASE_URL,
+      headers,
+      // 開発者が選んだ「考える深さ」をモデルごとに足す（`ai-thinking.ts`。2026-11-27〜）。
+      transformRequestBody: (body) => withThinkingLevel(body, thinkingCache.value, "google"),
+    }),
     { apiKey: key },
   );
 }
@@ -153,14 +165,48 @@ export { AI_FEATURES } from "./ai-features";
 
 let overrideCache: { at: number; value: AiModelOverride | null } = { at: 0, value: null };
 
+/**
+ * 「考える深さ」（`app_config.ai_thinking`）。モデルの設定（`getAiModelOverride`）を読む時に一緒に読み直し、
+ * Google の口が呼ぶたびに同期で見る（`googleGateway`）。
+ */
+let thinkingCache: { at: number; value: Record<string, ThinkingLevel> } = { at: 0, value: {} };
+
 /** 保存した直後に、30秒待たずに新しい設定で動かす(管理の口から呼ぶ)。 */
 export function forgetAiModelOverride(): void {
   overrideCache = { at: 0, value: null };
+  thinkingCache = { at: 0, value: thinkingCache.value };
+}
+
+/** 30秒覚えておく「考える深さ」を読み直す（読めなければ前の値のまま）。 */
+async function refreshThinking(now: number): Promise<void> {
+  if (thinkingCache.at > 0 && now - thinkingCache.at < 30_000) return;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: unknown }> };
+        };
+      };
+    };
+    const { data } = await db
+      .from("app_config")
+      .select("value")
+      .eq("key", AI_THINKING_KEY)
+      .maybeSingle();
+    thinkingCache = {
+      at: now,
+      value: normalizeThinkingConfig((data as { value?: unknown } | null)?.value),
+    };
+  } catch {
+    thinkingCache = { at: now, value: thinkingCache.value };
+  }
 }
 
 /** 30秒キャッシュ付きでモデル上書き設定を読む(呼び出しごとのDB往復を避ける)。 */
 export async function getAiModelOverride(): Promise<AiModelOverride | null> {
   const now = Date.now();
+  await refreshThinking(now);
   if (overrideCache.at > 0 && now - overrideCache.at < 30_000) return overrideCache.value;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
