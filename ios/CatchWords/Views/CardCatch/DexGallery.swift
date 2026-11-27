@@ -222,11 +222,12 @@ private struct DexCategoryCard: View, Equatable {
         VStack(alignment: .leading, spacing: 0) {
             // .cat-t: 14 pt 800, "n / m" in 12 pt 600 #5C646F, baseline-aligned, margin 2 2 10
             HStack(alignment: .firstTextBaseline) {
-                Text("\(section.category.emoji) \(section.category.label)")
+                // Verbatim: the label is already in the display language (a localized key was looked up again).
+                Text(verbatim: "\(section.category.emoji) \(section.category.label)")
                     .font(.system(size: 14, weight: .heavy))
                     .foregroundStyle(Theme.foreground)
                 Spacer(minLength: 8)
-                Text("\(section.caughtCount - (marks?.countLag ?? 0)) / \(section.slots.count)")
+                Text(verbatim: "\(section.caughtCount - (marks?.countLag ?? 0)) / \(section.slots.count)")
                     .font(.system(size: 12, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(marks == nil || marks?.again == true ? Theme.muted : Theme.primary)
@@ -437,7 +438,7 @@ private struct DexSlotView: View, Equatable {
         VStack(spacing: 3) {
             sart(caught: false) { Color.clear }
             noText
-            Text(" ").font(.system(size: 13, weight: .bold))
+            Text(verbatim: " ").font(.system(size: 13, weight: .bold))
                 .frame(height: nameHeight, alignment: .top)
         }
     }
