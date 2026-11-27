@@ -200,6 +200,10 @@ struct CandidatePickerView: View {
             withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) { searchOpen = false }
         }
         .task(id: autoOpen) { await openForPreview() }
+        #if DEBUG
+        // CI's measured catch (`AutoCatch`): a tag tapped once the tags are up, then the first way to say it chosen.
+        .task(id: AutoCatch.isOn && !scanning && !objects.isEmpty) { await autoCatch() }
+        #endif
         // 囲んで切り抜き直す: the learner's loop on the photo becomes the thing's sticker (the floating one here, the GET
         // moment's, the saved one). The same screen as on the word page, in the scan's light.
         .fullScreenCover(isPresented: $recutting) {
@@ -656,6 +660,7 @@ struct CandidatePickerView: View {
     /// 草莓蛋糕 without the learner seeing the word and its meaning first). The choice goes on to the GET moment.
     private func open(_ t: Tag) {
         guard flow == nil else { return }
+        MainProfiler.mark("tap")
         UITestTrace.log("open begin \(t.id)")
         let now = CCClock.now
         let o = t.choices[0].object
@@ -687,6 +692,7 @@ struct CandidatePickerView: View {
             let made = await lifting.value
             guard let cut = made.cut, var f = flow, f.cut == nil, f.chosenAt == nil, f.closingAt == nil,
                   f.anchor?.id == object?.id else { return }
+            MainProfiler.mark("cut")
             f.cut = cut
             f.palette = StagePalette.make(from: cut)
             vm.stagePalette = f.palette
@@ -800,6 +806,7 @@ struct CandidatePickerView: View {
     private func pick(_ i: Int) {
         guard var f = flow, f.chosenAt == nil, f.closingAt == nil, f.words.indices.contains(i) else { return }
         UITestTrace.log("pick \(i) cut=\(f.cut != nil)")
+        MainProfiler.mark("pick")
         let now = CCClock.now
         f.chosenAt = now
         f.chosen = i
@@ -887,6 +894,24 @@ struct CandidatePickerView: View {
             try? await Task.sleep(for: .milliseconds(400))
         }
     }
+
+    #if DEBUG
+    /// `AutoCatch`: as a learner would — the tags are read for a moment, a tag is tapped (the first with several ways to
+    /// say it, else the first), its ways come in, the first is chosen.
+    private func autoCatch() async {
+        guard AutoCatch.isOn, !scanning, !objects.isEmpty else { return }
+        try? await Task.sleep(for: .seconds(1.2))
+        let all = tags(objects)
+        guard !Task.isCancelled, flow == nil, stageFrame.width > 0,
+              let t = all.first(where: { $0.choices.count > 1 }) ?? all.first else { return }
+        UITestTrace.log("autocatch tap \(t.id)")
+        open(t)
+        try? await Task.sleep(for: .seconds(1.8))
+        guard !Task.isCancelled, flow != nil else { return }
+        UITestTrace.log("autocatch pick")
+        pick(0)
+    }
+    #endif
 
     /// Where a scaledToFill image sits inside `size` (`TagPlacement.displayedRect`, checked by TagPlacementTests).
     static func fillRect(image: CGSize, in size: CGSize) -> CGRect {

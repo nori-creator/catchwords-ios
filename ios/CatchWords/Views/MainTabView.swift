@@ -476,6 +476,23 @@ struct MainTabView: View {
         }
         #if DEBUG
         .task { await openStoreShot() }
+        // CI's measured catch (`AutoCatch`): the AI consent given, then the camera tab, after the home screen settled.
+        .task {
+            guard AutoCatch.isOn else { return }
+            for _ in 0..<120 where !AIConsent.shared.isLoaded { try? await Task.sleep(for: .milliseconds(250)) }
+            if !AIConsent.shared.isGranted { AIConsent.shared.grant() }
+            for _ in 0..<60 where !dex.hasLoaded { try? await Task.sleep(for: .milliseconds(250)) }
+            try? await Task.sleep(for: .seconds(3))
+            router.tab = .camera
+        }
+        // … and after each landing, back to the camera for the next round.
+        .onChange(of: router.landing == nil) { _, done in
+            guard AutoCatch.isOn, done, AutoCatch.round < AutoCatch.rounds else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                router.tab = .camera
+            }
+        }
         // UI test (`WordOpenTests.test_catchLimitSheet`): the day's-limit sheet opened as the shutter opens it.
         .task {
             guard UserDefaults.standard.bool(forKey: "uiCatchLimitSheet") else { return }

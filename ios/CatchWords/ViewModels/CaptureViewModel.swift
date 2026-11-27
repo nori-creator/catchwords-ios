@@ -238,6 +238,7 @@ final class CaptureViewModel {
                     CatchObject.plan(candidates: found, masks: masks, photoSize: size)
                 }.value
                 guard token == runToken else { return }
+                MainProfiler.mark("tags")
                 objects = planned.objects
                 scan?.setNames(planned.objects, at: Date())
                 detectOutcome = .success(found)
@@ -252,6 +253,7 @@ final class CaptureViewModel {
                         return built
                     }.value
                     guard token == runToken else { return }
+                    MainProfiler.mark("cuts")
                     // A cut-out the learner drew meanwhile (囲んで切り抜き直す) stays theirs.
                     objects = built.map { withLearnerCut($0) }
                     // Things the server gave no place (or the same place twice) went to free Vision instances or spots
