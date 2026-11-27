@@ -52,25 +52,10 @@ struct CatchChooseOverlay: View {
     /// place, so the learner sees that choosing one of them moves on.
     var tourLit: Bool = false
 
-    /// The card has come in and stands still (`settleCard`): its timeline stops until a choice, new rows or closing.
-    @State private var cardStill = false
+    /// The card is on screen (`chooser`): set as it appears, so its parts come in after the film's delays.
+    @State private var cardShown = false
 
     private func closing(_ now: Double) -> Double { closingAt.map { Film6.seg(now - $0, 0, 0.3) } ?? 0 }
-
-    private var stillKey: String { "\(tappedAt)|\(chosenAt ?? -1)|\(closingAt ?? -1)|\(rowsAt ?? -1)|\(words.count)" }
-
-    /// Lets the card's timeline stop once everything on it has come in (`chooser`, `rows`: the header by 0.7 s, the card
-    /// by 0.82 s, the rows by 0.9 + 0.07 s each, the line under it by 1.1 s after the tap; new rows by 0.32 + 0.07 s each).
-    private func settleCard() async {
-        cardStill = false
-        guard chosenAt == nil, closingAt == nil, !CatchDrawing.legacy else { return }
-        let rowsEnd = (rowsAt.map { $0 + 0.32 } ?? tappedAt + 0.9) + 0.07 * Double(words.count)
-        let end = max(tappedAt + 1.15, rowsEnd) + 0.1
-        let wait = end - CCClock.now
-        if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
-        guard !Task.isCancelled else { return }
-        cardStill = true
-    }
 
     /// The field comes in with the card's rows.
     @State private var fieldShown = false
@@ -110,20 +95,16 @@ struct CatchChooseOverlay: View {
                         .contentShape(Rectangle())
                         .frame(width: size.width, height: size.height)
                     if hasCard {
-                        // The card is drawn every frame only while it moves (coming in, a choice, closing): it was
-                        // built again every frame while it stood still under the floating sticker (owner 2026-10-20:
-                        // 「限界まで滑らかなアニメーション」).
-                        TimelineView(.animation(minimumInterval: nil, paused: cardStill)) { _ in
-                            let now = CCClock.now
-                            chooser(now: now, tD: now - tappedAt, size: size)
-                                .opacity(1 - closing(now))
-                        }
+                        // The card moves with SwiftUI's own animations (`chooser`), never rebuilt on every frame:
+                        // each frame laid out every row's word and reading again while it came in and folded away
+                        // (owner 2026-11-27: 「カメラ撮ってから、図鑑に追加されるまでの全てのアニメーション　限界まで
+                        // 滑らかにして。カクカクなしで」).
+                        chooser(size: size)
                     }
                 }
                 .frame(width: size.width, height: size.height, alignment: .topLeading)
             }
             .ignoresSafeArea()
-            .task(id: stillKey) { await settleCard() }
 
             if hasCard, chosenAt == nil, closingAt == nil {
                 VStack {
@@ -186,14 +167,23 @@ struct CatchChooseOverlay: View {
 
     // MARK: The header and the card
 
-    private func chooser(now: Double, tD: Double, size: CGSize) -> some View {
+    /// The film's curves for the card: out-cubic as a part comes in (`start`…`end` seconds after the tap), in-out-cubic as
+    /// it goes after the choice; a short fade when motion is reduced.
+    private func comeIn(_ start: Double, _ end: Double) -> Animation {
+        calm ? .linear(duration: 0.2) : .timingCurve(0.33, 1, 0.68, 1, duration: end - start).delay(start)
+    }
+
+    private func goOut(_ start: Double, _ end: Double) -> Animation {
+        .timingCurve(0.65, 0, 0.35, 1, duration: end - start).delay(start)
+    }
+
+    /// The header (NEW · No. · category, 「覚える単語を選ぶ」, what is in the photo), the card of the ways to say it and the
+    /// line under it. Film v6's times: the header 0.45–0.7 s after the tap, the card 0.5–0.82 s, the rows 0.58 + 0.07 s
+    /// each, the line 0.9–1.1 s; after the choice the header and line go (0.02–0.16 s) and the whole folds away
+    /// (0.22–0.5 s); closing fades it in 0.3 s.
+    private func chooser(size: CGSize) -> some View {
         let W = Film6.columnWidth(size), H = size.height, k = W / 1080
-        let sinceP = chosenAt.map { now - $0 } ?? -1
-        let headIn = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.45, 0.7))
-        let headOut = chosenAt == nil ? 0 : Film6.inOutCubic(Film6.seg(sinceP, 0.02, 0.16))
-        let cardIn = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.5, 0.82))
-        let fold = chosenAt == nil ? 0 : Film6.inOutCubic(Film6.seg(sinceP, 0.22, 0.5))
-        let footIn = calm ? Film6.clamp(tD / 0.2) : Film6.outCubic(Film6.seg(tD, 0.9, 1.1))
+        let chose = chosenAt != nil
         // Room under the card for the line under it and the field to type a word (`ChooseTypeField`).
         // The first tour: the field as tall as it is drawn and the pill's room taken too, so the pill never sits on the
         // rows or the field at a large text size or on a small iPhone (owner 2026-11-23). Other times as before.
@@ -222,8 +212,11 @@ struct CatchChooseOverlay: View {
                     .padding(.top, 12 * k)
             }
             .padding(.leading, 24 * k)
-            .opacity(headIn * (1 - headOut))
-            .offset(y: CGFloat(1 - headIn) * 30 * k)
+            .opacity(cardShown ? 1 : 0)
+            .offset(y: cardShown ? 0 : 30 * k)
+            .animation(comeIn(0.45, 0.7), value: cardShown)
+            .opacity(chose ? 0 : 1)
+            .animation(goOut(0.02, 0.16), value: chose)
             .padding(.bottom, 40 * k)
 
             // The rows scroll only when they are taller than the card may be. Measured once per set of rows (their
@@ -231,7 +224,7 @@ struct CatchChooseOverlay: View {
             // card came in and folded away — most of the main thread from the tap to the GET moment (owner
             // 2026-11-27: 「名前のタグをタップして切り抜くところもカクカクしていて、写真が止まってる」).
             ScrollView {
-                rows(now: now, tD: tD, k: k)
+                rows(k: k)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
                         if abs(h - rowsHeight) > 0.5 { rowsHeight = h }
                     }
@@ -242,8 +235,9 @@ struct CatchChooseOverlay: View {
             .background(Color.white, in: .rect(cornerRadius: 22, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(line, lineWidth: 1))
             .shadow(color: .rgba(15, 40, 80, 0.08), radius: 18, y: 5)
-            .opacity(cardIn)
-            .offset(y: CGFloat(1 - cardIn) * 40 * k)
+            .opacity(cardShown ? 1 : 0)
+            .offset(y: cardShown ? 0 : 40 * k)
+            .animation(comeIn(0.5, 0.82), value: cardShown)
             .tourAnchor(.choose, if: tourLit && chosenAt == nil && closingAt == nil)
 
             Text(L("選ぶと、その言い方で図鑑に入ります"))
@@ -254,66 +248,117 @@ struct CatchChooseOverlay: View {
                 .padding(.top, 40 * k)
                 // The first tour: the guide's pill takes this line's place (its card says the same, owner 2026-11-23:
                 // 「案内を見るを被らない位置に配置して」 — over the title it covered 覚える単語を選ぶ).
-                .opacity(tourLit ? 0 : footIn * (1 - headOut))
+                .opacity(tourLit ? 0 : (cardShown ? 1 : 0))
+                .animation(comeIn(0.9, 1.1), value: cardShown)
+                .opacity(chose ? 0 : 1)
+                .animation(goOut(0.02, 0.16), value: chose)
         }
         .padding(.horizontal, 40 * k)
         .padding(.top, Film6.y(900, H))
         .frame(width: W, alignment: .topLeading)
         .frame(width: size.width)
-        .opacity(1 - fold)
-        .offset(y: CGFloat(fold) * 60 * k)
+        .opacity(chose ? 0 : 1)
+        .offset(y: chose ? 60 * k : 0)
+        .animation(goOut(0.22, 0.5), value: chose)
+        .opacity(closingAt == nil ? 1 : 0)
+        .animation(.linear(duration: 0.3), value: closingAt == nil)
         .allowsHitTesting(chosenAt == nil && closingAt == nil)
+        .onAppear { cardShown = true }
     }
 
-    private func rows(now: Double, tD: Double, k: CGFloat) -> some View {
-        // Rows that replaced others on the open card (a lookup) come in as the card's first rows did.
-        let tR = rowsAt.map { now - $0 + 0.58 } ?? tD
-        return VStack(spacing: 0) {
+    /// The ways to say it. Rows that replaced others on the open card (a lookup) are new rows (`id`), which come in as
+    /// the card's first rows did, from the moment they came.
+    private func rows(k: CGFloat) -> some View {
+        VStack(spacing: 0) {
             ForEach(Array(words.enumerated()), id: \.offset) { i, c in
-                let ri = calm ? Film6.clamp(tR / 0.2) : Film6.outCubic(Film6.seg(tR, 0.58 + 0.07 * Double(i), 0.9 + 0.07 * Double(i)))
-                row(i, c, now: now, k: k)
-                    .opacity(ri)
-                    .offset(y: CGFloat(1 - ri) * 18 * k)
-                if i < words.count - 1 {
-                    Rectangle()
-                        .fill(line)
-                        .frame(height: 1)
-                        .padding(.horizontal, 30 * k)
-                        .opacity(ri)
-                }
+                ChooseCardRow(index: i, candidate: c, last: i == words.count - 1, chosen: chosen, k: k, calm: calm,
+                              delay: calm && rowsAt != nil ? nil : (rowsAt == nil ? 0.58 : 0) + 0.07 * Double(i),
+                              line: line, onChoose: onChoose)
+            }
+        }
+        .id(rowsAt ?? -1)
+    }
+
+    // MARK: Typing a word
+
+    static let fieldHeight: CGFloat = 92
+}
+
+/// One way to say it on the choose card (`CatchChooseOverlay.rows`): what kind of name, its reading, meaning and how it
+/// differs (`ChooseRowContent`), with its voice; once chosen, a blue outline and a blue check, the others dimmed. It comes
+/// in and answers the choice with SwiftUI's own animations on the film's curves and times (`delay`: seconds after it
+/// appeared, nil = at once), so the row is laid out once, not on every frame of the card's movements.
+private struct ChooseCardRow: View {
+    let index: Int
+    let candidate: Candidate
+    let last: Bool
+    let chosen: Int?
+    let k: CGFloat
+    let calm: Bool
+    let delay: Double?
+    let line: Color
+    let onChoose: (Int) -> Void
+
+    @State private var shown = false
+    @State private var pressed = false
+
+    private var isPick: Bool { chosen == index }
+    private var dimmed: Bool { chosen != nil && !isPick }
+
+    private var comeIn: Animation? {
+        guard let delay else { return nil }
+        return calm ? .linear(duration: 0.2) : .timingCurve(0.33, 1, 0.68, 1, duration: 0.32).delay(delay)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+                .offset(y: shown ? 0 : 18 * k)
+            if !last {
+                Rectangle()
+                    .fill(line)
+                    .frame(height: 1)
+                    .padding(.horizontal, 30 * k)
+            }
+        }
+        .opacity(shown ? 1 : 0)
+        .animation(comeIn, value: shown)
+        .onAppear { shown = true }
+        // The chosen row is pressed in and back (0–0.06 s, then 0.12–0.24 s after the choice).
+        .onChange(of: isPick) { _, picked in
+            guard picked else { return }
+            withAnimation(.linear(duration: 0.06)) { pressed = true }
+            Task {
+                try? await Task.sleep(for: .milliseconds(120))
+                withAnimation(.linear(duration: 0.12)) { pressed = false }
             }
         }
     }
 
-    /// One way to say it (the picker's row: what kind of word, its reading, meaning and how it differs) with its
-    /// voice; once chosen, a blue outline and a blue check.
-    private func row(_ i: Int, _ c: Candidate, now: Double, k: CGFloat) -> some View {
-        let sinceP = chosenAt.map { now - $0 } ?? -1
-        let isPick = chosen == i
-        let sel = isPick ? Film6.seg(sinceP, 0.06, 0.26) : 0
-        let press = isPick ? Film6.seg(sinceP, 0, 0.06) * (1 - Film6.seg(sinceP, 0.12, 0.24)) : 0
-        let others = chosen != nil && !isPick ? Film6.seg(sinceP, 0.06, 0.26) : 0
-        return HStack(spacing: 8) {
-            Button { onChoose(i) } label: {
-                ChooseRowContent(candidate: c, first: i == 0)
+    private var content: some View {
+        HStack(spacing: 8) {
+            Button { onChoose(index) } label: {
+                ChooseRowContent(candidate: candidate, first: index == 0)
                     .equatable()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle(scale: 0.985))
-            .accessibilityIdentifier("variant.\(i)")
+            .accessibilityIdentifier("variant.\(index)")
             ZStack {
-                PronounceCircle(text: c.headword, size: 30, light: true)
-                    .opacity(1 - min(1, sel * 2))
-                    .allowsHitTesting(sel == 0)
-                if sel > 0 {
-                    Circle()
-                        .fill(Theme.primary)
-                        .frame(width: 26, height: 26)
-                        .overlay(Image(systemName: "checkmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(.white))
-                        .scaleEffect(CGFloat(Film6.outBack(Film6.clamp(sel * 1.2), 2.2)))
-                        .accessibilityHidden(true)
-                }
+                PronounceCircle(text: candidate.headword, size: 30, light: true)
+                    .opacity(isPick ? 0 : 1)
+                    .animation(.linear(duration: 0.1).delay(0.06), value: isPick)
+                    .allowsHitTesting(!isPick)
+                Circle()
+                    .fill(Theme.primary)
+                    .frame(width: 26, height: 26)
+                    .overlay(Image(systemName: "checkmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(.white))
+                    // The film's out-back (overshoot 2.2) over 0.17 s.
+                    .scaleEffect(isPick ? 1 : 0.01)
+                    .opacity(isPick ? 1 : 0)
+                    .animation(.timingCurve(0.34, 1.8, 0.64, 1, duration: 0.17).delay(0.06), value: isPick)
+                    .accessibilityHidden(true)
             }
             .frame(width: 44, height: 44)
         }
@@ -321,22 +366,18 @@ struct CatchChooseOverlay: View {
         .padding(.trailing, 18 * k)
         .padding(.vertical, 26 * k)
         .background {
-            if sel > 0 {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.rgba(0, 131, 255, 0.08))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.primary, lineWidth: 1.5))
-                    .padding(.horizontal, 8 * k)
-                    .padding(.vertical, 6 * k)
-                    .opacity(sel)
-            }
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.rgba(0, 131, 255, 0.08))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.primary, lineWidth: 1.5))
+                .padding(.horizontal, 8 * k)
+                .padding(.vertical, 6 * k)
+                .opacity(isPick ? 1 : 0)
+                .animation(.linear(duration: 0.2).delay(0.06), value: isPick)
         }
-        .scaleEffect(CGFloat(1 - press * 0.025))
-        .opacity(1 - others * 0.55)
+        .scaleEffect(pressed ? 0.975 : 1)
+        .opacity(dimmed ? 0.45 : 1)
+        .animation(.linear(duration: 0.2).delay(0.06), value: dimmed)
     }
-
-    // MARK: Typing a word
-
-    static let fieldHeight: CGFloat = 92
 }
 
 /// 囲んで切り抜き直す and 元の写真のまま at the top left of the choose screen (`CatchChooseOverlay`). Its own view, equal while

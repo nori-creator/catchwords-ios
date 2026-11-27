@@ -121,6 +121,10 @@
   最初の切り抜き → 縁を細かくした版、自分で囲んだ切り抜き。`CatchStageScene.swapFrom/swapAt`、大きさも新しい形へ移る）。
   ④図鑑の名前の絵は図鑑を読んだ時に裏で作る（`MainTabView`。GET の間に作る図鑑の頁が名前を組版しない）。⑤タグの仮の写真と色は
   タグが出た時に裏で作る（`CaptureViewModel.standIns`）。切り抜きにかかった時間は開発者のログ（cutout）に出る。
+  ⑥**選ぶ画面のカードは毎コマ作り直さない**（同日、段3）: 見出し・カード・行・下の1行・選んだ後の畳み・閉じる・選んだ行の青い枠と
+  チェックと押し込みは、SwiftUI のアニメーション（`timingCurve` の out-cubic / in-out-cubic、同じ遅れと長さ）で動かす
+  （`CatchChooseOverlay.chooser`・`ChooseCardRow`）。カードを `TimelineView` で毎コマ組むと、行の注音付きの単語（3つの大きさを試す）
+  まで毎コマ組み直していた。タグの画面の上の列と選ぶ画面の左上のボタンの列は Equatable の部品（`PickerTopBar`・`ChooseCutButtons`）。
 - **図鑑に追加の着地は Core Animation で描く**（2026-11-27「図鑑にポンと追加されるところがカクカクして止まってる…適当に直すのではなく
   根本的に原因を特定し、限界まで滑らかになるように」— 録画でステッカーが升の上で 0.8 秒止まり、Sentry は着地の間に iPad で 6〜7 秒の
   App Hang を2件（`ImageCache.file` ← `kept`、`DexView.scroll`）。**測って**（`MainProfiler`: `-uiProfile YES` の時だけ、着地の間
