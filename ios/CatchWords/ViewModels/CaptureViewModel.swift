@@ -99,8 +99,14 @@ final class CaptureViewModel {
     /// runToken: "cancel" only discards stale results; in-flight work is never killed mid-save.
     private var runToken: Int = 0
     private var cutoutTask: Task<Void, Never>?
-    /// The photo's cut-outs being rendered after its tags went up (`CatchObject.withCuts`).
+    /// The photo's cut-outs being rendered after its tags went up (`CatchObject.firstCuts`).
     private var cutsTask: Task<Void, Never>?
+    /// Their finer edges after them (`CatchObject.finerCuts`).
+    @ObservationIgnored private var finerTask: Task<Void, Never>?
+    /// Counts the finer cut-outs taken (`takeFinerCuts`): the open choose screen cross-fades to its thing's.
+    var finerRound = 0
+    /// The thing whose word was chosen (`choose`), for the finer cut-out that comes during its GET moment.
+    @ObservationIgnored private var pickedObjectId: Int?
     /// The cut-out of each thing the photo's masks left without one (-1: the photo's main subject), for this photo —
     /// started when its choose screen opens, so that screen lifts the same sticker as the GET moment (owner 2026-10-22:
     /// 「単語の候補の画像が切り抜きになってない。新しい言葉をキャッチはちゃんと切り抜きになってる」).
@@ -171,6 +177,9 @@ final class CaptureViewModel {
         cutoutTask?.cancel()
         cutsTask?.cancel()
         cutsTask = nil
+        finerTask?.cancel()
+        finerTask = nil
+        pickedObjectId = nil
         dropLiftedCuts()
         learnerCuts = [:]
         isCutting = false
@@ -244,16 +253,35 @@ final class CaptureViewModel {
                 detectOutcome = .success(found)
                 prefetchOwnedChecks(found)
                 let orientation = image.imageOrientation.rawValue
-                cutsTask = Task {
-                    let built = await Task.detached(priority: .userInitiated) {
-                        let built = CatchObject.withCuts(planned, masks: masks, photoSize: size)
-                        // The copies the sticker draws, made here rather than on the main thread at the tap.
-                        // (and the stage's colours of each, `StagePalette.make`).
-                        for o in built { if let c = o.cut { StickerDisplay.prepare(c) } }
-                        return built
+                let renderStart = CFAbsoluteTimeGetCurrent()
+                let first = Task.detached(priority: .userInitiated) { () -> (objects: [CatchObject], rendered: [InstanceMasks.Rendered]?) in
+                    let first = CatchObject.firstCuts(planned, masks: masks)
+                    // The copies the sticker draws, made here rather than on the main thread at the tap.
+                    // (and the stage's colours of each, `StagePalette.make`).
+                    for o in first.objects { if let c = o.cut { StickerDisplay.prepare(c) } }
+                    return first
+                }
+                // The finer edges (Vision once more round each whole thing) after every thing has its cut-out: they
+                // take over on screen by a cross-fade (owner 2026-11-27: the cut-out came a second after the tag).
+                finerTask = Task {
+                    let made = await first.value
+                    guard token == runToken else { return }
+                    let finer = await Task.detached(priority: .userInitiated) { () -> [CatchObject]? in
+                        guard let finer = CatchObject.finerCuts(made.objects, from: made.rendered, masks: masks) else { return nil }
+                        for (o, was) in zip(finer, made.objects) where o.cut !== was.cut { if let c = o.cut { StickerDisplay.prepare(c) } }
+                        return finer
                     }.value
+                    guard token == runToken, let finer else { return }
+                    MainProfiler.mark("finer")
+                    DevLog.shared.add("cutout", "finer edges after \(Int((CFAbsoluteTimeGetCurrent() - renderStart) * 1000)) ms")
+                    takeFinerCuts(finer, replacing: made.objects)
+                }
+                cutsTask = Task {
+                    let built = await first.value.objects
                     guard token == runToken else { return }
                     MainProfiler.mark("cuts")
+                    DevLog.shared.add("cutout", "\(built.filter { $0.cut != nil }.count) of \(built.count) cut-outs after "
+                                      + "\(Int((CFAbsoluteTimeGetCurrent() - renderStart) * 1000)) ms")
                     // A cut-out the learner drew meanwhile (囲んで切り抜き直す) stays theirs.
                     objects = built.map { withLearnerCut($0) }
                     // Things the server gave no place (or the same place twice) went to free Vision instances or spots
@@ -481,6 +509,7 @@ final class CaptureViewModel {
         stageOrigin = stage?.origin
         stageHandoff = stage.map { $0.handoffAt - $0.origin }
         pickedBox = object.flatMap { $0.positioned ? $0.box : nil }
+        pickedObjectId = object?.id
         picked = word
         // Decided again for this word by the owned-word check below.
         owned = nil
@@ -628,6 +657,34 @@ final class CaptureViewModel {
         }
         liftedCuts[key] = task
         return task
+    }
+
+    /// The finer edges (`finerTask`): each thing whose cut-out they changed takes the new one — on the tags, the open
+    /// choose screen (`finerRound`, cross-faded there) and the GET moment of a thing chosen meanwhile — unless the
+    /// learner drew their own (囲んで切り抜き直す, 元の写真のまま).
+    private func takeFinerCuts(_ finer: [CatchObject], replacing first: [CatchObject]) {
+        var changed: [Int: CatchObject] = [:]
+        for (o, was) in zip(finer, first) where o.cut != nil && o.cut !== was.cut && learnerCuts[o.id] == nil {
+            changed[o.id] = o
+        }
+        guard !changed.isEmpty else { return }
+        objects = objects.map { o in
+            guard let f = changed[o.id], o.cut == nil || first.contains(where: { $0.id == o.id && $0.cut === o.cut }) else { return o }
+            return f
+        }
+        // A thing chosen already with its first cut-out: the GET moment and what is saved take the finer one.
+        if let pickedId = pickedObjectId, let f = changed[pickedId], let old = first.first(where: { $0.id == pickedId }),
+           cutout === old.cut, let cut = f.cut {
+            cutout = cut
+            if pickedBox != nil { pickedBox = f.box }
+        }
+        finerRound += 1
+    }
+
+    /// The latest copy of `object` (its cut-out may have been made finer since it was handed to a screen).
+    func current(_ object: CatchObject?) -> CatchObject? {
+        guard let object else { return nil }
+        return objects.first { $0.id == object.id } ?? object
     }
 
     /// 囲んで切り抜き直す on the choose screen: `cut` (on transparency) is the sticker of `object` (nil: the photo's main

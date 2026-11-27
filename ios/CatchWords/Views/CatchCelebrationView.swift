@@ -33,6 +33,11 @@ struct CatchCelebrationView: View {
     @State private var skippedFrom: Double?
     @State private var palette: StagePalette
     @State private var fallback: UIImage?
+    /// When the cut-out came or changed during the moment (it cross-fades in over the photo round the thing, or over
+    /// the first cut-out when its finer edge comes), what it took over from, and the one shown last.
+    @State private var cutAt: Double?
+    @State private var cutBefore: UIImage?
+    @State private var lastCut: UIImage?
     @State private var dexLabel: String?
     /// The texts have faded (`Film6.out`): no more skipping or going back.
     @State private var pastOut = false
@@ -67,6 +72,7 @@ struct CatchCelebrationView: View {
         _origin = State(initialValue: o)
         _palette = State(initialValue: vm.stagePalette ?? .plain)
         _fallback = State(initialValue: vm.stageFallback)
+        _lastCut = State(initialValue: vm.cutout)
     }
 
     private var busy: Bool { handing || saving }
@@ -95,7 +101,8 @@ struct CatchCelebrationView: View {
                     let tc = time(now)
                     ZStack(alignment: .topLeading) {
                         CatchStageScene(size: size, cut: vm.cutout, fallback: fallback, palette: palette,
-                                        sinceChoice: tc, live: now, calm: reduceMotion, hideSticker: router.landing != nil)
+                                        sinceChoice: tc, live: now, calm: reduceMotion, hideSticker: router.landing != nil,
+                                        swapFrom: cutBefore, swapAt: cutAt)
                         headline(tc, size)
                         meaningBlock(tc, size)
                     }
@@ -132,6 +139,19 @@ struct CatchCelebrationView: View {
             controls
         }
         .environment(\.colorScheme, .light)
+        // A cut-out that comes during the moment takes over from the photo round the thing (or the first cut-out, when
+        // its finer edge comes) by a cross-fade (`CatchStageScene.swapAt`), never in one frame.
+        .onChange(of: vm.cutout.map { ObjectIdentifier($0) }) { _, _ in
+            guard let cut = vm.cutout, cut !== lastCut else { return }
+            if let was = lastCut {
+                cutBefore = was
+                cutAt = CCClock.now
+            } else if fallback != nil {
+                cutBefore = nil
+                cutAt = CCClock.now
+            }
+            lastCut = cut
+        }
         .task { await run() }
         .onChange(of: vm.cutout) { _, cut in
             if let cut { palette = StagePalette.make(from: cut) }

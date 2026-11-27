@@ -96,11 +96,29 @@ nonisolated struct CatchObject: Identifiable, @unchecked Sendable {
 
     /// The second half of `build`: each thing with its cut-out (and the cut-out's own box). Heavy: off the main thread.
     static func withCuts(_ p: Planned, masks: InstanceMasks?, photoSize: CGSize) -> [CatchObject] {
-        let points = p.things.map(\.point)
-        let rendered = masks?.render(p.plans, boxes: p.things.map { $0.own ? $0.box : nil }, points: points,
-                                     mayBePerson: p.things.map(\.mayBePerson))
-        return p.objects.enumerated().map { (i, o) -> CatchObject in
-            let made = rendered?[i]
+        let first = firstCuts(p, masks: masks)
+        return finerCuts(first.objects, from: first.rendered, masks: masks) ?? first.objects
+    }
+
+    /// `withCuts` in two steps, so the camera has every thing's cut-out sooner (owner 2026-11-27): first each thing's
+    /// cut-out as Vision's masks decide it (`InstanceMasks.renderFirst`) …
+    static func firstCuts(_ p: Planned, masks: InstanceMasks?) -> (objects: [CatchObject], rendered: [InstanceMasks.Rendered]?) {
+        let rendered = masks?.renderFirst(p.plans, boxes: p.things.map { $0.own ? $0.box : nil }, points: p.things.map(\.point),
+                                          mayBePerson: p.things.map(\.mayBePerson))
+        return (apply(rendered, to: p.objects), rendered)
+    }
+
+    /// … then the whole instances' edges made again on a crop round each (`InstanceMasks.refineEdges`). nil when no
+    /// thing's edge is to be made again (the first cut-outs are the final ones).
+    static func finerCuts(_ objects: [CatchObject], from rendered: [InstanceMasks.Rendered]?,
+                          masks: InstanceMasks?) -> [CatchObject]? {
+        guard let rendered, let masks, rendered.contains(where: \.refinable) else { return nil }
+        return apply(masks.refineEdges(rendered), to: objects)
+    }
+
+    private static func apply(_ rendered: [InstanceMasks.Rendered]?, to objects: [CatchObject]) -> [CatchObject] {
+        objects.enumerated().map { (i, o) -> CatchObject in
+            let made = rendered.flatMap { i < $0.count ? $0[i] : nil }
             let cut = made?.cut
             return CatchObject(id: o.id, words: o.words, point: o.point, box: cut?.box ?? o.box, anchor: o.anchor,
                                cut: cut?.image, instance: o.instance, positioned: o.positioned, cutNote: made?.note ?? o.cutNote)

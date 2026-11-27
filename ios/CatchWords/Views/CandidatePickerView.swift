@@ -111,6 +111,9 @@ struct CandidatePickerView: View {
         /// The thing's cut-out; filled in when it is rendered after the choose screen opened (the tags go up first).
         var cut: UIImage?
         let fallback: UIImage?
+        /// What the sticker was before `cut` came (nil: `fallback`) and when it came: the two cross-fade.
+        var swapFrom: UIImage? = nil
+        var swapAt: Double? = nil
         /// The stage's colours: from the cut-out, or from the photo's crop until the cut-out comes.
         var palette: StagePalette
         let dexLabel: String?
@@ -165,7 +168,8 @@ struct CandidatePickerView: View {
             if let f = flow {
                 CatchChooseOverlay(words: f.words, subtitle: f.subtitle,
                                    dexLabel: f.dexLabel, cut: f.cut ?? (f.chosenAt != nil ? vm.cutout : nil),
-                                   fallback: f.fallback, palette: f.palette, start: f.start,
+                                   fallback: f.fallback, swapFrom: f.swapFrom, swapAt: f.swapAt,
+                                   palette: f.palette, start: f.start,
                                    tappedAt: f.tappedAt, chosenAt: f.chosenAt, chosen: f.chosen, closingAt: f.closingAt,
                                    calm: reduceMotion, alwaysCard: true, rowsAt: f.rowsAt, searching: vm.isLookingUp,
                                    searchError: vm.searchError, onChoose: pick, onClose: closeChoices,
@@ -189,6 +193,9 @@ struct CandidatePickerView: View {
             searchOpen = false
             heldRound = nil
         }
+        // The thing's finer cut-out (its edge made again on a crop round it) takes over the open choose screen's
+        // sticker by a cross-fade (`CaptureViewModel.takeFinerCuts`).
+        .onChange(of: vm.finerRound) { _, _ in takeFinerCut() }
         // A lookup that found nothing opens no choose screen: nothing is held back for it.
         .onChange(of: vm.isLookingUp) { _, looking in
             if !looking, let held = heldRound, held != vm.typedRound { heldRound = nil }
@@ -693,11 +700,26 @@ struct CandidatePickerView: View {
             guard let cut = made.cut, var f = flow, f.cut == nil, f.chosenAt == nil, f.closingAt == nil,
                   f.anchor?.id == object?.id else { return }
             MainProfiler.mark("cut")
+            f.swapFrom = nil
+            f.swapAt = CCClock.now
             f.cut = cut
             f.palette = StagePalette.make(from: cut)
             vm.stagePalette = f.palette
             flow = f
         }
+    }
+
+    /// The open choose screen's thing got its finer cut-out: it replaces the first one (never a cut-out the learner drew,
+    /// which the finer ones leave alone, nor the stand-in — that one is replaced by `takeCut`).
+    private func takeFinerCut() {
+        guard var f = flow, f.chosenAt == nil, f.closingAt == nil, let old = f.cut,
+              let fresh = vm.current(f.anchor)?.cut, fresh !== old else { return }
+        f.swapFrom = old
+        f.swapAt = CCClock.now
+        f.cut = fresh
+        f.palette = StagePalette.make(from: fresh)
+        vm.stagePalette = f.palette
+        flow = f
     }
 
     /// The cut-out the learner drew (`LassoCutoutView`) is the open choose screen's sticker and the thing's from now on.
@@ -714,6 +736,8 @@ struct CandidatePickerView: View {
         }
         guard f.chosenAt == nil, f.closingAt == nil else { return }
         vm.setLearnerCut(image, box: box, for: f.anchor)
+        f.swapFrom = f.cut
+        f.swapAt = CCClock.now
         f.cut = image
         f.palette = StagePalette.make(from: image)
         vm.stagePalette = f.palette
@@ -814,7 +838,8 @@ struct CandidatePickerView: View {
         // The first tour: the choice moves the guide on (the GET moment and 図鑑に追加 are silent).
         router.advanceTour(from: .choose, to: .detail)
         SoundService.shared.playLayered(.c6Choose)
-        vm.choose(f.words[i], object: f.objects[i], typed: f.typed, stage: (origin: now, handoffAt: now + Film6.handoff))
+        // The thing as it is now: its cut-out may have been made finer since the choose screen opened.
+        vm.choose(f.words[i], object: vm.current(f.objects[i]), typed: f.typed, stage: (origin: now, handoffAt: now + Film6.handoff))
     }
 
     /// A word typed at the bottom of the choose screen (owner 2026-10-15: in the display language or the learning

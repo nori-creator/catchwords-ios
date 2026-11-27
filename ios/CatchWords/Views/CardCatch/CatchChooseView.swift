@@ -18,6 +18,9 @@ struct CatchChooseOverlay: View {
     let dexLabel: String?
     let cut: UIImage?
     let fallback: UIImage?
+    /// The sticker `cut` replaced and when (`CatchStageScene.swapFrom`): the two cross-fade.
+    var swapFrom: UIImage? = nil
+    var swapAt: Double? = nil
     let palette: StagePalette
     /// The thing's place in the photo (global).
     let start: CGRect?
@@ -136,7 +139,8 @@ struct CatchChooseOverlay: View {
                         let page = calm ? Film6.clamp(tD / 0.2) : Film6.inOutCubic(Film6.seg(tD, 0.05, 0.6))
                         CatchStageScene(size: size, cut: cut, fallback: fallback, palette: palette,
                                         start: start.map { $0.offsetBy(dx: -o.x, dy: -o.y) },
-                                        sinceTap: calm ? 99 : tD, sinceChoice: tc, live: now, page: page, calm: calm)
+                                        sinceTap: calm ? 99 : tD, sinceChoice: tc, live: now, page: page, calm: calm,
+                                        swapFrom: swapFrom, swapAt: swapAt)
                             .opacity(1 - closing(now))
                     }
                     // Taps beside the card go nowhere (the photo's words under it are put away).
