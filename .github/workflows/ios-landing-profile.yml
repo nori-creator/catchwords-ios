@@ -1,0 +1,80 @@
+# 図鑑に追加される演出（着地）の間、メインスレッドが何をしているかを測る（2026-11-27 オーナー:
+# 「図鑑にポンと追加されるところがカクカクして止まってる…適当に直すのではなく根本的に原因を特定し」）。
+#
+# オーナーと同じ大きさの図鑑（約 230 語）に 1 語が着地する見本（-uiPreview landing-many）を 3 回流し、
+# アプリの MainProfiler（Services/Demo/MainProfiler.swift）が 2 ms ごとに読んだメインスレッドの呼び出しを、
+# 着地の段（上がる → 飛ぶ → 当たった後 1 秒）ごとに集計してログに出す。FrameMeter の遅れたコマの数も出す。
+# シミュレーター・開発用ビルドの数字なので、端末の値ではなく、直す前と後の比べに使う。
+name: iOS landing profile（図鑑に追加の演出を測る）
+on:
+  pull_request:
+  push:
+    branches: ["claude/**"]
+  workflow_dispatch:
+concurrency:
+  group: ios-landing-profile-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: macos-26
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # The owner's device is an iPad running this iPhone-only app.
+        device: [iphone, ipad]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/swift-packages
+      - name: シミュレーターを選んで起動する
+        run: |
+          UDID=$(xcrun simctl list devices available -j | DEVICE=${{ matrix.device }} python3 -c '
+          import json, os, sys
+          d = json.load(sys.stdin)["devices"]
+          kind = os.environ["DEVICE"]
+          runtimes = sorted((k for k in d if "iOS" in k), reverse=True)
+          for rt in runtimes:
+              if kind == "ipad":
+                  found = [x for x in d[rt] if x["name"].startswith("iPad Pro 11")] or [x for x in d[rt] if x["name"].startswith("iPad Pro")]
+              else:
+                  found = [x for x in d[rt] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]]
+                  found = found or [x for x in d[rt] if x["name"].startswith("iPhone")]
+              if found:
+                  print(found[-1]["udid"]); print(rt, found[-1]["name"], file=sys.stderr); break
+          ')
+          echo "$UDID" > "$RUNNER_TEMP/udid"
+          xcrun simctl boot "$UDID" || true
+      - name: シミュレーター用に組み立てる
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build -project CatchWords.xcodeproj -target CatchWords -configuration Debug \
+            -sdk iphonesimulator -arch arm64 CODE_SIGNING_ALLOWED=NO SYMROOT="$RUNNER_TEMP/build" \
+            | tee "$RUNNER_TEMP/build.log" | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log" || { grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -20 | while IFS= read -r l; do echo "::error::${l#"$GITHUB_WORKSPACE/"}"; done; exit 1; }
+      - name: 着地を 3 回流して測る
+        run: |
+          set +e -uo pipefail
+          UDID=$(cat "$RUNNER_TEMP/udid")
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$RUNNER_TEMP/build/Debug-iphonesimulator/CatchWords.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl install "$UDID" "$APP"
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+          TRACE="$DATA/Library/Caches/uitest-trace.txt"
+          for name in landing-many landing; do
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
+            rm -f "$TRACE"
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" -uiPreview "$name" -uiDemo zh-TW -uiProfile YES >/dev/null
+            # The preview replays its landing every 6.5 s: the first (a cold start) and two more. The profiler stops
+            # 1.6 s after each impact and writes its summary a moment later.
+            sleep 36
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null
+            sleep 1
+            echo "================ $name (${{ matrix.device }})"
+            grep -E "landing (start|launch|impact|end)|frames [0-9]+ late" "$TRACE" | cut -c1-200
+            # The profiler's summaries (multi-line entries start with "profile").
+            awk '/profile landing/{p=1} p && /^[0-9][0-9]:[0-9][0-9]:/ && !/profile landing/{p=0} p' "$TRACE"
+          done

@@ -1,4 +1,5 @@
 import AVFoundation
+import QuartzCore
 
 /// Recorded cinematic SFX from the web app (`public/sfx/el-*.mp3`) with the same per-file trims.
 enum SFX: String, CaseIterable {
@@ -214,6 +215,12 @@ final class SoundService {
     /// in the second and a half its sticker flies, hits and the counts roll, each on a frame of that animation. The
     /// order of the sounds is kept (one serial queue).
     func playLayered(_ sfx: SFX, volume: Float = 1) {
+        playLayered(sfx, at: nil, volume: volume)
+    }
+
+    /// `playLayered`, started by the sound queue itself at `at` (`CACurrentMediaTime`): a sound tied to an animation's
+    /// frame (the landing's hit, owner 2026-11-27) comes on time even when the main thread is busy at that moment.
+    func playLayered(_ sfx: SFX, at: CFTimeInterval?, volume: Float = 1) {
         let level = levelMultiplier
         guard level > 0 else { return }
         var pool = pools[sfx] ?? []
@@ -235,9 +242,14 @@ final class SoundService {
         } else {
             return
         }
-        layeredBusy[ObjectIdentifier(player)] = now + 0.25
+        let delay = max(0, (at ?? 0) - CACurrentMediaTime())
+        layeredBusy[ObjectIdentifier(player)] = now + delay + 0.25
         let start = LayeredStart(player: player, offset: sfx.offset, volume: min(1, sfx.gain * volume * level), restart: restart)
-        Self.layeredQueue.async { start.run() }
+        if delay > 0 {
+            Self.layeredQueue.asyncAfter(deadline: .now() + delay) { start.run() }
+        } else {
+            Self.layeredQueue.async { start.run() }
+        }
     }
 
     /// `playLayered`'s players, a few per sound.

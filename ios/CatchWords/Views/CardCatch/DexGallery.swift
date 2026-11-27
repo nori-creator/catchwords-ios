@@ -26,6 +26,9 @@ nonisolated struct DexGalleryFocus: Equatable, Sendable {
     /// Film v6: the sticker's anticipation started (CCClock) and when it hits: the waiting silhouette tints blue.
     var anticipAt: Double? = nil
     var impactAt: Double? = nil
+    /// The landing sticker is settling over this square (`LandingLayers`): its own picture is not shown until the
+    /// sticker hands over (`CatchLandingController.handoffAt`), then the sticker fades over it.
+    var hidden: Bool = false
 }
 
 /// Film v6's marks after a catch has landed: the NEW badge on its square (until the 図鑑 is left), the category's
@@ -64,6 +67,7 @@ struct DexGallery: View {
     let onOpen: (Sticker) -> Void
 
     @AppStorage("reading.pref") private var readingPref: String = "zhuyin"
+    @Environment(\.displayScale) private var displayScale
     /// The gallery's width once laid out: every square's height follows from it (`DexSlotSize`). It starts at the
     /// width the gallery last had (`DexGalleryMetrics`): starting at 0, the first pass laid every card out without
     /// its height and the second built them all again — in the frames a catch's page rises.
@@ -74,7 +78,8 @@ struct DexGallery: View {
 
     var body: some View {
         let guessed = max(0, (router?.screenWidth ?? 0) - 36 - (router?.railOverhang ?? 0))
-        let size = DexSlotSize(galleryWidth: width > 0 ? width : guessed, pinyin: readingPref == "pinyin")
+        let size = DexSlotSize(galleryWidth: width > 0 ? width : guessed, pinyin: readingPref == "pinyin",
+                               scale: displayScale, mandarin: CCZhuyinWord.isMandarin)
         // Every card is laid out from the start (only its squares are lazy), each at the height its rows give: the
         // page's height never changes while it scrolls. The cards were in a LazyVStack and their squares changed
         // height after a frame (a reading line or not, a long word shrunk): a card built for the first time — above
@@ -91,6 +96,19 @@ struct DexGallery: View {
                     .id("dexcat-\(sec.category.no)")
             }
         }
+        // Every caught word's name drawn ahead, off the main thread (`DexNameArt`): a scroll then builds squares that
+        // only show a picture.
+        .task(id: NameWarmKey(words: caughtCount, pinyin: size.pinyin, scale: size.scale, mandarin: size.mandarin)) {
+            guard size.mandarin else { return }
+            let keys = sections.flatMap { sec in
+                sec.slots.compactMap { slot -> DexNameArt.Key? in
+                    guard case .caught(let s) = slot.kind else { return nil }
+                    return DexNameArt.Key(headword: s.word?.headword ?? "", zhuyin: s.word?.readingZhuyin ?? "",
+                                          pinyin: s.word?.pinyin ?? "", pinyinFirst: size.pinyin, size: 13, scale: size.scale)
+                }
+            }
+            await Task.detached(priority: .utility) { DexNameArt.warm(keys) }.value
+        }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in
             guard w > 1, abs(w - width) > 0.5 else { return }
             DexGalleryMetrics.width = w
@@ -101,6 +119,19 @@ struct DexGallery: View {
             withTransaction(still) { width = w }
         }
     }
+}
+
+/// When the names are drawn again (`DexNameArt.warm`): the words caught and how they are drawn.
+private struct NameWarmKey: Equatable {
+    let words: Int
+    let pinyin: Bool
+    let scale: CGFloat
+    let mandarin: Bool
+}
+
+extension DexGallery {
+    /// The caught squares on the page.
+    fileprivate var caughtCount: Int { sections.reduce(0) { $0 + $1.caughtCount } }
 }
 
 /// What the gallery measured last, for the next one's first pass (the 図鑑's page is built anew each time its tab opens).
@@ -125,11 +156,20 @@ nonisolated struct DexSlotSize: Equatable, Sendable {
     let column: CGFloat?
     /// The name's box: the pinyin line over the characters, or the characters with zhuyin beside them.
     let name: CGFloat
+    /// 設定 › 発音表記 = ピンイン.
+    var pinyin: Bool = false
+    /// The screen's scale, for the names drawn as pictures (`DexNameArt`).
+    var scale: CGFloat = 2
+    /// The learning language is 台湾華語 (the names are drawn as pictures; another language keeps its own reading view).
+    var mandarin: Bool = true
 
-    init(galleryWidth: CGFloat, pinyin: Bool) {
+    init(galleryWidth: CGFloat, pinyin: Bool, scale: CGFloat = 2, mandarin: Bool = true) {
         let w = (galleryWidth - Self.cardInset - 3 * Self.gap) / 4
         column = galleryWidth > 0 && w > 0 ? w : nil
         name = pinyin ? 30 : 22
+        self.pinyin = pinyin
+        self.scale = scale
+        self.mandarin = mandarin
     }
 
     var slot: CGFloat? { column.map { $0 + 2 * Self.spacing + Self.noHeight + name } }
@@ -182,11 +222,12 @@ private struct DexCategoryCard: View, Equatable {
         VStack(alignment: .leading, spacing: 0) {
             // .cat-t: 14 pt 800, "n / m" in 12 pt 600 #5C646F, baseline-aligned, margin 2 2 10
             HStack(alignment: .firstTextBaseline) {
-                Text("\(section.category.emoji) \(section.category.label)")
+                // Verbatim: the label is already in the display language (a localized key was looked up again).
+                Text(verbatim: "\(section.category.emoji) \(section.category.label)")
                     .font(.system(size: 14, weight: .heavy))
                     .foregroundStyle(Theme.foreground)
                 Spacer(minLength: 8)
-                Text("\(section.caughtCount - (marks?.countLag ?? 0)) / \(section.slots.count)")
+                Text(verbatim: "\(section.caughtCount - (marks?.countLag ?? 0)) / \(section.slots.count)")
                     .font(.system(size: 12, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(marks == nil || marks?.again == true ? Theme.muted : Theme.primary)
@@ -203,6 +244,9 @@ private struct DexCategoryCard: View, Equatable {
                                     isAgain: marks?.again == true && marks?.newId == slot.id,
                                     goalSince: goal == slot.id ? marks?.impact : nil, size: size,
                                     onTargetFrame: focus?.id == slot.id ? onTargetFrame : nil, onOpen: onOpen)
+                            // Only the squares whose own inputs changed are drawn again: a landing's hit, its count
+                            // rolling and its NEW badge each redrew every square of the card (owner 2026-11-27).
+                            .equatable()
                             .frame(height: size.slot, alignment: .top)
                             .id(slot.id)
                     }
@@ -260,7 +304,7 @@ enum DexCardShadow {
 }
 
 /// `.slot`: the square `.sart` (radius 16), `.no` (9.5 pt 700) and `.nm` (13 pt 800; `.nm.q` for shadows).
-private struct DexSlotView: View {
+private struct DexSlotView: View, Equatable {
     @Environment(DexStore.self) private var dex
     let slot: DexSlot
     /// Its place in the category (the photo cycling is staggered by it, web `DexCyclingPhoto`).
@@ -281,6 +325,20 @@ private struct DexSlotView: View {
     @Environment(AppRouter.self) private var router: AppRouter?
 
     private var lang: String { NativeAPI.targetLanguage }
+
+    /// The same square drawn the same way (the closures only reach the router: the landing's target and the word's
+    /// page). What it reads from the dex and the router itself still redraws it when that changes.
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        guard a.slot.id == b.slot.id, a.slot.no == b.slot.no, a.index == b.index, a.focus == b.focus, a.calm == b.calm,
+              a.isNew == b.isNew, a.isAgain == b.isAgain, a.goalSince == b.goalSince, a.size == b.size,
+              (a.onTargetFrame == nil) == (b.onTargetFrame == nil) else { return false }
+        switch (a.slot.kind, b.slot.kind) {
+        case (.caught(let x), .caught(let y)): return x == y
+        case (.shadow(let x), .shadow(let y)): return x == y
+        case (.pending, .pending): return true
+        default: return false
+        }
+    }
 
     var body: some View {
         switch slot.kind {
@@ -317,8 +375,12 @@ private struct DexSlotView: View {
     }
 
     private var noText: some View {
-        // "No." and "NEW" are common notation, the same on every display language (owner 2026-10-20).
-        Text(slot.no.map { "No.\(String(format: "%03d", $0))" } ?? "No.---")
+        // "No." and "NEW" are common notation, the same on every display language (owner 2026-10-20). Verbatim: as a
+        // localized key every square's number was looked up in the strings tables.
+        Text(verbatim: slot.no.map { n in
+            let digits = String(n)
+            return "No." + String(repeating: "0", count: max(0, 3 - digits.count)) + digits
+        } ?? "No.---")
             .font(.system(size: 9.5, weight: .bold))
             .tracking(0.38)
             .foregroundStyle(DexInk.no)
@@ -331,7 +393,7 @@ private struct DexSlotView: View {
 
     private func column(caught s: Sticker) -> some View {
         VStack(spacing: 3) {
-            sart(caught: true) { picture(s) }
+            sart(caught: true) { picture(s).opacity(focus?.hidden == true ? 0 : 1) }
                 .overlay(alignment: .bottomTrailing) {
                     // Its save failed and it waits to be saved again (owner 2026-10-15: never removed from the dex).
                     if dex.isUnsaved(s.id) { DexUnsavedMark() }
@@ -341,11 +403,8 @@ private struct DexSlotView: View {
                 }
                 .detailZoomSource(s.id)   // the word sheet zooms out of this square
             noText
-            // A long word (冷氣遙控器) shrinks to its own column instead of running over the next one.
-            DexFitWidth(minScale: 0.4, alignment: .center) {
-                CCZhuyinWord(headword: s.word?.headword ?? "", zhuyin: s.word?.readingZhuyin ?? "", pinyin: s.word?.pinyin ?? "",
-                             size: 13, weight: .heavy, color: Theme.foreground)
-            }
+            DexSquareName(headword: s.word?.headword ?? "", zhuyin: s.word?.readingZhuyin ?? "", pinyin: s.word?.pinyin ?? "",
+                          size: size)
             .frame(height: nameHeight, alignment: .top)
         }
         .contentShape(Rectangle())
@@ -379,7 +438,7 @@ private struct DexSlotView: View {
         VStack(spacing: 3) {
             sart(caught: false) { Color.clear }
             noText
-            Text(" ").font(.system(size: 13, weight: .bold))
+            Text(verbatim: " ").font(.system(size: 13, weight: .bold))
                 .frame(height: nameHeight, alignment: .top)
         }
     }
@@ -417,6 +476,34 @@ private struct DexSlotView: View {
         return DexCyclingPicture(pictures: pictures, stagger: index, calm: calm, headword: s.word?.headword)
             // No picture at all: its internet stand-in is fetched (the square shows the word until then).
             .task(id: s.id) { if pictures.isEmpty { dex.autoHeroSoon(s) } }
+    }
+}
+
+/// A caught word's name in its square: the picture `DexNameArt` draws (shrunk to the column for a long word such as
+/// 冷氣遙控器, never enlarged), or the reading view for a learning language other than 台湾華語.
+private struct DexSquareName: View {
+    let headword: String
+    let zhuyin: String
+    let pinyin: String
+    let size: DexSlotSize?
+
+    var body: some View {
+        if let size, size.mandarin,
+           let art = DexNameArt.image(DexNameArt.Key(headword: headword, zhuyin: zhuyin, pinyin: pinyin,
+                                                     pinyinFirst: size.pinyin, size: 13, scale: size.scale)) {
+            Image(uiImage: art)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: art.size.width, maxHeight: art.size.height)
+                .foregroundStyle(Theme.foreground)
+                .frame(minWidth: 0, maxWidth: .infinity)
+                .accessibilityHidden(true)
+        } else {
+            DexFitWidth(minScale: 0.4, alignment: .center) {
+                CCZhuyinWord(headword: headword, zhuyin: zhuyin, pinyin: pinyin, size: 13, weight: .heavy, color: Theme.foreground)
+            }
+        }
     }
 }
 

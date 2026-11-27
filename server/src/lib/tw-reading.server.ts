@@ -295,7 +295,10 @@ export function checkTaiwanReading(
   }
   const zhuyinFromAi = parseZhuyin(aiZhuyin, n);
   const zhuyinKept = zhuyinFromAi !== null && sameSyllables(taiwan, zhuyinFromAi);
-  const zhuyin = zhuyinKept ? aiZhuyin : syllablesToZhuyin(taiwan);
+  // Always written the way Taiwan writes it (one space between syllables, no mark on the first tone), also when the
+  // AI's reading was right: 環保杯 was saved as 「ㄏㄨㄢˊ ㄅㄠˇ ㄅㄟˉ」 and the app laid its reading under the word instead
+  // of beside each character (owner 2026-11-27).
+  const zhuyin = syllablesToZhuyin(taiwan) ?? (zhuyinKept ? aiZhuyin : null);
   if (zhuyin === null) return untouched;
   const out: ReadingCheck = {
     pinyin: pinyinKept ? aiPinyin : syllablesToPinyin(taiwan),
@@ -321,7 +324,10 @@ export function correctTaiwanReading<T extends { pinyin?: string; reading_zhuyin
 ): T {
   if (targetProfile(language).code !== ZH_TW_PROFILE.code) return item;
   const r = checkTaiwanReading(headword, item.pinyin ?? "", item.reading_zhuyin ?? "");
-  if (r.fixed.length === 0) return item;
+  if (r.fixed.length === 0) {
+    // The same reading, only written another way (「ㄅㄟˉ」 → 「ㄅㄟ」): tidied, not counted as the AI's mistake.
+    return r.zhuyin === (item.reading_zhuyin ?? "") ? item : { ...item, reading_zhuyin: r.zhuyin };
+  }
   // 直したことは**見える所に残す**（AI の読みが外れる頻度を後で数えられるように）。
   console.warn("tw-reading: AI の読みを直した", {
     headword,

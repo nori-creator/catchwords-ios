@@ -109,6 +109,22 @@
   **止まりは測る**（推測で直さない）: `-uiDemo` の時だけ `MainStallMonitor` がメインスレッドの 80 ms 以上の止まりを
   `uitest-trace.txt` に呼び出し元つきで書き、`tour` のジョブがログに集計を出す（数・キャッチの各段の後 2 秒の止まり・長い順 30 件。
   UI テスト自身の読み取りは分ける）。製品のビルドでは動かない。滑らかさの直しは、この数で前後を比べる。
+- **図鑑に追加の着地は Core Animation で描く**（2026-11-27「図鑑にポンと追加されるところがカクカクして止まってる…適当に直すのではなく
+  根本的に原因を特定し、限界まで滑らかになるように」— 録画でステッカーが升の上で 0.8 秒止まり、Sentry は着地の間に iPad で 6〜7 秒の
+  App Hang を2件（`ImageCache.file` ← `kept`、`DexView.scroll`）。**測って**（`MainProfiler`: `-uiProfile YES` の時だけ、着地の間
+  メインスレッドを 2 ms ごとに読む。CI `ios-landing-profile.yml` が約 230 語の図鑑の見本 `-uiPreview landing-many` で前後を比べる）、
+  当たった後 1 秒はメインスレッドがほぼ 100% 埋まり、時間の大半は SwiftUI が図鑑の升（名前の字・注音の記号ごとの Text）と演出の
+  TimelineView を作り直す所だった）: ①飛ぶ・当たる・落ち着く（1.3 倍 → 1 と押しつぶし）・青い枠・光の筋・輪・きらめきは
+  **飛び立つ時に一度 Core Animation に渡す**（`LandingLayers`、`CatchLandingController.plan`）。メインスレッドが何をしていても止まらない。
+  升の絵は落ち着いた後（`handoffAt`）に出し、ステッカーがその上で消える。SwiftUI の `TimelineView` / `Canvas` で毎コマ描く形に**戻さない**。
+  見た目と時間は前と同じ。②当たった後の図鑑は**飛ぶ前に作っておく**（`DexGalleryMemo.prepare`）。升は自分の入力が変わった時だけ描き直す
+  （`DexSlotView` は Equatable）。③**升の名前は1枚の絵**（`DexNameArt`、注音・ピンインとも。先に別スレッドで描く）。No. は `Text(verbatim:)`。
+  ④当たる音・前の音は音のキューから時刻どおりに（`SoundService.playLayered(_:at:)`）。⑤画像の置き場所の名前は覚えておき、ディスクを
+  見るのはメインスレッドの外。
+- **注音は第1声に印を付けない書き方に**（2026-11-27「注音がにエラーが出てる…漢字の下に出ていて…図鑑に追加されたあとに漢字の横の
+  注音が消えてる…ちゃんと漢字の横に表記して」— 環保杯が「ㄏㄨㄢˊ ㄅㄠˇ ㄅㄟˉ」で保存され、「ˉ」で漢字ごとに組めず、選ぶ画面・GET・
+  ホームでは字の下、図鑑の升では読みが消えていた）: アプリは「ˉ」を外し、似た記号（´ ` · ・ ‧）を注音の記号に読み替える
+  （`ZhuyinLayout.normalized`）。サーバーは読みが合っていても**台湾の書き方で保存**（`checkTaiwanReading` は `syllablesToZhuyin`）。
 - **単語の頁から削除した語は、頁が閉じてから図鑑から消す**（2026-11-26「筆袋の単語を削除したら、クラッシュした。原因を特定して直して」
   — Sentry `NSInternalInconsistencyException: UIPreviewTarget requires that the container view is in a window`（TestFlight 1.0.7 (1108)、iPad）。
   頁は閉じる時に図鑑のマスへ縮んで戻る（`DetailZoomSource`）が、削除でマスが先に消えていて、戻り先が無かった）: サーバーで消した後に

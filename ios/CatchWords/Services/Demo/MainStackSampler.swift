@@ -105,6 +105,9 @@ nonisolated enum MainStackSampler {
         return unsafeBitCast(sym, to: Demangle.self)
     }()
 
+    /// A symbol's Swift name (`MainProfiler`).
+    static func demangled(_ name: String) -> String { demangle(name) }
+
     private static func demangle(_ name: String) -> String {
         guard let fn = swiftDemangle, name.hasPrefix("$s") || name.hasPrefix("_$s") else { return name }
         let raw = name.hasPrefix("_") ? String(name.dropFirst()) : name

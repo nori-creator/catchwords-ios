@@ -495,9 +495,11 @@ final class DexStore {
         prefetchTask?.cancel()
         let paths = stickers.prefix(limit).compactMap(\.dexImagePath)
         prefetchTask = Task(priority: .utility) { [weak self] in
-            for path in paths {
+            // The files already kept are looked for off the main thread (60 disk look-ups).
+            let missing = await Task.detached(priority: .utility) { paths.filter { !ImageCache.hasFileOnDisk($0) } }.value
+            for path in missing {
                 guard let self, !Task.isCancelled else { return }
-                guard !ImageCache.shared.hasFile(for: path), let url = self.url(for: path, preferThumb: false) else { continue }
+                guard let url = self.url(for: path, preferThumb: false) else { continue }
                 await ImageCache.shared.prefetch(url: url, key: path)
             }
         }

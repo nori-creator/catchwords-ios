@@ -40,6 +40,10 @@ final class CatchLandingController {
     var launchAt: Double?
     var impactAt: Double?
     var toastAt: Double?
+    /// The sticker's way, fixed as it sets off (`LandingLayers` hands it to Core Animation then).
+    @ObservationIgnored var plan: LandingPlan?
+    /// The sticker has settled in its square: the square shows its own picture again and the sticker fades over it.
+    var handoffAt: Double?
     /// The sticker's flight: duration (.40 s, film I − launch).
     let flightTime = 0.4
     let star: CatchStar
@@ -182,35 +186,41 @@ extension CatchLandingController {
         }
         let now = CCClock.now
         let anticip = motion.d(120)
+        let launch = now + anticip
+        let impact = launch + motion.d(flightTime * 1000)
+        // Everything the sticker does from here to its settling in the square is handed to Core Animation now, with
+        // its times (`LandingLayers`): set before the times below, which tell the overlay to hand it over.
+        let hit = target ?? CGRect(x: screen.width / 2 - 40, y: screen.height * 0.3, width: 80, height: 80)
+        plan = LandingPlan(start: star.center, control: flightControl, target: hit, anticipAt: now, launchAt: launch,
+                           impactAt: impact, arriveScale: arriveScale, settle: motion.calm ? 0 : LandingPlan.settleTime)
         anticipAt = now
-        launchAt = now + anticip
-        impactAt = now + anticip + motion.d(flightTime * 1000)
+        launchAt = launch
+        impactAt = impact
         phase = .flying
+        MainProfiler.mark("launch")
         UITestTrace.log("landing launch \(stickerId) after \(String(format: "%.2f", now - began)) s room=\(roomReady) target=\(target != nil)")
         // The haptic engine is started now (it shuts itself down when idle), not on the frame of the hit.
-        HapticPatterns.shared.warm()        // the riser (300 ms) ends 70 ms before the hit
-        let riserAt = (impactAt ?? now) - 0.07 - 0.3
-        if !motion.calm {
-            Task {
-                let left = riserAt - CCClock.now
-                if left > 0 { try? await Task.sleep(for: .seconds(left)) }
-                SoundService.shared.playLayered(.c6Riser)
-            }
+        HapticPatterns.shared.warm()
+        // The riser (300 ms, ending 70 ms before the hit) and the hit's sound are set off from the sound queue at their
+        // times: the main thread is busy at the hit (the 図鑑 takes the word in), and a sound started from it came late.
+        if !motion.calm { SoundService.shared.playLayered(.c6Riser, at: impact - 0.07 - 0.3) }
+        SoundService.shared.playLayered(.c6LandImpact, at: impact)
+        // The square shows its own picture once the sticker has settled in it (the sticker then fades over it).
+        let settled = impact + (plan?.settle ?? 0)
+        Task {
+            let left = settled - CCClock.now
+            if left > 0 { try? await Task.sleep(for: .seconds(left)) }
+            handoffAt = CCClock.now
         }
-        await wait((impactAt ?? now) - CCClock.now)
+        await wait(impact - CCClock.now)
 
-        // impact
-        let hit = target ?? CGRect(x: screen.width / 2 - 40, y: screen.height * 0.3, width: 80, height: 80)
+        // impact (its picture, ring, rays, rings and sparks play on Core Animation's clock, whatever the main thread does)
         landAt = CGPoint(x: hit.midX, y: hit.midY)
-        impactAt = CCClock.now
-        play(.c6LandImpact)
         HapticPatterns.shared.land()
         phase = .landed
         fillStart = CCClock.now
+        MainProfiler.mark("impact")
         UITestTrace.log("landing impact \(stickerId) after \(String(format: "%.2f", CCClock.now - began)) s")
-        particles.burst(Double(hit.midX), Double(hit.midY), n: 44, speed: 6, up: 3)
-        particles.glints(hit, n: 8)
-        if !motion.calm { sparksUntil = CCClock.now + Self.sparksLife }
         // A re-encounter: the same flight and impact, but the word was caught before — no NEW badge, no counters
         // rolling, no room for the next shadow and no goal toast (owner 2026-10-15).
         if alreadyCaught {
@@ -243,26 +253,15 @@ extension CatchLandingController {
     /// The burst's and the glints' longest life (the slowest spark fades in 2.8 s), with a little to spare.
     static let sparksLife: Double = 3.0
 
-    /// The sticker's place, scale and tilt at `now` during the finale (global), nil once it has landed.
-    func stickerPose(_ now: Double) -> (center: CGPoint, scale: Double, rotation: Double, fly: Double)? {
-        if let i = impactAt, now >= i, phase == .landed { return nil }
-        let p0 = star.center
-        guard let launch = launchAt else { return (p0, 1, 0, 0) }
-        let anticip = anticipAt ?? launch
-        let pulse = 1 + 0.07 * sin(.pi * Film6.seg(now, anticip, launch))
-        let fly = Film6.seg(now, launch, launch + max(0.001, motion.d(flightTime * 1000)))
-        guard fly > 0 else { return (p0, pulse, 0, 0) }
-        let e = Film6.inCubic(fly)
-        let p = flightPoint(e)
-        return (p, Film6.lerp(1, arriveScale, e), -6.9 * e, fly)
-    }
-
     /// The flight's curve: from the stage to the square, the control point up and to the right (film `bez2`, +80 / −320).
     func flightPoint(_ e: Double) -> CGPoint {
-        let p0 = star.center
         let t = target.map { CGPoint(x: $0.midX, y: $0.midY) } ?? CGPoint(x: screen.width / 2, y: screen.height * 0.3)
-        let c = CGPoint(x: p0.x + screen.width * 80 / 1080, y: p0.y - screen.height * 320 / 2340)
-        return Film6.bez2(p0, c, t, e)
+        return Film6.bez2(star.center, flightControl, t, e)
+    }
+
+    /// The curve's control point: up and to the right of the stage.
+    var flightControl: CGPoint {
+        CGPoint(x: star.center.x + screen.width * 80 / 1080, y: star.center.y - screen.height * 320 / 2340)
     }
 
     /// The square's picture size over the sticker's: it arrives 1.3× the square's cut-out (the square then settles).
@@ -273,14 +272,10 @@ extension CatchLandingController {
     }
 }
 
-/// The star, its sparkles and `.landpop`, above every screen while the dex opens (`#fly` / `#fx` / `.landpop`).
-///
-/// Each part keeps its own clock, and only while it moves (owner 2026-11-25: 「タップした後の図鑑のアニメーションカクカク
-/// してる」). The whole overlay was one `TimelineView`: from the moment the 図鑑 opened until the landing ended, every
-/// frame built the sticker, the ring, the rays, a full-screen particle canvas and the toast again — also during the
-/// second or two the sticker only waits on the stage while the page rises, scrolls and makes room, the very frames the
-/// 図鑑 needs for itself. Now nothing here is redrawn until the sticker gathers itself: its clock runs from the
-/// anticipation to the hit, the ring's to 1.9 s after it, the rays' for 1.1 s, the sparkles' while there are any.
+/// The sticker (or the star), its sparkles and `.landpop`, above every screen while the dex opens (`#fly` / `#fx` /
+/// `.landpop`). A sticker's landing is drawn by Core Animation (`LandingLayers`, owner 2026-11-27: the add to 図鑑 stood
+/// still at the hit); the star of a landing without a picture and the goal toast are SwiftUI views, each with its own
+/// clock that runs only while it moves.
 struct CatchLandingOverlay: View {
     let controller: CatchLandingController
 
@@ -290,13 +285,14 @@ struct CatchLandingOverlay: View {
             let c = controller
             ZStack(alignment: .topLeading) {
                 if c.star.image != nil {
-                    LandingSlotRing(controller: c, origin: o, width: geo.size.width)
-                    LandingImpactFX(controller: c, origin: o, width: geo.size.width)
-                    LandingSticker(controller: c, origin: o)
+                    // The sticker, the ring, the rays, the rings and the sparks: handed to Core Animation as the sticker
+                    // sets off, so the main thread's work at the hit cannot hold them still (`LandingLayers`).
+                    LandingLayers(controller: c)
+                        .frame(width: geo.size.width, height: geo.size.height)
                 } else {
                     LandingStar(controller: c, origin: o)
+                    LandingSparks(controller: c, origin: o)
                 }
-                LandingSparks(controller: c, origin: o)
                 if let goal = c.goal, let at = c.toastAt {
                     TimelineView(.animation) { _ in
                         CatchGoalToast(goal: goal, start: at, now: CCClock.now, calm: c.motion.calm)
@@ -308,178 +304,6 @@ struct CatchLandingOverlay: View {
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
-    }
-}
-
-/// Film v6: the sticker itself, waiting on the stage, then flying into the square with three fading ghosts.
-private struct LandingSticker: View {
-    let controller: CatchLandingController
-    let origin: CGPoint
-
-    var body: some View {
-        let c = controller
-        if let image = c.star.image, c.phase != .landed {
-            let box = c.star.box.width > 0 ? c.star.box : CGSize(width: c.star.size, height: c.star.size)
-            let cut = image.size.width > 0 && Self.hasAlpha(image)
-            // Waiting where the GET moment left it, it is drawn once: the clock starts with the anticipation.
-            TimelineView(.animation(minimumInterval: nil, paused: c.launchAt == nil)) { _ in
-                ZStack(alignment: .topLeading) {
-                    flying(now: CCClock.now, image: image, cut: cut, box: box)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func flying(now: Double, image: UIImage, cut: Bool, box: CGSize) -> some View {
-        let c = controller, o = origin
-        if let pose = c.stickerPose(now) {
-            ForEach([3, 2, 1], id: \.self) { kk in
-                let fk = Film6.clamp(pose.fly - Double(kk) * 0.05)
-                if pose.fly > 0, fk > 0 {
-                    let e = Film6.inCubic(fk)
-                    let p = c.flightPoint(e)
-                    CatchStickerArt(cut: cut ? image : nil, fallback: cut ? nil : image, size: box, border: 1 - e)
-                        .scaleEffect(CGFloat(Film6.lerp(1, c.arriveScale, e)))
-                        .rotationEffect(.degrees(-6.9 * e))
-                        .opacity(0.14 / Double(kk))
-                        .position(x: p.x - o.x, y: p.y - o.y)
-                }
-            }
-            CatchStickerArt(cut: cut ? image : nil, fallback: cut ? nil : image, size: box, border: 1 - Film6.inCubic(pose.fly))
-                .scaleEffect(CGFloat(pose.scale))
-                .rotationEffect(.degrees(pose.rotation))
-                .shadow(color: .rgba(15, 40, 80, 0.18 * (1 - pose.fly)), radius: 10, y: 6)
-                .position(x: pose.center.x - o.x, y: pose.center.y - o.y)
-        }
-    }
-
-    private static func hasAlpha(_ image: UIImage) -> Bool {
-        guard let info = image.cgImage?.alphaInfo else { return false }
-        switch info {
-        case .none, .noneSkipFirst, .noneSkipLast: return false
-        default: return true
-        }
-    }
-}
-
-/// Film `drawTargetSlot`: while the sticker gathers itself and flies, a dashed blue ring tightens round its square
-/// (marching); once it has landed, a solid blue ring with a glow is held round it, relaxing after 1.5 s.
-private struct LandingSlotRing: View {
-    let controller: CatchLandingController
-    let origin: CGPoint
-    let width: CGFloat
-    /// The hit whose ring has relaxed: its clock stops.
-    @State private var done: Double?
-
-    var body: some View {
-        let c = controller
-        if !c.motion.calm, c.anticipAt != nil, done != c.impactAt {
-            TimelineView(.animation) { _ in
-                ZStack(alignment: .topLeading) {
-                    ring(now: CCClock.now)
-                }
-            }
-            .task(id: c.impactAt) {
-                // `impactAt` is first the hit as planned, then the hit itself: the ring is gone 1.9 s after that.
-                guard let at = c.impactAt else { return }
-                let left = at + 1.95 - CCClock.now
-                if left > 0 { try? await Task.sleep(for: .seconds(left)) }
-                if !Task.isCancelled { done = at }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func ring(now: Double) -> some View {
-        let c = controller, o = origin
-        if let t = c.target, let a0 = c.anticipAt {
-            let k = width / 1080
-            let impact = c.impactAt ?? .infinity
-            let rect = t.offsetBy(dx: -o.x, dy: -o.y)
-            if now < impact || c.phase != .landed {
-                let an = Film6.seg(now, a0, a0 + max(0.05, (c.impactAt ?? a0 + 0.52) - a0))
-                if an > 0 {
-                    let gr = CGFloat(12 * (1 - an)) * k
-                    RoundedRectangle(cornerRadius: 14 + gr, style: .continuous)
-                        .stroke(Theme.primaryBright, style: StrokeStyle(lineWidth: CGFloat(5 + 3 * an) * k,
-                                                                        dash: [16 * k, 12 * k], dashPhase: CGFloat(-now * 160) * k))
-                        .frame(width: rect.width + 2 * gr, height: rect.height + 2 * gr)
-                        .opacity(an)
-                        .position(x: rect.midX, y: rect.midY)
-                }
-            } else {
-                let u = now - impact
-                let ring = Film6.seg(u, 0, 0.08) * (1 - Film6.seg(u, 1.5, 1.9))
-                if ring > 0 {
-                    RoundedRectangle(cornerRadius: 14 + 3.5 * k, style: .continuous)
-                        .stroke(Theme.primaryBright, lineWidth: 7 * k)
-                        .frame(width: rect.width + 7 * k, height: rect.height + 7 * k)
-                        .shadow(color: .rgba(42, 155, 255, 0.6), radius: 20 * k)
-                        .opacity(ring)
-                        .position(x: rect.midX, y: rect.midY)
-                }
-            }
-        }
-    }
-}
-
-/// Film `dexFx`: light rays turning behind the square and two white rings with a blue glow running out (1.1 s).
-private struct LandingImpactFX: View {
-    let controller: CatchLandingController
-    let origin: CGPoint
-    let width: CGFloat
-    /// The hit whose rays have played out: their clock stops.
-    @State private var done: Double?
-
-    var body: some View {
-        let c = controller, o = origin
-        if let at = c.impactAt, c.phase == .landed, !c.motion.calm, done != at {
-            let k = width / 1080
-            let center = CGPoint(x: c.landAt.x - o.x, y: c.landAt.y - o.y)
-            TimelineView(.animation) { _ in
-                let u = CCClock.now - at
-                Canvas { ctx, _ in
-                    guard u < 1.1 else { return }
-                    let ra = Film6.outCubic(Film6.seg(u, 0, 0.12)) * (1 - Film6.seg(u, 0.45, 1.0))
-                    if ra > 0 {
-                        var g = ctx
-                        g.blendMode = .plusLighter
-                        g.opacity = 0.38 * ra
-                        g.translateBy(x: center.x, y: center.y)
-                        g.rotate(by: .radians(u * 0.6))
-                        let L = 330 * k
-                        for _ in 0..<12 {
-                            g.rotate(by: .radians(2 * .pi / 12))
-                            var ray = Path()
-                            ray.move(to: CGPoint(x: -10 * k, y: 0))
-                            ray.addLine(to: CGPoint(x: -34 * k, y: -L))
-                            ray.addLine(to: CGPoint(x: 34 * k, y: -L))
-                            ray.addLine(to: CGPoint(x: 10 * k, y: 0))
-                            ray.closeSubpath()
-                            g.fill(ray, with: .linearGradient(Gradient(colors: [.rgba(120, 190, 255, 0.9), .rgba(120, 190, 255, 0)]),
-                                                              startPoint: .zero, endPoint: CGPoint(x: 0, y: -L)))
-                        }
-                    }
-                    for (d, a0, w0, R) in [(0.0, 0.75, 12.0, 300.0), (0.07, 0.45, 6.0, 380.0)] {
-                        let p = Film6.seg(u, d, d + 0.5)
-                        guard p > 0, p < 1 else { continue }
-                        var g = ctx
-                        g.opacity = a0 * (1 - p)
-                        g.addFilter(.shadow(color: Theme.primaryBright, radius: 12 * k * 2))
-                        let r = CGFloat(70 + (R - 70) * Film6.outCubic(p)) * k
-                        g.stroke(Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: 2 * r, height: 2 * r)),
-                                 with: .color(.white), lineWidth: CGFloat(w0 * (1 - p) + 1) * k)
-                    }
-                }
-            }
-            .allowsHitTesting(false)
-            .task(id: at) {
-                let left = at + 1.15 - CCClock.now
-                if left > 0 { try? await Task.sleep(for: .seconds(left)) }
-                if !Task.isCancelled { done = at }
-            }
-        }
     }
 }
 
@@ -574,6 +398,7 @@ enum CatchLanding {
                                        motion: CCMotion(calm: calm), screen: screen, goal: alreadyCaught ? nil : goal)
         router.landing = c
         UITestTrace.log("landing start \(stickerId) again=\(alreadyCaught)")
+        MainProfiler.begin("landing \(alreadyCaught ? "again" : "new")")
         // However the landing goes, it ends: the tab bar is hidden while a landing is on (`AppRouter.hidesTabBar`).
         Task {
             try? await Task.sleep(for: .seconds(longest))
@@ -593,6 +418,7 @@ enum CatchLanding {
                 router.dexWarm = nil
             }
             await c.run()
+            MainProfiler.end()
             UITestTrace.log("landing end \(c.stickerId) current=\(router.landing === c)")
             if router.landing === c { router.landing = nil }
         }

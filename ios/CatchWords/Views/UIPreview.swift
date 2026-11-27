@@ -136,6 +136,9 @@ struct UIPreviewRoot: View {
             case "get-again": CelebrationPreview(replay: 4.6, again: true)
             case "landing": LandingPreview()
             case "landing-again": LandingPreview(again: true)
+            // The same landing into a dex the size of the owner's (about 230 words, owner 2026-11-27: the add to 図鑑
+            // stopped as the sticker hit its square), its cut-out as large as a camera's.
+            case "landing-many": LandingPreview(many: true)
             case "analyzing": ScanPreview(namesAfter: 2.4).uiReady("preview")
             case "scanslow": ScanPreview(namesAfter: 6.0).uiReady("preview")
             case "hero": HeroPickerPreview()
@@ -291,7 +294,7 @@ struct UIPreviewRoot: View {
     }
 
     private static let marksOwnElement: Set<String> = ["analyzing", "scanslow", "quiz", "answer", "jaquiz", "enanswer",
-                                                       "variants", "choose", "landing", "landing-again", "typed"]
+                                                       "variants", "choose", "landing", "landing-again", "landing-many", "typed"]
 }
 
 /// The catch scan's photo for the simulator (Vision's cut-out does not run there): a mango on a plate and a cup,
@@ -669,6 +672,8 @@ private struct CelebrationPreview: View {
 /// without NEW, counters or toast. Replayed every 6.5 s.
 private struct LandingPreview: View {
     var again: Bool = false
+    /// A dex of about 230 words, as the owner's (`-uiPreview landing-many`).
+    var many: Bool = false
     @Environment(DexStore.self) private var dex
     @Environment(AppRouter.self) private var router
     @State private var round = 0
@@ -702,6 +707,49 @@ private struct LandingPreview: View {
 
     private static let coffee = cutout(UIColor(red: 0.35, green: 0.22, blue: 0.15, alpha: 1), .white)
 
+    /// The juice cut-out at a camera cut-out's size (the landing preview's own is 300 × 420).
+    private static let bigJuice: UIImage = {
+        let small = juice
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: 900, height: 1260), format: format).image { _ in
+            small.draw(in: CGRect(x: 0, y: 0, width: 900, height: 1260))
+        }
+    }()
+
+    /// About 230 words caught across the catalog's categories (every third catalog word), each with a cut-out.
+    private static let manyCaught: [Sticker] = {
+        let colors: [(UIColor, UIColor)] = [
+            (UIColor(red: 0.2, green: 0.5, blue: 0.8, alpha: 1), .white),
+            (UIColor(red: 0.85, green: 0.3, blue: 0.3, alpha: 1), UIColor(white: 0.9, alpha: 1)),
+            (UIColor(red: 0.3, green: 0.7, blue: 0.4, alpha: 1), UIColor(white: 0.3, alpha: 1)),
+            (UIColor(red: 0.6, green: 0.45, blue: 0.8, alpha: 1), .white),
+            (UIColor(red: 0.95, green: 0.75, blue: 0.2, alpha: 1), UIColor(white: 0.2, alpha: 1)),
+            (UIColor(red: 0.5, green: 0.5, blue: 0.55, alpha: 1), .white),
+        ]
+        // Small, as the dex's squares draw their copies decoded at the square's size (`ImageCache.kept`): 230 full ones
+        // would not fit in the picture cache and the squares would stand empty.
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        format.scale = 1
+        let images = colors.map { c in
+            let big = cutout(c.0, c.1)
+            return UIGraphicsImageRenderer(size: CGSize(width: 180, height: 252), format: format).image { _ in
+                big.draw(in: CGRect(x: 0, y: 0, width: 180, height: 252))
+            }
+        }
+        let items = DexCatalog.allItems.filter { $0.zh != "果汁" && $0.zh != "茶" && $0.zh != "咖啡" && $0.zh != "珍珠奶茶" }
+        var out: [Sticker] = []
+        for (i, item) in items.enumerated() where i % 3 == 0 && out.count < 228 {
+            let zy = Array(item.zh).map { ZhuyinLayout.isHan($0) ? "ㄇㄚˇ" : "" }.filter { !$0.isEmpty }.joined(separator: " ")
+            if let s = sticker("l-many-\(i)", item.zh, zy, item.en, image: images[i % images.count], ago: 5000 + Double(i) * 600) {
+                out.append(s)
+            }
+        }
+        return out
+    }()
+
     private static let caught: [Sticker] = [
         sticker("l-tea", "茶", "ㄔㄚˊ", "tea", image: cutout(UIColor(red: 0.78, green: 0.45, blue: 0.2, alpha: 1), .white), ago: 3000),
         sticker("l-coffee", "咖啡", "ㄎㄚ ㄈㄟ", "coffee", image: coffee, ago: 2000),
@@ -727,14 +775,15 @@ private struct LandingPreview: View {
             await playAgain()
             return
         }
-        guard let new = Self.sticker("local-preview-\(round)", "果汁", "ㄍㄨㄛˇ ㄓ", "juice", image: Self.juice, ago: 0) else { return }
-        dex.stickers = [new] + Self.caught
+        let image = many ? Self.bigJuice : Self.juice
+        guard let new = Self.sticker("local-preview-\(round)", "果汁", "ㄍㄨㄛˇ ㄓ", "juice", image: image, ago: 0) else { return }
+        dex.stickers = [new] + Self.caught + (many ? Self.manyCaught : [])
         dex.hasLoaded = true
         try? await Task.sleep(for: .milliseconds(200))
         let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.size ?? CGSize(width: 393, height: 852)
-        let box = Film6.stickerSize(aspect: Self.juice.size.width / Self.juice.size.height, screen: screen, get: true)
+        let box = Film6.stickerSize(aspect: image.size.width / image.size.height, screen: screen, get: true)
         router.catchStar = CatchStar(center: CGPoint(x: screen.width / 2, y: Film6.y(Film6.getPosY, screen.height)),
-                                     size: box.width, k: 1, image: Self.juice, box: box)
+                                     size: box.width, k: 1, image: image, box: box)
         CatchLanding.land(stickerId: new.id, router: router, calm: false,
                           goal: CatchGoal.make(headword: "果汁", stickers: dex.stickers, lang: "zh-TW"))
         UIReady.mark("preview")
