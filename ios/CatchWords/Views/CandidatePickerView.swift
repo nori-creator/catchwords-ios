@@ -266,91 +266,15 @@ struct CandidatePickerView: View {
         }
     }
 
-    /// 撮り直す, 囲んで切り抜き直す and the hint in one row; where the row is too narrow, the hint goes under the buttons
-    /// (owner 2026-11-09: the button was its icon alone there — 「アイコンだけで何の機能がわからないから、切り抜き直すって文字を
-    /// つけて」).
+    /// 撮り直す, 囲んで切り抜き直す and the hint in one row (`PickerTopBar`).
     private var topBar: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                retakeButton
-                recutButton
-                Spacer(minLength: 8)
-                hintText
-            }
-            VStack(alignment: .trailing, spacing: 2) {
-                HStack(spacing: 10) {
-                    retakeButton
-                    recutButton
-                    Spacer(minLength: 0)
-                }
-                hintText
-            }
-            // Large text in a long language: one button over the other.
-            VStack(alignment: .leading, spacing: 0) {
-                retakeButton
-                recutButton
-                hintText.frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-    }
-
-    private var retakeButton: some View {
-        // A photo opened from 「解析待ち」 is not thrown away from here (check 2026-11-03 H2: 撮り直す deleted it with
-        // no question, and it was this screen's only way out): 閉じる leaves it in 「解析待ち」.
         let fromQueue = vm.restoredPendingId != nil
-        return Button { if fromQueue { vm.keepPendingAndReset() } else { vm.reset() } } label: {
-            Label(fromQueue ? L("閉じる") : L("撮り直す"), systemImage: fromQueue ? "xmark" : "arrow.counterclockwise")
-                .scaledFont(size: 14, weight: .semibold)
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 14)
-                .frame(minHeight: 36)
-                .background(.white.opacity(0.12), in: Capsule())
-                .frame(minHeight: 44)
-                .contentShape(.rect)
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityIdentifier("picker.retake")
-    }
-
-    /// 囲んで切り抜き直す before any tag is tapped (owner 2026-11-06: 「撮り直すボタンのところに切り抜き直す」): the learner's
-    /// loop picks the thing it goes round and becomes its sticker, and that thing's words open.
-    @ViewBuilder
-    private var recutButton: some View {
-        if !scanning, flow == nil, !objects.isEmpty {
-            Button { recutting = true } label: {
-                Label(L("囲んで切り抜き直す"), systemImage: "lasso")
-                    .scaledFont(size: 14, weight: .semibold)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 36)
-                    .background(.white.opacity(0.12), in: Capsule())
-                    .frame(minHeight: 44)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityIdentifier("picker.recut")
-        }
-    }
-
-    @ViewBuilder
-    private var hintText: some View {
-        if !topHint.isEmpty { hintLine }
-    }
-
-    private var hintLine: some View {
-        Text(topHint)
-            .scaledFont(size: 14, weight: .semibold)
-            .foregroundStyle(.white.opacity(0.85))
-            .lineLimit(1)
-            .fixedSize()
-            .contentTransition(.opacity)
-            .animation(.easeInOut(duration: 0.25), value: topHint)
+        return PickerTopBar(fromQueue: fromQueue, showsRecut: !scanning && flow == nil && !objects.isEmpty, hint: topHint,
+                            onRetake: { if fromQueue { vm.keepPendingAndReset() } else { vm.reset() } },
+                            onRecut: { recutting = true })
+            .equatable()
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
     }
 
     // MARK: The photo and its tags
@@ -1264,5 +1188,101 @@ struct TagTapHand: View {
             .scaleEffect(1 - 0.06 * press)
             .position(x: spot.rect.midX + spot.toward.dx * TagHandPlacement.travel * press,
                       y: spot.rect.midY + spot.toward.dy * TagHandPlacement.travel * press)
+    }
+}
+
+/// 撮り直す, 囲んで切り抜き直す and the hint in one row; where the row is too narrow, the hint goes under the buttons
+/// (owner 2026-11-09: the button was its icon alone there — 「アイコンだけで何の機能がわからないから、切り抜き直すって文字を
+/// つけて」). Its own view, equal while its buttons and hint are: the row tries three layouts (`ViewThatFits`), and it was
+/// measured again every time anything on the tags screen changed — most of the main thread as a tag was tapped (owner
+/// 2026-11-27: 「名前のタグをタップして切り抜くところもカクカクしていて、写真が止まってる」).
+private struct PickerTopBar: View, Equatable {
+    let fromQueue: Bool
+    let showsRecut: Bool
+    let hint: String
+    let onRetake: () -> Void
+    let onRecut: () -> Void
+
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        a.fromQueue == b.fromQueue && a.showsRecut == b.showsRecut && a.hint == b.hint
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                retakeButton
+                recutButton
+                Spacer(minLength: 8)
+                hintText
+            }
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(spacing: 10) {
+                    retakeButton
+                    recutButton
+                    Spacer(minLength: 0)
+                }
+                hintText
+            }
+            // Large text in a long language: one button over the other.
+            VStack(alignment: .leading, spacing: 0) {
+                retakeButton
+                recutButton
+                hintText.frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+    }
+
+    // A photo opened from 「解析待ち」 is not thrown away from here (check 2026-11-03 H2: 撮り直す deleted it with no
+    // question, and it was this screen's only way out): 閉じる leaves it in 「解析待ち」.
+    private var retakeButton: some View {
+        Button(action: onRetake) {
+            Label(fromQueue ? L("閉じる") : L("撮り直す"), systemImage: fromQueue ? "xmark" : "arrow.counterclockwise")
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 14)
+                .frame(minHeight: 36)
+                .background(.white.opacity(0.12), in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityIdentifier("picker.retake")
+    }
+
+    /// 囲んで切り抜き直す before any tag is tapped (owner 2026-11-06: 「撮り直すボタンのところに切り抜き直す」): the learner's
+    /// loop picks the thing it goes round and becomes its sticker, and that thing's words open.
+    @ViewBuilder
+    private var recutButton: some View {
+        if showsRecut {
+            Button(action: onRecut) {
+                Label(L("囲んで切り抜き直す"), systemImage: "lasso")
+                    .scaledFont(size: 14, weight: .semibold)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 36)
+                    .background(.white.opacity(0.12), in: Capsule())
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityIdentifier("picker.recut")
+        }
+    }
+
+    @ViewBuilder
+    private var hintText: some View {
+        if !hint.isEmpty {
+            Text(hint)
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(1)
+                .fixedSize()
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: 0.25), value: hint)
+        }
     }
 }

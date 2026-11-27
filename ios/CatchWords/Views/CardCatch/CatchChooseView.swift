@@ -55,46 +55,6 @@ struct CatchChooseOverlay: View {
     /// The card has come in and stands still (`settleCard`): its timeline stops until a choice, new rows or closing.
     @State private var cardStill = false
 
-    /// 囲んで切り抜き直す and 元の写真のまま at the top left, always side by side (owner 2026-11-10: 「元の画像は切り抜き
-    /// 治すの右に配置して」 — stacked, the second one covered the cut-out). Where the row is narrow the two get smaller.
-    @ViewBuilder
-    private func cutButtons(compact: Bool) -> some View {
-        HStack(spacing: compact ? 6 : 8) {
-            if let onRecut {
-                cutButton(L("囲んで切り抜き直す"), icon: "lasso", id: "variant.recut", compact: compact, action: onRecut)
-            }
-            if let onWholePhoto {
-                cutButton(L("元の写真のまま"), icon: "photo", id: "variant.wholePhoto", compact: compact) {
-                    AppEvents.feature(.wholePhoto)
-                    onWholePhoto()
-                }
-            }
-        }
-    }
-
-    private func cutButton(_ title: String, icon: String, id: String, compact: Bool,
-                           action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: compact ? 4 : 6) {
-                Image(systemName: icon)
-                    .font(.system(size: compact ? 12 : 14, weight: .semibold))
-                Text(title)
-                    .font(.system(size: compact ? 12 : 13, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .foregroundStyle(ink)
-            .padding(.horizontal, compact ? 9 : 12)
-            .frame(height: 36)
-            .background(.white.opacity(0.85), in: Capsule())
-            .overlay(Capsule().stroke(line, lineWidth: 1))
-            .frame(minHeight: 44)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(PressableStyle(scale: 0.95))
-        .accessibilityIdentifier(id)
-    }
-
     private func closing(_ now: Double) -> Double { closingAt.map { Film6.seg(now - $0, 0, 0.3) } ?? 0 }
 
     private var stillKey: String { "\(tappedAt)|\(chosenAt ?? -1)|\(closingAt ?? -1)|\(rowsAt ?? -1)|\(words.count)" }
@@ -170,11 +130,10 @@ struct CatchChooseOverlay: View {
                     HStack {
                         // Side by side, smaller where the row is narrow. The row gets its width before the Spacer:
                         // with the Spacer sharing it, the buttons were offered half the row and fell one under the other.
-                        ViewThatFits(in: .horizontal) {
-                            cutButtons(compact: false)
-                            cutButtons(compact: true)
-                        }
-                        .layoutPriority(1)
+                        ChooseCutButtons(showsRecut: onRecut != nil, showsWholePhoto: onWholePhoto != nil,
+                                         onRecut: { onRecut?() }, onWholePhoto: { onWholePhoto?() })
+                            .equatable()
+                            .layoutPriority(1)
                         Spacer(minLength: 8)
                         Button(action: onClose) {
                             Image(systemName: "xmark")
@@ -378,6 +337,72 @@ struct CatchChooseOverlay: View {
     // MARK: Typing a word
 
     static let fieldHeight: CGFloat = 92
+}
+
+/// 囲んで切り抜き直す and 元の写真のまま at the top left of the choose screen (`CatchChooseOverlay`). Its own view, equal while
+/// the same buttons are on it: the row tries two sizes (`ViewThatFits`) and was measured again every time the choose
+/// screen changed (its cut-out coming, a search) — owner 2026-11-27: 「限界まで滑らかにして。カクカクなしで」.
+private struct ChooseCutButtons: View, Equatable {
+    let showsRecut: Bool
+    let showsWholePhoto: Bool
+    let onRecut: () -> Void
+    let onWholePhoto: () -> Void
+
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        a.showsRecut == b.showsRecut && a.showsWholePhoto == b.showsWholePhoto
+    }
+
+    private let ink = Color(hex: 0x0B121A)
+    private let line = Color(hex: 0xE0E5EB)
+
+    /// 囲んで切り抜き直す and 元の写真のまま at the top left, always side by side (owner 2026-11-10: 「元の画像は切り抜き
+    /// 治すの右に配置して」 — stacked, the second one covered the cut-out). Where the row is narrow the two get smaller.
+    var body: some View {
+        // Side by side, smaller where the row is narrow.
+        ViewThatFits(in: .horizontal) {
+            buttons(compact: false)
+            buttons(compact: true)
+        }
+    }
+
+    @ViewBuilder
+    private func buttons(compact: Bool) -> some View {
+        HStack(spacing: compact ? 6 : 8) {
+            if showsRecut {
+                cutButton(L("囲んで切り抜き直す"), icon: "lasso", id: "variant.recut", compact: compact, action: onRecut)
+            }
+            if showsWholePhoto {
+                cutButton(L("元の写真のまま"), icon: "photo", id: "variant.wholePhoto", compact: compact) {
+                    AppEvents.feature(.wholePhoto)
+                    onWholePhoto()
+                }
+            }
+        }
+    }
+
+    private func cutButton(_ title: String, icon: String, id: String, compact: Bool,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: compact ? 4 : 6) {
+                Image(systemName: icon)
+                    .font(.system(size: compact ? 12 : 14, weight: .semibold))
+                Text(title)
+                    .font(.system(size: compact ? 12 : 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(ink)
+            .padding(.horizontal, compact ? 9 : 12)
+            .frame(height: 36)
+            .background(.white.opacity(0.85), in: Capsule())
+            .overlay(Capsule().stroke(line, lineWidth: 1))
+            .frame(minHeight: 44)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle(scale: 0.95))
+        .accessibilityIdentifier(id)
+    }
+
 }
 
 /// One way to say it on the choose card: what kind of name it is, the word with its reading, its meaning and how it
