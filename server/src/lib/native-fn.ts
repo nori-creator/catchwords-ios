@@ -161,6 +161,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   adminSetAiBackup: from(adminAi, "adminSetAiBackup"),
   adminTestAiModel: from(adminAi, "adminTestAiModel"),
   adminEstimateAiCost: from(adminAi, "adminEstimateAiCost"),
+  // モデルの「考える深さ」（Google の Gemini だけ。2026-11-27〜）
+  adminSetAiThinking: from(adminAi, "adminSetAiThinking"),
   // 保存済みの語のチャンクの点検し直し（20 語ずつ）
   adminSetImageConfig: from(adminAi, "adminSetImageConfig"),
   adminSetTtsVoice: from(adminAi, "adminSetTtsVoice"),
@@ -204,6 +206,7 @@ export const NATIVE_ADMIN_FNS = [
   "adminSetAiBackup",
   "adminTestAiModel",
   "adminEstimateAiCost",
+  "adminSetAiThinking",
   "adminSetImageConfig",
   "adminSetTtsVoice",
   "adminTestImage",

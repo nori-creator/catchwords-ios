@@ -447,6 +447,13 @@ struct AdminAiApplyView: View {
     @State private var applied: Bool = false
     @State private var applyError: String?
     @State private var undoing: Bool = false
+    /// 「考える深さ」 picked here (Google's Gemini only); nil = what is saved for this model.
+    @State private var pickedLevel: String?
+
+    /// The level saved for this model (`"auto"` = none saved, the model's own default).
+    private var savedLevel: String { settings.thinking[choice.id] ?? "auto" }
+    private var level: String { pickedLevel ?? savedLevel }
+    private var takesLevel: Bool { AdminAiThinking.applies(to: choice.provider) }
 
     private var taskName: String {
         guard let id = target.taskId, let t = settings.tasks.first(where: { $0.id == id }) else { return "" }
@@ -473,6 +480,9 @@ struct AdminAiApplyView: View {
                             .scaledFont(size: 12)
                             .foregroundStyle(Theme.muted)
                     }
+                }
+                if takesLevel {
+                    thinkingCard
                 }
                 testRow
                 if !target.isBackup {
@@ -550,11 +560,59 @@ struct AdminAiApplyView: View {
         .accessibilityIdentifier("adminAi.apply.test")
     }
 
+    // MARK: - Thinking level
+
+    /// 「考える深さ」 (owner 2026-11-27): picking one calls the model again at that level; it is saved with the model
+    /// when it is applied (`adminSetAiThinking`, which tries it once more and saves only if it answers).
+    private var thinkingCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Menu {
+                ForEach(settings.thinkingLevels.isEmpty ? AdminAiThinking.levels : settings.thinkingLevels,
+                        id: \.self) { lv in
+                    Button {
+                        guard lv != level else { return }
+                        Haptics.selection()
+                        pickedLevel = lv
+                        if !previewOnly { Task { await runTest() } }
+                    } label: {
+                        if lv == level {
+                            Label(AdminAiThinking.name(lv), systemImage: "checkmark")
+                        } else {
+                            Text(AdminAiThinking.name(lv))
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Text(L("考える深さ"))
+                        .scaledFont(size: 15, weight: .semibold)
+                        .foregroundStyle(Theme.foreground)
+                    Spacer(minLength: 8)
+                    Text(AdminAiThinking.name(level))
+                        .scaledFont(size: 14)
+                        .foregroundStyle(Theme.primaryInk)
+                        .multilineTextAlignment(.trailing)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .accessibilityHidden(true)
+                }
+            }
+            .disabled(testing || applying || applied)
+            .accessibilityIdentifier("adminAi.apply.thinking")
+            fine(L("浅いほど速く答えます。選ぶとその深さで試し直し、替える時に一緒に保存します。"))
+        }
+        .padding(14)
+        .background(Theme.card, in: .rect(cornerRadius: 16, style: .continuous))
+    }
+
     private func runTest() async {
         testing = true
         testError = nil
+        var data: [String: Any] = ["value": choice.id]
+        if takesLevel { data["thinking"] = level }
         do {
-            test = try await NativeAPI.call("adminTestAiModel", ["value": choice.id], as: AdminAiModelTest.self, timeout: 45)
+            test = try await NativeAPI.call("adminTestAiModel", data, as: AdminAiModelTest.self, timeout: 45)
         } catch {
             test = nil
             testError = AdminAiModelPicker.message(error)
@@ -696,6 +754,12 @@ struct AdminAiApplyView: View {
         applying = true
         applyError = nil
         do {
+            // The level first: it is tried once more and saved only if the model answers at it, so a model is never
+            // switched to with a level it refuses.
+            if takesLevel, level != savedLevel {
+                _ = try await NativeAPI.call("adminSetAiThinking", ["value": choice.id, "level": level],
+                                             as: AdminAiThinkingResult.self, timeout: 60)
+            }
             if all {
                 _ = try await NativeAPI.call("adminSetAiAll", ["value": choice.id], timeout: 30)
             } else {

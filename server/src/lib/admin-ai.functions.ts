@@ -73,13 +73,25 @@ export const adminSetAiBackup = createServerFn({ method: "POST" })
     return mod.setAdminAiBackup(d, data);
   });
 
-/** そのモデルを試しに1回呼ぶ（本番の記録に残さない）。`{ value }` → `{ ok, ms, error, value }`。 */
+/** そのモデルを試しに1回呼ぶ（本番の記録に残さない）。`{ value, thinking? }` → `{ ok, ms, error, value }`。 */
 export const adminTestAiModel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => input as { value: string })
+  .inputValidator((input: unknown) => input as { value: string; thinking?: string })
   .handler(async ({ context, data }) => {
     const { mod, deps: d } = await deps(context);
     return mod.testAdminAiModel(d, data);
+  });
+
+/**
+ * モデルの「考える深さ」（Google の Gemini だけ）。`{ value: "会社:モデル", level: "auto" | "low" | "medium" | "high" |
+ * "xhigh" }` → `{ ok, value, level, ms }`。段はその段で1回呼んで動いた時だけ保存する。
+ */
+export const adminSetAiThinking = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => input as { value: string; level: string })
+  .handler(async ({ context, data }) => {
+    const { mod, deps: d } = await deps(context);
+    return mod.setAdminAiThinking(d, data);
   });
 
 /** 直近30日の量のまま、全部をそのモデルにしたら費用がどうなるか。`{ value }`。 */
