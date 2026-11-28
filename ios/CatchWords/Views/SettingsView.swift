@@ -332,6 +332,9 @@ struct SettingsView: View {
                 Divider().overlay(Theme.border)
                 devRow(icon: "exclamationmark.bubble", title: L("報告された誤り"), id: "settings.adminReports") { adminScreen = .reports }
                 Divider().overlay(Theme.border)
+                // 発音チェックの「ネイティブの範囲」を作る録音（彼女・友達が読む。2026-11-29）
+                devRow(icon: "waveform", title: L("ネイティブの発音を録音"), id: "settings.nativeRecording") { adminScreen = .nativeRecording }
+                Divider().overlay(Theme.border)
                 devRow(icon: "cpu", title: L("AI の設定（開発者）"), id: "settings.adminAi") { showAdminAi = true }
                 Divider().overlay(Theme.border)
                 devRow(icon: "sparkles", title: L("褒める演出とレビュー画面を試す"), id: "settings.praiseTrial") { tryPraise() }
@@ -782,7 +785,7 @@ struct SettingsToggle: View {
 
 /// The developer screens opened from 設定 › 開発者 (each a sheet with its own navigation).
 enum AdminScreen: String, Identifiable {
-    case analytics, appInfo, reports
+    case analytics, appInfo, reports, nativeRecording
     var id: String { rawValue }
 
     @ViewBuilder
@@ -791,6 +794,7 @@ enum AdminScreen: String, Identifiable {
         case .analytics: AdminAnalyticsView()
         case .appInfo: AppInfoView()
         case .reports: AdminReportsView()
+        case .nativeRecording: NativeRecordingView()
         }
     }
 }

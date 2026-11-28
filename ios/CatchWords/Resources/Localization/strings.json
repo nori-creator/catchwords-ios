@@ -12409,5 +12409,446 @@
   "es": "Cuanto más ligera, más rápida la respuesta. Al elegir, se vuelve a probar con esa profundidad y se guarda al cambiar.",
   "ko": "얕을수록 빨리 답합니다. 고르면 그 깊이로 다시 시험하고, 바꿀 때 함께 저장합니다.",
   "vi": "Càng nông càng trả lời nhanh. Khi chọn, ứng dụng thử lại ở độ sâu đó và lưu cùng lúc khi đổi."
+ },
+ "1 はあなたの一番低い声、5 は一番高い声です。声の高さが違う人どうしも、同じ目盛りで比べます。": {
+  "en": "1 is your lowest voice and 5 your highest, so people with higher or lower voices are compared on the same scale.",
+  "zh-TW": "1 是你最低的聲音，5 是最高的聲音。聲音高低不同的人，也用同一把尺來比較。",
+  "es": "1 es tu voz más grave y 5 la más aguda. Así, las voces graves y agudas se comparan con la misma escala.",
+  "ko": "1은 가장 낮은 목소리, 5는 가장 높은 목소리예요. 목소리 높이가 다른 사람끼리도 같은 눈금으로 비교해요.",
+  "vi": "1 là giọng thấp nhất của bạn, 5 là giọng cao nhất. Người có giọng cao hay thấp khác nhau cũng được so trên cùng một thang."
+ },
+ "「{1}」の声の強さの山を、手本に合わせましょう": {
+  "en": "Match the stress of “{1}” to the model",
+  "zh-TW": "讓「{1}」的音量起伏和示範一樣",
+  "es": "Ajusta la intensidad de “{1}” a la del modelo",
+  "ko": "‘{1}’의 소리 세기를 본보기에 맞춰 보세요",
+  "vi": "Hãy điều chỉnh độ mạnh nhẹ của “{1}” theo mẫu"
+ },
+ "「{1}」の高さの動きを、青い帯に合わせましょう": {
+  "en": "Make the pitch of “{1}” follow the blue band",
+  "zh-TW": "讓「{1}」的音高變化貼合藍色區域",
+  "es": "Haz que el tono de “{1}” siga la franja azul",
+  "ko": "‘{1}’의 음높이 변화를 파란 띠에 맞춰 보세요",
+  "vi": "Hãy để cao độ của “{1}” đi theo dải màu xanh"
+ },
+ "「{1}」は、最後までしっかり上げましょう": {
+  "en": "Let “{1}” rise all the way to the end",
+  "zh-TW": "「{1}」要一路往上揚到最後",
+  "es": "Sube el tono de “{1}” hasta el final",
+  "ko": "‘{1}’는 끝까지 확실히 올려 보세요",
+  "vi": "Hãy lên giọng “{1}” đến tận cuối"
+ },
+ "「{1}」は、高い所から一気に下げましょう": {
+  "en": "Start “{1}” high and drop it sharply",
+  "zh-TW": "「{1}」要從高處一口氣降下來",
+  "es": "Empieza “{1}” en un tono alto y bájalo de golpe",
+  "ko": "‘{1}’는 높은 곳에서 단번에 내려 보세요",
+  "vi": "Hãy bắt đầu “{1}” ở giọng cao rồi hạ xuống thật nhanh"
+ },
+ "「{1}」は、高さを変えずにまっすぐ伸ばしましょう": {
+  "en": "Hold “{1}” at one steady pitch",
+  "zh-TW": "「{1}」要維持同樣的高度，平平地拉長",
+  "es": "Mantén “{1}” en un tono estable, sin subir ni bajar",
+  "ko": "‘{1}’는 높이를 바꾸지 말고 평평하게 늘여 보세요",
+  "vi": "Hãy giữ “{1}” ở một cao độ đều, không lên không xuống"
+ },
+ "「{1}」を、もう少し強く言いましょう": {
+  "en": "Say “{1}” a little more strongly",
+  "zh-TW": "「{1}」再說得用力一點",
+  "es": "Di “{1}” con un poco más de fuerza",
+  "ko": "‘{1}’를 조금 더 세게 말해 보세요",
+  "vi": "Hãy nói “{1}” mạnh hơn một chút"
+ },
+ "「{1}」を、もう少し短く言いましょう": {
+  "en": "Say “{1}” a little shorter",
+  "zh-TW": "「{1}」再說得短一點",
+  "es": "Di “{1}” un poco más corto",
+  "ko": "‘{1}’를 조금 더 짧게 말해 보세요",
+  "vi": "Hãy nói “{1}” ngắn hơn một chút"
+ },
+ "「{1}」を、もう少し長く伸ばしましょう": {
+  "en": "Stretch “{1}” out a little longer",
+  "zh-TW": "「{1}」再拉長一點",
+  "es": "Alarga “{1}” un poco más",
+  "ko": "‘{1}’를 조금 더 길게 늘여 보세요",
+  "vi": "Hãy kéo dài “{1}” thêm một chút"
+ },
+ "「{1}」を、もっと低い声で言いましょう": {
+  "en": "Say “{1}” in a lower voice",
+  "zh-TW": "「{1}」用更低的聲音說",
+  "es": "Di “{1}” con un tono más grave",
+  "ko": "‘{1}’를 더 낮은 목소리로 말해 보세요",
+  "vi": "Hãy nói “{1}” bằng giọng thấp hơn"
+ },
+ "「{1}」を、もっと高い声で言いましょう": {
+  "en": "Say “{1}” in a higher voice",
+  "zh-TW": "「{1}」用更高的聲音說",
+  "es": "Di “{1}” con un tono más agudo",
+  "ko": "‘{1}’를 더 높은 목소리로 말해 보세요",
+  "vi": "Hãy nói “{1}” bằng giọng cao hơn"
+ },
+ "「{1}」を、軽く弱めに言いましょう": {
+  "en": "Say “{1}” lightly and softly",
+  "zh-TW": "「{1}」說得輕一點、弱一點",
+  "es": "Di “{1}” de forma suave y ligera",
+  "ko": "‘{1}’를 가볍고 약하게 말해 보세요",
+  "vi": "Hãy nói “{1}” nhẹ và khẽ hơn"
+ },
+ "あと少しです": {
+  "en": "Almost there",
+  "zh-TW": "再一點點就好",
+  "es": "¡Ya casi!",
+  "ko": "조금만 더요",
+  "vi": "Gần được rồi"
+ },
+ "あなたの声": {
+  "en": "Your voice",
+  "zh-TW": "你的聲音",
+  "es": "Tu voz",
+  "ko": "내 목소리",
+  "vi": "Giọng của bạn"
+ },
+ "あなたの声：{1} Hz 〜 {2} Hz": {
+  "en": "Your voice: {1}–{2} Hz",
+  "zh-TW": "你的聲音：{1} Hz～{2} Hz",
+  "es": "Tu voz: {1}–{2} Hz",
+  "ko": "내 목소리: {1}~{2} Hz",
+  "vi": "Giọng của bạn: {1}–{2} Hz"
+ },
+ "うまくはかれませんでした。もう少し大きな声で、低い声から高い声までしっかり上げてください。": {
+  "en": "We couldn't measure that. Try a bit louder, sliding all the way from your lowest voice to your highest.",
+  "zh-TW": "沒有量好。請再大聲一點，從最低的聲音一路升到最高的聲音。",
+  "es": "No pudimos medirlo. Inténtalo un poco más fuerte, subiendo desde tu voz más grave hasta la más aguda.",
+  "ko": "제대로 재지 못했어요. 조금 더 큰 목소리로, 가장 낮은 소리부터 가장 높은 소리까지 쭉 올려 주세요.",
+  "vi": "Chưa đo được. Hãy thử nói to hơn một chút, đi từ giọng thấp nhất lên giọng cao nhất."
+ },
+ "うまく聞き取れませんでした。静かな所で、少し大きな声ではっきり言ってみてください。": {
+  "en": "We couldn't hear that clearly. In a quiet place, try saying it a little louder and more clearly.",
+  "zh-TW": "沒有聽清楚。請在安靜的地方，稍微大聲、清楚地再說一次。",
+  "es": "No te escuchamos bien. En un lugar tranquilo, dilo un poco más fuerte y con claridad.",
+  "ko": "잘 들리지 않았어요. 조용한 곳에서 조금 더 크고 또렷하게 말해 보세요.",
+  "vi": "Chưa nghe rõ. Hãy thử nói to và rõ hơn một chút ở nơi yên tĩnh."
+ },
+ "この人は、発音の手本を作るために、声と分析した数値をサーバーに保存することに同意しています": {
+  "en": "This person agrees to have their voice and its measurements saved on the server to build pronunciation models",
+  "zh-TW": "這個人同意為了製作發音示範，把聲音和分析數據存到伺服器",
+  "es": "Esta persona acepta que su voz y sus mediciones se guarden en el servidor para crear modelos de pronunciación",
+  "ko": "이 사람은 발음 본보기를 만들기 위해 목소리와 분석한 수치를 서버에 저장하는 데 동의했어요",
+  "vi": "Người này đồng ý lưu giọng nói và số liệu phân tích lên máy chủ để tạo mẫu phát âm"
+ },
+ "この範囲で始める": {
+  "en": "Start with this range",
+  "zh-TW": "用這個範圍開始",
+  "es": "Empezar con este rango",
+  "ko": "이 범위로 시작하기",
+  "vi": "Bắt đầu với khoảng này"
+ },
+ "これまでの点数": {
+  "en": "Past scores",
+  "zh-TW": "過去的分數",
+  "es": "Puntuaciones anteriores",
+  "ko": "지금까지의 점수",
+  "vi": "Điểm các lần trước"
+ },
+ "どの音節もネイティブの範囲に入っています。この調子！": {
+  "en": "Every syllable is within the native range. Keep it up!",
+  "zh-TW": "每個音節都在母語者的範圍內。保持下去！",
+  "es": "Todas las sílabas están dentro del rango nativo. ¡Sigue así!",
+  "ko": "모든 음절이 원어민 범위 안에 있어요. 이대로 계속해요!",
+  "vi": "Âm tiết nào cũng nằm trong khoảng của người bản xứ. Cứ thế phát huy nhé!"
+ },
+ "はかり直す": {
+  "en": "Measure again",
+  "zh-TW": "重新測量",
+  "es": "Volver a medir",
+  "ko": "다시 재기",
+  "vi": "Đo lại"
+ },
+ "はかる": {
+  "en": "Measure",
+  "zh-TW": "測量",
+  "es": "Medir",
+  "ko": "재기",
+  "vi": "Đo"
+ },
+ "まず、あなたの声の高さをはかります": {
+  "en": "First, let's measure your voice range",
+  "zh-TW": "首先，來測量你的音域",
+  "es": "Primero, midamos el rango de tu voz",
+  "ko": "먼저 목소리 높이를 재 볼게요",
+  "vi": "Trước tiên, hãy đo cao độ giọng của bạn"
+ },
+ "もう一度はかる": {
+  "en": "Measure once more",
+  "zh-TW": "再測一次",
+  "es": "Medir otra vez",
+  "ko": "한 번 더 재기",
+  "vi": "Đo lại lần nữa"
+ },
+ "タップして、単語を言ってみましょう": {
+  "en": "Tap, then say the word",
+  "zh-TW": "點一下，然後說出這個單字",
+  "es": "Toca y di la palabra",
+  "ko": "탭한 다음 단어를 말해 보세요",
+  "vi": "Nhấn rồi nói từ này"
+ },
+ "ネイティブの発音を録音": {
+  "en": "Record native pronunciation",
+  "zh-TW": "錄製母語者發音",
+  "es": "Grabar pronunciación nativa",
+  "ko": "원어민 발음 녹음",
+  "vi": "Ghi âm phát âm bản xứ"
+ },
+ "ネイティブの範囲": {
+  "en": "Native range",
+  "zh-TW": "母語者的範圍",
+  "es": "Rango nativo",
+  "ko": "원어민 범위",
+  "vi": "Khoảng bản xứ"
+ },
+ "ネイティブの範囲です": {
+  "en": "Within the native range",
+  "zh-TW": "在母語者的範圍內",
+  "es": "Dentro del rango nativo",
+  "ko": "원어민 범위 안이에요",
+  "vi": "Nằm trong khoảng bản xứ"
+ },
+ "ボタンを押したら、一番低い声から一番高い声まで、なめらかに「あー」と上げてください（3 秒ほど）。": {
+  "en": "After tapping the button, say “ahh,” sliding smoothly from your lowest voice up to your highest (about 3 seconds).",
+  "zh-TW": "按下按鈕後，請從最低的聲音到最高的聲音，順順地「啊——」往上拉高（約 3 秒）。",
+  "es": "Después de tocar el botón, di “aaa” subiendo suavemente desde tu voz más grave hasta la más aguda (unos 3 segundos).",
+  "ko": "버튼을 누른 뒤, 가장 낮은 소리부터 가장 높은 소리까지 부드럽게 ‘아—’ 하고 올려 주세요(3초 정도).",
+  "vi": "Sau khi nhấn nút, hãy nói “a…” và lên giọng thật mượt từ thấp nhất đến cao nhất (khoảng 3 giây)."
+ },
+ "マイクの使用が許可されていません。設定でマイクをオンにすると、発音をチェックできます。": {
+  "en": "Microphone access isn't allowed. Turn on the microphone in Settings to check your pronunciation.",
+  "zh-TW": "沒有允許使用麥克風。到設定開啟麥克風，就能檢查發音。",
+  "es": "No has permitido el acceso al micrófono. Actívalo en Ajustes para revisar tu pronunciación.",
+  "ko": "마이크 사용이 허용되지 않았어요. 설정에서 마이크를 켜면 발음을 확인할 수 있어요.",
+  "vi": "Chưa cho phép dùng micrô. Hãy bật micrô trong Cài đặt để kiểm tra phát âm."
+ },
+ "マイクを使えませんでした。ほかのアプリが使っていないか確かめてください。": {
+  "en": "Couldn't use the microphone. Check that no other app is using it.",
+  "zh-TW": "無法使用麥克風。請確認沒有其他 App 正在使用。",
+  "es": "No se pudo usar el micrófono. Comprueba que ninguna otra app lo esté usando.",
+  "ko": "마이크를 사용할 수 없었어요. 다른 앱이 사용 중인지 확인해 주세요.",
+  "vi": "Không dùng được micrô. Hãy kiểm tra xem có ứng dụng nào khác đang dùng không."
+ },
+ "人によって声の高さは違います。あなたの一番低い声から一番高い声までを 1〜5 の目盛りにして、ネイティブと同じ物差しで比べます。": {
+  "en": "Everyone's voice sits at a different pitch. We turn the span from your lowest to your highest voice into a 1–5 scale, so you're compared with native speakers on equal terms.",
+  "zh-TW": "每個人的聲音高低都不一樣。我們把你從最低到最高的聲音分成 1～5 的刻度，用和母語者同一把尺來比較。",
+  "es": "Cada persona tiene un tono de voz distinto. Convertimos el rango entre tu voz más grave y la más aguda en una escala del 1 al 5, para compararte con hablantes nativos en igualdad de condiciones.",
+  "ko": "사람마다 목소리 높이가 달라요. 가장 낮은 소리부터 가장 높은 소리까지를 1~5 눈금으로 나눠, 원어민과 같은 기준으로 비교해요.",
+  "vi": "Mỗi người có giọng cao thấp khác nhau. Khoảng từ giọng thấp nhất đến cao nhất của bạn được chia thành thang 1–5 để so với người bản xứ theo cùng một thước đo."
+ },
+ "今はアプリの AI 音声（台湾の発音）を分析した仮の範囲と比べます。ネイティブの録音が集まると置き換わります。": {
+  "en": "For now, you're compared with a provisional range measured from the app's AI voice (Taiwanese accent). It will be replaced as native recordings come in.",
+  "zh-TW": "目前是和分析 App 的 AI 語音（台灣口音）得出的暫定範圍比較。收集到母語者的錄音後就會換掉。",
+  "es": "Por ahora te comparamos con un rango provisional medido a partir de la voz de IA de la app (acento taiwanés). Se reemplazará a medida que lleguen grabaciones de hablantes nativos.",
+  "ko": "지금은 앱의 AI 음성(대만 발음)을 분석한 임시 범위와 비교해요. 원어민 녹음이 모이면 바뀌어요.",
+  "vi": "Hiện tại bạn được so với khoảng tạm thời đo từ giọng AI của ứng dụng (giọng Đài Loan). Khoảng này sẽ được thay khi có bản ghi âm của người bản xứ."
+ },
+ "保存するには、上の同意をオンにしてください": {
+  "en": "To save, turn on the consent above",
+  "zh-TW": "要儲存，請開啟上方的同意",
+  "es": "Para guardar, activa el consentimiento de arriba",
+  "ko": "저장하려면 위의 동의를 켜 주세요",
+  "vi": "Để lưu, hãy bật mục đồng ý ở trên"
+ },
+ "保存できませんでした": {
+  "en": "Couldn't save",
+  "zh-TW": "無法儲存",
+  "es": "No se pudo guardar",
+  "ko": "저장하지 못했어요",
+  "vi": "Không lưu được"
+ },
+ "分析しています…": {
+  "en": "Analyzing…",
+  "zh-TW": "分析中…",
+  "es": "Analizando…",
+  "ko": "분석하고 있어요…",
+  "vi": "Đang phân tích…"
+ },
+ "前回 {1} 点": {
+  "en": "Last time: {1}",
+  "zh-TW": "上次 {1} 分",
+  "es": "La última vez: {1}",
+  "ko": "지난번 {1}점",
+  "vi": "Lần trước: {1} điểm"
+ },
+ "台湾の人 {1} 人の録音（{2} 回）から作った範囲と比べます": {
+  "en": "Compared with a range built from Taiwanese speakers' recordings (speakers: {1} · recordings: {2})",
+  "zh-TW": "和 {1} 位台灣人的錄音（{2} 次）所建立的範圍比較",
+  "es": "Comparado con un rango creado a partir de grabaciones de hablantes taiwaneses (personas: {1} · grabaciones: {2})",
+  "ko": "대만 사람 {1}명의 녹음({2}회)으로 만든 범위와 비교해요",
+  "vi": "So với khoảng được tạo từ bản ghi âm của {1} người Đài Loan ({2} lần)"
+ },
+ "同じ声調の単語を台湾の人 {1} 人が読んだ録音から作った範囲と比べます": {
+  "en": "Compared with a range built from Taiwanese speakers reading words with the same tones (speakers: {1})",
+  "zh-TW": "和 {1} 位台灣人唸相同聲調單字的錄音所建立的範圍比較",
+  "es": "Comparado con un rango creado a partir de hablantes taiwaneses que leen palabras con los mismos tonos (personas: {1})",
+  "ko": "대만 사람 {1}명이 같은 성조의 단어를 읽은 녹음으로 만든 범위와 비교해요",
+  "vi": "So với khoảng được tạo từ bản ghi âm {1} người Đài Loan đọc các từ cùng thanh điệu"
+ },
+ "同じ声調の組み合わせの単語は、ほかの単語の手本にも使います。1つの単語を、何人かに読んでもらうほど正確になります。": {
+  "en": "Words with the same tone combination also serve as models for other words. The more people read each word, the more accurate it gets.",
+  "zh-TW": "相同聲調組合的單字，也會用來當其他單字的示範。同一個單字越多人唸，就越準確。",
+  "es": "Las palabras con la misma combinación de tonos también sirven de modelo para otras palabras. Cuantas más personas lean cada palabra, más preciso será.",
+  "ko": "같은 성조 조합의 단어는 다른 단어의 본보기로도 써요. 한 단어를 여러 사람이 읽을수록 더 정확해져요.",
+  "vi": "Các từ có cùng tổ hợp thanh điệu cũng được dùng làm mẫu cho từ khác. Càng nhiều người đọc một từ thì càng chính xác."
+ },
+ "名前は保存しません。記号と、話す人の対応はあなただけが持ってください。": {
+  "en": "Names are not saved. Keep the list of which code belongs to whom to yourself.",
+  "zh-TW": "不會儲存名字。代號和說話者的對應，請只由你自己保管。",
+  "es": "No se guardan nombres. Guarda tú solo la lista de qué código corresponde a cada persona.",
+  "ko": "이름은 저장하지 않아요. 기호와 말하는 사람의 대응은 본인만 보관해 주세요.",
+  "vi": "Tên sẽ không được lưu. Chỉ mình bạn giữ danh sách mã ứng với từng người."
+ },
+ "声の範囲：{1} Hz 〜 {2} Hz": {
+  "en": "Voice range: {1}–{2} Hz",
+  "zh-TW": "音域：{1} Hz～{2} Hz",
+  "es": "Rango de voz: {1}–{2} Hz",
+  "ko": "목소리 범위: {1}~{2} Hz",
+  "vi": "Khoảng giọng: {1}–{2} Hz"
+ },
+ "声の高さのグラフ": {
+  "en": "Pitch chart",
+  "zh-TW": "音高圖表",
+  "es": "Gráfico de tono",
+  "ko": "음높이 그래프",
+  "vi": "Biểu đồ cao độ"
+ },
+ "声の高さをはかり直す": {
+  "en": "Measure your voice range again",
+  "zh-TW": "重新測量音域",
+  "es": "Volver a medir tu rango de voz",
+  "ko": "목소리 높이 다시 재기",
+  "vi": "Đo lại cao độ giọng"
+ },
+ "声は端末の中だけで分析し、保存も送信もしません": {
+  "en": "Your voice is analyzed only on your device. It's never saved or sent.",
+  "zh-TW": "聲音只在裝置上分析，不會儲存也不會傳送",
+  "es": "Tu voz se analiza solo en tu dispositivo. Nunca se guarda ni se envía.",
+  "ko": "목소리는 기기 안에서만 분석하며, 저장하거나 전송하지 않아요",
+  "vi": "Giọng nói chỉ được phân tích trên thiết bị, không lưu cũng không gửi đi"
+ },
+ "強さ": {
+  "en": "Loudness",
+  "zh-TW": "強弱",
+  "es": "Intensidad",
+  "ko": "세기",
+  "vi": "Độ mạnh"
+ },
+ "性別": {
+  "en": "Gender",
+  "zh-TW": "性別",
+  "es": "Género",
+  "ko": "성별",
+  "vi": "Giới tính"
+ },
+ "手本": {
+  "en": "Model",
+  "zh-TW": "示範",
+  "es": "Modelo",
+  "ko": "본보기",
+  "vi": "Mẫu"
+ },
+ "手本の音を分析しています…": {
+  "en": "Analyzing the model audio…",
+  "zh-TW": "正在分析示範音…",
+  "es": "Analizando el audio de referencia…",
+  "ko": "본보기 소리를 분석하고 있어요…",
+  "vi": "Đang phân tích âm mẫu…"
+ },
+ "手本の音を読み込めませんでした。通信を確かめて、もう一度開いてください。": {
+  "en": "Couldn't load the model audio. Check your connection and open this again.",
+  "zh-TW": "無法載入示範音。請確認網路連線後再開一次。",
+  "es": "No se pudo cargar el audio de referencia. Revisa tu conexión y vuelve a abrirlo.",
+  "ko": "본보기 소리를 불러오지 못했어요. 연결을 확인하고 다시 열어 주세요.",
+  "vi": "Không tải được âm mẫu. Hãy kiểm tra kết nối rồi mở lại."
+ },
+ "手本を聞いて、もう一度": {
+  "en": "Listen to the model and try again",
+  "zh-TW": "聽一下示範，再試一次",
+  "es": "Escucha el modelo y vuelve a intentarlo",
+  "ko": "본보기를 듣고 다시 해 봐요",
+  "vi": "Nghe mẫu rồi thử lại"
+ },
+ "発音をチェック": {
+  "en": "Check pronunciation",
+  "zh-TW": "檢查發音",
+  "es": "Revisar pronunciación",
+  "ko": "발음 확인",
+  "vi": "Kiểm tra phát âm"
+ },
+ "発音チェック": {
+  "en": "Pronunciation check",
+  "zh-TW": "發音檢查",
+  "es": "Revisión de pronunciación",
+  "ko": "발음 체크",
+  "vi": "Kiểm tra phát âm"
+ },
+ "記号（例：A）": {
+  "en": "Code (e.g., A)",
+  "zh-TW": "代號（例：A）",
+  "es": "Código (p. ej., A)",
+  "ko": "기호(예: A)",
+  "vi": "Mã (vd: A)"
+ },
+ "話し終わると自動で止まります": {
+  "en": "Stops automatically when you finish",
+  "zh-TW": "說完會自動停止",
+  "es": "Se detiene solo cuando terminas",
+  "ko": "다 말하면 자동으로 멈춰요",
+  "vi": "Tự dừng khi bạn nói xong"
+ },
+ "話す": {
+  "en": "Speak",
+  "zh-TW": "說話",
+  "es": "Hablar",
+  "ko": "말하기",
+  "vi": "Nói"
+ },
+ "話す人": {
+  "en": "Speaker",
+  "zh-TW": "說話者",
+  "es": "Hablante",
+  "ko": "말하는 사람",
+  "vi": "Người nói"
+ },
+ "読む単語（声調の組み合わせ順）": {
+  "en": "Words to read (by tone combination)",
+  "zh-TW": "要唸的單字（依聲調組合排列）",
+  "es": "Palabras para leer (por combinación de tonos)",
+  "ko": "읽을 단어(성조 조합 순)",
+  "vi": "Từ cần đọc (theo tổ hợp thanh điệu)"
+ },
+ "録り直す": {
+  "en": "Record again",
+  "zh-TW": "重錄",
+  "es": "Volver a grabar",
+  "ko": "다시 녹음",
+  "vi": "Ghi lại"
+ },
+ "録音する": {
+  "en": "Record",
+  "zh-TW": "錄音",
+  "es": "Grabar",
+  "ko": "녹음하기",
+  "vi": "Ghi âm"
+ },
+ "長さ": {
+  "en": "Length",
+  "zh-TW": "長短",
+  "es": "Duración",
+  "ko": "길이",
+  "vi": "Độ dài"
+ },
+ "高さ": {
+  "en": "Pitch",
+  "zh-TW": "高低",
+  "es": "Tono",
+  "ko": "높이",
+  "vi": "Cao độ"
  }
 }

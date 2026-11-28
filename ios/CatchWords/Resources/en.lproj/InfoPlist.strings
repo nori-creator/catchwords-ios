@@ -1,6 +1,7 @@
 /* Permission descriptions (English) */
 "NSCameraUsageDescription" = "CatchWords uses the camera to photograph things around you and add them to your collection as words in the language you're learning, and to take selfies to go with your words.";
 "NSLocationWhenInUseUsageDescription" = "CatchWords records the address (including the street number) where you take each photo, so you can remember words along with your memories. With Location reminders on, it also uses your location to remind you when you're near a place where you caught a word.";
+"NSMicrophoneUsageDescription" = "CatchWords uses the microphone when you practice pronunciation, to measure the pitch, length, and loudness of your voice. Your voice is analyzed only on your device and is never saved or sent.";
 "NSPhotoLibraryAddUsageDescription" = "CatchWords also saves your photos to the Photos app.";
 "NSPhotoLibraryUsageDescription" = "CatchWords uses images from your photo library to find words.";
 "CapturePlace" = "CatchWords uses your precise location only while you take a photo, to record the exact address (down to the street number) where you took it.";
