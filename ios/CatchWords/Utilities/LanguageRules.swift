@@ -75,7 +75,7 @@ nonisolated enum LanguageRules {
             if c.cjk >= 2, c.cjk > c.latin { return true }
             // Words need their spaces: the quoted parts are left out of the text as it was written.
             let words = unquoted(text ?? "")
-            if let other = latinLanguage(of: words.isEmpty ? (text ?? "") : words), other != reader { return true }
+            if latinLanguage(of: words.isEmpty ? (text ?? "") : words, otherThan: reader) != nil { return true }
             return false
         case .hangul:
             // Japanese: kana that makes up a real part of the text.
@@ -98,8 +98,30 @@ nonisolated enum LanguageRules {
     /// counts and twice as many as any other language. A short meaning with nothing distinctive ("bus stop",
     /// "cam") is unclear.
     static func latinLanguage(of text: String) -> String? {
+        let scores = latinScores(text)
+        let ranked = scores.sorted { $0.value > $1.value }
+        guard let top = ranked.first, top.value >= 2 else { return nil }
+        let second = ranked.dropFirst().first?.value ?? 0
+        return top.value >= second * 2 ? top.key : nil
+    }
+
+    /// The listed Latin-script language other than `reader` that `text` clearly reads as more than it reads as the
+    /// reader's own (two counts, and twice the reader's), or nil. Languages that share words (French and Spanish both
+    /// have de, la, un) can leave `latinLanguage(of:)` unsure; this still keeps a Spanish or French meaning from an English
+    /// reader, and never takes a French meaning («un nom de lieu») from a French reader (2026-11-28, de/fr/id).
+    static func latinLanguage(of text: String, otherThan reader: String) -> String? {
+        let scores = latinScores(text)
+        let mine = scores[reader] ?? 0
+        guard let best = scores.filter({ $0.key != reader }).max(by: { $0.value < $1.value }),
+              best.value >= 2, best.value >= mine * 2 else { return nil }
+        return best.key
+    }
+
+    /// Each listed Latin-script language's count: its own words (a word two languages list counts for both) and its
+    /// own letters.
+    private static func latinScores(_ text: String) -> [String: Int] {
         let latin = DisplayLanguages.all.filter { $0.script == .latin }
-        guard latin.count > 1 else { return nil }
+        guard latin.count > 1 else { return [:] }
         let lower = text.lowercased()
         let words = lower.split { !$0.isLetter }.map(String.init)
         var scores: [String: Int] = [:]
@@ -108,10 +130,7 @@ nonisolated enum LanguageRules {
             if !l.markerLetters.isEmpty { n += lower.filter { l.markerLetters.contains($0) }.count }
             scores[l.code] = n
         }
-        let ranked = scores.sorted { $0.value > $1.value }
-        guard let top = ranked.first, top.value >= 2 else { return nil }
-        let second = ranked.dropFirst().first?.value ?? 0
-        return top.value >= second * 2 ? top.key : nil
+        return scores
     }
 
     /// Whether two display languages are written in the same script (their text cannot be told apart by script alone).

@@ -51,7 +51,16 @@ import {
   normalizeTargetLanguage,
 } from "./target-lang";
 
-export type L1Code = "ja" | "en" | typeof CHINESE_EXPLANATION_LANGUAGE | "es" | "ko" | "vi";
+export type L1Code =
+  | "ja"
+  | "en"
+  | typeof CHINESE_EXPLANATION_LANGUAGE
+  | "es"
+  | "ko"
+  | "vi"
+  | "de"
+  | "fr"
+  | "id";
 
 export type L1Phonology = {
   /** 子音(声母)の干渉。有気/無気・そり舌・f/h など。 */
@@ -583,6 +592,110 @@ export const L1_TABLE: Record<L1Code, L1Info> = {
     },
     taiwan: TAIWAN_COMMON,
   },
+
+  // 2026-11-28: 表示言語にドイツ語・フランス語・インドネシア語を足した（オーナー「ドイツ人多い」）。
+  de: {
+    code: "de",
+    labelJa: "ドイツ語",
+    labelEn: "German",
+    speakerJa: "ドイツ語話者",
+    speakerEn: "German speakers",
+    priority: [
+      "声調が母語に無く、強勢と文の抑揚で代用する(疑問文で文末を上げて声調を壊す)",
+      "無気音 ㄅㄉㄍ を有声の b/d/g にし、有気音 ㄆㄊㄎ との区別が弱い",
+      "そり舌 ㄓㄔㄕㄖ と ㄐㄑㄒ・ㄕ の区別",
+    ],
+    phonology: {
+      consonants:
+        "ㄅㄉㄍ をドイツ語の有声・軟音の b/d/g で出しやすい(中国語は無声・無気)。" +
+        "そり舌 ㄓㄔㄕㄖ が無く、ㄐㄑㄒ と ㄓㄔㄕ を sch の1音にまとめがち。ㄖ をドイツ語の r(のどの r)にする。",
+      finals: "-n と -ng の区別は母語にあるので比較的よい。ㄜ(e)は母語に無く、e(エ)や ö に寄せる。",
+      tones: "声調が無く、語の強勢と文の抑揚で代用する。第2声と第3声の混同。疑問文の文末上げで声調を上書きする。",
+      prosody:
+        "強勢で拍を刻むリズムなので、強勢の無い音節を弱く短くする(中国語は各音節がほぼ同じ長さ)。" +
+        "語末の子音を無声化する癖、母音の前に声門閉鎖を入れる癖。",
+      advantages:
+        "**ㄩ(ü)が母語にある(ü)、ㄏ(h)はドイツ語の ach の音に近い、ㄗ(z)はドイツ語の z(ts)と同じ**ので、この3つは得意。",
+    },
+    grammar: {
+      wordOrder:
+        "動詞を2番目に置く・従属節で文末に置く癖を持ち込む。時と場所の語は中国語では動詞の前(我明天在家吃飯)。",
+      aspect: "動詞の時制で過去を表そうとする(中国語は「了/過/在」のアスペクトと時の語)。",
+      measureWords: "量詞が母語に無い(eine Tasse Kaffee のような容器の語に近い物だけ)ので落としやすい。",
+      particles: "「的」を2格(の)の代わりにどこまで付けるか。冠詞に当たる語を探して余計な語を入れる。",
+      negation: "「不」と「沒」の使い分け(nicht/kein の区別とは対応しない)。",
+      patterns: "格変化・性の一致を探して戸惑う(中国語には無い)。把構文・是…的が母語に無い。",
+      falseFriends: "音訳語(咖啡・沙發)をドイツ語読みしてしまう。",
+    },
+    taiwan: TAIWAN_COMMON,
+  },
+
+  fr: {
+    code: "fr",
+    labelJa: "フランス語",
+    labelEn: "French",
+    speakerJa: "フランス語話者",
+    speakerEn: "French speakers",
+    priority: [
+      "声調が母語に無く、句の終わりを上げる抑揚で声調を上書きする",
+      "有気音 ㄆㄊㄎ を無気の p/t/k で出し ㄅㄉㄍ と区別がつかない",
+      "ㄏ(h)が母語に無く落とす。鼻母音の癖で -n/-ng の子音を出さない",
+    ],
+    phonology: {
+      consonants:
+        "フランス語の p/t/k は息を出さないので、有気音 ㄆㄊㄎ が ㄅㄉㄍ と同じに聞こえる。" +
+        "ㄏ(h)を発音しない。そり舌 ㄓㄔㄕㄖ が無く、ㄖ をフランス語の r(のどの r)にする。",
+      finals: "鼻母音の癖で -n/-ng の子音を閉じずに母音だけ鼻にかける(an/ang が同じになる)。ㄜ(e)を eu に寄せる。",
+      tones: "声調が無く、句の最後の音節を上げて長くするフランス語の抑揚で、どの語も第2声に聞こえやすい。",
+      prosody: "音節の長さがそろうリズムは中国語に近い(有利)が、句の最後だけを強める。語と語をつなげて読む(リエゾン)癖。",
+      advantages: "**ㄩ(ü)がフランス語の u と同じで得意**。無気音 ㄅㄉㄍ はフランス語の p/t/k に近い(有声にしなければ)。",
+    },
+    grammar: {
+      wordOrder: "形容詞を名詞の後ろに置く癖(maison blanche)→中国語は「白色的房子」で前置。時と場所の語は動詞の前。",
+      aspect: "動詞の活用で時制を表そうとする(複合過去を「了」と1対1で結ぶ)。",
+      measureWords: "量詞が母語に無いので落としやすい。",
+      particles: "「的」の位置と省略。冠詞(le/la/un)に当たる語を探して余計な語を入れる。",
+      negation: "「不」と「沒」の使い分け(ne…pas は1つ)。",
+      patterns: "性・数の一致を持ち込もうとする(中国語には無い)。疑問文で語順を入れ替える癖(中国語は「嗎」を付けるだけ)。",
+      falseFriends: "音訳語(咖啡・沙發)をフランス語読みしてしまう。",
+    },
+    taiwan: TAIWAN_COMMON,
+  },
+
+  id: {
+    code: "id",
+    labelJa: "インドネシア語",
+    labelEn: "Indonesian",
+    speakerJa: "インドネシア語話者",
+    speakerEn: "Indonesian speakers",
+    priority: [
+      "声調が母語に無く、語の後ろから2つ目の音節を強める癖で代用する",
+      "有気/無気の区別が無く ㄆㄊㄎ と ㄅㄉㄍ が同じに聞こえる",
+      "そり舌 ㄓㄔㄕㄖ・ㄐㄑㄒ と ㄩ(ü)が母語に無い",
+    ],
+    phonology: {
+      consonants:
+        "p/t/k が無気なので有気音 ㄆㄊㄎ を出し分けられず、ㄅㄉㄍ は有声の b/d/g にしやすい。" +
+        "そり舌 ㄓㄔㄕㄖ が無い。ㄐㄑ をインドネシア語の j/c、ㄒ を s/sy にする。ㄗㄘ(ts)も母語に無い。",
+      finals: "ㄩ(ü)が無く i や u にする。ㄜ(e)はインドネシア語のあいまいな e(pepet)が近い(有利)。",
+      tones: "声調が無く、語の強勢(後ろから2つ目)と文の抑揚で代用する。第3声を低く保てない。",
+      prosody: "音節がはっきり分かれるリズムは中国語に近い(有利)。語末の子音を弱く出す。",
+      advantages:
+        "**-n と -ng の区別が母語にある(有利)**。語順が SVO で、時制で動詞の形を変えない点も中国語と同じ。" +
+        "**助数詞(seekor・sebuah・selembar)があるので量詞の考え方が分かる**。",
+    },
+    grammar: {
+      wordOrder:
+        "**修飾語を名詞の後ろに置く**(rumah besar・buku saya)→中国語は「大房子」「我的書」で前置。逆にしがち。",
+      aspect: "sudah を「了」、sedang を「在」と1対1で結ぶ。sudah の位置(動詞の前)に「了」を置く癖。",
+      measureWords: "助数詞を持つので得意(有利)。対応する語が違う所だけ覚える(ekor→隻/條 など)。",
+      particles: "「的」の位置。「嗎」の代わりに apakah に当たる語を文頭に置こうとする。",
+      negation: "「不」と「沒」の使い分け(tidak/belum/bukan の区別とは対応しない)。",
+      patterns: "把構文・是…的が母語に無い。重ね言葉(orang-orang)で複数を表す癖(中国語は「們」か何も付けない)。",
+      falseFriends: "中国語から入った語(teh・mi・bakpao)と台湾華語の意味・発音のずれ。",
+    },
+    taiwan: TAIWAN_COMMON,
+  },
 };
 
 /** 設定画面に並べる順(学習者数の多い順を意識)。 */
@@ -592,11 +705,22 @@ export const L1_TABLE: Record<L1Code, L1Info> = {
  *
  * オーナー決定 2026-08-25「**日本語、英語、台湾華語に絞って**」で10言語を `docs/l1-archive.md` に
  * 退避した。2026-10-20 に表示言語へスペイン語・韓国語・ベトナム語を足したので、その3つを戻した
- * （残りの7言語は退避したまま）。減らした理由は速さ — 解説の共有キャッシュは
+ * （残りの7言語は退避したまま）。2026-11-28 にドイツ語・フランス語・インドネシア語を表示言語に足したので、
+ * その3つも足した（中身は新しく書いた。残りの4言語は退避したまま）。減らした理由は速さ — 解説の共有キャッシュは
  * `(語 × 解説の言語 × 母語)` で引くので、母語が少ないほど当たりやすくなる。足すのは表示言語に
  * 足した言語だけにする。
  */
-export const L1_ORDER: L1Code[] = ["ja", "en", CHINESE_EXPLANATION_LANGUAGE, "es", "ko", "vi"];
+export const L1_ORDER: L1Code[] = [
+  "ja",
+  "en",
+  CHINESE_EXPLANATION_LANGUAGE,
+  "es",
+  "ko",
+  "vi",
+  "de",
+  "fr",
+  "id",
+];
 
 /** 未知・null は日本語にフォールバックする(既定の学習者像)。 */
 export function l1Info(code: string | null | undefined): L1Info {

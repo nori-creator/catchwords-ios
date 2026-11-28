@@ -85,7 +85,7 @@ nonisolated enum DisplayLanguages {
             glossLimit: 24, legalDocs: false,
             plurals: ["palabras": "palabra", "días": "día", "fotos": "foto", "veces": "vez", "llamadas": "llamada", "correctas": "correcta", "repasos": "repaso", "usuarios": "usuario", "fallidas": "fallida", "tarjetas": "tarjeta", "pendientes": "pendiente", "selecciones": "selección", "meses": "mes", "sesiones": "sesión", "reportes": "reporte", "segundos": "segundo", "formas": "forma", "minutos": "minuto", "horas": "hora", "stickers": "sticker"],
             markerWords: ["el", "la", "los", "las", "del", "de", "que", "en", "un", "una", "unos", "unas", "es", "son", "por", "para", "se", "su", "sus", "al", "lo", "como", "más", "muy", "pero", "este", "esta", "estos", "estas", "también", "cuando", "donde", "sin", "sobre", "entre", "hay", "está", "están", "ser", "puede", "algo", "alguien"],
-            markerLetters: "ñ¿¡",
+            markerLetters: "ñ¿¡é",
             degreeGlosses: ["很": "muy", "超": "súper", "非常": "extremadamente", "有點": "un poco", "蠻": "bastante", "好": "tan"]
         ),
         DisplayLanguage(
@@ -107,6 +107,36 @@ nonisolated enum DisplayLanguages {
             markerWords: ["của", "và", "là", "một", "có", "không", "cho", "với", "này", "được", "những", "các", "người", "trong", "khi", "để", "cũng", "đã", "rất", "thì", "mà", "nhưng", "hoặc", "nên", "từ", "khác", "đó", "gì"],
             markerLetters: "ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịĩọỏốồổỗộớờởỡợũụủứừửữựỳỵỷỹ",
             degreeGlosses: ["很": "rất", "超": "siêu", "非常": "cực kỳ", "有點": "hơi", "蠻": "khá", "好": "thật"]
+        ),
+        DisplayLanguage(
+            code: "de", autonym: "Deutsch", nameJa: "ドイツ語", flag: "🇩🇪",
+            localeID: "de_DE", lproj: "de", devicePrefixes: ["de"], script: .latin,
+            listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
+            glossLimit: 24, legalDocs: false,
+            plurals: [:],
+            markerWords: ["aber", "auch", "auf", "aus", "bei", "das", "dass", "dem", "der", "des", "durch", "ein", "eine", "einen", "für", "haben", "hat", "ich", "ihr", "ist", "jetzt", "kein", "mit", "nach", "nicht", "noch", "nur", "oder", "schon", "sehr", "sich", "sind", "und", "von", "wenn", "werden", "wie", "wir", "wird", "zu", "die", "den", "es", "in", "an", "was", "du", "im", "man", "zum", "zur", "kann", "etwas", "dieser", "diese"],
+            markerLetters: "ßäöü",
+            degreeGlosses: ["很": "sehr", "超": "super", "非常": "äußerst", "有點": "ein bisschen", "蠻": "ziemlich", "好": "so"]
+        ),
+        DisplayLanguage(
+            code: "fr", autonym: "Français", nameJa: "フランス語", flag: "🇫🇷",
+            localeID: "fr_FR", lproj: "fr", devicePrefixes: ["fr"], script: .latin,
+            listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
+            glossLimit: 24, legalDocs: false,
+            plurals: [:],
+            markerWords: ["au", "aussi", "aux", "avec", "avoir", "c'est", "ce", "cette", "chez", "comme", "dans", "des", "du", "elles", "est", "et", "fait", "ils", "je", "les", "leur", "mais", "ne", "notre", "nous", "pas", "peut", "pour", "qui", "sans", "sont", "sur", "tout", "très", "une", "votre", "vous", "était", "été", "être", "de", "la", "un", "que", "en", "se", "son", "on", "le", "il", "elle"],
+            markerLetters: "àâæçèéêëîïôùûüÿœ",
+            degreeGlosses: ["很": "très", "超": "super", "非常": "extrêmement", "有點": "un peu", "蠻": "plutôt", "好": "si"]
+        ),
+        DisplayLanguage(
+            code: "id", autonym: "Bahasa Indonesia", nameJa: "インドネシア語", flag: "🇮🇩",
+            localeID: "id_ID", lproj: "id", devicePrefixes: ["id"], script: .latin,
+            listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
+            glossLimit: 24, legalDocs: false,
+            plurals: [:],
+            markerWords: ["adalah", "akan", "anda", "apa", "atau", "bagaimana", "bahwa", "banyak", "belum", "bisa", "dalam", "dan", "dari", "dengan", "harus", "ini", "itu", "jika", "juga", "kalau", "kami", "kamu", "karena", "ke", "kita", "lebih", "mereka", "oleh", "pada", "sangat", "saya", "sedang", "seperti", "sudah", "telah", "tersebut", "tetapi", "tidak", "untuk", "yang", "para", "di", "ada", "saat", "orang", "es"],
+            markerLetters: "",
+            degreeGlosses: ["很": "sangat", "超": "super", "非常": "amat", "有點": "agak", "蠻": "cukup", "好": "begitu"]
         ),
     ]
 

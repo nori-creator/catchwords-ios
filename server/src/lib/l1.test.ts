@@ -133,7 +133,7 @@ describe("表そのもの", () => {
   });
 });
 
-describe("母語は表示言語と同じ6つ（オーナー決定 2026-08-25 → 2026-10-20）", () => {
+describe("母語は表示言語と同じ9つ（オーナー決定 2026-08-25 → 2026-10-20 → 2026-11-28）", () => {
   /**
    * 12 → 3 に絞った理由は速さ。解説の共有キャッシュは
    * `(語 × 解説の言語 × 母語)` で引くので、母語が減るほど
@@ -142,20 +142,30 @@ describe("母語は表示言語と同じ6つ（オーナー決定 2026-08-25 →
    * （オーナー指示「繁體字（台灣），スペイン語、韓国語、ベトナム語に対応させる」）。
    * **表示言語に無い言語が戻ってきたら落とす** — 数を数える以外に止める手が無い。
    */
-  it("日本語・英語・台湾華語・スペイン語・韓国語・ベトナム語の6つだけ（解説の言語と同じ順）", () => {
-    expect(L1_ORDER).toEqual(["ja", "en", CHINESE_EXPLANATION_LANGUAGE, "es", "ko", "vi"]);
+  it("日本語・英語・台湾華語・スペイン語・韓国語・ベトナム語・ドイツ語・フランス語・インドネシア語の9つだけ（解説の言語と同じ順）", () => {
+    expect(L1_ORDER).toEqual([
+      "ja",
+      "en",
+      CHINESE_EXPLANATION_LANGUAGE,
+      "es",
+      "ko",
+      "vi",
+      "de",
+      "fr",
+      "id",
+    ]);
     expect(L1_ORDER).toEqual([...EXPLAIN_LANGS]);
   });
 
-  it("**退避したままの7言語が戻っていない**", () => {
-    for (const gone of ["th", "id", "fr", "de", "ru", "pt", "tl"]) {
+  it("**退避したままの4言語が戻っていない**（de・fr・id は 2026-11-28 に表示言語へ足したので戻した）", () => {
+    for (const gone of ["th", "ru", "pt", "tl"]) {
       expect(isL1Code(gone)).toBe(false);
       expect(L1_TABLE[gone as keyof typeof L1_TABLE]).toBeUndefined();
     }
   });
 
   it("消した言語を選んでいた人でも壊れない(日本語に落ちる)", () => {
-    for (const gone of ["th", "fr", "tl"]) {
+    for (const gone of ["th", "ru", "tl"]) {
       expect(l1Info(gone).code).toBe("ja");
       expect(formatL1Rule(l1Info(gone), "both")).toBeTruthy();
     }
@@ -209,12 +219,30 @@ describe("台湾華語話者は英語を学ぶ — 見出しが入れ替わる",
 });
 
 describe("選べる母語 — 学習言語と同じものは出さない", () => {
-  it("台湾華語を学ぶ人には台湾華語以外の5つ", () => {
-    expect(l1ChoicesFor(CHINESE_EXPLANATION_LANGUAGE)).toEqual(["ja", "en", "es", "ko", "vi"]);
+  it("台湾華語を学ぶ人には台湾華語以外の8つ", () => {
+    expect(l1ChoicesFor(CHINESE_EXPLANATION_LANGUAGE)).toEqual([
+      "ja",
+      "en",
+      "es",
+      "ko",
+      "vi",
+      "de",
+      "fr",
+      "id",
+    ]);
   });
 
-  it("英語を学ぶ人には英語以外の5つ", () => {
-    expect(l1ChoicesFor("en")).toEqual(["ja", CHINESE_EXPLANATION_LANGUAGE, "es", "ko", "vi"]);
+  it("英語を学ぶ人には英語以外の8つ", () => {
+    expect(l1ChoicesFor("en")).toEqual([
+      "ja",
+      CHINESE_EXPLANATION_LANGUAGE,
+      "es",
+      "ko",
+      "vi",
+      "de",
+      "fr",
+      "id",
+    ]);
   });
 
   it("**一覧が空にならない**(母語を選べない画面を作らない)", () => {

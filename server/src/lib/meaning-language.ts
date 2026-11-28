@@ -1,4 +1,4 @@
-import { explainScript, latinLanguageOf, type ExplainLang } from "./explain-languages";
+import { explainScript, isExplainLang, latinLanguageOf, latinLanguageOtherThan, type ExplainLang } from "./explain-languages";
 import { CHINESE_EXPLANATION_LANGUAGE } from "./target-lang";
 
 /**
@@ -17,7 +17,7 @@ import { CHINESE_EXPLANATION_LANGUAGE } from "./target-lang";
  * ## 判定は文字の種類（`text-language.ts` と同じ考え）。言語は書く文字で分かれる
  * - 欧文の言語（英語・スペイン語・ベトナム語）… 漢字もかなもハングルも無い。そのうえで、
  *   **別の欧文の言語だとはっきり分かる**物（"the … of"、"de … que"、đ ơ ư）は通さない
- *   （`latinLanguageOf`）
+ *   （`latinLanguageOtherThan`）
  * - 日本語 … かなが在る。**漢字だけの短い語も通す**（「鶏肉」「書類用」）
  * - 繁體中文 … かなもハングルも無く、漢字が在る
  * - 韓国語 … かなも漢字も無く、ハングルが在る
@@ -47,8 +47,7 @@ export function fitsReaderLanguage(
   switch (explainScript(reader)) {
     case "latin": {
       if (han || kana || hangul) return false;
-      const other = latinLanguageOf(text);
-      return !other || other === reader;
+      return latinLanguageOtherThan(text, reader) === null;
     }
     case "kana":
       if (kana) return true;
@@ -83,7 +82,7 @@ export function quizMeaningLanguage(correct: string, reader: ExplainLang): Expla
   if (HANGUL.test(s)) return "ko";
   // 欧文: はっきり分かる言語、分からなければ英語。
   const latin = latinLanguageOf(correct);
-  return latin === "es" || latin === "vi" ? latin : "en";
+  return latin && isExplainLang(latin) ? latin : "en";
 }
 
 /** 読み手の言語に合わない注記を空にする。**書き換えず、落とすだけ。** */

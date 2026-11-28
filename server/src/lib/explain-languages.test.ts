@@ -5,6 +5,7 @@ import {
   explainScript,
   isExplainLang,
   latinLanguageOf,
+  latinLanguageOtherThan,
   normalizeExplainLang,
 } from "./explain-languages";
 import { UI_LANGS } from "./i18n";
@@ -23,8 +24,8 @@ import { sceneMaxChars } from "./example-patterns";
  * 判定の例は iOS の `ios/LanguageRules/cases.json`（L-es-* / L-ko-* / L-vi-*）と同じ文。
  */
 describe("解説の言語の一覧", () => {
-  it("iOS の表示言語と同じ6つ、同じ順（先頭が既定）", () => {
-    expect(EXPLAIN_LANGS).toEqual(["ja", "en", "zh-TW", "es", "ko", "vi"]);
+  it("iOS の表示言語と同じ9つ、同じ順（先頭が既定。2026-11-28 に de・fr・id を末尾に足した）", () => {
+    expect(EXPLAIN_LANGS).toEqual(["ja", "en", "zh-TW", "es", "ko", "vi", "de", "fr", "id"]);
   });
 
   it("**Web の画面の言語はその中**", () => {
@@ -32,7 +33,7 @@ describe("解説の言語の一覧", () => {
   });
 
   it("知らない値は既定（日本語）に落とす", () => {
-    for (const bad of [null, undefined, "", "fr", "es-MX", " ko "]) {
+    for (const bad of [null, undefined, "", "th", "es-MX", " ko "]) {
       expect(normalizeExplainLang(bad)).toBe(bad === " ko " ? "ko" : "ja");
     }
   });
@@ -55,6 +56,9 @@ describe("解説の言語の一覧", () => {
       ["es", "latin"],
       ["ko", "hangul"],
       ["vi", "latin"],
+      ["de", "latin"],
+      ["fr", "latin"],
+      ["id", "latin"],
     ]);
   });
 });
@@ -62,7 +66,10 @@ describe("解説の言語の一覧", () => {
 describe("欧文の言語の見分け（latinLanguageOf）", () => {
   it("はっきりしている文は、その言語", () => {
     expect(latinLanguageOf("An umbrella used to keep off the rain")).toBe("en");
-    expect(latinLanguageOf("Paraguas para protegerse de la lluvia")).toBe("es");
+    expect(latinLanguageOf("Un paraguas es algo que se usa cuando llueve")).toBe("es");
+    expect(latinLanguageOf("Le parapluie est utilisé quand il pleut")).toBe("fr");
+    expect(latinLanguageOf("Es ist ein Schirm, den man bei Regen benutzt.")).toBe("de");
+    expect(latinLanguageOf("Kopi espresso dengan banyak susu panas.")).toBe("id");
     expect(latinLanguageOf("cái ô dùng để che mưa")).toBe("vi");
     expect(latinLanguageOf("xe đạp")).toBe("vi");
   });
@@ -71,6 +78,33 @@ describe("欧文の言語の見分け（latinLanguageOf）", () => {
     expect(latinLanguageOf("bus stop")).toBeNull();
     expect(latinLanguageOf("jalapeño pepper")).toBeNull();
     expect(latinLanguageOf("")).toBeNull();
+  });
+
+  it("**フランス語とスペイン語が同じだけ持つ文は分からない**（de・la・un は両方の語）", () => {
+    expect(latinLanguageOf("un nom de lieu")).toBeNull();
+    expect(latinLanguageOf("Paraguas para protegerse de la lluvia")).toBeNull();
+  });
+});
+
+describe("読む人の言語より、はっきり別の欧文の言語か（latinLanguageOtherThan）— 2026-11-28", () => {
+  it("**フランス語の読者のフランス語は外さない**（«un nom de lieu» はスペイン語の語も持つ）", () => {
+    expect(latinLanguageOtherThan("un nom de lieu", "fr")).toBeNull();
+    expect(latinLanguageOtherThan("une façon de dire l'heure", "fr")).toBeNull();
+    expect(latinLanguageOtherThan("Le parapluie est utilisé quand il pleut", "fr")).toBeNull();
+  });
+  it("どの言語か決まらなくても、読む人の言語でない物は外す", () => {
+    expect(latinLanguageOtherThan("un nom de lieu", "en")).not.toBeNull();
+    expect(latinLanguageOtherThan("Paraguas para protegerse de la lluvia", "en")).not.toBeNull();
+    expect(latinLanguageOtherThan("Es ist ein Schirm, den man bei Regen benutzt.", "en")).toBe("de");
+    expect(latinLanguageOtherThan("Ordinary stir-fried noodles. 鐵板麵 is served on an iron plate.", "de")).toBe("en");
+    expect(latinLanguageOtherThan("Kopi espresso dengan banyak susu panas.", "vi")).toBe("id");
+    expect(latinLanguageOtherThan("La mitad del azúcar habitual. En Taiwán eliges el dulzor al pedir.", "fr")).toBe("es");
+  });
+  it("読む人の言語の文はそのまま", () => {
+    expect(latinLanguageOtherThan("Es ist ein Schirm, den man bei Regen benutzt.", "de")).toBeNull();
+    expect(latinLanguageOtherThan("para siswa di kelas", "id")).toBeNull();
+    expect(latinLanguageOtherThan("Paraguas para protegerse de la lluvia", "es")).toBeNull();
+    expect(latinLanguageOtherThan("bus stop", "de")).toBeNull();
   });
 });
 

@@ -110,6 +110,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       es: "flor",
       ko: "꽃",
       vi: "hoa",
+      de: "Blume",
+      fr: "fleur",
+      id: "bunga",
     },
     narrower: isFlowerKind,
     labelNarrower: {
@@ -137,6 +140,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       es: "pastel",
       ko: "케이크",
       vi: "bánh kem",
+      de: "Kuchen",
+      fr: "gâteau",
+      id: "kue",
     },
     // 草莓蛋糕・鮮奶油蛋糕・起司蛋糕・生日蛋糕（味・種類の名前）。雞蛋糕（台湾の屋台のお菓子）は別の物。
     narrower: (h) => h.length > 2 && h.endsWith("蛋糕") && h !== "雞蛋糕",
@@ -161,6 +167,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       es: "perro",
       ko: "개",
       vi: "con chó",
+      de: "Hund",
+      fr: "chien",
+      id: "anjing",
     },
     // 犬の種類（柴犬・柯基・貴賓狗…）。犬ではない「〜狗」・口語の言い方・米克斯は `NOT_DOGS` の注。
     narrower: (h) =>
@@ -193,6 +202,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       es: "gato",
       ko: "고양이",
       vi: "con mèo",
+      de: "Katze",
+      fr: "chat",
+      id: "kucing",
     },
     // 猫の種類（波斯貓・英國短毛貓・橘貓・虎斑貓）。猫ではない「〜貓」・口語の言い方は `NOT_CATS` の注。
     narrower: (h) => !NOT_CATS.has(h) && /^.{1,5}貓$/.test(h),
@@ -221,6 +233,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       es: "ropa interior",
       ko: "속옷",
       vi: "đồ lót",
+      de: "Unterwäsche",
+      fr: "sous-vêtements",
+      id: "pakaian dalam",
     },
     // ボクサーパンツ（平口褲・四角褲）・ブリーフ（三角褲）など。
     narrower: (h) =>
@@ -245,6 +260,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       es: "silla",
       ko: "의자",
       vi: "cái ghế",
+      de: "Stuhl",
+      fr: "chaise",
+      id: "kursi",
     },
     // 木椅・辦公椅・餐椅・摺疊椅（種類の名前）。輪椅（車椅子）は別の物なので除く。
     narrower: (h) => !["椅子", "輪椅"].includes(h) && /^.{1,4}椅(子)?$/.test(h),
@@ -267,6 +285,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       es: "pan",
       ko: "빵",
       vi: "bánh mì",
+      de: "Brot",
+      fr: "pain",
+      id: "roti",
     },
     // 抹茶麵包・全麥麵包（味・種類の名前）。
     narrower: (h) => h.length > 2 && h.endsWith("麵包"),
@@ -290,6 +311,9 @@ export const BASIC_LEVEL_ZH_TW: readonly BasicLevelEntry[] = [
       es: "helado",
       ko: "아이스크림",
       vi: "kem",
+      de: "Eis",
+      fr: "glace",
+      id: "es krim",
     },
     narrower: (h) => h.length > 3 && h.endsWith("冰淇淋"),
     labelNarrower: {

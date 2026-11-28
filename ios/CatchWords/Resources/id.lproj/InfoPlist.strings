@@ -1,0 +1,6 @@
+/* Permission descriptions (Bahasa Indonesia) */
+"NSCameraUsageDescription" = "CatchWords menggunakan kamera untuk memotret benda di sekitarmu dan menambahkannya ke koleksimu sebagai kata dalam bahasa yang kamu pelajari, serta untuk mengambil swafoto yang menyertai kata-katamu.";
+"NSLocationWhenInUseUsageDescription" = "CatchWords mencatat alamat (termasuk nomor rumah) tempat kamu mengambil setiap foto, agar kamu bisa mengingat kata bersama kenanganmu. Jika “Pengingat lokasi” aktif, lokasimu juga digunakan untuk mengingatkanmu saat kamu berada di dekat tempat kamu menangkap sebuah kata.";
+"NSPhotoLibraryAddUsageDescription" = "CatchWords juga menyimpan fotomu ke app Foto.";
+"NSPhotoLibraryUsageDescription" = "CatchWords menggunakan gambar dari galeri fotomu untuk mencari kata.";
+"CapturePlace" = "CatchWords menggunakan lokasi akuratmu hanya saat kamu mengambil foto, untuk mencatat alamat persisnya (sampai nomor rumah).";

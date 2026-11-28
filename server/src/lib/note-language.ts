@@ -23,7 +23,7 @@
  * 外の世界に触れるものをここに入れないこと。
  */
 
-import { explainScript, latinLanguageOf } from "./explain-languages";
+import { explainScript, latinLanguageOtherThan } from "./explain-languages";
 
 /** かな。1文字でもあれば日本語。 */
 const KANA = /[ぁ-ゟァ-ヺ]/;
@@ -182,8 +182,7 @@ export function looksWrongForReader(
   if (script === "latin") {
     if (cjk >= 2 && cjk > latin) return true;
     // 引用（「」『』“”）は学習言語の例なので外して、空白を残した文で見る（語の切れ目が要る）。
-    const other = latinLanguageOf(unquoted(text ?? "") || (text ?? ""));
-    return other !== null && other !== (readerLang ?? "").trim();
+    return latinLanguageOtherThan(unquoted(text ?? "") || (text ?? ""), readerLang) !== null;
   }
   if (script === "hangul") {
     const judged = core(unquoted(text ?? "")) || s;

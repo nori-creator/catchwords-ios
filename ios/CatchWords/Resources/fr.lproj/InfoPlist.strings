@@ -1,0 +1,6 @@
+/* Permission descriptions (Français) */
+"NSCameraUsageDescription" = "CatchWords utilise l’appareil photo pour photographier les objets autour de toi et les ajouter à ta collection comme mots dans la langue que tu apprends, ainsi que pour prendre des selfies à associer à tes mots.";
+"NSLocationWhenInUseUsageDescription" = "CatchWords enregistre l’adresse (numéro de rue compris) où tu prends chaque photo, pour que tu retiennes les mots avec tes souvenirs. Si les rappels selon le lieu sont activés, ta position sert aussi à te prévenir quand tu passes près d’un endroit où tu as capturé un mot.";
+"NSPhotoLibraryAddUsageDescription" = "CatchWords enregistre aussi tes photos dans l’app Photos.";
+"NSPhotoLibraryUsageDescription" = "CatchWords utilise les images de ta photothèque pour trouver des mots.";
+"CapturePlace" = "CatchWords utilise ta position précise uniquement pendant la prise de photo, pour enregistrer l’adresse exacte (jusqu’au numéro de rue) où tu l’as prise.";

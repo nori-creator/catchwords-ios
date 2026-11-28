@@ -39,8 +39,10 @@ export type ExplainLanguageInfo = {
   /** 日付・数の書式。 */
   readonly locale: string;
   /**
-   * 欧文の言語どうしを見分ける手がかり: その言語に多い短い語。**他の欧文の言語に
-   * 無い物だけ**が数えられる（`latinLanguageOf`）。
+   * 欧文の言語どうしを見分ける手がかり: その言語に多い短い語。iOS の `languages.json` の
+   * `markerWords` と**同じ一覧**（数え方も iOS の `LanguageRules` と同じ — 2つの言語が持つ語は
+   * 両方に数える）。他の言語と同じ綴りのよく使う語（フランス語とスペイン語の de・la・un）も
+   * 入れておく: 入れないと、その言語の文が相手の言語に見える（2026-11-28 の「un nom de lieu」）。
    */
   readonly markerWords: readonly string[];
   /** 同じく、その言語に特有の文字（đ ơ ư、ñ）。 */
@@ -198,7 +200,7 @@ export const EXPLAIN_LANGUAGES = [
       "algo",
       "alguien",
     ],
-    markerLetters: "ñ¿¡",
+    markerLetters: "ñ¿¡é", // é はフランス語と同じ字。両方に数える（「Té de burbujas」をスペイン語の読者から外さない）
     writingRule: "Use neutral Spanish leaning Latin American, and address the learner as tú.",
     contentStyle:
       "Spanish: full sentences with their articles and prepositions (not telegraphic). Say it as a native speaker would, not a calque: " +
@@ -265,6 +267,210 @@ export const EXPLAIN_LANGUAGES = [
       "Vietnamese usually drops it or says «cho mình…», «mời…», «…nhé». Translate the meaning, not word by word " +
       "(難得 → «khó lắm mới có dịp…», not «Hiếm khi»).",
   },
+  // 2026-11-27/28 オーナー「フランス語、ドイツ語…ドイツ人多い」「インドネシア語」。iOS の languages.json と同じ順（末尾に足す）。
+  {
+    code: "de",
+    promptName: "ドイツ語",
+    englishName: "German",
+    autonym: "Deutsch",
+    script: "latin",
+    locale: "de-DE",
+    markerWords: [
+      "aber",
+      "auch",
+      "auf",
+      "aus",
+      "bei",
+      "das",
+      "dass",
+      "dem",
+      "der",
+      "des",
+      "durch",
+      "ein",
+      "eine",
+      "einen",
+      "für",
+      "haben",
+      "hat",
+      "ich",
+      "ihr",
+      "ist",
+      "jetzt",
+      "kein",
+      "mit",
+      "nach",
+      "nicht",
+      "noch",
+      "nur",
+      "oder",
+      "schon",
+      "sehr",
+      "sich",
+      "sind",
+      "und",
+      "von",
+      "wenn",
+      "werden",
+      "wie",
+      "wir",
+      "wird",
+      "zu",
+      "die",
+      "den",
+      "es",
+      "in",
+      "an",
+      "was",
+      "du",
+      "im",
+      "man",
+      "zum",
+      "zur",
+      "kann",
+      "etwas",
+      "dieser",
+      "diese",
+    ],
+    markerLetters: "ßäöü",
+    writingRule: "Write standard German and address the learner informally as du.",
+    contentStyle:
+      "German: natural standard German, address the learner as du; capitalize every noun. Say it as a native speaker would, not a calque: " +
+      "✗ «sehr lecker sein für den Körper» → ○ «gesund»; ✗ «die Pantoffeln wechseln» → ○ «Hausschuhe anziehen». " +
+      "Glosses and scene labels are short noun phrases or infinitives (✗ «Er drückt die Fernbedienung» → ○ «auf die Fernbedienung drücken»). " +
+      "One word per object in every field (not Hausschuhe here and Pantoffeln there). Never drop a Chinese phrase into the German sentence.",
+  },
+  {
+    code: "fr",
+    promptName: "フランス語",
+    englishName: "French",
+    autonym: "français",
+    script: "latin",
+    locale: "fr-FR",
+    markerWords: [
+      "au",
+      "aussi",
+      "aux",
+      "avec",
+      "avoir",
+      "c'est",
+      "ce",
+      "cette",
+      "chez",
+      "comme",
+      "dans",
+      "des",
+      "du",
+      "elles",
+      "est",
+      "et",
+      "fait",
+      "ils",
+      "je",
+      "les",
+      "leur",
+      "mais",
+      "ne",
+      "notre",
+      "nous",
+      "pas",
+      "peut",
+      "pour",
+      "qui",
+      "sans",
+      "sont",
+      "sur",
+      "tout",
+      "très",
+      "une",
+      "votre",
+      "vous",
+      "était",
+      "été",
+      "être",
+      "de",
+      "la",
+      "un",
+      "que",
+      "en",
+      "se",
+      "son",
+      "on",
+      "le",
+      "il",
+      "elle",
+    ],
+    markerLetters: "àâæçèéêëîïôùûüÿœ",
+    writingRule: "Write standard French and address the learner as tu.",
+    contentStyle:
+      "French: natural standard French, address the learner as tu; full sentences with their articles. Say it as a native speaker would, not a calque: " +
+      "✗ «bon pour le corps» → ○ «bon pour la santé»; ✗ «changer en pantoufles» → ○ «mettre ses chaussons». " +
+      "Glosses and scene labels are short phrases with the infinitive (✗ «il appuie sur la télécommande» → ○ «appuyer sur la télécommande»). " +
+      "One word per object in every field (not chaussons here and pantoufles there). Never drop a Chinese phrase into the French sentence.",
+  },
+  {
+    code: "id",
+    promptName: "インドネシア語",
+    englishName: "Indonesian",
+    autonym: "Bahasa Indonesia",
+    script: "latin",
+    locale: "id-ID",
+    markerWords: [
+      "adalah",
+      "akan",
+      "anda",
+      "apa",
+      "atau",
+      "bagaimana",
+      "bahwa",
+      "banyak",
+      "belum",
+      "bisa",
+      "dalam",
+      "dan",
+      "dari",
+      "dengan",
+      "harus",
+      "ini",
+      "itu",
+      "jika",
+      "juga",
+      "kalau",
+      "kami",
+      "kamu",
+      "karena",
+      "ke",
+      "kita",
+      "lebih",
+      "mereka",
+      "oleh",
+      "pada",
+      "sangat",
+      "saya",
+      "sedang",
+      "seperti",
+      "sudah",
+      "telah",
+      "tersebut",
+      "tetapi",
+      "tidak",
+      "untuk",
+      "yang",
+      "para",
+      "di",
+      "ada",
+      "saat",
+      "orang",
+      "es",
+    ],
+    markerLetters: "",
+    writingRule: "Write standard Indonesian (not Malaysian Malay) and address the learner as kamu.",
+    contentStyle:
+      "Indonesian: natural everyday standard Indonesian (bahasa Indonesia baku but not stiff), address the learner as kamu; never Malaysian Malay words " +
+      "(✗ «kereta» for car → ○ «mobil»; ✗ «percuma» for free → ○ «gratis»). Translate the meaning, not word by word " +
+      "(✗ «baik untuk badan» → ○ «baik untuk kesehatan»). Glosses and scene labels are short phrases. One word per object in every field. " +
+      "Never drop a Chinese phrase into the Indonesian sentence.",
+  },
 ] as const satisfies readonly ExplainLanguageInfo[];
 
 export type ExplainLang = (typeof EXPLAIN_LANGUAGES)[number]["code"];
@@ -308,38 +514,54 @@ export function sameExplainScript(
   return x !== null && x === explainScript(b);
 }
 
-/** 欧文の言語ごとの、他の欧文の言語に無い手がかり（語と文字）。 */
+/** 欧文の言語ごとの手がかり（語と文字）。iOS の `LanguageRules.latinScores` と同じ物を数える。 */
 const LATIN_MARKERS: ReadonlyArray<{ code: string; words: ReadonlySet<string>; letters: string }> =
-  (() => {
-    const latin = EXPLAIN_LANGUAGES.filter((l) => l.script === "latin");
-    return latin.map((l) => {
-      const others = latin.filter((o) => o.code !== l.code);
-      const words = (l.markerWords as readonly string[]).filter(
-        (w) => !others.some((o) => (o.markerWords as readonly string[]).includes(w)),
-      );
-      const letters = [...l.markerLetters]
-        .filter((c) => !others.some((o) => o.markerLetters.includes(c)))
-        .join("");
-      return { code: l.code, words: new Set(words), letters };
-    });
-  })();
+  EXPLAIN_LANGUAGES.filter((l) => l.script === "latin").map((l) => ({
+    code: l.code,
+    words: new Set(l.markerWords as readonly string[]),
+    letters: l.markerLetters,
+  }));
 
-/**
- * **欧文がどの言語で書かれているか**（はっきりしている時だけ）。iOS の
- * `LanguageRules.latinLanguage` と同じ数え方: その言語だけの語は1語ずつ、その言語だけの
- * 文字は1文字ずつ数え、2つ以上で、2番目の言語の2倍以上なら、その言語。
- * 手がかりの無い短い意味（"bus stop"）は分からない（`null`）。
- */
-export function latinLanguageOf(text: string | null | undefined): string | null {
-  if (LATIN_MARKERS.length < 2) return null;
+/** 欧文の言語ごとの数（その言語の語を1語ずつ、その言語の文字を1文字ずつ。2つの言語が持つ語は両方に）。 */
+function latinScores(text: string | null | undefined): Array<{ code: string; n: number }> {
   const lower = (text ?? "").toLowerCase();
   const words = lower.split(/[^\p{L}]+/u).filter(Boolean);
-  const scores = LATIN_MARKERS.map((m) => {
+  return LATIN_MARKERS.map((m) => {
     let n = words.filter((w) => m.words.has(w)).length;
     if (m.letters) for (const ch of lower) if (m.letters.includes(ch)) n++;
     return { code: m.code, n };
-  }).sort((a, b) => b.n - a.n);
-  const [top, second] = scores;
+  });
+}
+
+/**
+ * **欧文がどの言語で書かれているか**（はっきりしている時だけ）。iOS の
+ * `LanguageRules.latinLanguage(of:)` と同じ数え方: 2つ以上で、2番目の言語の2倍以上なら、その言語。
+ * 手がかりの無い短い意味（"bus stop"）や、2つの言語が同じだけ持つ文（"un nom de lieu" は
+ * フランス語にもスペイン語にもある）は分からない（`null`）。
+ */
+export function latinLanguageOf(text: string | null | undefined): string | null {
+  if (LATIN_MARKERS.length < 2) return null;
+  const [top, second] = latinScores(text).sort((a, b) => b.n - a.n);
   if (!top || top.n < 2) return null;
   return top.n >= (second?.n ?? 0) * 2 ? top.code : null;
+}
+
+/**
+ * **読む人の言語より、はっきり別の欧文の言語に見えるか**（その言語、無ければ `null`）。
+ * 読む人の言語の数より、ほかの言語の一番の数が2つ以上かつ2倍以上の時だけ。iOS の
+ * `LanguageRules.latinLanguage(of:otherThan:)` と同じ。言語の名前を決めずに比べるので、
+ * フランス語とスペイン語のどちらか分からない文でも英語の読者からは外し、フランス語の読者の
+ * フランス語（«un nom de lieu»）は外さない（2026-11-28、独・仏・尼を足した時）。
+ */
+export function latinLanguageOtherThan(
+  text: string | null | undefined,
+  reader: string | null | undefined,
+): string | null {
+  if (LATIN_MARKERS.length < 2) return null;
+  const me = (reader ?? "").trim();
+  const scores = latinScores(text);
+  const mine = scores.find((x) => x.code === me)?.n ?? 0;
+  const best = scores.filter((x) => x.code !== me).sort((a, b) => b.n - a.n)[0];
+  if (!best || best.n < 2 || best.n < mine * 2) return null;
+  return best.code;
 }

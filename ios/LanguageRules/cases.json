@@ -1893,6 +1893,105 @@
   "why": "英語の中の外来語の1文字（ñ）だけでは別の言語と見なさない"
  },
  {
+  "id": "L-fr-a",
+  "rule": "R22",
+  "fn": "looksWrong",
+  "text": "un nom de lieu",
+  "reader": "fr",
+  "target": null,
+  "source": null,
+  "expect": false,
+  "why": "フランス語の意味はフランス語の読者に出す（de・un はスペイン語にもある語）"
+ },
+ {
+  "id": "L-fr-b",
+  "rule": "R22",
+  "fn": "looksWrong",
+  "text": "Le parapluie est utilisé quand il pleut",
+  "reader": "fr",
+  "target": null,
+  "source": null,
+  "expect": false,
+  "why": "フランス語の文はフランス語の読者に出す"
+ },
+ {
+  "id": "L-fr-c",
+  "rule": "R22",
+  "fn": "looksWrong",
+  "text": "La mitad del azúcar habitual. En Taiwán eliges el dulzor al pedir.",
+  "reader": "fr",
+  "target": null,
+  "source": null,
+  "expect": true,
+  "why": "スペイン語の解説はフランス語の読者に出さない"
+ },
+ {
+  "id": "L-en-fr",
+  "rule": "R22",
+  "fn": "looksWrong",
+  "text": "un nom de lieu",
+  "reader": "en",
+  "target": null,
+  "source": null,
+  "expect": true,
+  "why": "どの言語か決まらなくても、英語でない意味は英語の読者に出さない"
+ },
+ {
+  "id": "L-de-a",
+  "rule": "R22",
+  "fn": "looksWrong",
+  "text": "Es ist ein Schirm, den man bei Regen benutzt.",
+  "reader": "de",
+  "target": null,
+  "source": null,
+  "expect": false,
+  "why": "ドイツ語の文はドイツ語の読者に出す（es・in・an は他の言語にもある語）"
+ },
+ {
+  "id": "L-de-b",
+  "rule": "R22",
+  "fn": "looksWrong",
+  "text": "Ordinary stir-fried noodles. 鐵板麵 is served on an iron plate.",
+  "reader": "de",
+  "target": null,
+  "source": null,
+  "expect": true,
+  "why": "英語の解説はドイツ語の読者に出さない"
+ },
+ {
+  "id": "L-en-de",
+  "rule": "R22",
+  "fn": "looksWrong",
+  "text": "Es ist ein Schirm, den man bei Regen benutzt.",
+  "reader": "en",
+  "target": null,
+  "source": null,
+  "expect": true,
+  "why": "ドイツ語は英語の読者に出さない"
+ },
+ {
+  "id": "L-id-a",
+  "rule": "R22",
+  "fn": "looksWrong",
+  "text": "para siswa di kelas",
+  "reader": "id",
+  "target": null,
+  "source": null,
+  "expect": false,
+  "why": "インドネシア語はインドネシア語の読者に出す（para はスペイン語にもある語）"
+ },
+ {
+  "id": "L-vi-id",
+  "rule": "R22",
+  "fn": "looksWrong",
+  "text": "Kopi espresso dengan banyak susu panas.",
+  "reader": "vi",
+  "target": null,
+  "source": null,
+  "expect": true,
+  "why": "インドネシア語はベトナム語の読者に出さない"
+ },
+ {
   "id": "L-ko-a",
   "rule": "R22",
   "fn": "looksWrong",
