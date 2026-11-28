@@ -291,6 +291,7 @@
 				es,
 				ko,
 				vi,
+				de,
 			);
 			mainGroup = 105FC5712E9EAD3100EA8BCF;
 			packageReferences = (

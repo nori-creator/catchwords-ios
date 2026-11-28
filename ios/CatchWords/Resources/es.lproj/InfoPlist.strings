@@ -1,4 +1,4 @@
-/* Textos de los permisos (español) */
+/* Permission descriptions (Español) */
 "NSCameraUsageDescription" = "CatchWords usa la cámara para fotografiar lo que te rodea y guardarlo en tu colección como palabras del idioma que estás aprendiendo, y para tomar una selfie que acompañe a una palabra.";
 "NSLocationWhenInUseUsageDescription" = "CatchWords guarda la dirección (con el número de la calle) del lugar donde tomaste una foto, para que recuerdes cada palabra junto con ese recuerdo. Si activas los recordatorios por ubicación, también usa tu ubicación para avisarte cuando estés cerca de un lugar donde atrapaste una palabra.";
 "NSPhotoLibraryAddUsageDescription" = "CatchWords también guarda tus fotos en la app Fotos.";

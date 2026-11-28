@@ -108,6 +108,16 @@ nonisolated enum DisplayLanguages {
             markerLetters: "ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịĩọỏốồổỗộớờởỡợũụủứừửữựỳỵỷỹ",
             degreeGlosses: ["很": "rất", "超": "siêu", "非常": "cực kỳ", "有點": "hơi", "蠻": "khá", "好": "thật"]
         ),
+        DisplayLanguage(
+            code: "de", autonym: "Deutsch", nameJa: "ドイツ語", flag: "🇩🇪",
+            localeID: "de_DE", lproj: "de", devicePrefixes: ["de"], script: .latin,
+            listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
+            glossLimit: 24, legalDocs: false,
+            plurals: [:],
+            markerWords: ["aber", "auch", "auf", "aus", "bei", "das", "dass", "dem", "der", "des", "durch", "ein", "eine", "einen", "für", "haben", "hat", "ich", "ihr", "ist", "jetzt", "kein", "mit", "nach", "nicht", "noch", "nur", "oder", "schon", "sehr", "sich", "sind", "und", "von", "wenn", "werden", "wie", "wir", "wird", "zu"],
+            markerLetters: "ßäöü",
+            degreeGlosses: ["很": "sehr", "超": "super", "非常": "äußerst", "有點": "ein bisschen", "蠻": "ziemlich", "好": "so"]
+        ),
     ]
 
     static let codes: [String] = all.map(\.code)
