@@ -128,6 +128,16 @@ nonisolated enum DisplayLanguages {
             markerLetters: "àæçèéëîïùûÿœ",
             degreeGlosses: ["很": "très", "超": "super", "非常": "extrêmement", "有點": "un peu", "蠻": "plutôt", "好": "si"]
         ),
+        DisplayLanguage(
+            code: "id", autonym: "Bahasa Indonesia", nameJa: "インドネシア語", flag: "🇮🇩",
+            localeID: "id_ID", lproj: "id", devicePrefixes: ["id"], script: .latin,
+            listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
+            glossLimit: 24, legalDocs: false,
+            plurals: [:],
+            markerWords: ["adalah", "akan", "anda", "apa", "atau", "bagaimana", "bahwa", "banyak", "belum", "bisa", "dalam", "dan", "dari", "dengan", "harus", "ini", "itu", "jika", "juga", "kalau", "kami", "kamu", "karena", "ke", "kita", "lebih", "mereka", "oleh", "pada", "sangat", "saya", "sedang", "seperti", "sudah", "telah", "tersebut", "tetapi", "tidak", "untuk", "yang"],
+            markerLetters: "",
+            degreeGlosses: ["很": "sangat", "超": "super", "非常": "amat", "有點": "agak", "蠻": "cukup", "好": "begitu"]
+        ),
     ]
 
     static let codes: [String] = all.map(\.code)

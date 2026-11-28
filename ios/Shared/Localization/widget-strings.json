@@ -6,7 +6,8 @@
   "ko": "오늘의 단어",
   "vi": "Từ của hôm nay",
   "de": "Wort des Tages",
-  "fr": "Mot du jour"
+  "fr": "Mot du jour",
+  "id": "Kata Hari Ini"
  },
  "図鑑から毎日ひとつ、単語を表示します。": {
   "en": "A word from your collection, every day.",
@@ -15,7 +16,8 @@
   "ko": "도감에서 매일 단어 하나를 보여 줘요.",
   "vi": "Mỗi ngày một từ trong bộ sưu tập của bạn.",
   "de": "Jeden Tag ein Wort aus deiner Sammlung.",
-  "fr": "Un mot de ta collection, chaque jour."
+  "fr": "Un mot de ta collection, chaque jour.",
+  "id": "Satu kata dari koleksimu, setiap hari."
  },
  "復習": {
   "en": "Review",
@@ -24,7 +26,8 @@
   "ko": "복습",
   "vi": "Ôn tập",
   "de": "Wiederholung",
-  "fr": "Révision"
+  "fr": "Révision",
+  "id": "Pengulangan"
  },
  "復習するカードの枚数を表示します。": {
   "en": "Shows how many cards are due for review.",
@@ -33,7 +36,8 @@
   "ko": "복습할 카드 수를 보여 줘요.",
   "vi": "Hiển thị số thẻ cần ôn tập.",
   "de": "Zeigt, wie viele Karten zur Wiederholung fällig sind.",
-  "fr": "Affiche le nombre de cartes à réviser."
+  "fr": "Affiche le nombre de cartes à réviser.",
+  "id": "Menampilkan jumlah kartu yang perlu diulang."
  },
  "あと {1} 枚": {
   "en": "{1} left",
@@ -42,7 +46,8 @@
   "ko": "{1}장 남음",
   "vi": "Còn {1} thẻ",
   "de": "Noch {1}",
-  "fr": "Encore {1}"
+  "fr": "Encore {1}",
+  "id": "Sisa {1}"
  },
  "今日の復習は完了": {
   "en": "All caught up",
@@ -51,7 +56,8 @@
   "ko": "오늘 복습 완료",
   "vi": "Đã ôn xong hôm nay",
   "de": "Alles erledigt",
-  "fr": "Tout est à jour"
+  "fr": "Tout est à jour",
+  "id": "Semua sudah beres"
  },
  "写真を撮って単語を集めよう": {
   "en": "Take a photo to catch a word",
@@ -60,7 +66,8 @@
   "ko": "사진을 찍어 단어를 모아 보세요",
   "vi": "Chụp ảnh để bắt từ mới",
   "de": "Mach ein Foto und fang ein Wort",
-  "fr": "Prends une photo pour capturer un mot"
+  "fr": "Prends une photo pour capturer un mot",
+  "id": "Ambil foto untuk menangkap kata"
  },
  "{1} 語": {
   "en": "{1} words",
@@ -69,7 +76,8 @@
   "ko": "단어 {1}개",
   "vi": "{1} từ",
   "de": "{1} Wörter",
-  "fr": "{1} mots"
+  "fr": "{1} mots",
+  "id": "{1} kata"
  },
  "{1}日連続": {
   "en": "{1}-day streak",
@@ -78,7 +86,8 @@
   "ko": "{1}일 연속",
   "vi": "Chuỗi {1} ngày",
   "de": "{1} Tage in Folge",
-  "fr": "{1} jours d’affilée"
+  "fr": "{1} jours d’affilée",
+  "id": "{1} hari beruntun"
  },
  "復習中": {
   "en": "Reviewing",
@@ -87,7 +96,8 @@
   "ko": "복습 중",
   "vi": "Đang ôn tập",
   "de": "Wiederholung läuft",
-  "fr": "Révision en cours"
+  "fr": "Révision en cours",
+  "id": "Sedang mengulang"
  },
  "正解 {1}": {
   "en": "{1} correct",
@@ -96,7 +106,8 @@
   "ko": "정답 {1}",
   "vi": "Đúng {1}",
   "de": "{1} richtig",
-  "fr": "{1} bonnes réponses"
+  "fr": "{1} bonnes réponses",
+  "id": "{1} benar"
  },
  "復習おつかれさま": {
   "en": "Review complete",
@@ -105,7 +116,8 @@
   "ko": "복습 수고했어요",
   "vi": "Ôn xong rồi, giỏi lắm!",
   "de": "Wiederholung geschafft",
-  "fr": "Révision terminée"
+  "fr": "Révision terminée",
+  "id": "Pengulangan selesai"
  },
  "かさ": {
   "en": "umbrella",
@@ -114,6 +126,7 @@
   "ko": "우산",
   "vi": "cái ô",
   "de": "Regenschirm",
-  "fr": "parapluie"
+  "fr": "parapluie",
+  "id": "payung"
  }
 }
