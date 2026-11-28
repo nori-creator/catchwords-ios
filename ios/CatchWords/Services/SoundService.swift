@@ -435,6 +435,13 @@ final class SoundService {
         _ = audio(for: text)
     }
 
+    /// The server voice's recording of `text` (fetched once, then kept on the device): the pronunciation coach measures it
+    /// when no native has recorded the word yet (`NativeReference`).
+    func pronunciationAudio(for text: String) async -> Data? {
+        guard !text.isEmpty else { return nil }
+        return await audio(for: text).value
+    }
+
     private func audio(for text: String) -> Task<Data?, Never> {
         if let t = inflight[text] { return t }
         let file = Self.cacheURL(for: text)

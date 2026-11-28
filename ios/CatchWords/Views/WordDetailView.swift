@@ -578,6 +578,9 @@ struct WordDetailView: View {
                 .disabled(isSavingHead || isLocked)
                 .accessibilityLabel(L("単語を直す"))
                 Spacer(minLength: 8)
+                // 発音チェック (2026-11-28). Its sheet lives inside the button, not on this page.
+                PronunciationCoachButton(headword: headword, zhuyin: word?.readingZhuyin, pinyin: word?.pinyin,
+                                         language: learningLang)
                 DetailSpeakButton(text: headword, style: .hero)
             }
             // No part of speech (owner 2026-10-20: 「品詞の欄消していいわ。このアプリ内の単語はすべて名詞だから」) and no

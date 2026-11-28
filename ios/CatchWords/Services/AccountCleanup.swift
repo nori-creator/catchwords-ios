@@ -58,6 +58,9 @@ enum AccountCleanup {
         PraiseSchedule.removeRecord(userId: userId)
         // The photos it took off the home album that only this phone remembered.
         if let userId { UserDefaults.standard.removeObject(forKey: "album.hidden.local.\(userId)") }
+        // Its voice range and pronunciation scores (the coach; numbers only, the voice is never kept).
+        LearnerVoiceRange.removeRecords(userId: userId)
+        PronunciationHistory.removeRecords(userId: userId)
         // Which of its selfies had no person to cut out.
         if let userId { SelfieCutouts.shared.reset(deleting: userId) }
 
