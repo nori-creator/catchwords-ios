@@ -1,0 +1,1 @@
+CatchWords / test_6_zh_ja(): FullTourTests.swift:295: failed - [zh-TW/ja] the shutter is missing or disabled (typed search)

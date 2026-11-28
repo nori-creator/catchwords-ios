@@ -1,0 +1,52 @@
+     |                                                                                            `- warning: call to main actor-isolated static method 'parse' in a synchronous nonisolated context [#ActorIsolatedCall]
+     |                                    `- warning: call to main actor-isolated static method 'describe' in a synchronous nonisolated context [#ActorIsolatedCall]
+     |                               `- warning: result of call to 'update' is unused [#NoUsage]
+     |                              `- warning: call to main actor-isolated static method 'tint' in a synchronous nonisolated context [#ActorIsolatedCall]
+     |                       `- warning: result of call to 'update' is unused [#NoUsage]
+    |                                                                                                               `- warning: expression of type 'StickerDisplay.Bordered' is unused [#NoUsage]
+    |                                                                      `- warning: reference to captured var 'i' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+    |                                               `- warning: reference to captured var 'i' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+    |                                        `- warning: call to main actor-isolated static method 'radius(for:)' in a synchronous nonisolated context [#ActorIsolatedCall]
+    |                                        `- warning: reference to captured var 'i' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+    |                                        `- warning: reference to captured var 'layer' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+    |                      `- warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+    |                      `- warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+    |                     `- warning: call to main actor-isolated static method 'sectionPoint' in a synchronous nonisolated context [#ActorIsolatedCall]
+    |                     `- warning: capture of 'session' with non-Sendable type 'AVCaptureSession' in a '@Sendable' closure [#SendableClosureCaptures]
+    |               `- warning: 'i' mutated after capture by sendable closure
+    |               `- warning: result of call to 'update' is unused [#NoUsage]
+    |             `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'NSLock', consider removing it
+    |     `- warning: '@discardableResult' declared on a function returning 'Void' is unnecessary
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'DateFormatter', consider removing it
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'MainStackSampler.Demangle?' (aka 'Optional<@convention(c) (Optional<UnsafePointer<Int8>>, Int, Optional<UnsafeMutablePointer<Int8>>, Optional<UnsafeMutablePointer<Int>>, UInt32) -> Optional<UnsafeMutablePointer<Int8>>>'), consider removing it
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'AVFoundation' [#AddPreconcurrencyImport]
+   |                     `- warning: 'appStoreReceiptURL' was deprecated in iOS 18.0: Use AppTransaction.shared and Transaction.all from StoreKit.framework instead [#DeprecatedDeclaration]
+ios/CatchWords/Services/CameraService.swift:1:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'AVFoundation' [#AddPreconcurrencyImport]
+ios/CatchWords/Services/CameraService.swift:113:40: warning: reference to captured var 'layer' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+ios/CatchWords/Services/CameraService.swift:56:21: warning: capture of 'session' with non-Sendable type 'AVCaptureSession' in a '@Sendable' closure [#SendableClosureCaptures]
+ios/CatchWords/Services/Demo/MainStackSampler.swift:103:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'MainStackSampler.Demangle?' (aka 'Optional<@convention(c) (Optional<UnsafePointer<Int8>>, Int, Optional<UnsafeMutablePointer<Int8>>, Optional<UnsafeMutablePointer<Int>>, UInt32) -> Optional<UnsafeMutablePointer<Int8>>>'), consider removing it
+ios/CatchWords/Services/DiaryStore.swift:249:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'DateFormatter', consider removing it
+ios/CatchWords/Services/DiaryStore.swift:257:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'DateFormatter', consider removing it
+ios/CatchWords/Services/ErrorReporting.swift:89:21: warning: 'appStoreReceiptURL' was deprecated in iOS 18.0: Use AppTransaction.shared and Transaction.all from StoreKit.framework instead [#DeprecatedDeclaration]
+ios/CatchWords/ViewModels/CaptureViewModel.swift:557:111: warning: expression of type 'StickerDisplay.Bordered' is unused [#NoUsage]
+ios/CatchWords/ViewModels/ProfileStore.swift:152:5: warning: '@discardableResult' declared on a function returning 'Void' is unnecessary
+ios/CatchWords/ViewModels/ProfileStore.swift:225:15: warning: result of call to 'update' is unused [#NoUsage]
+ios/CatchWords/Views/AdminAiStatsCard.swift:403:47: warning: reference to captured var 'i' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+ios/CatchWords/Views/AdminAiStatsCard.swift:404:40: warning: reference to captured var 'i' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+ios/CatchWords/Views/AdminAiStatsCard.swift:404:70: warning: reference to captured var 'i' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+ios/CatchWords/Views/AdminAiStatsCard.swift:410:15: warning: 'i' mutated after capture by sendable closure
+ios/CatchWords/Views/CardCatch/CatchStage.swift:317:22: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+ios/CatchWords/Views/CardCatch/CatchStage.swift:319:22: warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+ios/CatchWords/Views/CardCatch/CatchStage.swift:505:22: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+ios/CatchWords/Views/CardCatch/CatchStage.swift:507:22: warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+ios/CatchWords/Views/CardCatch/DexGallery.swift:481:13: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'NSLock', consider removing it
+ios/CatchWords/Views/OnboardingView.swift:582:23: warning: result of call to 'update' is unused [#NoUsage]
+ios/CatchWords/Views/OnboardingView.swift:586:23: warning: result of call to 'update' is unused [#NoUsage]
+ios/CatchWords/Views/OnboardingView.swift:728:30: warning: call to main actor-isolated static method 'tint' in a synchronous nonisolated context [#ActorIsolatedCall]
+ios/CatchWords/Views/OnboardingView.swift:828:36: warning: call to main actor-isolated static method 'describe' in a synchronous nonisolated context [#ActorIsolatedCall]
+ios/CatchWords/Views/SettingsView.swift:918:31: warning: result of call to 'update' is unused [#NoUsage]
+ios/CatchWords/Views/TourGuide.swift:286:40: warning: call to main actor-isolated static method 'radius(for:)' in a synchronous nonisolated context [#ActorIsolatedCall]
+ios/CatchWords/Views/TourGuide.swift:537:21: warning: call to main actor-isolated static method 'sectionPoint' in a synchronous nonisolated context [#ActorIsolatedCall]
+ios/CatchWords/Views/UIPreview.swift:17:92: warning: call to main actor-isolated static method 'parse' in a synchronous nonisolated context [#ActorIsolatedCall]
+warning: Conditional compilation flags do not have values in Swift; they are either present or absent (rather than '_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG') (in target 'GoogleMobileAdsTarget' from project 'GoogleMobileAds')
+warning: Conditional compilation flags do not have values in Swift; they are either present or absent (rather than '_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG') (in target 'SentryCppHelper' from project 'Sentry')
