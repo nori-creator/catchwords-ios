@@ -85,7 +85,7 @@ nonisolated enum DisplayLanguages {
             glossLimit: 24, legalDocs: false,
             plurals: ["palabras": "palabra", "días": "día", "fotos": "foto", "veces": "vez", "llamadas": "llamada", "correctas": "correcta", "repasos": "repaso", "usuarios": "usuario", "fallidas": "fallida", "tarjetas": "tarjeta", "pendientes": "pendiente", "selecciones": "selección", "meses": "mes", "sesiones": "sesión", "reportes": "reporte", "segundos": "segundo", "formas": "forma", "minutos": "minuto", "horas": "hora", "stickers": "sticker"],
             markerWords: ["el", "la", "los", "las", "del", "de", "que", "en", "un", "una", "unos", "unas", "es", "son", "por", "para", "se", "su", "sus", "al", "lo", "como", "más", "muy", "pero", "este", "esta", "estos", "estas", "también", "cuando", "donde", "sin", "sobre", "entre", "hay", "está", "están", "ser", "puede", "algo", "alguien"],
-            markerLetters: "ñ¿¡",
+            markerLetters: "ñ¿¡é",
             degreeGlosses: ["很": "muy", "超": "súper", "非常": "extremadamente", "有點": "un poco", "蠻": "bastante", "好": "tan"]
         ),
         DisplayLanguage(
@@ -134,7 +134,7 @@ nonisolated enum DisplayLanguages {
             listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
             glossLimit: 24, legalDocs: false,
             plurals: [:],
-            markerWords: ["adalah", "akan", "anda", "apa", "atau", "bagaimana", "bahwa", "banyak", "belum", "bisa", "dalam", "dan", "dari", "dengan", "harus", "ini", "itu", "jika", "juga", "kalau", "kami", "kamu", "karena", "ke", "kita", "lebih", "mereka", "oleh", "pada", "sangat", "saya", "sedang", "seperti", "sudah", "telah", "tersebut", "tetapi", "tidak", "untuk", "yang", "para", "di", "ada", "saat", "orang"],
+            markerWords: ["adalah", "akan", "anda", "apa", "atau", "bagaimana", "bahwa", "banyak", "belum", "bisa", "dalam", "dan", "dari", "dengan", "harus", "ini", "itu", "jika", "juga", "kalau", "kami", "kamu", "karena", "ke", "kita", "lebih", "mereka", "oleh", "pada", "sangat", "saya", "sedang", "seperti", "sudah", "telah", "tersebut", "tetapi", "tidak", "untuk", "yang", "para", "di", "ada", "saat", "orang", "es"],
             markerLetters: "",
             degreeGlosses: ["很": "sangat", "超": "super", "非常": "amat", "有點": "agak", "蠻": "cukup", "好": "begitu"]
         ),

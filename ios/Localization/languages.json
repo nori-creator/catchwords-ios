@@ -230,7 +230,7 @@
         "algo",
         "alguien"
       ],
-      "markerLetters": "ñ¿¡",
+      "markerLetters": "ñ¿¡é",
       "degreeGlosses": {
         "很": "muy",
         "超": "súper",
@@ -561,7 +561,8 @@
         "di",
         "ada",
         "saat",
-        "orang"
+        "orang",
+        "es"
       ],
       "markerLetters": "",
       "degreeGlosses": {

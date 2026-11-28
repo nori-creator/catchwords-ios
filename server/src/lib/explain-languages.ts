@@ -200,7 +200,7 @@ export const EXPLAIN_LANGUAGES = [
       "algo",
       "alguien",
     ],
-    markerLetters: "ñ¿¡",
+    markerLetters: "ñ¿¡é", // é はフランス語と同じ字。両方に数える（「Té de burbujas」をスペイン語の読者から外さない）
     writingRule: "Use neutral Spanish leaning Latin American, and address the learner as tú.",
     contentStyle:
       "Spanish: full sentences with their articles and prepositions (not telegraphic). Say it as a native speaker would, not a calque: " +
@@ -461,6 +461,7 @@ export const EXPLAIN_LANGUAGES = [
       "ada",
       "saat",
       "orang",
+      "es",
     ],
     markerLetters: "",
     writingRule: "Write standard Indonesian (not Malaysian Malay) and address the learner as kamu.",
