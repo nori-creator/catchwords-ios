@@ -105,7 +105,7 @@ nonisolated enum DisplayLanguages {
             glossLimit: 24, legalDocs: false,
             plurals: [:],
             markerWords: ["của", "và", "là", "một", "có", "không", "cho", "với", "này", "được", "những", "các", "người", "trong", "khi", "để", "cũng", "đã", "rất", "thì", "mà", "nhưng", "hoặc", "nên", "từ", "khác", "đó", "gì"],
-            markerLetters: "ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịĩọỏốồổỗộớờởỡợũụủứừửữựỳỵỷỹ",
+            markerLetters: "ăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịĩọỏốồổỗộớờởỡợũụủứừửữựỳỵỷỹ",
             degreeGlosses: ["很": "rất", "超": "siêu", "非常": "cực kỳ", "有點": "hơi", "蠻": "khá", "好": "thật"]
         ),
         DisplayLanguage(
@@ -114,9 +114,19 @@ nonisolated enum DisplayLanguages {
             listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
             glossLimit: 24, legalDocs: false,
             plurals: [:],
-            markerWords: ["aber", "auch", "auf", "aus", "bei", "das", "dass", "dem", "der", "des", "durch", "ein", "eine", "einen", "für", "haben", "hat", "ich", "ihr", "ist", "jetzt", "kein", "mit", "nach", "nicht", "noch", "nur", "oder", "schon", "sehr", "sich", "sind", "und", "von", "wenn", "werden", "wie", "wir", "wird", "zu"],
-            markerLetters: "ßäöü",
+            markerWords: ["aber", "auch", "auf", "aus", "bei", "das", "dass", "dem", "der", "durch", "ein", "eine", "einen", "für", "haben", "hat", "ich", "ihr", "ist", "jetzt", "kein", "mit", "nach", "nicht", "noch", "nur", "oder", "schon", "sehr", "sich", "sind", "und", "von", "wenn", "werden", "wie", "wir", "wird", "zu"],
+            markerLetters: "ßäö",
             degreeGlosses: ["很": "sehr", "超": "super", "非常": "äußerst", "有點": "ein bisschen", "蠻": "ziemlich", "好": "so"]
+        ),
+        DisplayLanguage(
+            code: "fr", autonym: "Français", nameJa: "フランス語", flag: "🇫🇷",
+            localeID: "fr_FR", lproj: "fr", devicePrefixes: ["fr"], script: .latin,
+            listSeparator: ", ", openBracket: " (", closeBracket: ")", placeSeparator: ", ",
+            glossLimit: 24, legalDocs: false,
+            plurals: [:],
+            markerWords: ["au", "aussi", "aux", "avec", "avoir", "c'est", "ce", "cette", "chez", "comme", "dans", "du", "elles", "est", "et", "fait", "ils", "je", "les", "leur", "mais", "ne", "notre", "nous", "pas", "peut", "pour", "qui", "sans", "sont", "sur", "tout", "très", "une", "votre", "vous", "était", "été", "être"],
+            markerLetters: "àæçèéëîïùûÿœ",
+            degreeGlosses: ["很": "très", "超": "super", "非常": "extrêmement", "有點": "un peu", "蠻": "plutôt", "好": "si"]
         ),
     ]
 
