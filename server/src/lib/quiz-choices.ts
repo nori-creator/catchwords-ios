@@ -37,6 +37,10 @@ export const FALLBACK_MEANINGS_BY_LANG: Readonly<Record<ExplainLang, readonly st
   es: ["otro objeto", "un nombre de lugar", "un cargo", "una forma de decir la hora"],
   ko: ["다른 물건", "장소 이름", "직책", "시간을 말하는 표현"],
   vi: ["một đồ vật khác", "tên một địa điểm", "một chức danh", "cách nói thời gian"],
+  // 2026-11-28: 表示言語に足した3つ。
+  de: ["ein anderer Gegenstand", "ein Ortsname", "eine Berufsbezeichnung", "eine Zeitangabe"],
+  fr: ["un autre objet", "un nom de lieu", "un titre de poste", "une façon de dire l'heure"],
+  id: ["benda lain", "nama tempat", "nama jabatan", "cara menyebut waktu"],
 };
 
 /**

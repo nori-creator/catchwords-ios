@@ -388,7 +388,22 @@
         "wie",
         "wir",
         "wird",
-        "zu"
+        "zu",
+        "die",
+        "den",
+        "es",
+        "in",
+        "an",
+        "was",
+        "du",
+        "im",
+        "man",
+        "zum",
+        "zur",
+        "kann",
+        "etwas",
+        "dieser",
+        "diese"
       ],
       "markerLetters": "ßäöü",
       "degreeGlosses": {
@@ -459,7 +474,18 @@
         "vous",
         "était",
         "été",
-        "être"
+        "être",
+        "de",
+        "la",
+        "un",
+        "que",
+        "en",
+        "se",
+        "son",
+        "on",
+        "le",
+        "il",
+        "elle"
       ],
       "markerLetters": "àâæçèéêëîïôùûüÿœ",
       "degreeGlosses": {
@@ -530,7 +556,12 @@
         "tetapi",
         "tidak",
         "untuk",
-        "yang"
+        "yang",
+        "para",
+        "di",
+        "ada",
+        "saat",
+        "orang"
       ],
       "markerLetters": "",
       "degreeGlosses": {

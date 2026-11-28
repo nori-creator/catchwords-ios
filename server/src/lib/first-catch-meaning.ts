@@ -1,5 +1,5 @@
 import { CHINESE_ONLY } from "./note-language";
-import { explainScript, latinLanguageOf, type ExplainLang } from "./explain-languages";
+import { explainScript, latinLanguageOtherThan, type ExplainLang } from "./explain-languages";
 import { fitsReaderLanguage } from "./meaning-language";
 
 /**
@@ -76,7 +76,7 @@ export function readerMeaning(
  * 文の中に学習言語の語を引くことがある（英語の説明に「咖啡」、中文の説明に「latte」）。
  * はっきり別の言語の文だけを落とす:
  * - 欧文の読み手（英語・スペイン語・ベトナム語）… ラテン文字が1つも無く、漢字・かな・ハングルだけの文。
- *   別の欧文の言語だとはっきり分かる文（`latinLanguageOf`）
+ *   別の欧文の言語だとはっきり分かる文（`latinLanguageOtherThan` — 読む人の言語よりはっきり多い時）
  * - 繁體中文の読み手 … かな・ハングルが在る文（学習言語が日本語の時のかなは除く）、またはラテン文字だけの文
  * - 韓国語の読み手 … ハングルが無く、漢字・かな・ラテン文字の文
  * - 日本語の読み手 … `fitsReaderLanguage` と同じ（かなが在れば通す）
@@ -95,8 +95,7 @@ export function fitsReaderNote(
   switch (explainScript(reader)) {
     case "latin": {
       if (!latin && (han || kana || hangul)) return false;
-      const other = latinLanguageOf(text);
-      return !other || other === reader;
+      return latinLanguageOtherThan(text, reader) === null;
     }
     case "kana":
       return fitsReaderLanguage(s, "ja");

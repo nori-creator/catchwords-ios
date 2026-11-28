@@ -61,21 +61,17 @@ def swift_dict(d):
     return "[" + ", ".join(f"{swift_str(k)}: {swift_str(v)}" for k, v in d.items()) + "]"
 
 
-def unique_markers(data):
-    """Per Latin-script language, the marker words and letters no other listed Latin-script language has, so a
-    text's language can be told apart among them (they change as languages are added)."""
-    latin = [l for l in data["languages"] if l["script"] == "latin"]
-    out = {}
-    for l in latin:
-        others = [o for o in latin if o["code"] != l["code"]]
-        words = [w for w in l["markerWords"] if not any(w in o["markerWords"] for o in others)]
-        letters = "".join(c for c in l["markerLetters"] if not any(c in o["markerLetters"] for o in others))
-        out[l["code"]] = (words, letters)
-    return out
+def latin_markers(data):
+    """Per Latin-script language, its marker words and letters as listed. A word two languages list (French and
+    Spanish both have de, la, un) counts for both: `LanguageRules.latinLanguage(of:otherThan:)` compares the reader's
+    own count with the other languages', so a French meaning stays with a French reader and still leaves an English
+    one (2026-11-28, de/fr/id; before, only the words no other language had were kept, and «un nom de lieu» read as
+    Spanish). The server counts the same lists the same way (server/src/lib/explain-languages.ts)."""
+    return {l["code"]: (list(l["markerWords"]), l["markerLetters"]) for l in data["languages"] if l["script"] == "latin"}
 
 
 def render(data):
-    markers = unique_markers(data)
+    markers = latin_markers(data)
     rows = []
     for l in data["languages"]:
         words, letters = markers.get(l["code"], ([], ""))
